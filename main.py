@@ -148,25 +148,46 @@ def insertar_imagenes_en_docx(ruta_doc: str):
     else:
         print(f"Códigos detectados: {', '.join(codigos)}")
 
+    # Parámetros de formato
+    margen_superior = Inches(0.2)  # separación vertical para evitar el encabezado
+    ancho_pagina = 6.0             # ancho total disponible en pulgadas (A4 ≈ 6.3 útil)
+    espacio_entre = 0.15           # espacio entre imágenes (en pulgadas)
+
+    # Calcular el ancho proporcional de cada imagen
+    num_imgs = len(codigos)
+    if num_imgs > 0:
+        ancho_imagen = max(1.2, (ancho_pagina - espacio_entre * (num_imgs - 1)) / num_imgs)
+    else:
+        ancho_imagen = 2.5
+
     for p in doc.paragraphs:
-        for i, codigo in enumerate(codigos, start=1):
-            etiqueta = f"${{etiqueta{i}}}"
-            if etiqueta in p.text:
+        if "${etiqueta1}" in p.text:
+            p.clear()
+            run = p.add_run()
+            print(f"Inserción múltiple de imágenes ({num_imgs}) en posición de etiqueta1.")
+
+            # Añadimos un salto de línea y margen superior
+            run.add_text("\n")
+            run.add_text(" " * 4)  # leve desplazamiento hacia la derecha
+            run.add_break()
+
+            for i, codigo in enumerate(codigos, start=1):
                 img_path = buscar_imagen(carpeta_imagenes, codigo)
                 if img_path:
-                    p.clear()
-                    run = p.add_run()
                     try:
-                        run.add_picture(img_path, width=Inches(2.5))
-                        print(f"Imagen insertada: {os.path.basename(img_path)}")
+                        run.add_picture(img_path, width=Inches(ancho_imagen))
+                        if i < num_imgs:
+                            run.add_text(" " * 4)  # separación horizontal
+                        print(f"Imagen insertada: {os.path.basename(img_path)} ({round(ancho_imagen, 2)} in)")
                     except Exception as e:
                         print(f"Error al insertar imagen {img_path}: {e}")
                 else:
                     print(f"No se encontró la imagen para el código {codigo}")
 
+            break  # solo hay una etiqueta1 por documento
+
     doc.save(ruta_doc)
     print(f"Documento actualizado: {ruta_doc}\n")
-
 
 def procesar_lote(carpeta_docs="docs"):
     """Procesa todos los documentos .docx dentro de la carpeta especificada."""
