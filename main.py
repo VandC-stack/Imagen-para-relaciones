@@ -81,7 +81,6 @@ def normalizar_cadena_alnum_mayus(s: str) -> str:
     """Convierte a mayúsculas y quita todo lo no alfanumérico."""
     return re.sub(r'[^A-Za-z0-9]', '', s or '').upper()
 
-
 def buscar_imagen(carpeta_imagenes: str, codigo_canonico: str) -> str | None:
     """Busca la imagen ignorando mayúsculas/minúsculas."""
     codigo_canonico = (codigo_canonico or '').upper()
