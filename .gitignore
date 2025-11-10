@@ -1,7 +1,6 @@
 # Excluir carpeta docs y su contenido
 docs/
 docs/*
-config.json
 
 # Python
 __pycache__/
@@ -41,3 +40,7 @@ env/
 # Sistema operativo
 .DS_Store
 Thumbs.db
+
+# Archivos a ignorar
+config.json
+documentos_sin_imagenes.txt
