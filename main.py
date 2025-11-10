@@ -6,6 +6,19 @@ import unicodedata
 from tkinter import Tk, filedialog
 from docx import Document
 from docx.shared import Inches
+from docx.text.paragraph import Paragraph
+from docx.oxml import OxmlElement
+
+# ------------------------------------------------------------
+# MÓDULO DE REGISTRO DE FALLOS
+# ------------------------------------------------------------
+try:
+    from registro_fallos import registrar_fallo, limpiar_registro, mostrar_registro
+except Exception as e:
+    print(f"Error al importar registro_fallos: {e}")
+    registrar_fallo = None
+    limpiar_registro = None
+    mostrar_registro = None
 
 # ------------------------------------------------------------
 # CONFIGURACIÓN Y ENTRADA/SALIDA
@@ -13,7 +26,6 @@ from docx.shared import Inches
 sys.stdout.reconfigure(encoding="utf-8")
 CONFIG_FILE = os.path.abspath("config.json")
 
-# Palabras que jamás deben considerarse “códigos”
 FORBIDDEN_TOKENS = {
     "TOTAL", "CANTIDAD", "FACTURA", "MARCA", "DESCRIPCION", "DESCRIPCIÓN",
     "FECHA", "CONTRATO", "PRESENTACION", "PRESENTACIÓN", "SISTEMA",
@@ -27,7 +39,6 @@ IMG_EXTS = {".png", ".jpg", ".jpeg", ".bmp", ".tif", ".tiff", ".webp"}
 # UTILIDADES DE RUTA / PERSISTENCIA
 # ------------------------------------------------------------
 def resolver_onedrive_path(ruta):
-    """Convierte rutas OneDrive en absolutas locales (maneja espacios dobles)."""
     ruta = os.path.abspath(ruta).replace("\\", "/")
     if "OneDrive" in ruta:
         userprofile = os.environ.get("USERPROFILE", "")
@@ -92,9 +103,7 @@ def validar_carpeta_imagenes(carpeta_imagenes: str) -> int:
 # NORMALIZACIÓN DE TEXTO / CÓDIGOS
 # ------------------------------------------------------------
 def _sin_acentos(s: str) -> str:
-    return "".join(
-        c for c in unicodedata.normalize("NFD", s) if unicodedata.category(c) != "Mn"
-    )
+    return "".join(c for c in unicodedata.normalize("NFD", s) if unicodedata.category(c) != "Mn")
 
 def normalizar_cadena_alnum_mayus(s: str) -> str:
     return re.sub(r"[^A-Za-z0-9]", "", s or "").upper()
@@ -103,10 +112,9 @@ def contiene_digito(s: str) -> bool:
     return any(c.isdigit() for c in s or "")
 
 # ------------------------------------------------------------
-# INDEXADO DE IMÁGENES Y BÚSQUEDA ANTIDUPLICADOS
+# INDEXADO DE IMÁGENES
 # ------------------------------------------------------------
 def indexar_imagenes(carpeta_imagenes: str):
-    """Regresa una lista de dicts con info de cada imagen (index en memoria)."""
     index = []
     try:
         for nombre in os.listdir(carpeta_imagenes):
@@ -126,22 +134,12 @@ def indexar_imagenes(carpeta_imagenes: str):
     return index
 
 def norm_path_key(path: str) -> str:
-    """Clave normalizada de ruta para evitar duplicados por mayúsculas/sep."""
     return os.path.normcase(os.path.normpath(path or ""))
 
 def buscar_imagen_index(index, codigo_canonico: str, usadas_paths: set, usadas_bases: set) -> str | None:
-    """
-    Busca imagen para 'codigo_canonico' en el índice:
-      - Prioriza coincidencia EXACTA (base_norm == código).
-      - Si no hay, busca PARCIAL (contiene/está contenido).
-      - Evita duplicados por ruta y por base_norm.
-      - En parciales prioriza startswith/endswith y menor diferencia de longitud.
-    """
     code = normalizar_cadena_alnum_mayus(codigo_canonico)
     if not code:
         return None
-
-    # Primero, exactos
     exactos = [
         it for it in index
         if it["base_norm"] == code
@@ -150,8 +148,6 @@ def buscar_imagen_index(index, codigo_canonico: str, usadas_paths: set, usadas_b
     ]
     if exactos:
         return exactos[0]["path"]
-
-    # Luego, parciales
     parciales = [
         it for it in index
         if (code in it["base_norm"] or it["base_norm"] in code)
@@ -160,30 +156,22 @@ def buscar_imagen_index(index, codigo_canonico: str, usadas_paths: set, usadas_b
     ]
     if not parciales:
         return None
-
-    # Orden de afinidad: empieza/termina + menor delta de longitud + nombre
     def score(it):
         bn = it["base_norm"]
         starts = bn.startswith(code)
         ends = bn.endswith(code)
         delta = abs(len(bn) - len(code))
-        # Menor score = mejor
-        return (
-            0 if starts or ends else 1,
-            delta,
-            bn
-        )
+        return (0 if starts or ends else 1, delta, bn)
     parciales.sort(key=score)
     return parciales[0]["path"]
 
 # ------------------------------------------------------------
-# EXTRACCIÓN DE CÓDIGOS DESDE TABLAS
+# EXTRACCIÓN DE CÓDIGOS
 # ------------------------------------------------------------
 def extraer_codigos(doc: Document) -> list[str]:
     codigos: list[str] = []
-
     patron_general = re.compile(r"[A-Za-z0-9][A-Za-z0-9.\-]{4,}", re.IGNORECASE)
-    patron_bosch = re.compile(r"(?:No\.?\s*)?(\d(?:\s?\d){8,12})")  # 9–13 dígitos
+    patron_bosch = re.compile(r"(?:No\.?\s*)?(\d(?:\s?\d){8,12})")
 
     def limpiar(s: str) -> str:
         return (s or "").replace("\xa0", " ").replace("\n", " ").strip()
@@ -191,8 +179,6 @@ def extraer_codigos(doc: Document) -> list[str]:
     for tabla in doc.tables:
         if not tabla.rows:
             continue
-
-        # Intento de localizar columna de código para reducir ruido
         idx_codigo = None
         for r in range(min(3, len(tabla.rows))):
             for i, celda in enumerate(tabla.rows[r].cells):
@@ -218,32 +204,24 @@ def extraer_codigos(doc: Document) -> list[str]:
                 texto = limpiar(celdas[j].text)
                 if not texto:
                     continue
-
-                # Secuencia de dígitos tipo Bosch
                 for m in patron_bosch.findall(texto):
                     num = re.sub(r"\s+", "", m)
                     if 8 <= len(num) <= 13:
                         codigos.append(num)
-
-                # Alfanum genérico
                 for m in patron_general.findall(texto):
                     canon = normalizar_cadena_alnum_mayus(m)
                     if not canon:
                         continue
-                    # Debe contener al menos 1 dígito (evita FECHA, MODELO, etc.)
                     if not contiene_digito(canon):
                         continue
                     if canon in FORBIDDEN_TOKENS:
                         continue
-
                     if canon.isdigit():
                         if 8 <= len(canon) <= 13:
                             codigos.append(canon)
                     else:
                         if 5 <= len(canon) <= 24:
                             codigos.append(canon)
-
-    # Deduplicado conservando orden
     vistos = set()
     resultado = []
     for c in codigos:
@@ -275,36 +253,30 @@ def _insert_paragraph_after_table(doc: Document, table):
 def insertar_imagenes_en_docx(ruta_doc: str):
     print(f"Procesando documento: {ruta_doc}")
     doc = Document(ruta_doc)
-
     carpeta_imagenes = obtener_ruta_carpeta()
     if not carpeta_imagenes:
         print("No se pudo obtener una carpeta válida para las imágenes.")
+        if registrar_fallo:
+            registrar_fallo(os.path.basename(ruta_doc))
         return
-
     validar_carpeta_imagenes(carpeta_imagenes)
-
-    # Indexar una sola vez por documento
     index = indexar_imagenes(carpeta_imagenes)
-
     codigos = extraer_codigos(doc)
     if not codigos:
         print("No se encontraron códigos válidos en las tablas.")
+        if registrar_fallo:
+            registrar_fallo(os.path.basename(ruta_doc))
         return
     else:
         print(f"Códigos detectados: {', '.join(codigos)}")
-
     ancho_pagina = 6.0
     espacio_entre = 0.15
     num_imgs = len(codigos)
     ancho_imagen = max(1.2, (ancho_pagina - espacio_entre * (num_imgs - 1)) / max(1, num_imgs))
-
     etiqueta_encontrada = False
-
-    # Conjuntos antiduplicados (por ruta y por base_norm)
+    imagen_insertada = False
     usadas_paths = set()
     usadas_bases = set()
-
-    # 1) Intento por etiqueta
     for p in doc.paragraphs:
         if "${etiqueta1}" in (p.text or ""):
             etiqueta_encontrada = True
@@ -312,29 +284,24 @@ def insertar_imagenes_en_docx(ruta_doc: str):
             run = p.add_run()
             print(f"Inserción múltiple de imágenes ({num_imgs}) en etiqueta1.")
             run.add_text("\n" * 4)
-
             for i, codigo in enumerate(codigos, start=1):
                 img_path = buscar_imagen_index(index, codigo, usadas_paths, usadas_bases)
                 if img_path:
-                    # Marcar usados por ruta y por nombre base normalizado
                     usadas_paths.add(norm_path_key(img_path))
                     base_norm_img = normalizar_cadena_alnum_mayus(os.path.splitext(os.path.basename(img_path))[0])
                     usadas_bases.add(base_norm_img)
-
                     insertar_imagen_con_transparencia(run, img_path, ancho_imagen)
                     if i < num_imgs:
                         run.add_text("   ")
+                    imagen_insertada = True
                     print(f"Imagen insertada: {os.path.basename(img_path)}")
                 else:
                     print(f"No se encontró la imagen para el código {codigo}")
             break
-
-    # 2) Si no hay etiqueta, insertar debajo de la tabla con códigos
     if not etiqueta_encontrada:
         print("No se encontró ${etiqueta1}. Buscando tabla correcta para insertar las imágenes...")
         cod_set = set(normalizar_cadena_alnum_mayus(c) for c in codigos)
         tabla_objetivo = None
-
         for tabla in doc.tables:
             contiene_codigo = False
             for fila in tabla.rows:
@@ -348,42 +315,28 @@ def insertar_imagenes_en_docx(ruta_doc: str):
             if contiene_codigo:
                 tabla_objetivo = tabla
                 break
-
-        if tabla_objetivo is None:
-            for tabla in doc.tables:
-                for fila in tabla.rows:
-                    for celda in fila.cells:
-                        texto = (celda.text or "").upper().strip()
-                        if "OBSERVACIONES" in texto:
-                            tabla_objetivo = tabla
-                            break
-                    if tabla_objetivo:
-                        break
-                if tabla_objetivo:
-                    break
-
         if tabla_objetivo is not None:
             p = _insert_paragraph_after_table(doc, tabla_objetivo)
             p.alignment = 1
             p.paragraph_format.space_before = Inches(1.0)
             run = p.add_run()
-
             for i, codigo in enumerate(codigos, start=1):
                 img_path = buscar_imagen_index(index, codigo, usadas_paths, usadas_bases)
                 if img_path:
                     usadas_paths.add(norm_path_key(img_path))
                     base_norm_img = normalizar_cadena_alnum_mayus(os.path.splitext(os.path.basename(img_path))[0])
                     usadas_bases.add(base_norm_img)
-
                     insertar_imagen_con_transparencia(run, img_path, ancho_imagen)
                     if i < num_imgs:
                         run.add_text("   ")
+                    imagen_insertada = True
                     print(f"Imagen insertada (debajo de tabla): {os.path.basename(img_path)}")
                 else:
                     print(f"No se encontró la imagen para el código {codigo}")
         else:
             print("No se encontró ninguna tabla adecuada para insertar las imágenes.")
-
+    if not imagen_insertada and registrar_fallo:
+        registrar_fallo(os.path.basename(ruta_doc))
     doc.save(ruta_doc)
     print(f"Documento actualizado: {ruta_doc}\n")
 
@@ -391,21 +344,28 @@ def insertar_imagenes_en_docx(ruta_doc: str):
 # PROCESAMIENTO POR LOTES
 # ------------------------------------------------------------
 def procesar_lote(carpeta_docs="docs"):
+    if limpiar_registro:
+        limpiar_registro()
     if not os.path.exists(carpeta_docs):
         print(f"La carpeta '{carpeta_docs}' no existe. Créala y coloca los documentos dentro.")
         return
-
-    archivos = [f for f in os.listdir(carpeta_docs) if f.endswith(".docx")]
+    archivos = [
+        f for f in os.listdir(carpeta_docs)
+        if f.endswith(".docx") and not f.startswith("~$")
+    ]
     if not archivos:
         print(f"No se encontraron archivos .docx en '{carpeta_docs}'.")
         return
-
     print(f"Se encontraron {len(archivos)} documentos en '{carpeta_docs}'. Iniciando procesamiento...\n")
     for archivo in archivos:
         ruta_doc = os.path.join(carpeta_docs, archivo)
         insertar_imagenes_en_docx(ruta_doc)
-
-    print("Procesamiento por lotes completado.")
+    print("Procesamiento por lotes completado.\n")
+    if mostrar_registro:
+        mostrar_registro()
+    log_file = os.path.abspath("documentos_sin_imagenes.txt")
+    if os.path.exists(log_file):
+        os.startfile(log_file)
 
 # ------------------------------------------------------------
 # EJECUCIÓN
