@@ -1,6 +1,7 @@
 # Excluir carpeta docs y su contenido
 docs/
 docs/*
+config.json
 
 # Python
 __pycache__/
