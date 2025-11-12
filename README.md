@@ -1,1 +1,0 @@
-# Imagen-para-relaciones

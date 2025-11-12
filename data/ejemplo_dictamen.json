@@ -1,0 +1,22 @@
+[
+  {
+    "Cliente": "Bosch México",
+    "RFC": "BMX123456T12",
+    "Norma": "NOM-024",
+    "DescripcionNorma": "Información Comercial de Productos Eléctricos",
+    "Producto": "Lavadora Automática",
+    "Pedimento": "1234567890",
+    "FechaVerificacion": "2025-11-10",
+    "FechaVerificacionLarga": "10 de noviembre de 2025",
+    "Marca": "Bosch",
+    "Codigo": "BOS123",
+    "Factura": "F001",
+    "Cantidad": "25",
+    "TotalCantidad": "25 unidades",
+    "Observaciones": "Cumple con la norma.",
+    "FirmaInspector": "Juan Pérez",
+    "FirmaSupervisor": "María López",
+    "NombreInspector": "Juan Pérez",
+    "NombreSupervisor": "María López"
+  }
+]
