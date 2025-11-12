@@ -5,8 +5,7 @@ import re
 import unicodedata
 from tkinter import Tk, filedialog
 from docx import Document
-from docx.shared import Inches, Cm
-from docx.text.paragraph import Paragraph
+from docx.shared import Inches
 from PIL import Image
 
 # ------------------------------------------------------------
@@ -23,7 +22,11 @@ except Exception as e:
 # ------------------------------------------------------------
 # CONFIGURACIÓN
 # ------------------------------------------------------------
-sys.stdout.reconfigure(encoding="utf-8")
+try:
+    sys.stdout.reconfigure(encoding="utf-8")
+except (AttributeError, Exception):
+    pass
+
 CONFIG_FILE = os.path.abspath("config.json")
 
 FORBIDDEN_TOKENS = {
@@ -36,49 +39,62 @@ FORBIDDEN_TOKENS = {
 IMG_EXTS = {".png", ".jpg", ".jpeg", ".bmp", ".tif", ".tiff", ".webp"}
 
 # ------------------------------------------------------------
-# FUNCIONES DE UTILIDAD
+# FUNCIONES DE CONFIGURACIÓN
 # ------------------------------------------------------------
-def resolver_onedrive_path(ruta):
-    ruta = os.path.abspath(ruta).replace("\\", "/")
-    return ruta
-
-def seleccionar_carpeta():
-    Tk().withdraw()
-    carpeta = filedialog.askdirectory(title="Selecciona la carpeta de imágenes")
-    if not carpeta:
-        return None
-    carpeta = carpeta.replace("\\", "/").strip()
-    guardar_ruta(carpeta)
-    return carpeta
-
-def guardar_ruta(ruta):
-    data = {"ruta_imagenes": ruta}
+def guardar_config(data):
     with open(CONFIG_FILE, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=4)
-    print(f"Carpeta guardada: {ruta}")
 
-def obtener_ruta_carpeta():
-    if os.path.exists(CONFIG_FILE):
-        try:
-            with open(CONFIG_FILE, "r", encoding="utf-8") as f:
-                data = json.load(f)
-            ruta = (data.get("ruta_imagenes") or "").strip()
-            if os.path.isdir(ruta):
-                return ruta
-        except Exception as e:
-            print(f"Error al leer config.json: {e}")
-    return seleccionar_carpeta()
-
-def validar_carpeta_imagenes(carpeta_imagenes: str):
+def cargar_config():
+    if not os.path.exists(CONFIG_FILE):
+        return {}
     try:
-        archivos = os.listdir(carpeta_imagenes)
-    except Exception as e:
-        print(f"Error al listar '{carpeta_imagenes}': {e}")
-        return 0
-    n = sum(1 for f in archivos if os.path.splitext(f)[1].lower() in IMG_EXTS)
-    print(f"Imágenes detectadas: {n} en {carpeta_imagenes}")
-    return n
+        with open(CONFIG_FILE, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except Exception:
+        return {}
 
+def seleccionar_carpeta(titulo):
+    Tk().withdraw()
+    carpeta = filedialog.askdirectory(title=titulo)
+    if not carpeta:
+        return None
+    return carpeta.replace("\\", "/").strip()
+
+def obtener_rutas():
+    """
+    Devuelve las rutas de documentos e imágenes desde config.json.
+    Si alguna no existe o no está guardada, se solicita una sola vez.
+    """
+    cfg = cargar_config()
+
+    ruta_docs = cfg.get("ruta_docs", "")
+    ruta_imgs = cfg.get("ruta_imagenes", "")
+
+    # Verifica carpeta de documentos
+    if not os.path.isdir(ruta_docs):
+        ruta_docs = seleccionar_carpeta("Selecciona la carpeta de documentos .docx")
+        if not ruta_docs:
+            print("No se seleccionó carpeta de documentos.")
+            return None, None
+        cfg["ruta_docs"] = ruta_docs
+        print(f"Carpeta de documentos guardada: {ruta_docs}")
+
+    # Verifica carpeta de imágenes
+    if not os.path.isdir(ruta_imgs):
+        ruta_imgs = seleccionar_carpeta("Selecciona la carpeta de imágenes")
+        if not ruta_imgs:
+            print("No se seleccionó carpeta de imágenes.")
+            return None, None
+        cfg["ruta_imagenes"] = ruta_imgs
+        print(f"Carpeta de imágenes guardada: {ruta_imgs}")
+
+    guardar_config(cfg)
+    return ruta_docs, ruta_imgs
+
+# ------------------------------------------------------------
+# UTILIDADES
+# ------------------------------------------------------------
 def _sin_acentos(s: str) -> str:
     return "".join(c for c in unicodedata.normalize("NFD", s) if unicodedata.category(c) != "Mn")
 
@@ -97,20 +113,19 @@ def indexar_imagenes(carpeta_imagenes: str):
         base, ext = os.path.splitext(nombre)
         if ext.lower() not in IMG_EXTS:
             continue
-        path = os.path.join(carpeta_imagenes, nombre)
         index.append({
             "name": nombre,
             "base": base,
             "ext": ext,
             "base_norm": normalizar_cadena_alnum_mayus(base),
-            "path": path,
+            "path": os.path.join(carpeta_imagenes, nombre),
         })
     return index
 
 def norm_path_key(path: str) -> str:
     return os.path.normcase(os.path.normpath(path or ""))
 
-def buscar_imagen_index(index, codigo_canonico: str, usadas_paths: set, usadas_bases: set) -> str | None:
+def buscar_imagen_index(index, codigo_canonico: str, usadas_paths: set, usadas_bases: set):
     code = normalizar_cadena_alnum_mayus(codigo_canonico)
     if not code:
         return None
@@ -146,7 +161,6 @@ def extraer_codigos(doc: Document):
     codigos = []
     patron_general = re.compile(r"[A-Za-z0-9][A-Za-z0-9.\-]{4,}", re.IGNORECASE)
     patron_bosch = re.compile(r"(?:No\.?\s*)?(\d(?:\s?\d){8,12})")
-
     for tabla in doc.tables:
         if not tabla.rows:
             continue
@@ -161,7 +175,6 @@ def extraer_codigos(doc: Document):
                     break
             if idx_codigo is not None:
                 break
-
         columnas = [idx_codigo] if idx_codigo is not None else range(len(tabla.rows[0].cells))
         for fila in tabla.rows[1:]:
             for j in columnas:
@@ -177,7 +190,7 @@ def extraer_codigos(doc: Document):
     return list(dict.fromkeys(codigos))
 
 # ------------------------------------------------------------
-# INSERCIÓN DE IMÁGENES CON TAMAÑO CONTROLADO
+# INSERCIÓN DE IMÁGENES
 # ------------------------------------------------------------
 H_MAX_W_CM = 4.36
 H_MAX_H_CM = 6.37
@@ -185,61 +198,44 @@ V_MAX_W_CM = 8.13
 V_MAX_H_CM = 4.84
 
 def insertar_imagen_con_transparencia(run, img_path):
-    """
-    Inserta imágenes con límite de tamaño exacto por orientación.
-    Usa solo una dimensión (width o height) para evitar desaparición en verticales.
-    """
     try:
         with Image.open(img_path) as img:
             w_px, h_px = img.size
         w_in, h_in = w_px / 96.0, h_px / 96.0
-
-        if w_px >= h_px:  # horizontal
+        if w_px >= h_px:
             max_w_in = H_MAX_W_CM / 2.54
             max_h_in = H_MAX_H_CM / 2.54
-        else:              # vertical
+        else:
             max_w_in = V_MAX_W_CM / 2.54
             max_h_in = V_MAX_H_CM / 2.54
-
         width_factor = max_w_in / w_in
         height_factor = max_h_in / h_in
         scale = min(width_factor, height_factor, 1.0)
         new_w_in = w_in * scale
         new_h_in = h_in * scale
-
         if width_factor <= height_factor:
             run.add_picture(img_path, width=Inches(new_w_in))
         else:
             run.add_picture(img_path, height=Inches(new_h_in))
-
-        run.add_text(" ")  # espacio en línea
+        run.add_text(" ")
     except Exception as e:
         print(f"Error al insertar {img_path}: {e}")
 
 # ------------------------------------------------------------
 # LÓGICA PRINCIPAL
 # ------------------------------------------------------------
-def insertar_imagenes_en_docx(ruta_doc):
+def insertar_imagenes_en_docx(ruta_doc, carpeta_imagenes, index):
     print(f"Procesando documento: {ruta_doc}")
     doc = Document(ruta_doc)
-    carpeta = obtener_ruta_carpeta()
-    if not carpeta:
-        if registrar_fallo:
-            registrar_fallo(os.path.basename(ruta_doc))
-        return
-    validar_carpeta_imagenes(carpeta)
-    index = indexar_imagenes(carpeta)
     codigos = extraer_codigos(doc)
     if not codigos:
         if registrar_fallo:
             registrar_fallo(os.path.basename(ruta_doc))
         return
-    else:
-        print("Códigos detectados:", ", ".join(codigos))
+    print("Códigos detectados:", ", ".join(codigos))
 
     usadas_paths, usadas_bases = set(), set()
     imagen_insertada = False
-
     for p in doc.paragraphs:
         if "${etiqueta1}" in (p.text or ""):
             p.clear()
@@ -255,40 +251,33 @@ def insertar_imagenes_en_docx(ruta_doc):
                 else:
                     print(f"No se encontró imagen para {codigo}")
             break
-
     if not imagen_insertada and registrar_fallo:
         registrar_fallo(os.path.basename(ruta_doc))
-
-    # Limpieza de etiquetas sobrantes
-    etiqueta_pat = re.compile(r"\$\{etiqueta\d+\}", re.IGNORECASE)
-    for p in list(doc.paragraphs):
-        if etiqueta_pat.search(p.text or ""):
-            try:
-                p._element.getparent().remove(p._element)
-            except Exception:
-                pass
-
     doc.save(ruta_doc)
     print(f"Documento actualizado: {ruta_doc}\n")
 
 # ------------------------------------------------------------
 # PROCESAMIENTO POR LOTES
 # ------------------------------------------------------------
-def procesar_lote(carpeta_docs="docs"):
+def procesar_lote():
     if limpiar_registro:
         limpiar_registro()
-    if not os.path.exists(carpeta_docs):
-        print(f"No existe la carpeta '{carpeta_docs}'.")
-        return
-    archivos = [f for f in os.listdir(carpeta_docs) if f.endswith(".docx") and not f.startswith("~$")]
-    if not archivos:
-        print("No se encontraron archivos .docx.")
+
+    ruta_docs, ruta_imgs = obtener_rutas()
+    if not ruta_docs or not ruta_imgs:
         return
 
-    print(f"Procesando {len(archivos)} documentos...\n")
+    archivos = [f for f in os.listdir(ruta_docs) if f.endswith(".docx") and not f.startswith("~$")]
+    if not archivos:
+        print(f"No se encontraron archivos .docx en '{ruta_docs}'.")
+        return
+
+    index = indexar_imagenes(ruta_imgs)
+    print(f"Procesando {len(archivos)} documentos en '{ruta_docs}'...\n")
+
     for archivo in archivos:
-        ruta = os.path.join(carpeta_docs, archivo)
-        insertar_imagenes_en_docx(ruta)
+        ruta = os.path.join(ruta_docs, archivo)
+        insertar_imagenes_en_docx(ruta, ruta_imgs, index)
 
     print("Procesamiento completado.\n")
     if mostrar_registro:
