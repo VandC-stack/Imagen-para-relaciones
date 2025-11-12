@@ -92,23 +92,13 @@ class PDFGenerator:
         # NOTA: No agregamos el encabezado aquí, solo el contenido específico
         
         # ==================== TABLA DE FECHAS ====================
-        fecha_data = [
-            ['Fecha de Inspección', '${fverificacion}'],
-            ['Fecha de Emisión', '${femision}']
-        ]
+        cliente_text = '<b>Fecha de Inspección:</b> ${fverificacion}'
+        self.elements.append(Paragraph(cliente_text, self.normal_style))
         
-        fecha_table = Table(fecha_data, colWidths=[3*inch, 3*inch])
-        fecha_table.setStyle(TableStyle([
-            ('GRID', (0,0), (-1,-1), 1, colors.black),
-            ('BACKGROUND', (0,0), (0,-1), colors.lightgrey),
-            ('ALIGN', (0,0), (-1,-1), 'CENTER'),
-            ('FONTNAME', (0,0), (-1,-1), 'Helvetica'),
-            ('FONTSIZE', (0,0), (-1,-1), 9),
-            ('BOLD', (0,0), (0,-1), True),
-        ]))
-        
-        self.elements.append(fecha_table)
+        rfc_text = '<b>Fecha de Emisión:</b> ${femision}'
+        self.elements.append(Paragraph(rfc_text, self.normal_style))
         self.elements.append(Spacer(1, 0.2*inch))
+        
         
         # ==================== CLIENTE Y RFC ====================
         cliente_text = '<b>Cliente:</b> ${cliente}'
