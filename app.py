@@ -24,8 +24,8 @@ STYLE = {
     "borde": "#DDDDDD"
 }
 
-FONT_TITLE = ("Inter", 17, "bold")
-FONT_SUBTITLE = ("Inter", 14, "bold")
+FONT_TITLE = ("Inter", 22, "bold")
+FONT_SUBTITLE = ("Inter", 17, "bold")
 FONT_LABEL = ("Inter", 13)
 FONT_SMALL = ("Inter", 12)
 
@@ -150,9 +150,9 @@ class SistemaDictamenesVC(ctk.CTk):
             text="✕",
             command=self.limpiar_cliente,
             font=("Inter", 14, "bold"),
-            fg_color=STYLE["advertencia"],
-            hover_color="#c45a52",
-            text_color=STYLE["surface"],
+            fg_color=STYLE["primario"],
+            hover_color="#D4BF22",
+            text_color=STYLE["secundario"],
             height=40,
             width=40,
             corner_radius=8,
@@ -260,7 +260,7 @@ class SistemaDictamenesVC(ctk.CTk):
         # Información del archivo
         self.info_generacion = ctk.CTkLabel(
             card_generacion,
-            text="Se generan dictámenes en formato PDF para el cliente seleccionado",
+            text="Se generan dictámenes en formato PDF",
             font=FONT_SMALL,
             text_color=STYLE["texto_claro"]
         )
