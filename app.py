@@ -36,8 +36,8 @@ class SistemaDictamenesVC(ctk.CTk):
 
         # Configuración general
         self.title("Generador de Dictámenes")
-        self.geometry("460x500")
-        self.minsize(460, 600)  # ⛔ Evita que la ventana sea más pequeña
+        self.geometry("460x600")  # Aumentado para acomodar el nuevo campo
+        self.minsize(460, 600)  # ⛔ Aumentado para evitar que la ventana sea más pequeña
         ctk.set_appearance_mode("light")
         self.configure(fg_color=STYLE["fondo"])
 
@@ -46,6 +46,8 @@ class SistemaDictamenesVC(ctk.CTk):
         self.archivo_json_generado = None
         self.json_filename = None
         self.generando_dictamenes = False
+        self.clientes_data = []  # Para almacenar la lista de clientes
+        self.cliente_seleccionado = None  # Cliente seleccionado
 
         # ===== HEADER =====
         self.crear_header()
@@ -55,6 +57,9 @@ class SistemaDictamenesVC(ctk.CTk):
 
         # ===== FOOTER =====
         self.crear_footer()
+
+        # Cargar clientes al iniciar
+        self.cargar_clientes_desde_json()
 
     def centerwindow(self):
         """Centra la ventana en la pantalla"""
@@ -93,6 +98,53 @@ class SistemaDictamenesVC(ctk.CTk):
         """Contenido principal reorganizado y mejorado"""
         main_container = ctk.CTkFrame(self, fg_color=STYLE["fondo"])
         main_container.pack(fill="both", expand=True, padx=25, pady=20)
+
+        # ===== TARJETA DE SELECCIÓN DE CLIENTE =====
+        card_cliente = ctk.CTkFrame(main_container, fg_color=STYLE["surface"], corner_radius=12)
+        card_cliente.pack(fill="x", pady=(0, 20))
+
+        ctk.CTkLabel(
+            card_cliente,
+            text="👤 Seleccionar Cliente",
+            font=FONT_SUBTITLE,
+            text_color=STYLE["texto_oscuro"]
+        ).pack(anchor="w", padx=20, pady=(20, 10))
+
+        # Frame para el selector de cliente
+        cliente_frame = ctk.CTkFrame(card_cliente, fg_color="transparent")
+        cliente_frame.pack(fill="x", padx=20, pady=(0, 20))
+
+        # Label para el combobox
+        ctk.CTkLabel(
+            cliente_frame,
+            text="Cliente:",
+            font=FONT_LABEL,
+            text_color=STYLE["texto_oscuro"]
+        ).pack(anchor="w", pady=(0, 8))
+
+        # Combobox para seleccionar cliente
+        self.combo_cliente = ctk.CTkComboBox(
+            cliente_frame,
+            values=["Seleccione un cliente..."],
+            font=FONT_SMALL,
+            dropdown_font=FONT_SMALL,
+            state="readonly",
+            width=400,
+            height=40,
+            corner_radius=8,
+            command=self.actualizar_cliente_seleccionado
+        )
+        self.combo_cliente.pack(anchor="w", fill="x", pady=(0, 10))
+        self.combo_cliente.set("Seleccione un cliente...")
+
+        # Información del cliente seleccionado
+        self.info_cliente = ctk.CTkLabel(
+            cliente_frame,
+            text="No se ha seleccionado ningún cliente",
+            font=FONT_SMALL,
+            text_color=STYLE["texto_claro"]
+        )
+        self.info_cliente.pack(anchor="w")
 
         # ===== TARJETA DE CARGA =====
         card_carga = ctk.CTkFrame(main_container, fg_color=STYLE["surface"], corner_radius=12)
@@ -244,6 +296,65 @@ class SistemaDictamenesVC(ctk.CTk):
     # FUNCIONALIDAD PRINCIPAL
     # -----------------------------------------------------------
 
+    def cargar_clientes_desde_json(self):
+        """Carga la lista de clientes desde el archivo JSON"""
+        try:
+            # Buscar el archivo en diferentes ubicaciones
+            posibles_rutas = [
+                'data/Clientes.json',
+                'Clientes.json',
+                '../data/Clientes.json'
+            ]
+            
+            archivo_encontrado = None
+            for ruta in posibles_rutas:
+                if os.path.exists(ruta):
+                    archivo_encontrado = ruta
+                    break
+            
+            if not archivo_encontrado:
+                print("⚠️  No se encontró el archivo Clientes.json")
+                return
+            
+            with open(archivo_encontrado, 'r', encoding='utf-8') as f:
+                self.clientes_data = json.load(f)
+            
+            # Ordenar clientes alfabéticamente por nombre
+            self.clientes_data.sort(key=lambda x: x['CLIENTE'])
+            
+            # Crear lista de nombres para el combobox
+            nombres_clientes = [cliente['CLIENTE'] for cliente in self.clientes_data]
+            
+            # Actualizar el combobox
+            self.combo_cliente.configure(values=nombres_clientes)
+            
+            print(f"✅ Clientes cargados: {len(nombres_clientes)} clientes")
+            
+        except Exception as e:
+            print(f"❌ Error al cargar clientes: {e}")
+            messagebox.showerror("Error", f"No se pudieron cargar los clientes:\n{e}")
+
+    def actualizar_cliente_seleccionado(self, cliente_nombre):
+        """Actualiza la información del cliente seleccionado"""
+        if cliente_nombre == "Seleccione un cliente...":
+            self.cliente_seleccionado = None
+            self.info_cliente.configure(
+                text="No se ha seleccionado ningún cliente",
+                text_color=STYLE["texto_claro"]
+            )
+            return
+        
+        # Buscar el cliente en la lista
+        for cliente in self.clientes_data:
+            if cliente['CLIENTE'] == cliente_nombre:
+                self.cliente_seleccionado = cliente
+                rfc = cliente.get('RFC', 'No disponible')
+                self.info_cliente.configure(
+                    text=f"✅ {cliente_nombre}\n📋 RFC: {rfc}",
+                    text_color=STYLE["exito"]
+                )
+                break
+
     def cargar_excel(self):
         """Selecciona el Excel y lo convierte automáticamente a JSON"""
         file_path = filedialog.askopenfilename(
@@ -314,7 +425,10 @@ class SistemaDictamenesVC(ctk.CTk):
             text_color=STYLE["exito"]
         )
         self.check_label.configure(text="✓")
-        self.boton_generar_dictamen.configure(state="normal")
+        
+        # Habilitar el botón de generación solo si hay un cliente seleccionado
+        if self.cliente_seleccionado:
+            self.boton_generar_dictamen.configure(state="normal")
         
         messagebox.showinfo(
             "Conversión exitosa",
@@ -361,12 +475,18 @@ class SistemaDictamenesVC(ctk.CTk):
             messagebox.showwarning("Sin datos", "No hay archivo JSON disponible para generar dictámenes.")
             return
 
+        if not self.cliente_seleccionado:
+            messagebox.showwarning("Cliente no seleccionado", "Por favor seleccione un cliente antes de generar los dictámenes.")
+            return
+
         try:
             # Mostrar confirmación
             confirmacion = messagebox.askyesno(
                 "Generar Dictámenes",
-                "¿Está seguro de que desea generar los dictámenes PDF?\n\n"
-                f"Archivo: {os.path.basename(self.archivo_json_generado)}"
+                f"¿Está seguro de que desea generar los dictámenes PDF?\n\n"
+                f"📄 Archivo: {os.path.basename(self.archivo_json_generado)}\n"
+                f"👤 Cliente: {self.cliente_seleccionado['CLIENTE']}\n"
+                f"📋 RFC: {self.cliente_seleccionado.get('RFC', 'No disponible')}"
             )
             
             if not confirmacion:
@@ -431,8 +551,10 @@ class SistemaDictamenesVC(ctk.CTk):
                 else:
                     self.after(0, lambda: self.mostrar_error(mensaje))
             
-            # Ejecutar generación
+            # Ejecutar generación con el cliente seleccionado
             generar_dictamenes_gui(
+                cliente_manual=self.cliente_seleccionado['CLIENTE'],
+                rfc_manual=self.cliente_seleccionado.get('RFC', ''),
                 callback_progreso=actualizar_progreso,
                 callback_finalizado=finalizado
             )

@@ -1,7 +1,5 @@
 """
-Generador de Dictámenes PDF - Versión Mejorada
-- Mejor manejo de archivos y rutas
-- Más información de depuración
+Generador de Dictámenes PDF - Con soporte para cliente manual
 """
 
 import os
@@ -107,21 +105,27 @@ class PDFGeneratorConDatos(PDFGenerator):
                 texto = texto.replace(placeholder, str(value))
         return texto
 
-# FUNCIONES MEJORADAS DE CARGA DE DATOS
+# FUNCIONES DE CARGA DE DATOS
 def cargar_tabla_relacion():
-    """Carga el archivo tabla_de_relacion_json con mejor manejo de errores"""
-    print("🔍 Buscando tabla_de_relacion_json...")
+    """Carga el archivo tabla_de_relacion.json con mejor manejo de errores"""
+    print("🔍 Buscando tabla_de_relacion.json...")
     
     # Lista completa de posibles ubicaciones
     posibles_rutas = [
-        'data/tabla_de_relacion.json'     # En directorio actual con extensión
+        'data/tabla_de_relacion.json',      # ✅ Esta es la ruta correcta
+        'data/tabla_de_relacion_json',      
+        'data/tabla_de_relacion_json.json', 
+        './data/tabla_de_relacion.json',    
+        '../data/tabla_de_relacion.json',   
+        'tabla_de_relacion.json',           
+        'tabla_de_relacion_json',           
+        'tabla_de_relacion_json.json',      
     ]
     
     # Verificar si la carpeta data existe
     if not os.path.exists('data'):
         print("❌ La carpeta 'data' no existe en el directorio actual")
-        print("📁 Creando carpeta 'data'...")
-        os.makedirs('data', exist_ok=True)
+        return None
     
     # Buscar el archivo
     archivo_encontrado = None
@@ -132,10 +136,7 @@ def cargar_tabla_relacion():
             break
     
     if not archivo_encontrado:
-        print("❌ No se encontró tabla_de_relacion_json en ninguna ubicación:")
-        for ruta in posibles_rutas:
-            existe = "✅" if os.path.exists(ruta) else "❌"
-            print(f"   {existe} {ruta}")
+        print("❌ No se encontró tabla_de_relacion.json en ninguna ubicación")
         return None
     
     # Intentar cargar el archivo
@@ -145,18 +146,6 @@ def cargar_tabla_relacion():
         
         print(f"✅ Tabla cargada exitosamente: {len(datos)} registros")
         return datos
-        
-    except json.JSONDecodeError as e:
-        print(f"❌ Error decodificando JSON: {e}")
-        # Intentar cargar como texto plano para diagnóstico
-        try:
-            with open(archivo_encontrado, 'r', encoding='utf-8') as f:
-                contenido = f.read()
-                print(f"📄 Contenido del archivo (primeros 500 caracteres):")
-                print(contenido[:500])
-        except:
-            pass
-        return None
         
     except Exception as e:
         print(f"❌ Error cargando archivo: {e}")
@@ -191,50 +180,38 @@ def cargar_normas():
                             codigo_norma = norma_item.get('NOM', '')
                             
                             # Extraer números del código de norma para crear mapeos
-                            # Ejemplo: "NOM-004-SE-2021" → extraer "004" y "4"
-                            numeros_en_norma = []
-                            
-                            # Buscar números en el código de norma
                             import re
                             numeros = re.findall(r'\d+', codigo_norma)
                             for num in numeros:
                                 # Agregar el número tal cual (ej: "004")
-                                numeros_en_norma.append(num)
+                                normas_map[num] = codigo_norma
                                 # También agregar sin ceros a la izquierda (ej: "4")
                                 if num.startswith('0'):
-                                    numeros_en_norma.append(num.lstrip('0'))
+                                    normas_map[num.lstrip('0')] = codigo_norma
                             
-                            # Crear entradas en el mapeo para cada número encontrado
-                            for num in numeros_en_norma:
-                                if num:  # Asegurarse de que no esté vacío
-                                    normas_map[num] = codigo_norma
-                            
-                            # También mapear el código completo a sí mismo por si acaso
+                            # También mapear el código completo a sí mismo
                             normas_map[codigo_norma] = codigo_norma
                     
                     print(f"✅ Mapeo de normas creado: {len(normas_map)} entradas")
                     
-                
-                # Mostrar algunas normas para verificación
-                print("📋 Ejemplo de mapeo de normas:")
-                normas_mostradas = 0
-                for key, value in normas_map.items():
-                    if len(key) <= 3:  # Mostrar solo mapeos con claves cortas (números)
-                        print(f"   - {key} → {value}")
-                        normas_mostradas += 1
-                        if normas_mostradas >= 10:
-                            break
+                else:
+                    print("⚠️  Formato de normas no reconocido, usando valores por defecto")
+                    normas_map = {
+                        "24": "NOM-004-SE-2021",
+                        "4": "NOM-004-SE-2021", 
+                        "1": "NOM-001-SE-2021"
+                    }
                 
                 return normas_map
                 
             except Exception as e:
                 print(f"❌ Error cargando {ruta}: {e}")
-                import traceback
-                traceback.print_exc()
     
     print("⚠️  No se encontró Normas.json, usando valores por defecto")
     return {
+        "24": "NOM-004-SE-2021",
         "4": "NOM-004-SE-2021", 
+        "1": "NOM-001-SE-2021",
         "15": "NOM-015-SCFI-2007",
         "20": "NOM-020-SCFI-1997",
         "24": "NOM-024-SCFI-2013",
@@ -245,54 +222,6 @@ def cargar_normas():
         "189": "NOM-189-SSA1/SCFI-2018",
         "235": "NOM-235-SE-2020"
     }
-
-
-
-
-
-def cargar_clientes():
-    """Carga el archivo Clientes.json"""
-    print("🔍 Buscando Clientes.json...")
-    
-    posibles_rutas = [
-        'data/Clientes.json',
-        'Clientes.json',
-        '../data/Clientes.json'
-    ]
-    
-    for ruta in posibles_rutas:
-        if os.path.exists(ruta):
-            try:
-                with open(ruta, 'r', encoding='utf-8') as f:
-                    clientes = json.load(f)
-                print(f"✅ Clientes cargados: {len(clientes)} clientes")
-                return clientes
-            except Exception as e:
-                print(f"❌ Error cargando {ruta}: {e}")
-    
-    print("⚠️  No se encontró Clientes.json, usando valores por defecto")
-    return ""
-
-def verificar_estructura_datos():
-    """Verifica que todos los archivos necesarios existan"""
-    print("\n" + "="*50)
-    print("VERIFICACIÓN DE ESTRUCTURA DE DATOS")
-    print("="*50)
-    
-    # Verificar tabla_de_relacion_json
-    tabla = cargar_tabla_relacion()
-    if tabla is None:
-        print("❌ CRÍTICO: No se pudo cargar tabla_de_relacion_json")
-        return False
-    
-    # Verificar Normas.json
-    normas = cargar_normas()
-    
-    # Verificar Clientes.json  
-    clientes = cargar_clientes()
-    
-    print("✅ Estructura de datos verificada")
-    return True
 
 def procesar_familias(tabla_datos):
     """Agrupa registros por LISTA"""
@@ -308,8 +237,8 @@ def procesar_familias(tabla_datos):
     print(f"✅ {len(familias)} familias encontradas")
     return familias
 
-def preparar_datos_familia(registros, normas_map, clientes_list):
-    """Prepara datos para una familia específica"""
+def preparar_datos_familia(registros, normas_map, cliente_manual=None, rfc_manual=None):
+    """Prepara datos para una familia específica - VERSIÓN CORREGIDA"""
     if not registros:
         return None
         
@@ -322,7 +251,7 @@ def preparar_datos_familia(registros, normas_map, clientes_list):
     solicitud = str(primer_registro.get('SOLICITUD', ''))
     lista = str(primer_registro.get('LISTA', ''))
     
-    # Mapear norma - CORREGIDO para usar el mapeo de normas
+    # Mapear norma
     norma = "NOM-001"  # Valor por defecto
     if not pd.isna(norma_uva) and norma_uva != '':
         norma_str = str(int(norma_uva)) if isinstance(norma_uva, (int, float)) else str(norma_uva)
@@ -361,22 +290,49 @@ def preparar_datos_familia(registros, normas_map, clientes_list):
     fverificacion = formatear_fecha(primer_registro.get('FECHA DE VERIFICACION', ''))
     femision = formatear_fecha(primer_registro.get('FECHA DE ENTRADA', ''))
     
-    # Cliente y RFC
-    marca = primer_registro.get('MARCA', '')
-    cliente, rfc = marca, ""
-    if not pd.isna(marca) and marca != '':
-        marca_upper = marca.upper()
-        for cliente_info in clientes_list:
-            cliente_marca = cliente_info.get('MARCA', '').upper()
-            if marca_upper == cliente_marca or marca_upper in cliente_marca:
-                cliente = cliente_info.get('CLIENTE', marca)
-                rfc = cliente_info.get('RFC', '')
-                break
+    # INICIALIZAR VARIABLES CRÍTICAS PRIMERO
+    marca = ""
+    modelo = ""
+    descripcion = ""
     
-    print(f"   👤 Cliente: {marca} → {cliente}")
+    # Buscar la primera marca, modelo y descripción no vacíos en todos los registros
+    for registro in registros:
+        if not pd.isna(registro.get('MARCA', '')) and registro.get('MARCA', '') != '':
+            marca = registro.get('MARCA', '')
+            break
     
-    # Producto
-    producto = primer_registro.get('DESCRIPCION', 'Producto no especificado')
+    for registro in registros:
+        if not pd.isna(registro.get('MODELO', '')) and registro.get('MODELO', '') != '':
+            modelo = registro.get('MODELO', '')
+            break
+    
+    for registro in registros:
+        if not pd.isna(registro.get('DESCRIPCION', '')) and registro.get('DESCRIPCION', '') != '':
+            descripcion = registro.get('DESCRIPCION', '')
+            break
+    
+    # Cliente y RFC - USAR LOS VALORES MANUALES SI SE PROVEEN
+    if cliente_manual and rfc_manual:
+        cliente = cliente_manual
+        rfc = rfc_manual
+        print(f"   👤 Cliente manual: {cliente}")
+    else:
+        # Búsqueda automática (comportamiento original)
+        cliente, rfc = marca, ""
+        if not pd.isna(marca) and marca != '':
+            marca_upper = marca.upper()
+            # Cargar clientes para búsqueda automática
+            clientes_list = cargar_clientes()
+            for cliente_info in clientes_list:
+                cliente_marca = cliente_info.get('MARCA', '').upper()
+                if marca_upper == cliente_marca or marca_upper in cliente_marca:
+                    cliente = cliente_info.get('CLIENTE', marca)
+                    rfc = cliente_info.get('RFC', '')
+                    break
+        print(f"   👤 Cliente automático: {marca} → {cliente}")
+    
+    # Producto - usar la descripción encontrada
+    producto = descripcion if descripcion else "Producto no especificado"
     if pd.isna(producto) or producto == '':
         producto = "Producto no especificado"
     
@@ -421,7 +377,8 @@ def preparar_datos_familia(registros, normas_map, clientes_list):
     firma = primer_registro.get('FIRMA', '')
     nfirma1 = firma if not pd.isna(firma) and firma != '' else "Inspector no asignado"
     
-    return {
+    # DATOS FINALES - AHORA CON VARIABLES SIEMPRE DEFINIDAS
+    datos_finales = {
         'year': year,
         'norma': norma,
         'folio': folio,
@@ -437,6 +394,7 @@ def preparar_datos_familia(registros, normas_map, clientes_list):
         'capitulo': '4',
         'normades': 'ESPECIFICACIONES DE SEGURIDAD',
         'rowMarca': marca if not pd.isna(marca) and marca != '' else "",
+        'rowModelo': modelo if not pd.isna(modelo) and modelo != '' else "",
         'rowCodigo': rowCodigo,
         'rowFactura': rowFactura,
         'rowCantidad': str(total_cantidad),
@@ -451,22 +409,32 @@ def preparar_datos_familia(registros, normas_map, clientes_list):
         'nfirma1': nfirma1,
         'nfirma2': 'Responsable de Supervisión UI'
     }
+    
+    print(f"   ✅ Datos preparados: Cliente={cliente}, Marca={marca}, Producto={producto[:50]}...")
+    return datos_finales
 
 
-def generar_dictamenes_completos(directorio_destino):
+
+
+def cargar_clientes():
+    """Carga el archivo Clientes.json (para búsqueda automática)"""
+    try:
+        with open('data/Clientes.json', 'r', encoding='utf-8') as f:
+            clientes = json.load(f)
+        return clientes
+    except:
+        return []
+
+def generar_dictamenes_completos(directorio_destino, cliente_manual=None, rfc_manual=None):
     """Función principal que genera todos los dictámenes"""
     
     print("🚀 INICIANDO GENERACIÓN DE DICTÁMENES")
     print("="*60)
     
-    # Primero verificar la estructura de datos
-    if not verificar_estructura_datos():
-        return False, "Error en la estructura de datos. Verifique los archivos requeridos.", None
-    
-    # Cargar datos nuevamente para el procesamiento
+    # Cargar datos
+    print("📂 Cargando datos...")
     tabla_datos = cargar_tabla_relacion()
     normas_map = cargar_normas()
-    clientes_list = cargar_clientes()
     
     if not tabla_datos:
         return False, "No se pudieron cargar los datos de la tabla de relación", None
@@ -481,6 +449,10 @@ def generar_dictamenes_completos(directorio_destino):
     os.makedirs(directorio_destino, exist_ok=True)
     print(f"📁 Directorio de destino: {directorio_destino}")
     
+    # Informar sobre el cliente manual si se usa
+    if cliente_manual:
+        print(f"👤 Usando cliente manual: {cliente_manual}")
+    
     # Generar dictámenes
     dictamenes_generados = 0
     archivos_creados = []
@@ -491,8 +463,8 @@ def generar_dictamenes_completos(directorio_destino):
         print(f"\n📄 Procesando familia LISTA {lista} ({len(registros)} registros)...")
         
         try:
-            # Preparar datos
-            datos = preparar_datos_familia(registros, normas_map, clientes_list)
+            # Preparar datos para esta familia
+            datos = preparar_datos_familia(registros, normas_map, cliente_manual, rfc_manual)
             
             if not datos:
                 print(f"   ⚠️  No se pudieron preparar datos para lista {lista}")
@@ -531,8 +503,8 @@ def generar_dictamenes_completos(directorio_destino):
         return True, mensaje, resultado
 
 # Función para la GUI
-def generar_dictamenes_gui(callback_progreso=None, callback_finalizado=None):
-    """Versión para interfaz gráfica"""
+def generar_dictamenes_gui(callback_progreso=None, callback_finalizado=None, cliente_manual=None, rfc_manual=None):
+    """Versión para interfaz gráfica con soporte para cliente manual"""
     try:
         if callback_progreso:
             callback_progreso(10, "Solicitando ubicación...")
@@ -563,8 +535,8 @@ def generar_dictamenes_gui(callback_progreso=None, callback_finalizado=None):
         if callback_progreso:
             callback_progreso(30, "Verificando estructura de datos...")
         
-        # Generar dictámenes
-        exito, mensaje, resultado = generar_dictamenes_completos(carpeta_final)
+        # Generar dictámenes con cliente manual si se proporciona
+        exito, mensaje, resultado = generar_dictamenes_completos(carpeta_final, cliente_manual, rfc_manual)
         
         if callback_progreso:
             callback_progreso(100, mensaje)
@@ -600,11 +572,5 @@ if __name__ == "__main__":
         print("\n📄 Archivos creados:")
         for archivo in resultado['archivos']:
             print(f"   • {os.path.basename(archivo)}")
-            
-        # Verificar que los archivos existen
-        print("\n🔍 Verificando archivos...")
-        for archivo in resultado['archivos']:
-            existe = "✅" if os.path.exists(archivo) else "❌"
-            print(f"   {existe} {os.path.basename(archivo)}")
     else:
         print(f"\n❌ {mensaje}")
