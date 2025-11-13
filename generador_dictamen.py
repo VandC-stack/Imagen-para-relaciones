@@ -1,269 +1,610 @@
 """
-Ejecutor de Plantilla BOSCH PDF - Usa Dictamen.py
-- Importa y utiliza tu archivo Dictamen.py original
-- Llena automáticamente todas las variables con datos reales
-- Genera PDF listo para usar
+Generador de Dictámenes PDF - Versión Mejorada
+- Mejor manejo de archivos y rutas
+- Más información de depuración
 """
 
 import os
 import sys
+import json
+import pandas as pd
 from datetime import datetime
+from collections import defaultdict
+import tempfile
+import shutil
+import traceback
 
-# Intenta importar tu archivo Dictamen.py original
+# Importar tu plantilla
 try:
-    # Importa tu clase PDFGenerator desde Dictamen.py
     from DictamenPDF import PDFGenerator
-    print("✅ Archivo Dictamen.py encontrado y cargado correctamente")
+    print("✅ DictamenPDF.py cargado correctamente")
 except ImportError as e:
-    print(f"❌ Error: No se pudo importar Dictamen.py")
-    print(f"   Detalle: {e}")
-    print("\n🔧 Solución: Asegúrate de que:")
-    print("   - El archivo 'Dictamen.py' esté en la misma carpeta")
-    print("   - La clase se llame 'PDFGenerator'")
-    print("   - No haya errores de sintaxis en Dictamen.py")
+    print(f"❌ Error importando DictamenPDF: {e}")
     sys.exit(1)
 
-"""
-Ejecutor de Plantilla BOSCH PDF - Usa Dictamen.py
-- Importa y utiliza tu archivo Dictamen.py original
-- Llena automáticamente todas las variables con datos reales
-- Genera PDF listo para usar
-"""
-
-import os
-import sys
-from datetime import datetime
-
-# Intenta importar tu archivo Dictamen.py original
-try:
-    # Importa tu clase PDFGenerator desde DictamenPDF.py
-    from DictamenPDF import PDFGenerator
-    print("✅ Archivo DictamenPDF.py encontrado y cargado correctamente")
-except ImportError as e:
-    print(f"❌ Error: No se pudo importar DictamenPDF.py")
-    print(f"   Detalle: {e}")
-    print("\n🔧 Solución: Asegúrate de que:")
-    print("   - El archivo 'DictamenPDF.py' esté en la misma carpeta")
-    print("   - La clase se llame 'PDFGenerator'")
-    print("   - No haya errores de sintaxis en DictamenPDF.py")
-    sys.exit(1)
-
-# Importar los elementos necesarios de reportlab
-from reportlab.platypus import SimpleDocTemplate
+# Importaciones de ReportLab
+from reportlab.platypus import SimpleDocTemplate, Paragraph
+from reportlab.lib.pagesizes import letter
+from reportlab.lib.units import inch
 
 class PDFGeneratorConDatos(PDFGenerator):
-    """Subclase de tu PDFGenerator original con capacidad para datos reales"""
+    """Subclase que reemplaza placeholders con datos reales"""
     
     def __init__(self, datos):
-        # Llama al constructor de la clase padre
         super().__init__()
         self.datos = datos
     
-    def agregar_encabezado_pie_pagina(self, canvas, doc):
-        """Sobrescribe el método para usar datos reales en encabezado/pie"""
-        canvas.saveState()
+    def generar_pdf_con_datos(self, output_path):
+        """Genera el PDF con datos reales"""
+        print(f"🎯 Generando: {os.path.basename(output_path)}")
         
-        # Fondo (usando tu lógica original)
-        image_path = "img/Fondo.jpeg"
-        if os.path.exists(image_path):
-            try:
-                from reportlab.lib.units import inch
-                LETTER_WIDTH = 8.5 * inch
-                LETTER_HEIGHT = 11 * inch
-                canvas.drawImage(image_path, 0, 0, width=LETTER_WIDTH, height=LETTER_HEIGHT)
-            except:
-                pass
-        
-        # ENCABEZADO CON DATOS REALES
-        canvas.setFont("Helvetica-Bold", 16)
-        canvas.drawCentredString(8.5*72/2, 11*72-60, "DICTAMEN DE CUMPLIMIENTO")
-        
-        canvas.setFont("Helvetica", 10)
-        # Usa datos reales en lugar de variables
-        codigo_text = f"{self.datos.get('year', '2024')}049UDC{self.datos.get('norma', 'NOM-001')}{self.datos.get('folio', '12345')} Solicitud: {self.datos.get('year', '2024')}049USD{self.datos.get('norma', 'NOM-001')}{self.datos.get('solicitud', '67890')}-{self.datos.get('lista', 'A')}"
-        
-        if len(codigo_text) > 100:
-            codigo_text = codigo_text[:100] + "..."
-        canvas.drawCentredString(8.5*72/2, 11*72-80, codigo_text)
-        
-        # Numeración
-        pagina_actual = canvas.getPageNumber()
-        numeracion = f"Página {pagina_actual} de {self.total_pages}"
-        canvas.setFont("Helvetica", 9)
-        canvas.drawRightString(8.5*72-72, 11*72-50, numeracion)
-        
-        # PIE DE PÁGINA (igual al original)
-        footer_text = "Este Dictamen de Cumplimiento se emitió por medios electrónicos, conforme al oficio de autorización DGN.312.05.2012.106 de fecha 10 de enero de 2012 expedido por la DGN a esta Unidad de Inspección."
-        formato_text = "Formato: PT-F-208B-00-3"
-
-        canvas.setFont("Helvetica", 7)
-
-        # Dividir texto en líneas (misma lógica que tu original)
-        lines = []
-        words = footer_text.split()
-        current_line = ""
-        for word in words:
-            test_line = current_line + " " + word if current_line else word
-            if len(test_line) <= 150:
-                current_line = test_line
-            else:
-                lines.append(current_line)
-                current_line = word
-        if current_line:
-            lines.append(current_line)
-
-        line_height = 8
-        start_y = 60
-
-        for i, line in enumerate(lines):
-            text_width = canvas.stringWidth(line, "Helvetica", 7)
-            available_width = 8.5*72 - 144
-            if text_width < available_width * 0.8:
-                x_position = (8.5*72 - text_width) / 2
-            else:
-                x_position = 72
-            canvas.drawString(x_position, start_y - (i * line_height), line)
-
-        canvas.drawRightString(8.5*72 - 72, start_y - (len(lines) * line_height) - 4, formato_text)
-        canvas.restoreState()
-    
-    def generar_pdf_con_datos(self):
-        """Genera el PDF usando tu plantilla pero con datos reales"""
-        print("🎯 Generando PDF con datos reales usando tu plantilla...")
-        
-        # Configuración del documento (igual a tu original)
-        from reportlab.lib.pagesizes import letter
-        from reportlab.lib.units import inch
-        
-        output_path = "Dictamen_Completado.pdf"
-        self.doc = SimpleDocTemplate(
-            output_path,
-            pagesize=letter,
-            topMargin=1.5*inch,
-            bottomMargin=1.5*inch,
-            leftMargin=0.75*inch,
-            rightMargin=0.75*inch
-        )
-        
-        # Crear estilos (usa tu método original)
-        self.crear_estilos()
-        
-        # Agregar contenido (usa tus métodos originales)
-        self.agregar_primera_pagina()
-        self.agregar_segunda_pagina()
-        
-        # Construir el documento
         try:
+            # Configurar documento
+            self.doc = SimpleDocTemplate(
+                output_path,
+                pagesize=letter,
+                topMargin=1.5*inch,
+                bottomMargin=1.5*inch,
+                leftMargin=0.75*inch,
+                rightMargin=0.75*inch
+            )
+            
+            # Crear estilos y contenido
+            self.crear_estilos()
+            self.agregar_primera_pagina()
+            self.agregar_segunda_pagina()
+            
+            # Reemplazar placeholders ANTES de construir
+            self._reemplazar_todos_los_placeholders()
+            
+            # Construir PDF
             self.doc.build(
                 self.elements,
                 onFirstPage=self.agregar_encabezado_pie_pagina,
                 onLaterPages=self.agregar_encabezado_pie_pagina
             )
             
-            print(f"✅ PDF CREADO EXITOSAMENTE: {output_path}")
-            return True
-            
+            # Verificar que el archivo se creó
+            if os.path.exists(output_path) and os.path.getsize(output_path) > 0:
+                print(f"✅ PDF creado exitosamente: {os.path.basename(output_path)}")
+                return True
+            else:
+                print(f"❌ El archivo no se creó o está vacío: {output_path}")
+                return False
+                
         except Exception as e:
-            print(f"❌ Error al generar PDF: {e}")
+            print(f"❌ Error generando PDF: {e}")
+            traceback.print_exc()
             return False
 
+    def _reemplazar_todos_los_placeholders(self):
+        """Reemplaza todos los placeholders en los elementos"""
+        nuevos_elementos = []
+        
+        for elemento in self.elements:
+            if hasattr(elemento, 'text'):
+                # Es un Paragraph - reemplazar texto
+                texto_original = elemento.text
+                texto_reemplazado = self._reemplazar_texto(texto_original)
+                
+                # Crear nuevo Paragraph con estilo preservado
+                nuevo_para = Paragraph(texto_reemplazado, elemento.style)
+                nuevos_elementos.append(nuevo_para)
+            else:
+                # Mantener otros elementos (Spacer, Table, etc.)
+                nuevos_elementos.append(elemento)
+        
+        self.elements = nuevos_elementos
 
-def verificar_imagen_fondo():
-    """Verifica que la imagen de fondo existe"""
-    image_path = "img/Fondo.jpeg"
-    
-    if not os.path.exists(image_path):
-        print(f"⚠️  No se encontró: {image_path}")
-        os.makedirs("img", exist_ok=True)
-        print("📁 Se creó la carpeta 'img/' - coloca 'Fondo.jpeg' allí")
-        return False
-    
-    print("✅ Imagen de fondo encontrada")
-    return True
+    def _reemplazar_texto(self, texto):
+        """Reemplaza placeholders en texto"""
+        if not texto:
+            return texto
+            
+        for key, value in self.datos.items():
+            placeholder = f"${{{key}}}"
+            if placeholder in texto:
+                texto = texto.replace(placeholder, str(value))
+        return texto
 
-def crear_datos_ejemplo():
-    """Crea un conjunto de datos de ejemplo"""
+# FUNCIONES MEJORADAS DE CARGA DE DATOS
+def cargar_tabla_relacion():
+    """Carga el archivo tabla_de_relacion_json con mejor manejo de errores"""
+    print("🔍 Buscando tabla_de_relacion_json...")
+    
+    # Lista completa de posibles ubicaciones
+    posibles_rutas = [
+        'data/tabla_de_relacion.json'     # En directorio actual con extensión
+    ]
+    
+    # Verificar si la carpeta data existe
+    if not os.path.exists('data'):
+        print("❌ La carpeta 'data' no existe en el directorio actual")
+        print("📁 Creando carpeta 'data'...")
+        os.makedirs('data', exist_ok=True)
+    
+    # Buscar el archivo
+    archivo_encontrado = None
+    for ruta in posibles_rutas:
+        if os.path.exists(ruta):
+            archivo_encontrado = ruta
+            print(f"✅ Archivo encontrado: {ruta}")
+            break
+    
+    if not archivo_encontrado:
+        print("❌ No se encontró tabla_de_relacion_json en ninguna ubicación:")
+        for ruta in posibles_rutas:
+            existe = "✅" if os.path.exists(ruta) else "❌"
+            print(f"   {existe} {ruta}")
+        return None
+    
+    # Intentar cargar el archivo
+    try:
+        with open(archivo_encontrado, 'r', encoding='utf-8') as f:
+            datos = json.load(f)
+        
+        print(f"✅ Tabla cargada exitosamente: {len(datos)} registros")
+        return datos
+        
+    except json.JSONDecodeError as e:
+        print(f"❌ Error decodificando JSON: {e}")
+        # Intentar cargar como texto plano para diagnóstico
+        try:
+            with open(archivo_encontrado, 'r', encoding='utf-8') as f:
+                contenido = f.read()
+                print(f"📄 Contenido del archivo (primeros 500 caracteres):")
+                print(contenido[:500])
+        except:
+            pass
+        return None
+        
+    except Exception as e:
+        print(f"❌ Error cargando archivo: {e}")
+        return None
+
+def cargar_normas():
+    """Carga el archivo Normas.json y crea un mapeo de números a códigos de norma"""
+    print("🔍 Buscando Normas.json...")
+    
+    posibles_rutas = [
+        'data/Normas.json',
+        'Normas.json',
+        '../data/Normas.json'
+    ]
+    
+    for ruta in posibles_rutas:
+        if os.path.exists(ruta):
+            try:
+                with open(ruta, 'r', encoding='utf-8') as f:
+                    normas_data = json.load(f)
+                
+                print(f"✅ Archivo Normas.json encontrado: {ruta}")
+                
+                # Crear mapeo de números a códigos de norma
+                normas_map = {}
+                
+                if isinstance(normas_data, list):
+                    print("📝 Procesando lista de normas...")
+                    
+                    for norma_item in normas_data:
+                        if isinstance(norma_item, dict):
+                            codigo_norma = norma_item.get('NOM', '')
+                            
+                            # Extraer números del código de norma para crear mapeos
+                            # Ejemplo: "NOM-004-SE-2021" → extraer "004" y "4"
+                            numeros_en_norma = []
+                            
+                            # Buscar números en el código de norma
+                            import re
+                            numeros = re.findall(r'\d+', codigo_norma)
+                            for num in numeros:
+                                # Agregar el número tal cual (ej: "004")
+                                numeros_en_norma.append(num)
+                                # También agregar sin ceros a la izquierda (ej: "4")
+                                if num.startswith('0'):
+                                    numeros_en_norma.append(num.lstrip('0'))
+                            
+                            # Crear entradas en el mapeo para cada número encontrado
+                            for num in numeros_en_norma:
+                                if num:  # Asegurarse de que no esté vacío
+                                    normas_map[num] = codigo_norma
+                            
+                            # También mapear el código completo a sí mismo por si acaso
+                            normas_map[codigo_norma] = codigo_norma
+                    
+                    print(f"✅ Mapeo de normas creado: {len(normas_map)} entradas")
+                    
+                
+                # Mostrar algunas normas para verificación
+                print("📋 Ejemplo de mapeo de normas:")
+                normas_mostradas = 0
+                for key, value in normas_map.items():
+                    if len(key) <= 3:  # Mostrar solo mapeos con claves cortas (números)
+                        print(f"   - {key} → {value}")
+                        normas_mostradas += 1
+                        if normas_mostradas >= 10:
+                            break
+                
+                return normas_map
+                
+            except Exception as e:
+                print(f"❌ Error cargando {ruta}: {e}")
+                import traceback
+                traceback.print_exc()
+    
+    print("⚠️  No se encontró Normas.json, usando valores por defecto")
     return {
-        'year': '2024',
-        'norma': 'NOM-001',
-        'folio': '12345',
-        'solicitud': '67890',
-        'lista': 'A',
-        'fverificacion': '15/01/2024',
-        'femision': '20/01/2024',
-        'fverificacionlarga': '15 de enero de 2024',
-        'cliente': 'ELECTRODOMÉSTICOS BOSCH MÉXICO S.A. DE C.V.',
-        'rfc': 'EBM240115ABC',
-        'producto': 'REFRIGERADOR BOSCH MODELO KIR56B80',
-        'pedimento': '202401151234567',
-        'capitulo': '4',
-        'normades': 'ESPECIFICACIONES DE SEGURIDAD',
-        'rowMarca': 'BOSCH',
-        'rowCodigo': 'KIR56B80',
-        'rowFactura': 'FAC-2024-001',
-        'rowCantidad': '150',
-        'TCantidad': '150 unidades',
-        'obs': 'El producto cumple con todos los requisitos establecidos en la norma aplicable.',
-        'etiqueta1': 'ETQ-001', 'etiqueta2': 'ETQ-002', 'etiqueta3': 'ETQ-003',
-        'etiqueta4': 'ETQ-004', 'etiqueta5': 'ETQ-005', 'etiqueta6': 'ETQ-006',
-        'etiqueta7': 'ETQ-007', 'etiqueta8': 'ETQ-008', 'etiqueta9': 'ETQ-009',
-        'etiqueta10': 'ETQ-010',
-        'img1': 'Imagen frontal', 'img2': 'Imagen posterior', 
-        'img3': 'Etiqueta', 'img4': 'Diagrama',
-        'firma1': '________________________',
-        'firma2': '________________________',
-        'nfirma1': 'Ing. Juan Pérez Hernández',
-        'nfirma2': 'Lic. María García López'
+        "4": "NOM-004-SE-2021", 
+        "15": "NOM-015-SCFI-2007",
+        "20": "NOM-020-SCFI-1997",
+        "24": "NOM-024-SCFI-2013",
+        "50": "NOM-050-SCFI-2004",
+        "51": "NOM-051-SCFI/SSA1-2010",
+        "141": "NOM-141-SSA1/SCFI-2012",
+        "142": "NOM-142-SSA1/SCFI-2014",
+        "189": "NOM-189-SSA1/SCFI-2018",
+        "235": "NOM-235-SE-2020"
     }
 
-def main():
-    """Función principal"""
-    print("=" * 70)
-    print("   GENERADOR DE DICTAMEN - USA TU Dictamen.py")
-    print("=" * 70)
+
+
+
+
+def cargar_clientes():
+    """Carga el archivo Clientes.json"""
+    print("🔍 Buscando Clientes.json...")
     
-    # Verificar dependencias
-    print("\n🔍 Verificando recursos...")
-    verificar_imagen_fondo()
+    posibles_rutas = [
+        'data/Clientes.json',
+        'Clientes.json',
+        '../data/Clientes.json'
+    ]
     
-    # Crear datos
-    datos = crear_datos_ejemplo()
+    for ruta in posibles_rutas:
+        if os.path.exists(ruta):
+            try:
+                with open(ruta, 'r', encoding='utf-8') as f:
+                    clientes = json.load(f)
+                print(f"✅ Clientes cargados: {len(clientes)} clientes")
+                return clientes
+            except Exception as e:
+                print(f"❌ Error cargando {ruta}: {e}")
     
-    # Mostrar resumen
-    print("\n📊 DATOS A UTILIZAR:")
-    print(f"   Cliente: {datos['cliente']}")
-    print(f"   Producto: {datos['producto']}")
-    print(f"   RFC: {datos['rfc']}")
+    print("⚠️  No se encontró Clientes.json, usando valores por defecto")
+    return ""
+
+def verificar_estructura_datos():
+    """Verifica que todos los archivos necesarios existan"""
+    print("\n" + "="*50)
+    print("VERIFICACIÓN DE ESTRUCTURA DE DATOS")
+    print("="*50)
     
-    # Generar PDF usando TU plantilla
-    print("\n🛠️  Ejecutando tu plantilla Dictamen.py con datos reales...")
+    # Verificar tabla_de_relacion_json
+    tabla = cargar_tabla_relacion()
+    if tabla is None:
+        print("❌ CRÍTICO: No se pudo cargar tabla_de_relacion_json")
+        return False
     
-    try:
-        generador = PDFGeneratorConDatos(datos)
+    # Verificar Normas.json
+    normas = cargar_normas()
+    
+    # Verificar Clientes.json  
+    clientes = cargar_clientes()
+    
+    print("✅ Estructura de datos verificada")
+    return True
+
+def procesar_familias(tabla_datos):
+    """Agrupa registros por LISTA"""
+    if not tabla_datos:
+        print("❌ No hay datos para procesar")
+        return {}
+    
+    familias = defaultdict(list)
+    for registro in tabla_datos:
+        lista = registro.get('LISTA', '')
+        familias[lista].append(registro)
+    
+    print(f"✅ {len(familias)} familias encontradas")
+    return familias
+
+def preparar_datos_familia(registros, normas_map, clientes_list):
+    """Prepara datos para una familia específica"""
+    if not registros:
+        return None
         
-        if generador.generar_pdf_con_datos():
-            print("\n🎉 ¡PDF GENERADO EXITOSAMENTE!")
-            print("\n📁 ARCHIVO CREADO:")
-            print("   • Dictamen_Completado.pdf")
-            
-            print("\n✅ DETALLES:")
-            print("   - Se utilizó TU archivo Dictamen.py")
-            print("   - Todos los datos fueron insertados automáticamente")
-            print("   - Formato profesional mantenido")
-            print("   - Fondo incluido")
-            print("   - 2 páginas completas")
-            
-        else:
-            print("❌ No se pudo generar el PDF")
-            
-    except Exception as e:
-        print(f"❌ Error durante la generación: {e}")
-        print("\n🔧 Posibles soluciones:")
-        print("   - Verifica que Dictamen.py no tenga errores")
-        print("   - Asegúrate de que todas las clases y métodos existan")
-        print("   - Revisa que los nombres coincidan exactamente")
+    primer_registro = registros[0]
     
-    print("\n¡PROCESO FINALIZADO!")
+    # Información básica
+    year = datetime.now().strftime("%y")
+    norma_uva = primer_registro.get('NORMA UVA', '')
+    folio = str(primer_registro.get('FOLIO', ''))
+    solicitud = str(primer_registro.get('SOLICITUD', ''))
+    lista = str(primer_registro.get('LISTA', ''))
+    
+    # Mapear norma - CORREGIDO para usar el mapeo de normas
+    norma = "NOM-001"  # Valor por defecto
+    if not pd.isna(norma_uva) and norma_uva != '':
+        norma_str = str(int(norma_uva)) if isinstance(norma_uva, (int, float)) else str(norma_uva)
+        
+        # Buscar en el mapa de normas
+        if norma_str in normas_map:
+            norma = normas_map[norma_str]
+            print(f"   📋 Norma UVA {norma_str} → {norma}")
+        else:
+            # Si no se encuentra, buscar coincidencias parciales
+            norma_encontrada = None
+            for norma_key, norma_value in normas_map.items():
+                # Buscar por coincidencia exacta en claves numéricas
+                if norma_key.isdigit() and norma_str == norma_key:
+                    norma_encontrada = norma_value
+                    break
+            
+            if norma_encontrada:
+                norma = norma_encontrada
+                print(f"   📋 Norma UVA {norma_str} → {norma} (por coincidencia exacta)")
+            else:
+                # Si aún no se encuentra, usar el formato NOM-XXX
+                norma = f"NOM-{norma_str:03d}"
+                print(f"   ⚠️  Norma UVA {norma_str} no encontrada en el mapeo, usando {norma}")
+    
+    # Fechas
+    def formatear_fecha(fecha_str):
+        if pd.isna(fecha_str) or fecha_str == '':
+            return ""
+        try:
+            fecha = datetime.strptime(str(fecha_str), '%Y-%m-%d')
+            return fecha.strftime('%d/%m/%Y')
+        except:
+            return str(fecha_str)
+    
+    fverificacion = formatear_fecha(primer_registro.get('FECHA DE VERIFICACION', ''))
+    femision = formatear_fecha(primer_registro.get('FECHA DE ENTRADA', ''))
+    
+    # Cliente y RFC
+    marca = primer_registro.get('MARCA', '')
+    cliente, rfc = marca, ""
+    if not pd.isna(marca) and marca != '':
+        marca_upper = marca.upper()
+        for cliente_info in clientes_list:
+            cliente_marca = cliente_info.get('MARCA', '').upper()
+            if marca_upper == cliente_marca or marca_upper in cliente_marca:
+                cliente = cliente_info.get('CLIENTE', marca)
+                rfc = cliente_info.get('RFC', '')
+                break
+    
+    print(f"   👤 Cliente: {marca} → {cliente}")
+    
+    # Producto
+    producto = primer_registro.get('DESCRIPCION', 'Producto no especificado')
+    if pd.isna(producto) or producto == '':
+        producto = "Producto no especificado"
+    
+    # Códigos y facturas
+    codigos = []
+    facturas = []
+    for registro in registros:
+        codigo = registro.get('CODIGO', '')
+        factura = registro.get('FACTURA', '')
+        
+        if not pd.isna(codigo) and codigo != '':
+            if ',' in str(codigo):
+                codigos.extend([c.strip() for c in str(codigo).split(',')])
+            else:
+                codigos.append(str(codigo))
+        
+        if not pd.isna(factura) and factura != '':
+            if ',' in str(factura):
+                facturas.extend([f.strip() for f in str(factura).split(',')])
+            else:
+                facturas.append(str(factura))
+    
+    rowCodigo = ', '.join(list(dict.fromkeys(codigos))) if codigos else ""
+    rowFactura = ', '.join(list(dict.fromkeys(facturas))) if facturas else ""
+    
+    # Cantidades
+    total_cantidad = 0
+    for registro in registros:
+        cantidad = registro.get('CANTIDAD', 0)
+        if not pd.isna(cantidad) and isinstance(cantidad, (int, float)):
+            total_cantidad += cantidad
+    
+    # Observaciones
+    obs = ""
+    for registro in registros:
+        observaciones = registro.get('OBSERVACIONES DICTAMEN', '')
+        if not pd.isna(observaciones) and observaciones and observaciones != '':
+            obs = str(observaciones)
+            break
+    
+    # Firmas
+    firma = primer_registro.get('FIRMA', '')
+    nfirma1 = firma if not pd.isna(firma) and firma != '' else "Inspector no asignado"
+    
+    return {
+        'year': year,
+        'norma': norma,
+        'folio': folio,
+        'solicitud': solicitud,
+        'lista': lista,
+        'fverificacion': fverificacion,
+        'femision': femision,
+        'fverificacionlarga': fverificacion,  # Simplificado
+        'cliente': cliente,
+        'rfc': rfc,
+        'producto': producto,
+        'pedimento': str(primer_registro.get('PEDIMENTO', '')),
+        'capitulo': '4',
+        'normades': 'ESPECIFICACIONES DE SEGURIDAD',
+        'rowMarca': marca if not pd.isna(marca) and marca != '' else "",
+        'rowCodigo': rowCodigo,
+        'rowFactura': rowFactura,
+        'rowCantidad': str(total_cantidad),
+        'TCantidad': f"{total_cantidad} unidades",
+        'obs': obs,
+        'etiqueta1': '', 'etiqueta2': '', 'etiqueta3': '', 'etiqueta4': '', 'etiqueta5': '',
+        'etiqueta6': '', 'etiqueta7': '', 'etiqueta8': '', 'etiqueta9': '', 'etiqueta10': '',
+        'img1': '', 'img2': '', 'img3': '', 'img4': '', 'img5': '',
+        'img6': '', 'img7': '', 'img8': '', 'img9': '', 'img10': '',
+        'firma1': '________________________',
+        'firma2': '________________________',
+        'nfirma1': nfirma1,
+        'nfirma2': 'Responsable de Supervisión UI'
+    }
+
+
+def generar_dictamenes_completos(directorio_destino):
+    """Función principal que genera todos los dictámenes"""
+    
+    print("🚀 INICIANDO GENERACIÓN DE DICTÁMENES")
+    print("="*60)
+    
+    # Primero verificar la estructura de datos
+    if not verificar_estructura_datos():
+        return False, "Error en la estructura de datos. Verifique los archivos requeridos.", None
+    
+    # Cargar datos nuevamente para el procesamiento
+    tabla_datos = cargar_tabla_relacion()
+    normas_map = cargar_normas()
+    clientes_list = cargar_clientes()
+    
+    if not tabla_datos:
+        return False, "No se pudieron cargar los datos de la tabla de relación", None
+    
+    # Procesar familias
+    familias = procesar_familias(tabla_datos)
+    
+    if not familias:
+        return False, "No se encontraron familias para procesar", None
+    
+    # Crear directorio de destino
+    os.makedirs(directorio_destino, exist_ok=True)
+    print(f"📁 Directorio de destino: {directorio_destino}")
+    
+    # Generar dictámenes
+    dictamenes_generados = 0
+    archivos_creados = []
+    
+    print(f"\n🛠️  Generando {len(familias)} dictámenes...")
+    
+    for lista, registros in familias.items():
+        print(f"\n📄 Procesando familia LISTA {lista} ({len(registros)} registros)...")
+        
+        try:
+            # Preparar datos
+            datos = preparar_datos_familia(registros, normas_map, clientes_list)
+            
+            if not datos:
+                print(f"   ⚠️  No se pudieron preparar datos para lista {lista}")
+                continue
+            
+            # Generar PDF
+            generador = PDFGeneratorConDatos(datos)
+            nombre_archivo = f"Dictamen_Lista_{lista}.pdf"
+            ruta_completa = os.path.join(directorio_destino, nombre_archivo)
+            
+            if generador.generar_pdf_con_datos(ruta_completa):
+                dictamenes_generados += 1
+                archivos_creados.append(ruta_completa)
+                print(f"   ✅ Creado: {nombre_archivo}")
+            else:
+                print(f"   ❌ Error creando dictamen para lista {lista}")
+                
+        except Exception as e:
+            print(f"   ❌ Error en familia {lista}: {e}")
+            traceback.print_exc()
+            continue
+    
+    # Resultado final
+    resultado = {
+        'directorio': directorio_destino,
+        'total_generados': dictamenes_generados,
+        'total_familias': len(familias),
+        'archivos': archivos_creados
+    }
+    
+    mensaje = f"Se generaron {dictamenes_generados} de {len(familias)} dictámenes"
+    
+    if dictamenes_generados == 0:
+        return False, "No se pudo generar ningún dictamen", resultado
+    else:
+        return True, mensaje, resultado
+
+# Función para la GUI
+def generar_dictamenes_gui(callback_progreso=None, callback_finalizado=None):
+    """Versión para interfaz gráfica"""
+    try:
+        if callback_progreso:
+            callback_progreso(10, "Solicitando ubicación...")
+        
+        # Importar aquí para evitar problemas de dependencia
+        import tkinter as tk
+        from tkinter import filedialog
+        
+        # Crear ventana temporal para el diálogo
+        root = tk.Tk()
+        root.withdraw()  # Ocultar ventana principal
+        
+        directorio_destino = filedialog.askdirectory(
+            title="Seleccione dónde guardar los dictámenes"
+        )
+        
+        root.destroy()
+        
+        if not directorio_destino:
+            if callback_finalizado:
+                callback_finalizado(False, "Operación cancelada por el usuario", None)
+            return False, "Operación cancelada", None
+        
+        # Crear subcarpeta con fecha
+        from datetime import datetime
+        carpeta_final = os.path.join(directorio_destino, f"Dictamenes_{datetime.now().strftime('%Y%m%d_%H%M%S')}")
+        
+        if callback_progreso:
+            callback_progreso(30, "Verificando estructura de datos...")
+        
+        # Generar dictámenes
+        exito, mensaje, resultado = generar_dictamenes_completos(carpeta_final)
+        
+        if callback_progreso:
+            callback_progreso(100, mensaje)
+        
+        if callback_finalizado:
+            callback_finalizado(exito, mensaje, resultado)
+        
+        return exito, mensaje, resultado
+        
+    except Exception as e:
+        error_msg = f"Error: {str(e)}"
+        print(f"❌ Error en generador GUI: {error_msg}")
+        traceback.print_exc()
+        
+        if callback_finalizado:
+            callback_finalizado(False, error_msg, None)
+        return False, error_msg, None
 
 if __name__ == "__main__":
-    main()
+    print("=" * 60)
+    print("   GENERADOR DE DICTAMENES - PRUEBA DIRECTA")
+    print("=" * 60)
+    
+    # Prueba directa
+    carpeta_prueba = "dictamenes_prueba"
+    exito, mensaje, resultado = generar_dictamenes_completos(carpeta_prueba)
+    
+    if exito:
+        print(f"\n🎉 {mensaje}")
+        print(f"📁 Ubicación: {resultado['directorio']}")
+        
+        # Listar archivos creados
+        print("\n📄 Archivos creados:")
+        for archivo in resultado['archivos']:
+            print(f"   • {os.path.basename(archivo)}")
+            
+        # Verificar que los archivos existen
+        print("\n🔍 Verificando archivos...")
+        for archivo in resultado['archivos']:
+            existe = "✅" if os.path.exists(archivo) else "❌"
+            print(f"   {existe} {os.path.basename(archivo)}")
+    else:
+        print(f"\n❌ {mensaje}")

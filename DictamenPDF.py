@@ -231,8 +231,6 @@ class PDFGenerator:
 
         self.elements.append(firmas_table)
 
-
-
     def agregar_encabezado_pie_pagina(self, canvas, doc):
         """Agrega encabezado, pie de página y numeración a todas las páginas"""
         

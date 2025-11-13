@@ -1,5 +1,5 @@
 # -- SISTEMA V&C - GENERADOR DE DICTÁMENES -- #
-import os
+import os, sys
 import json
 import pandas as pd
 import customtkinter as ctk
@@ -56,6 +56,16 @@ class SistemaDictamenesVC(ctk.CTk):
         # ===== FOOTER =====
         self.crear_footer()
 
+    def centerwindow(self):
+        """Centra la ventana en la pantalla"""
+        self.update_idletasks()
+        ancho_ventana = self.winfo_width()
+        alto_ventana = self.winfo_height()
+        ancho_pantalla = self.winfo_screenwidth()
+        alto_pantalla = self.winfo_screenheight()
+        x = (ancho_pantalla // 2) - (ancho_ventana // 2)
+        y = (alto_pantalla // 2) - (alto_ventana // 2)
+        self.geometry(f"{ancho_ventana}x{alto_ventana}+{x}+{y}")
 
     # -----------------------------------------------------------
     # SECCIONES VISUALES
@@ -225,7 +235,7 @@ class SistemaDictamenesVC(ctk.CTk):
 
         ctk.CTkLabel(
             footer_content,
-            text="Sistema V&C - Generador de Dictámenes de Cumplimiento v1.0",
+            text="Sistema V&C - Generador de Dictámenes de Cumplimiento",
             font=("Inter", 10),
             text_color=STYLE["secundario"]
         ).pack(side="left")
@@ -279,12 +289,12 @@ class SistemaDictamenesVC(ctk.CTk):
 
             records = df.to_dict(orient="records")
 
-            # Guardar JSON
+            # Guardar JSON con nombre fijo
             data_folder = os.path.join(os.path.dirname(__file__), "data")
             os.makedirs(data_folder, exist_ok=True)
 
-            base_name = os.path.splitext(os.path.basename(file_path))[0]
-            self.json_filename = f"{base_name}.json"
+            # 🔹 Nombre fijo del archivo JSON
+            self.json_filename = "tabla_de_relacion.json"
             output_path = os.path.join(data_folder, self.json_filename)
 
             with open(output_path, "w", encoding="utf-8") as f:
@@ -381,55 +391,82 @@ class SistemaDictamenesVC(ctk.CTk):
             self.mostrar_error(f"No se pudo iniciar el generador:\n{e}")
 
     def _ejecutar_generador_con_progreso(self):
-        """Ejecuta el generador con actualización de progreso"""
+        """Ejecuta el generador de dictámenes en segundo plano"""
         try:
-            # Simular progreso inicial
-            for i in range(1, 4):
-                progreso = i * 0.1  # 10%, 20%, 30%
-                self.after(0, self._actualizar_progreso, progreso, f"⏳ Preparando datos... ({i}/3)")
-                time.sleep(0.5)
-
-            # Ejecutar el generador real
-            ruta_generador = os.path.join(os.path.dirname(__file__), "generador_dictamen.py")
-            if os.path.exists(ruta_generador):
-                # Simular progreso durante la ejecución
-                self.after(0, self._actualizar_progreso, 0.4, "⏳ Generando dictámenes PDF...")
-                
-                # Ejecutar el proceso
-                proceso = subprocess.Popen(["python", ruta_generador], 
-                                         stdout=subprocess.PIPE, 
-                                         stderr=subprocess.PIPE,
-                                         text=True)
-                
-                # Monitorear el proceso y actualizar progreso
-                while proceso.poll() is None:
-                    # Simular progreso incremental mientras se ejecuta
-                    progreso_actual = self.barra_progreso.get()
-                    if progreso_actual < 0.8:
-                        nuevo_progreso = min(progreso_actual + 0.05, 0.8)
-                        self.after(0, self._actualizar_progreso, nuevo_progreso, "⏳ Procesando registros...")
-                    time.sleep(0.3)
-
-                # Completar progreso
-                self.after(0, self._actualizar_progreso, 1.0, "✅ Dictámenes generados exitosamente")
-                time.sleep(1)  # Pausa para mostrar el 100%
-
-                # Determinar la carpeta de destino de los dictámenes
-                carpeta_dictamenes = self._obtener_carpeta_dictamenes()
-                
-                # Mostrar mensaje de éxito y abrir explorador
-                self.after(0, self._generacion_completada, True, 
-                          f"Los dictámenes PDF fueron generados correctamente.\n\nUbicación: {carpeta_dictamenes}", 
-                          carpeta_dictamenes)
-
-            else:
-                self.after(0, self._generacion_completada, False, 
-                          f"No se encontró el archivo: {ruta_generador}\n\nAsegúrese de que el generador_dictamen.py esté en la misma carpeta.")
-
-        except subprocess.CalledProcessError:
-            self.after(0, self._generacion_completada, False, "Error al ejecutar el generador de dictámenes.")
+            # Importar el generador
+            sys.path.append(os.path.dirname(__file__))
+            from generador_dictamen import generar_dictamenes_gui
+            
+            # Función para actualizar progreso
+            def actualizar_progreso(porcentaje, mensaje):
+                self.actualizar_progreso(porcentaje, mensaje)
+            
+            # Función para cuando finalice
+            def finalizado(exito, mensaje, resultado):
+                if exito and resultado:
+                    # Mostrar resultados
+                    directorio = resultado['directorio']
+                    total_gen = resultado['total_generados']
+                    total_fam = resultado['total_familias']
+                    
+                    # Verificar que los archivos existen
+                    archivos_existentes = []
+                    if os.path.exists(directorio):
+                        archivos_existentes = [f for f in os.listdir(directorio) if f.endswith('.pdf')]
+                    
+                    mensaje_final = f"✅ {mensaje}\n\n📁 Ubicación: {directorio}"
+                    
+                    if archivos_existentes:
+                        mensaje_final += f"\n📄 Archivos creados: {len(archivos_existentes)}"
+                    else:
+                        mensaje_final += "\n⚠️  No se encontraron archivos PDF en la carpeta"
+                    
+                    # Mostrar mensaje
+                    self.after(0, lambda: messagebox.showinfo("Generación Completada", mensaje_final))
+                    
+                    # Abrir carpeta si hay archivos
+                    if archivos_existentes:
+                        self.after(1000, lambda: self._abrir_carpeta(directorio))
+                    
+                else:
+                    self.after(0, lambda: self.mostrar_error(mensaje))
+            
+            # Ejecutar generación
+            generar_dictamenes_gui(
+                callback_progreso=actualizar_progreso,
+                callback_finalizado=finalizado
+            )
+            
         except Exception as e:
-            self.after(0, self._generacion_completada, False, f"No se pudo ejecutar el generador:\n{e}")
+            self.after(0, lambda: self.mostrar_error(f"Error iniciando generador: {str(e)}"))
+        finally:
+            self.after(0, self._finalizar_generacion)
+
+    def _abrir_carpeta(self, directorio):
+        """Abre la carpeta en el explorador"""
+        try:
+            if os.path.exists(directorio):
+                if os.name == 'nt':  # Windows
+                    os.startfile(directorio)
+                elif os.name == 'posix':  # macOS o Linux
+                    os.system(f'open "{directorio}"' if sys.platform == 'darwin' else f'xdg-open "{directorio}"')
+        except Exception as e:
+            print(f"Error abriendo carpeta: {e}")
+
+    def actualizar_progreso(self, porcentaje, mensaje):
+        """Actualiza la barra de progreso y el mensaje (se puede llamar desde hilos)"""
+        def _actualizar():
+            self.barra_progreso.set(porcentaje / 100.0)
+            self.etiqueta_progreso.configure(text=f"⏳ {mensaje}")
+            self.update_idletasks()
+        
+        # Usar after para ejecutar en el hilo principal de TKinter
+        self.after(0, _actualizar)
+
+    def _finalizar_generacion(self):
+        """Restaura el estado de la UI después de la generación"""
+        self.generando_dictamenes = False
+        self.boton_generar_dictamen.configure(state="normal")
 
     def _obtener_carpeta_dictamenes(self):
         """Determina la carpeta donde se guardan los dictámenes"""
@@ -515,7 +552,6 @@ class SistemaDictamenesVC(ctk.CTk):
         )
         self.check_label.configure(text="")
         messagebox.showerror("Error", mensaje)
-
 
 # ================== EJECUCIÓN ================== #
 if __name__ == "__main__":
