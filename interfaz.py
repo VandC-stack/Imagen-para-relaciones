@@ -6,6 +6,21 @@ from main import procesar_lote, cargar_config, guardar_config
 ctk.set_appearance_mode("light")
 ctk.set_default_color_theme("blue")
 
+
+# =========================================================
+# UTILIDAD: INTERPOLACIÓN SUAVE DE COLOR
+# =========================================================
+def _hex_to_rgb(h):
+    h = h.replace("#", "")
+    return tuple(int(h[i:i+2], 16) for i in (0, 2, 4))
+
+def _rgb_to_hex(rgb):
+    return "#{:02X}{:02X}{:02X}".format(*rgb)
+
+def _interpolate_color(c1, c2, t):
+    return tuple(int(c1[i] + (c2[i] - c1[i]) * t) for i in range(3))
+
+
 class App(ctk.CTk):
     def __init__(self):
         super().__init__()
@@ -72,7 +87,7 @@ class App(ctk.CTk):
         modo_frame = ctk.CTkFrame(config_card, fg_color="transparent")
         modo_frame.pack(anchor="w", padx=15, pady=(2, 10), fill="x")
 
-        # Switch estilo iOS
+        # Switch con colores base
         self.switch = ctk.CTkSwitch(
             modo_frame,
             text="",
@@ -96,7 +111,7 @@ class App(ctk.CTk):
         )
         self.modo_texto.pack(side="left", padx=10)
 
-        # Ajustar switch según lo guardado en config.json
+        # Ajuste inicial de colores según config
         if self.modo_var.get() == "carpetas":
             self.switch.configure(progress_color="#B8AA00", button_color="#ECD925")
         else:
@@ -116,7 +131,7 @@ class App(ctk.CTk):
         )
         self.btn_procesar.pack(padx=20, pady=15, fill="x")
         
-        # Status bar minimalista
+        # Status bar
         self.status = ctk.CTkLabel(
             self, 
             text="Listo para procesar",
@@ -133,7 +148,33 @@ class App(ctk.CTk):
         )
         footer.pack(side="bottom", pady=(0, 8))
 
-    # Cambios de color dinámico del switch y texto
+
+    # =========================================================
+    # ANIMACIÓN SUAVE DEL SWITCH
+    # =========================================================
+    def _animate_switch(self, start_hex, end_hex, start_btn, end_btn, steps=12):
+        start_rgb = _hex_to_rgb(start_hex)
+        end_rgb   = _hex_to_rgb(end_hex)
+
+        start_rb2 = _hex_to_rgb(start_btn)
+        end_rb2   = _hex_to_rgb(end_btn)
+
+        def step(i=0):
+            t = i / steps
+            color1 = _rgb_to_hex(_interpolate_color(start_rgb, end_rgb, t))
+            color2 = _rgb_to_hex(_interpolate_color(start_rb2, end_rb2, t))
+
+            self.switch.configure(progress_color=color1, button_color=color2)
+
+            if i < steps:
+                self.after(25, lambda: step(i+1))
+
+        step()
+
+
+    # =========================================================
+    # CAMBIO DE MODO + ANIMACIÓN
+    # =========================================================
     def _actualizar_modo(self):
         config = cargar_config()
         config["modo_pegado"] = self.modo_var.get()
@@ -141,11 +182,36 @@ class App(ctk.CTk):
 
         if self.modo_var.get() == "carpetas":
             self.modo_texto.configure(text="Multiples carpetas")
-            self.switch.configure(progress_color="#B8AA00", button_color="#ECD925")
+
+            # Animación hacia AMARILLO
+            self._animate_switch(
+                start_hex=self.switch.cget("progress_color"),
+                end_hex="#ECD925",
+                start_btn=self.switch.cget("button_color"),
+                end_btn="#B8AA00"
+            )
+
+            # Hover azul solo cuando está encendido
+            self.switch.configure(button_hover_color="#585400")
+
         else:
             self.modo_texto.configure(text="Carpeta única")
-            self.switch.configure(progress_color="#4b4b4b", button_color="#2b2b2b")
 
+            # Animación hacia GRIS
+            self._animate_switch(
+                start_hex=self.switch.cget("progress_color"),
+                end_hex="#4b4b4b",
+                start_btn=self.switch.cget("button_color"),
+                end_btn="#2b2b2b"
+            )
+
+            # Hover gris cuando está apagado
+            self.switch.configure(button_hover_color="#3c3c3c")
+
+
+    # =========================================================
+    # RESTO DEL SISTEMA
+    # =========================================================
     def _crear_ruta_item(self, parent, titulo, ruta, tipo):
         item = ctk.CTkFrame(parent, fg_color="transparent")
         item.pack(padx=15, pady=(15, 5), fill="x")
@@ -215,6 +281,7 @@ class App(ctk.CTk):
         self.btn_procesar.configure(state="normal", text="Iniciar Procesamiento")
         self.status.configure(text="Error en el procesamiento", text_color="#f44336")
         messagebox.showerror("Error", f"Ocurrió un problema:\n{error}")
+
 
 if __name__ == "__main__":
     app = App()
