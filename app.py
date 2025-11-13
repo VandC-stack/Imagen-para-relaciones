@@ -36,8 +36,8 @@ class SistemaDictamenesVC(ctk.CTk):
 
         # Configuración general
         self.title("Generador de Dictámenes")
-        self.geometry("460x600")  # Aumentado para acomodar el nuevo campo
-        self.minsize(460, 600)  # ⛔ Aumentado para evitar que la ventana sea más pequeña
+        self.geometry("900x600")  # Más ancho para acomodar dos tarjetas en fila
+        self.minsize(900, 600)
         ctk.set_appearance_mode("light")
         self.configure(fg_color=STYLE["fondo"])
 
@@ -95,13 +95,18 @@ class SistemaDictamenesVC(ctk.CTk):
         ).pack(anchor="center", expand=True, fill="both", pady=(0, 5))
 
     def crear_contenido_principal(self):
-        """Contenido principal reorganizado y mejorado"""
+        """Contenido principal reorganizado en fila horizontal"""
         main_container = ctk.CTkFrame(self, fg_color=STYLE["fondo"])
         main_container.pack(fill="both", expand=True, padx=25, pady=20)
 
-        # ===== TARJETA DE SELECCIÓN DE CLIENTE =====
-        card_cliente = ctk.CTkFrame(main_container, fg_color=STYLE["surface"], corner_radius=12)
-        card_cliente.pack(fill="x", pady=(0, 20))
+        # ===== FILA SUPERIOR: CLIENTE Y CARGA =====
+        fila_superior = ctk.CTkFrame(main_container, fg_color="transparent")
+        fila_superior.pack(fill="x", pady=(0, 20))
+
+        # ===== TARJETA DE SELECCIÓN DE CLIENTE (IZQUIERDA) =====
+        card_cliente = ctk.CTkFrame(fila_superior, fg_color=STYLE["surface"], corner_radius=12, width=400)
+        card_cliente.pack(side="left", fill="both", expand=True, padx=(0, 10))
+        card_cliente.pack_propagate(False)
 
         ctk.CTkLabel(
             card_cliente,
@@ -112,7 +117,7 @@ class SistemaDictamenesVC(ctk.CTk):
 
         # Frame para el selector de cliente
         cliente_frame = ctk.CTkFrame(card_cliente, fg_color="transparent")
-        cliente_frame.pack(fill="x", padx=20, pady=(0, 20))
+        cliente_frame.pack(fill="x", padx=20, pady=(0, 15))
 
         # Label para el combobox
         ctk.CTkLabel(
@@ -122,33 +127,53 @@ class SistemaDictamenesVC(ctk.CTk):
             text_color=STYLE["texto_oscuro"]
         ).pack(anchor="w", pady=(0, 8))
 
+        # Frame para combobox y botón de limpiar
+        cliente_controls_frame = ctk.CTkFrame(cliente_frame, fg_color="transparent")
+        cliente_controls_frame.pack(fill="x", pady=(0, 10))
+
         # Combobox para seleccionar cliente
         self.combo_cliente = ctk.CTkComboBox(
-            cliente_frame,
+            cliente_controls_frame,
             values=["Seleccione un cliente..."],
             font=FONT_SMALL,
             dropdown_font=FONT_SMALL,
             state="readonly",
-            width=400,
             height=40,
             corner_radius=8,
             command=self.actualizar_cliente_seleccionado
         )
-        self.combo_cliente.pack(anchor="w", fill="x", pady=(0, 10))
-        self.combo_cliente.set("Seleccione un cliente...")
+        self.combo_cliente.pack(side="left", fill="x", expand=True, padx=(0, 10))
+
+        # Botón para limpiar selección de cliente
+        self.boton_limpiar_cliente = ctk.CTkButton(
+            cliente_controls_frame,
+            text="✕",
+            command=self.limpiar_cliente,
+            font=("Inter", 14, "bold"),
+            fg_color=STYLE["advertencia"],
+            hover_color="#c45a52",
+            text_color=STYLE["surface"],
+            height=40,
+            width=40,
+            corner_radius=8,
+            state="disabled"
+        )
+        self.boton_limpiar_cliente.pack(side="left")
 
         # Información del cliente seleccionado
         self.info_cliente = ctk.CTkLabel(
             cliente_frame,
             text="No se ha seleccionado ningún cliente",
             font=FONT_SMALL,
-            text_color=STYLE["texto_claro"]
+            text_color=STYLE["texto_claro"],
+            wraplength=350
         )
-        self.info_cliente.pack(anchor="w")
+        self.info_cliente.pack(anchor="w", fill="x")
 
-        # ===== TARJETA DE CARGA =====
-        card_carga = ctk.CTkFrame(main_container, fg_color=STYLE["surface"], corner_radius=12)
-        card_carga.pack(fill="x", pady=(0, 20))
+        # ===== TARJETA DE CARGA (DERECHA) =====
+        card_carga = ctk.CTkFrame(fila_superior, fg_color=STYLE["surface"], corner_radius=12, width=400)
+        card_carga.pack(side="right", fill="both", expand=True, padx=(10, 0))
+        card_carga.pack_propagate(False)
 
         # Encabezado de la tarjeta
         ctk.CTkLabel(
@@ -163,7 +188,8 @@ class SistemaDictamenesVC(ctk.CTk):
             card_carga,
             text="No se ha cargado ningún archivo",
             font=FONT_SMALL,
-            text_color=STYLE["texto_claro"]
+            text_color=STYLE["texto_claro"],
+            wraplength=350
         )
         self.info_archivo.pack(anchor="w", padx=20, pady=(0, 15))
 
@@ -220,9 +246,9 @@ class SistemaDictamenesVC(ctk.CTk):
         )
         self.check_label.pack(side="right")
 
-        # ===== TARJETA DE GENERACIÓN =====
+        # ===== TARJETA DE GENERACIÓN (ABAJO) =====
         card_generacion = ctk.CTkFrame(main_container, fg_color=STYLE["surface"], corner_radius=12)
-        card_generacion.pack(fill="x", pady=(0, 20))
+        card_generacion.pack(fill="x", pady=(0, 0))
 
         ctk.CTkLabel(
             card_generacion,
@@ -234,21 +260,20 @@ class SistemaDictamenesVC(ctk.CTk):
         # Información del archivo
         self.info_generacion = ctk.CTkLabel(
             card_generacion,
-            text="Se generan dictámenes en formato pdf",
+            text="Se generan dictámenes en formato PDF para el cliente seleccionado",
             font=FONT_SMALL,
             text_color=STYLE["texto_claro"]
         )
         self.info_generacion.pack(anchor="w", padx=20, pady=(0, 10))
 
-        # Barra de progreso para generación de dictámenes (color primario #ECD925)
+        # Barra de progreso para generación de dictámenes
         self.barra_progreso = ctk.CTkProgressBar(
             card_generacion,
-            progress_color=STYLE["primario"],  # Cambiado a color primario
+            progress_color=STYLE["primario"],
             height=12,
-            width=400,
             corner_radius=6
         )
-        self.barra_progreso.pack(padx=20, pady=(10, 10))
+        self.barra_progreso.pack(fill="x", padx=20, pady=(10, 10))
         self.barra_progreso.set(0)
 
         # Etiqueta de progreso
@@ -269,8 +294,7 @@ class SistemaDictamenesVC(ctk.CTk):
             fg_color=STYLE["exito"],
             hover_color="#1f8c4d",
             text_color=STYLE["surface"],
-            height=40,
-            width=120,
+            height=45,
             corner_radius=8,
             state="disabled"
         )
@@ -342,6 +366,7 @@ class SistemaDictamenesVC(ctk.CTk):
                 text="No se ha seleccionado ningún cliente",
                 text_color=STYLE["texto_claro"]
             )
+            self.boton_limpiar_cliente.configure(state="disabled")
             return
         
         # Buscar el cliente en la lista
@@ -353,7 +378,23 @@ class SistemaDictamenesVC(ctk.CTk):
                     text=f"✅ {cliente_nombre}\n📋 RFC: {rfc}",
                     text_color=STYLE["exito"]
                 )
+                self.boton_limpiar_cliente.configure(state="normal")
+                
+                # Habilitar botón de generación si hay archivo JSON
+                if self.archivo_json_generado:
+                    self.boton_generar_dictamen.configure(state="normal")
                 break
+
+    def limpiar_cliente(self):
+        """Limpia la selección del cliente"""
+        self.combo_cliente.set("Seleccione un cliente...")
+        self.cliente_seleccionado = None
+        self.info_cliente.configure(
+            text="No se ha seleccionado ningún cliente",
+            text_color=STYLE["texto_claro"]
+        )
+        self.boton_limpiar_cliente.configure(state="disabled")
+        self.boton_generar_dictamen.configure(state="disabled")
 
     def cargar_excel(self):
         """Selecciona el Excel y lo convierte automáticamente a JSON"""
@@ -372,7 +413,10 @@ class SistemaDictamenesVC(ctk.CTk):
             text_color=STYLE["exito"]
         )
         
+        # DESHABILITAR botón de subir archivo y ACTIVAR botón de limpiar
+        self.boton_cargar_excel.configure(state="disabled")
         self.boton_limpiar.configure(state="normal")
+        
         self.etiqueta_estado.configure(
             text="⏳ Convirtiendo a JSON...", 
             text_color=STYLE["advertencia"]
@@ -462,6 +506,9 @@ class SistemaDictamenesVC(ctk.CTk):
         )
         self.etiqueta_estado.configure(text="")
         self.check_label.configure(text="")
+        
+        # REACTIVAR botón de subir archivo y DESACTIVAR botón de limpiar
+        self.boton_cargar_excel.configure(state="normal")
         self.boton_limpiar.configure(state="disabled")
         self.boton_generar_dictamen.configure(state="disabled")
         self.barra_progreso.set(0)
@@ -589,82 +636,6 @@ class SistemaDictamenesVC(ctk.CTk):
         """Restaura el estado de la UI después de la generación"""
         self.generando_dictamenes = False
         self.boton_generar_dictamen.configure(state="normal")
-
-    def _obtener_carpeta_dictamenes(self):
-        """Determina la carpeta donde se guardan los dictámenes"""
-        # Primero intenta encontrar la carpeta en el directorio actual
-        posibles_carpetas = [
-            "Dictamenes",
-            "dictamenes", 
-            "output",
-            "Dictamenes_PDF",
-            os.path.join(os.path.dirname(__file__), "Dictamenes"),
-            os.path.join(os.path.dirname(__file__), "dictamenes"),
-            os.path.join(os.path.dirname(__file__), "output")
-        ]
-        
-        for carpeta in posibles_carpetas:
-            if os.path.exists(carpeta) and os.path.isdir(carpeta):
-                return carpeta
-        
-        # Si no encuentra ninguna carpeta específica, usa el directorio actual
-        return os.path.dirname(__file__)
-
-    def _abrir_explorador_archivos(self, ruta):
-        """Abre el explorador de archivos en la ruta especificada"""
-        try:
-            sistema_operativo = platform.system()
-            
-            if sistema_operativo == "Windows":
-                os.startfile(ruta)
-            elif sistema_operativo == "Darwin":  # macOS
-                subprocess.Popen(["open", ruta])
-            else:  # Linux y otros
-                subprocess.Popen(["xdg-open", ruta])
-                
-            return True
-        except Exception as e:
-            print(f"Error al abrir explorador: {e}")
-            return False
-
-    def _actualizar_progreso(self, valor, mensaje):
-        """Actualiza la barra de progreso y el mensaje"""
-        self.barra_progreso.set(valor)
-        self.etiqueta_progreso.configure(text=mensaje)
-        
-        # Cambiar color del texto según el progreso
-        if valor >= 1.0:
-            self.etiqueta_progreso.configure(text_color=STYLE["exito"])
-        else:
-            self.etiqueta_progreso.configure(text_color=STYLE["advertencia"])
-
-    def _generacion_completada(self, exito, mensaje, carpeta_dictamenes=None):
-        """Maneja la finalización de la generación"""
-        self.generando_dictamenes = False
-        self.boton_generar_dictamen.configure(state="normal")
-        
-        if exito:
-            # Mostrar mensaje de éxito
-            respuesta = messagebox.askyesno(
-                "Proceso Finalizado", 
-                f"✅ {mensaje}\n\n¿Desea abrir la carpeta donde se guardaron los dictámenes?"
-            )
-            
-            if respuesta and carpeta_dictamenes:
-                if not self._abrir_explorador_archivos(carpeta_dictamenes):
-                    messagebox.showinfo(
-                        "Carpeta no encontrada", 
-                        f"No se pudo abrir la carpeta automáticamente.\n\nPuede encontrar los dictámenes en:\n{carpeta_dictamenes}"
-                    )
-        else:
-            self.mostrar_error(mensaje)
-            # Resetear barra de progreso en caso de error
-            self.barra_progreso.set(0)
-            self.etiqueta_progreso.configure(text="")
-
-    # -----------------------------------------------------------
-    # AUXILIARES
-    # -----------------------------------------------------------
 
     def mostrar_error(self, mensaje):
         """Muestra un error en la interfaz"""
