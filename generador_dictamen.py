@@ -7,10 +7,23 @@ import sys
 import json
 import pandas as pd
 from datetime import datetime
-from collections import defaultdict
 import tempfile
 import shutil
 import traceback
+
+# Importar funciones de carga de datos
+try:
+    from ArmadoDictamen import (
+        cargar_tabla_relacion, 
+        cargar_normas, 
+        procesar_familias, 
+        preparar_datos_familia, 
+        cargar_clientes
+    )
+    print("✅ ArmadoDictamen.py cargado correctamente")
+except ImportError as e:
+    print(f"❌ Error importando ArmadoDictamen: {e}")
+    sys.exit(1)
 
 # Importar tu plantilla
 try:
@@ -99,331 +112,67 @@ class PDFGeneratorConDatos(PDFGenerator):
         if not texto:
             return texto
             
-        for key, value in self.datos.items():
-            placeholder = f"${{{key}}}"
-            if placeholder in texto:
-                texto = texto.replace(placeholder, str(value))
+        # Reemplazo especial para el texto del dictamen
+        if "De conformidad en lo dispuesto" in texto:
+            texto = self._reemplazar_texto_dictamen(texto)
+        else:
+            # Reemplazo normal para otros placeholders
+            for key, value in self.datos.items():
+                placeholder = f"${{{key}}}"
+                if placeholder in texto:
+                    texto = texto.replace(placeholder, str(value))
         return texto
 
-# FUNCIONES DE CARGA DE DATOS
-def cargar_tabla_relacion():
-    """Carga el archivo tabla_de_relacion.json con mejor manejo de errores"""
-    print("🔍 Buscando tabla_de_relacion.json...")
-    
-    # Lista completa de posibles ubicaciones
-    posibles_rutas = [
-        'data/tabla_de_relacion.json',      # ✅ Esta es la ruta correcta
-        'data/tabla_de_relacion_json',      
-        'data/tabla_de_relacion_json.json', 
-        './data/tabla_de_relacion.json',    
-        '../data/tabla_de_relacion.json',   
-        'tabla_de_relacion.json',           
-        'tabla_de_relacion_json',           
-        'tabla_de_relacion_json.json',      
-    ]
-    
-    # Verificar si la carpeta data existe
-    if not os.path.exists('data'):
-        print("❌ La carpeta 'data' no existe en el directorio actual")
-        return None
-    
-    # Buscar el archivo
-    archivo_encontrado = None
-    for ruta in posibles_rutas:
-        if os.path.exists(ruta):
-            archivo_encontrado = ruta
-            print(f"✅ Archivo encontrado: {ruta}")
-            break
-    
-    if not archivo_encontrado:
-        print("❌ No se encontró tabla_de_relacion.json en ninguna ubicación")
-        return None
-    
-    # Intentar cargar el archivo
-    try:
-        with open(archivo_encontrado, 'r', encoding='utf-8') as f:
-            datos = json.load(f)
+    def _reemplazar_texto_dictamen(self, texto):
+        """Reemplazo especial para el texto principal del dictamen con campos en negritas"""
+        # Obtener los datos necesarios
+        cliente = self.datos.get('cliente', '')
+        producto = self.datos.get('producto', '')
+        pedimento = self.datos.get('pedimento', '')
+        fverificacionlarga = self.datos.get('fverificacionlarga', '')
+        capitulo = self.datos.get('capitulo', '')
+        norma = self.datos.get('norma', '')
+        normades = self.datos.get('normades', '')
         
-        print(f"✅ Tabla cargada exitosamente: {len(datos)} registros")
-        return datos
+        # Construir el texto del dictamen con campos específicos en negritas
+        texto_dictamen = (
+            f"De conformidad en lo dispuesto en los artículos 53, 56 fracción I, 60 fracción I, 62, 64, 68 y 140 de la Ley de Infraestructura "
+            f"de la Calidad; 50 del Reglamento de la Ley Federal de Metrología y Normalización; Punto 2.4.8 Fracción III ACUERDO por "
+            f"el que la Secretaría de Economía emite Reglas y criterios de carácter general en materia de comercio exterior; publicado "
+            f"en el Diario Oficial de la Federación el 09 de mayo de 2022 y posteriores modificaciones; esta Unidad de Inspección a "
+            f"solicitud de la persona moral denominada <b>{cliente}</b> dictamina el Producto: <b>{producto}</b>; que la mercancía importada bajo el "
+            f"pedimento aduanal No. <b>{pedimento}</b> de fecha {fverificacionlarga}, fue etiquetada conforme a los requisitos de Información "
+            f"Comercial en el capítulo <b>{capitulo}</b> de la Norma Oficial Mexicana <b>{norma}</b> <b>{normades}</b> Cualquier otro requisito "
+            f"establecido en la norma referida, es responsabilidad del titular de este Dictamen."
+        )
         
-    except Exception as e:
-        print(f"❌ Error cargando archivo: {e}")
-        return None
+        return texto_dictamen
 
-def cargar_normas():
-    """Carga el archivo Normas.json y crea un mapeo de números a códigos de norma"""
-    print("🔍 Buscando Normas.json...")
-    
-    posibles_rutas = [
-        'data/Normas.json',
-        'Normas.json',
-        '../data/Normas.json'
-    ]
-    
-    for ruta in posibles_rutas:
-        if os.path.exists(ruta):
-            try:
-                with open(ruta, 'r', encoding='utf-8') as f:
-                    normas_data = json.load(f)
-                
-                print(f"✅ Archivo Normas.json encontrado: {ruta}")
-                
-                # Crear mapeo de números a códigos de norma
-                normas_map = {}
-                
-                if isinstance(normas_data, list):
-                    print("📝 Procesando lista de normas...")
-                    
-                    for norma_item in normas_data:
-                        if isinstance(norma_item, dict):
-                            codigo_norma = norma_item.get('NOM', '')
-                            
-                            # Extraer números del código de norma para crear mapeos
-                            import re
-                            numeros = re.findall(r'\d+', codigo_norma)
-                            for num in numeros:
-                                # Agregar el número tal cual (ej: "004")
-                                normas_map[num] = codigo_norma
-                                # También agregar sin ceros a la izquierda (ej: "4")
-                                if num.startswith('0'):
-                                    normas_map[num.lstrip('0')] = codigo_norma
-                            
-                            # También mapear el código completo a sí mismo
-                            normas_map[codigo_norma] = codigo_norma
-                    
-                    print(f"✅ Mapeo de normas creado: {len(normas_map)} entradas")
-                    
-                else:
-                    print("⚠️  Formato de normas no reconocido, usando valores por defecto")
-                    normas_map = {
-                        "24": "NOM-004-SE-2021",
-                        "4": "NOM-004-SE-2021", 
-                        "1": "NOM-001-SE-2021"
-                    }
-                
-                return normas_map
-                
-            except Exception as e:
-                print(f"❌ Error cargando {ruta}: {e}")
-    
-    print("⚠️  No se encontró Normas.json, usando valores por defecto")
-    return {
-        "24": "NOM-004-SE-2021",
-        "4": "NOM-004-SE-2021", 
-        "1": "NOM-001-SE-2021",
-        "15": "NOM-015-SCFI-2007",
-        "20": "NOM-020-SCFI-1997",
-        "24": "NOM-024-SCFI-2013",
-        "50": "NOM-050-SCFI-2004",
-        "51": "NOM-051-SCFI/SSA1-2010",
-        "141": "NOM-141-SSA1/SCFI-2012",
-        "142": "NOM-142-SSA1/SCFI-2014",
-        "189": "NOM-189-SSA1/SCFI-2018",
-        "235": "NOM-235-SE-2020"
-    }
-
-def procesar_familias(tabla_datos):
-    """Agrupa registros por LISTA"""
-    if not tabla_datos:
-        print("❌ No hay datos para procesar")
-        return {}
-    
-    familias = defaultdict(list)
-    for registro in tabla_datos:
-        lista = registro.get('LISTA', '')
-        familias[lista].append(registro)
-    
-    print(f"✅ {len(familias)} familias encontradas")
-    return familias
-
-def preparar_datos_familia(registros, normas_map, cliente_manual=None, rfc_manual=None):
-    """Prepara datos para una familia específica - VERSIÓN CORREGIDA"""
-    if not registros:
-        return None
+    def crear_estilos(self):
+        """Crear estilos que permitan HTML/negritas - VERSIÓN CORREGIDA"""
+        # Llamar al método de la clase base primero
+        super().crear_estilos()
         
-    primer_registro = registros[0]
-    
-    # Información básica
-    year = datetime.now().strftime("%y")
-    norma_uva = primer_registro.get('NORMA UVA', '')
-    folio = str(primer_registro.get('FOLIO', ''))
-    solicitud = str(primer_registro.get('SOLICITUD', ''))
-    lista = str(primer_registro.get('LISTA', ''))
-    
-    # Mapear norma
-    norma = "NOM-001"  # Valor por defecto
-    if not pd.isna(norma_uva) and norma_uva != '':
-        norma_str = str(int(norma_uva)) if isinstance(norma_uva, (int, float)) else str(norma_uva)
-        
-        # Buscar en el mapa de normas
-        if norma_str in normas_map:
-            norma = normas_map[norma_str]
-            print(f"   📋 Norma UVA {norma_str} → {norma}")
-        else:
-            # Si no se encuentra, buscar coincidencias parciales
-            norma_encontrada = None
-            for norma_key, norma_value in normas_map.items():
-                # Buscar por coincidencia exacta en claves numéricas
-                if norma_key.isdigit() and norma_str == norma_key:
-                    norma_encontrada = norma_value
-                    break
-            
-            if norma_encontrada:
-                norma = norma_encontrada
-                print(f"   📋 Norma UVA {norma_str} → {norma} (por coincidencia exacta)")
-            else:
-                # Si aún no se encuentra, usar el formato NOM-XXX
-                norma = f"NOM-{norma_str:03d}"
-                print(f"   ⚠️  Norma UVA {norma_str} no encontrada en el mapeo, usando {norma}")
-    
-    # Fechas
-    def formatear_fecha(fecha_str):
-        if pd.isna(fecha_str) or fecha_str == '':
-            return ""
+        # Configurar los estilos para permitir HTML de manera segura
         try:
-            fecha = datetime.strptime(str(fecha_str), '%Y-%m-%d')
-            return fecha.strftime('%d/%m/%Y')
-        except:
-            return str(fecha_str)
-    
-    fverificacion = formatear_fecha(primer_registro.get('FECHA DE VERIFICACION', ''))
-    femision = formatear_fecha(primer_registro.get('FECHA DE ENTRADA', ''))
-    
-    # INICIALIZAR VARIABLES CRÍTICAS PRIMERO
-    marca = ""
-    modelo = ""
-    descripcion = ""
-    
-    # Buscar la primera marca, modelo y descripción no vacíos en todos los registros
-    for registro in registros:
-        if not pd.isna(registro.get('MARCA', '')) and registro.get('MARCA', '') != '':
-            marca = registro.get('MARCA', '')
-            break
-    
-    for registro in registros:
-        if not pd.isna(registro.get('MODELO', '')) and registro.get('MODELO', '') != '':
-            modelo = registro.get('MODELO', '')
-            break
-    
-    for registro in registros:
-        if not pd.isna(registro.get('DESCRIPCION', '')) and registro.get('DESCRIPCION', '') != '':
-            descripcion = registro.get('DESCRIPCION', '')
-            break
-    
-    # Cliente y RFC - USAR LOS VALORES MANUALES SI SE PROVEEN
-    if cliente_manual and rfc_manual:
-        cliente = cliente_manual
-        rfc = rfc_manual
-        print(f"   👤 Cliente manual: {cliente}")
-    else:
-        # Búsqueda automática (comportamiento original)
-        cliente, rfc = marca, ""
-        if not pd.isna(marca) and marca != '':
-            marca_upper = marca.upper()
-            # Cargar clientes para búsqueda automática
-            clientes_list = cargar_clientes()
-            for cliente_info in clientes_list:
-                cliente_marca = cliente_info.get('MARCA', '').upper()
-                if marca_upper == cliente_marca or marca_upper in cliente_marca:
-                    cliente = cliente_info.get('CLIENTE', marca)
-                    rfc = cliente_info.get('RFC', '')
-                    break
-        print(f"   👤 Cliente automático: {marca} → {cliente}")
-    
-    # Producto - usar la descripción encontrada
-    producto = descripcion if descripcion else "Producto no especificado"
-    if pd.isna(producto) or producto == '':
-        producto = "Producto no especificado"
-    
-    # Códigos y facturas
-    codigos = []
-    facturas = []
-    for registro in registros:
-        codigo = registro.get('CODIGO', '')
-        factura = registro.get('FACTURA', '')
-        
-        if not pd.isna(codigo) and codigo != '':
-            if ',' in str(codigo):
-                codigos.extend([c.strip() for c in str(codigo).split(',')])
+            # Obtener los nombres de los estilos de manera segura
+            if hasattr(self.styles, '_styles'):
+                # Para ReportLab, los estilos se almacenan en _styles
+                for style_name, style_obj in self.styles._styles.items():
+                    if hasattr(style_obj, 'allowHtml'):
+                        style_obj.allowHtml = True
+            elif hasattr(self.styles, 'byName'):
+                # Alternativa: usar byName si está disponible
+                for style_name, style_obj in self.styles.byName.items():
+                    if hasattr(style_obj, 'allowHtml'):
+                        style_obj.allowHtml = True
             else:
-                codigos.append(str(codigo))
-        
-        if not pd.isna(factura) and factura != '':
-            if ',' in str(factura):
-                facturas.extend([f.strip() for f in str(factura).split(',')])
-            else:
-                facturas.append(str(factura))
-    
-    rowCodigo = ', '.join(list(dict.fromkeys(codigos))) if codigos else ""
-    rowFactura = ', '.join(list(dict.fromkeys(facturas))) if facturas else ""
-    
-    # Cantidades
-    total_cantidad = 0
-    for registro in registros:
-        cantidad = registro.get('CANTIDAD', 0)
-        if not pd.isna(cantidad) and isinstance(cantidad, (int, float)):
-            total_cantidad += cantidad
-    
-    # Observaciones
-    obs = ""
-    for registro in registros:
-        observaciones = registro.get('OBSERVACIONES DICTAMEN', '')
-        if not pd.isna(observaciones) and observaciones and observaciones != '':
-            obs = str(observaciones)
-            break
-    
-    # Firmas
-    firma = primer_registro.get('FIRMA', '')
-    nfirma1 = firma if not pd.isna(firma) and firma != '' else "Inspector no asignado"
-    
-    # DATOS FINALES - AHORA CON VARIABLES SIEMPRE DEFINIDAS
-    datos_finales = {
-        'year': year,
-        'norma': norma,
-        'folio': folio,
-        'solicitud': solicitud,
-        'lista': lista,
-        'fverificacion': fverificacion,
-        'femision': femision,
-        'fverificacionlarga': fverificacion,  # Simplificado
-        'cliente': cliente,
-        'rfc': rfc,
-        'producto': producto,
-        'pedimento': str(primer_registro.get('PEDIMENTO', '')),
-        'capitulo': '4',
-        'normades': 'ESPECIFICACIONES DE SEGURIDAD',
-        'rowMarca': marca if not pd.isna(marca) and marca != '' else "",
-        'rowModelo': modelo if not pd.isna(modelo) and modelo != '' else "",
-        'rowCodigo': rowCodigo,
-        'rowFactura': rowFactura,
-        'rowCantidad': str(total_cantidad),
-        'TCantidad': f"{total_cantidad} unidades",
-        'obs': obs,
-        'etiqueta1': '', 'etiqueta2': '', 'etiqueta3': '', 'etiqueta4': '', 'etiqueta5': '',
-        'etiqueta6': '', 'etiqueta7': '', 'etiqueta8': '', 'etiqueta9': '', 'etiqueta10': '',
-        'img1': '', 'img2': '', 'img3': '', 'img4': '', 'img5': '',
-        'img6': '', 'img7': '', 'img8': '', 'img9': '', 'img10': '',
-        'firma1': '________________________',
-        'firma2': '________________________',
-        'nfirma1': nfirma1,
-        'nfirma2': 'Responsable de Supervisión UI'
-    }
-    
-    print(f"   ✅ Datos preparados: Cliente={cliente}, Marca={marca}, Producto={producto[:50]}...")
-    return datos_finales
-
-
-
-
-def cargar_clientes():
-    """Carga el archivo Clientes.json (para búsqueda automática)"""
-    try:
-        with open('data/Clientes.json', 'r', encoding='utf-8') as f:
-            clientes = json.load(f)
-        return clientes
-    except:
-        return []
+                # Si no podemos acceder a los estilos, crear uno específico para el texto del dictamen
+                print("⚠️  No se pudieron configurar todos los estilos para HTML, continuando...")
+                
+        except Exception as e:
+            print(f"⚠️  Error configurando estilos HTML: {e}")
+            # Continuar sin configurar HTML para no bloquear la generación
 
 def generar_dictamenes_completos(directorio_destino, cliente_manual=None, rfc_manual=None):
     """Función principal que genera todos los dictámenes"""
@@ -434,7 +183,7 @@ def generar_dictamenes_completos(directorio_destino, cliente_manual=None, rfc_ma
     # Cargar datos
     print("📂 Cargando datos...")
     tabla_datos = cargar_tabla_relacion()
-    normas_map = cargar_normas()
+    normas_map, normas_info_completa = cargar_normas()
     
     if not tabla_datos:
         return False, "No se pudieron cargar los datos de la tabla de relación", None
@@ -464,7 +213,7 @@ def generar_dictamenes_completos(directorio_destino, cliente_manual=None, rfc_ma
         
         try:
             # Preparar datos para esta familia
-            datos = preparar_datos_familia(registros, normas_map, cliente_manual, rfc_manual)
+            datos = preparar_datos_familia(registros, normas_map, normas_info_completa, cliente_manual, rfc_manual)
             
             if not datos:
                 print(f"   ⚠️  No se pudieron preparar datos para lista {lista}")
