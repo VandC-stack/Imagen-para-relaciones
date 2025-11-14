@@ -1,6 +1,5 @@
-"""
-Generador de Dictámenes PDF - Con soporte para cliente manual
-"""
+"""Generador de Dictámenes PDF - Con soporte para cliente manual
+Este archivo genera Dictámenes de Cumplimiento en formato PDF de prueba si se ejecuta directamente."""
 
 import os
 import sys
@@ -37,6 +36,10 @@ except ImportError as e:
 from reportlab.platypus import SimpleDocTemplate, Paragraph
 from reportlab.lib.pagesizes import letter
 from reportlab.lib.units import inch
+
+# Constantes para el tamaño de página
+from reportlab.lib.pagesizes import letter
+LETTER_WIDTH, LETTER_HEIGHT = letter
 
 class PDFGeneratorConDatos(PDFGenerator):
     """Subclase que reemplaza placeholders con datos reales"""
@@ -148,6 +151,80 @@ class PDFGeneratorConDatos(PDFGenerator):
         
         return texto_dictamen
 
+    def agregar_encabezado_pie_pagina(self, canvas, doc):
+        """Agrega encabezado, pie de página y numeración a todas las páginas - SOBREESCRITO para usar self.datos"""
+        
+        canvas.saveState()
+        
+        width, height = doc.pagesize
+        
+        # Fondo
+        image_path = "img/Fondo.jpeg"
+        if os.path.exists(image_path):
+            try:
+                canvas.drawImage(image_path, 0, 0, width=width, height=height)
+            except:
+                pass
+        
+        # Encabezado
+        canvas.setFont("Helvetica-Bold", 16)
+        canvas.drawCentredString(width/2, height-60, "DICTAMEN DE CUMPLIMIENTO")
+        
+        canvas.setFont("Helvetica", 10)
+        codigo_text = self.datos.get('cadena_identificacion', '')
+        if not codigo_text:
+            year = self.datos.get('year', '')
+            norma = self.datos.get('norma', '')
+            folio = self.datos.get('folio', '')
+            solicitud = self.datos.get('solicitud', '')
+            lista = self.datos.get('lista', '')
+            codigo_text = f"{year}049UDC{norma}{folio} Solicitud de Servicio: {year}049USD{norma}{solicitud}-{lista}"
+        if len(codigo_text) > 100:
+            codigo_text = codigo_text[:100] + "..."
+        canvas.drawCentredString(width/2, height-80, codigo_text)
+        
+        # Numeración
+        pagina_actual = canvas.getPageNumber()
+        numeracion = f"Página {pagina_actual} de {self.total_pages}"
+        canvas.setFont("Helvetica", 9)
+        canvas.drawRightString(width-72, height-50, numeracion)
+        
+        # Pie de página
+        footer_text = "Este Dictamen de Cumplimiento se emitió por medios electrónicos, conforme al oficio de autorización DGN.312.05.2012.106 de fecha 10 de enero de 2012 expedido por la DGN a esta Unidad de Inspección."
+        formato_text = "Formato: PT-F-208B-00-3"
+
+        canvas.setFont("Helvetica", 7)
+
+        # Dividir texto en líneas
+        lines = []
+        words = footer_text.split()
+        current_line = ""
+        for word in words:
+            test_line = current_line + " " + word if current_line else word
+            if len(test_line) <= 150:
+                current_line = test_line
+            else:
+                lines.append(current_line)
+                current_line = word
+        if current_line:
+            lines.append(current_line)
+
+        line_height = 8
+        start_y = 60
+
+        for i, line in enumerate(lines):
+            text_width = canvas.stringWidth(line, "Helvetica", 7)
+            available_width = width - 144
+            if text_width < available_width * 0.8:
+                x_position = (width - text_width) / 2
+            else:
+                x_position = 72
+            canvas.drawString(x_position, start_y - (i * line_height), line)
+
+        canvas.drawRightString(width - 72, start_y - (len(lines) * line_height) - 4, formato_text)
+
+        canvas.restoreState()
+
     def crear_estilos(self):
         """Crear estilos que permitan HTML/negritas - VERSIÓN CORREGIDA"""
         # Llamar al método de la clase base primero
@@ -172,7 +249,6 @@ class PDFGeneratorConDatos(PDFGenerator):
                 
         except Exception as e:
             print(f"⚠️  Error configurando estilos HTML: {e}")
-            # Continuar sin configurar HTML para no bloquear la generación
 
 def generar_dictamenes_completos(directorio_destino, cliente_manual=None, rfc_manual=None):
     """Función principal que genera todos los dictámenes"""
@@ -323,3 +399,4 @@ if __name__ == "__main__":
             print(f"   • {os.path.basename(archivo)}")
     else:
         print(f"\n❌ {mensaje}")
+

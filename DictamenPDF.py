@@ -249,9 +249,8 @@ class PDFGenerator:
         canvas.drawCentredString(LETTER_WIDTH/2, LETTER_HEIGHT-60, "DICTAMEN DE CUMPLIMIENTO")
         
         canvas.setFont("Helvetica", 10)
-        codigo_text = "${year}049UDC${norma}${folio} Solicitud: ${year}049USD${norma}${solicitud}-${lista}"
-        if len(codigo_text) > 100:
-            codigo_text = codigo_text[:100] + "..."
+        # CORREGIDO: Usar el placeholder de cadena_identificacion completo
+        codigo_text = "${cadena_identificacion}"
         canvas.drawCentredString(LETTER_WIDTH/2, LETTER_HEIGHT-80, codigo_text)
         
         # Numeración
@@ -297,7 +296,6 @@ class PDFGenerator:
         canvas.drawRightString(LETTER_WIDTH - 72, start_y - (len(lines) * line_height) - 4, formato_text)
 
         canvas.restoreState()
-
 
     def generar_pdf_corregido(self):
         """Genera el PDF corregido sin duplicaciones"""
