@@ -52,7 +52,7 @@ def cargar_tabla_relacion(ruta="data/tabla_de_relacion.json"):
 
 
 def cargar_normas(ruta="data/Normas.json"):
-    """Carga tus NOMs correctamente y crea un índice por número."""
+    """Carga las NOMs y las indexa usando el número inicial (ej: 24, 50, 141)."""
     try:
         with open(ruta, "r", encoding="utf-8") as f:
             normas = json.load(f)
@@ -61,23 +61,32 @@ def cargar_normas(ruta="data/Normas.json"):
         normas_info = {}
 
         for norma in normas:
-            nom = norma.get("NOM", "").strip()               # Ej: NOM-141-SSA1/SCFI-2012
+            nom = norma.get("NOM", "").strip()
             nombre = norma.get("NOMBRE", "").strip()
             capitulo = norma.get("CAPITULO", "").strip()
 
             if not nom:
                 continue
 
-            # Obtener solo el número principal (ej: 141)
-            numero_nom = "".join([c for c in nom if c.isdigit()])  
+            # -----------------------------
+            # Extractor correcto:
+            # NOM-024-SCFI-2013 → "024" → "24"
+            # NOM-050-SCFI-2004 → "050" → "50"
+            # NOM-141-SSA1/SCFI-2012 → "141" → "141"
+            # -----------------------------
+            try:
+                numero_nom = nom.split("-")[1]   # "024"
+                numero_nom = str(int(numero_nom))  # "024" → "24"
+            except:
+                continue
 
-            normas_map[numero_nom] = nom  # 141 -> NOM-141-...
+            normas_map[numero_nom] = nom  # 24 -> NOM-024-SCFI-2013
             normas_info[nom] = {
                 "nombre": nombre,
                 "capitulo": capitulo
             }
 
-        print(f"✅ Normas cargadas: {len(normas_map)}")
+        print(f"✅ Normas cargadas correctamente: {len(normas_map)} mapeos")
         return normas_map, normas_info
 
     except Exception as e:
@@ -174,7 +183,6 @@ def preparar_datos_tabla(registros):
 # ---------------------------------------------------------
 # PREPARAR DATOS POR FAMILIA
 # ---------------------------------------------------------
-
 def preparar_datos_familia(
     registros,
     normas_map,
@@ -185,30 +193,49 @@ def preparar_datos_familia(
 ):
 
     r0 = registros[0]
-    year = datetime.now().strftime("%y")
 
-    norma_uva = str(r0.get("NORMA UVA", "")).strip()
+    # ----------------------------------------------------
+    # YEAR - últimos 2 dígitos
+    # ----------------------------------------------------
+    year = datetime.now().strftime("%y")   # 2025 → "25"
 
-    # ---------------------------------------------------------
-    # 🔍 MAPEO CORRECTO NORMA UVA → NOM
-    # ---------------------------------------------------------
+    # ----------------------------------------------------
+    # FOLIO, SOLICITUD, LISTA
+    # ----------------------------------------------------
+    folio = str(r0.get("FOLIO", "")).strip()
+    solicitud_raw = str(r0.get("SOLICITUD", "")).strip()
+    solicitud = solicitud_raw.split("/")[0]   # quita /25
+    lista = str(r0.get("LISTA", "")).strip()
+
+    # ----------------------------------------------------
+    # NORMA - tomar número desde "CLASIF UVA"
+    # ----------------------------------------------------
+    clasif = str(r0.get("CLASIF UVA", "")).strip()  # Ej: 24
+    norma_num = "".join([c for c in clasif if c.isdigit()])  # asegurar número limpio
+
     norma = ""
     normades = ""
     capitulo = ""
 
-    try:
-        norma_num = "".join([c for c in norma_uva if c.isdigit()])  # Ej: "141"
-        if norma_num in normas_map:
-            norma = normas_map[norma_num]  # NOM-141...
-            normades = normas_info_completa[norma]["nombre"]
-            capitulo = normas_info_completa[norma]["capitulo"]
-            print(f"   🔍 NORMA UVA: {norma_uva} → NOM: {norma}")
-            print(f"   📝 NORMADES: {normades}")
-            print(f"   📖 CAPITULO: {capitulo}")
-    except Exception as e:
-        print(f"   ⚠️ Error mapeando norma: {e}")
+    if norma_num in normas_map:
+        norma = normas_map[norma_num]                # NOM-024-SCFI-2013
+        normades = normas_info_completa[norma]["nombre"]
+        capitulo = normas_info_completa[norma]["capitulo"]
+    else:
+        print(f"⚠️ No se encontró la NOM para CLASIF UVA = {clasif}")
 
-    # Fechas
+    # ----------------------------------------------------
+    # CADENA IDENTIFICACIÓN FINAL
+    # ----------------------------------------------------
+    cadena_identificacion = (
+        f"{year}049UDC{norma}{folio} "
+        f"Solicitud de Servicio: {year}049USD{norma}{solicitud}-{lista}"
+    )
+
+    # ----------------------------------------------------
+    # RESTO DE LOS DATOS (sin cambios)
+    # ----------------------------------------------------
+
     def fecha_corta(f):
         try:
             return datetime.strptime(str(f), "%Y-%m-%d").strftime("%d/%m/%Y")
@@ -219,7 +246,6 @@ def preparar_datos_familia(
     femision = fecha_corta(r0.get("FECHA DE ENTRADA"))
     fverificacionlarga = formatear_fecha_larga(r0.get("FECHA DE VERIFICACION"))
 
-    # Marca / descripción
     marca = next((str(r.get("MARCA", "")).strip() for r in registros if r.get("MARCA")), "")
     descripcion = next((str(r.get("DESCRIPCION", "")).strip() for r in registros if r.get("DESCRIPCION")), "")
 
@@ -238,28 +264,27 @@ def preparar_datos_familia(
         rfc = rfc_manual
     else:
         rfc = clientes_map.get(marca_key, {}).get("rfc", "")
-    
-    print(f"   👤 CLIENTE: {cliente}")
-    print(f"   🆔 RFC: {rfc}")
 
-    # Tabla
+    # Tabla de productos
     filas_tabla, total_cantidad = preparar_datos_tabla(registros)
 
-    # Observaciones — LIMPIEZA
+    # Observaciones limpias
     obs_raw = next((str(r.get("OBSERVACIONES DICTAMEN", "")).strip()
                     for r in registros if r.get("OBSERVACIONES DICTAMEN")), "")
-
     obs = "" if obs_raw.upper() == "NINGUNA" else obs_raw
 
-    # Firma
     nfirma1 = str(r0.get("FIRMA", "")).strip()
 
     return {
+        "cadena_identificacion": cadena_identificacion,
         "norma": norma,
         "normades": normades,
         "capitulo": capitulo,
 
         "year": year,
+        "folio": folio,
+        "solicitud": solicitud,
+        "lista": lista,
 
         "fverificacion": fverificacion,
         "fverificacionlarga": fverificacionlarga,
@@ -283,8 +308,6 @@ def preparar_datos_familia(
         "nfirma2": "Responsable de Supervisión UI",
     }
 
-
 # ---------------------------------------------------------
-
 if __name__ == "__main__":
     print("ArmadoDictamen cargado correctamente.")
