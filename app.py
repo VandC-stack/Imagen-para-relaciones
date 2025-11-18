@@ -607,7 +607,8 @@ class SistemaDictamenesVC(ctk.CTk):
             )
             
         except Exception as e:
-            self.after(0, lambda: self.mostrar_error(f"Error iniciando generador: {str(e)}"))
+            error_msg = f"Error iniciando generador: {str(e)}"
+            self.after(0, lambda: self.mostrar_error(error_msg))
         finally:
             self.after(0, self._finalizar_generacion)
 

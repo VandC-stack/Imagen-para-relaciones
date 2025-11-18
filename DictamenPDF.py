@@ -348,7 +348,6 @@ class PDFGenerator:
         print("   ✅ MANTENIDO: Fondo en todas las páginas")
         print("   ✅ MANTENIDO: Todas las variables disponibles")
 
-
 def verificar_imagen_fondo():
     """Verifica que la imagen de fondo existe"""
     
@@ -363,10 +362,9 @@ def verificar_imagen_fondo():
     print("✅ Imagen de fondo encontrada")
     return True
 
-
 if __name__ == "__main__":
     print("=" * 70)
-    print("   GENERADOR DE PDF BOSCH - VERSIÓN CORREGIDA")
+    print("   GENERADOR DE PDF - VERSIÓN CORREGIDA")
     print("=" * 70)
     
     # Verificar imagen de fondo
@@ -382,7 +380,7 @@ if __name__ == "__main__":
         generador.mostrar_cambios()
         
         print("\n📁 ARCHIVO CREADO:")
-        print("   • Dictamen_BOSCH_Corregido.pdf")
+        print("   • Dictamen_Corregido.pdf")
         
         print("\n🎯 CARACTERÍSTICAS FINALES:")
         print("   - Un solo archivo PDF integrado")
