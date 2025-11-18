@@ -1,5 +1,5 @@
 """
-Generador de Plantilla BOSCH PDF Corregido
+Generador de Plantilla PDF Corregido
 - Sin duplicación de encabezados y pies
 - Pie de página justificado con formato a la derecha
 - Encabezado único en cada página

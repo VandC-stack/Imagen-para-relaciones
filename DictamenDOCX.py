@@ -4,13 +4,15 @@ Generador de Plantilla BOSCH Word (.docx) con Fondo y Pie de Página
 - Imagen de fondo ajustada correctamente
 - Estructura profesional mantenida
 """
+# -*- coding: utf-8 -*-
+
 
 from docx import Document
 from docx.shared import Inches, Pt
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.enum.table import WD_TABLE_ALIGNMENT
 from docx.oxml.ns import qn
-from docx.oxml import OxmlElement
+from docx.oxml import OxmlElement, parse_xml
 from docx.shared import RGBColor
 import os
 from datetime import datetime
@@ -18,6 +20,8 @@ from datetime import datetime
 class WordGenerator:
     def __init__(self):
         self.doc = Document()
+        # Número total de páginas esperado (coincide con PDF)
+        self.total_pages = 2
         self.setup_document()
         
     def setup_document(self):
@@ -31,46 +35,58 @@ class WordGenerator:
             section.right_margin = Inches(0.75)
     
     def agregar_fondo_pagina(self):
-        """Agrega la imagen de fondo a todas las páginas ajustada a la izquierda"""
-        try:
-            # Verificar si existe la imagen de fondo
-            fondo_path = "img/Fondo.jpeg"
-            if not os.path.exists(fondo_path):
-                print("⚠️  No se encontró la imagen de fondo en img/Fondo.jpeg")
-                return False
-            
-            # Agregar fondo a todas las secciones (páginas)
-            for section in self.doc.sections:
-                header = section.header
-                
-                # Limpiar el encabezado
-                for paragraph in header.paragraphs:
-                    p = paragraph._element
-                    p.getparent().remove(p)
-                
-                # Agregar la imagen de fondo MOVIDA A LA IZQUIERDA
-                paragraph = header.paragraphs[0] if header.paragraphs else header.add_paragraph()
-                run = paragraph.add_run()
-                
-                # Agregar imagen ajustada al tamaño de página y movida a la izquierda
-                # Aumentamos el ancho ligeramente para asegurar cobertura
-                run.add_picture(fondo_path, width=Inches(8.8), height=Inches(11.2))
-                
-                # Alinear a la izquierda para cubrir mejor
-                paragraph.alignment = WD_ALIGN_PARAGRAPH.LEFT
-                
-                # Configurar el encabezado para que no tenga márgenes
-                header_distance = Inches(0)
-                section.header_distance = header_distance
-                
-            print("✅ Imagen de fondo agregada y ajustada a la izquierda")
-            return True
-            
-        except Exception as e:
-            print(f"⚠️  No se pudo agregar la imagen de fondo: {e}")
-            print("💡 El documento se generará sin fondo")
+        fondo_path = "img/Fondo.jpeg"
+
+        if not os.path.exists(fondo_path):
+            print("⚠ No se encontró la imagen de fondo")
             return False
-    
+
+        for section in self.doc.sections:
+            header = section.header
+
+            # LIMPIAR header por completo
+            for p in header.paragraphs:
+                p._element.getparent().remove(p._element)
+
+            # Crear párrafo nuevo (solo para el watermark)
+            paragraph = header.add_paragraph()
+            run = paragraph.add_run()
+
+            # Insertar imagen para generar relación
+            run.add_picture(fondo_path)
+
+            blip = run._element.xpath('.//a:blip')[0]
+            rId = blip.get(qn('r:embed'))
+
+            # Eliminar inline mantenido por python-docx
+            for drawing in run._element.xpath('.//wp:inline'):
+                drawing.getparent().remove(drawing)
+
+            # Tamaño carta 612 x 792 pts
+            pict_xml = f"""
+            <w:pict xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+                    xmlns:v="urn:schemas-microsoft-com:vml"
+                    xmlns:o="urn:schemas-microsoft-com:office:office"
+                    xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+                <v:shape id="Watermark" style="position:absolute;margin-left:0pt;margin-top:0pt;
+                    width:612pt;height:792pt;z-index:-1;" stroked="f">
+                    <v:imagedata r:id="{rId}" o:title="Watermark"/>
+                </v:shape>
+            </w:pict>
+            """
+
+            pict = parse_xml(pict_xml)
+            run._r.append(pict)
+
+            # MUY IMPORTANTE: mover el contenido del documento hacia abajo
+            section.header_distance = Inches(0)
+
+        print("✅ Fondo insertado correctamente como watermark")
+        return True
+
+
+
+
     def agregar_pie_pagina_global(self):
         """Agrega el pie de página a TODAS las hojas del documento"""
         try:
@@ -115,54 +131,114 @@ class WordGenerator:
     
     def crear_encabezado(self):
         """Crea el encabezado del documento (contenido, no fondo)"""
-        # Título principal
-        title = self.doc.add_paragraph()
-        title.alignment = WD_ALIGN_PARAGRAPH.CENTER
-        title_run = title.add_run("DICTAMEN DE CUMPLIMIENTO")
-        title_run.bold = True
-        title_run.font.size = Pt(16)
-        title_run.font.color.rgb = RGBColor(0, 0, 0)  # Negro
-        
-        # Código
-        code = self.doc.add_paragraph()
-        code.alignment = WD_ALIGN_PARAGRAPH.CENTER
-        code_run = code.add_run("${year}049UDC${norma}${folio} Solicitud: ${year}049USD${norma}${solicitud}-${lista}")
-        code_run.font.size = Pt(10)
-        code_run.font.color.rgb = RGBColor(0, 0, 0)  # Negro
-        
-        self.doc.add_paragraph()  # Espacio
+        # En este método solo dejamos el contenido del cuerpo; el encabezado visual
+        # (Título y cadena de identificación) se añade al header real de cada sección
+        # para que aparezca en todas las páginas y no se repita dentro del flujo.
+        pass
+
+    def instalar_encabezado_seccion(self):
+        """Inserta el encabezado (título + cadena_identificacion) en el header de cada sección.
+        También agrega la numeración 'Página X de {total}' en el header derecho.
+        """
+        for i, section in enumerate(self.doc.sections):
+            header = section.header
+
+            # Detectar si el primer párrafo contiene una imagen (fondo) y preservarlo.
+            keep_first_para = None
+            if len(header.paragraphs) > 0:
+                first = header.paragraphs[0]
+                has_image = False
+                for r in first.runs:
+                    try:
+                        xml = r._element.xml
+                    except Exception:
+                        xml = ""
+                    if 'pic:' in xml or '<w:drawing' in xml:
+                        has_image = True
+                        break
+                if has_image:
+                    keep_first_para = first
+
+            # Limpiar el header pero preservando la primera paragraph si contiene la imagen
+            for p in list(header.paragraphs):
+                if keep_first_para is not None and p is keep_first_para:
+                    continue
+                p._element.getparent().remove(p._element)
+
+            # Título centrado (añadido después del posible párrafo de imagen)
+            # Añadir numeración fija en la parte superior derecha del header
+            # usando campos dinámicos de Word: PAGE y NUMPAGES
+            page_para = header.add_paragraph()
+            page_para.alignment = WD_ALIGN_PARAGRAPH.RIGHT
+            page_run = page_para.add_run("Página ")
+            page_run.font.size = Pt(9)
+            page_run.bold = True
+
+            # Campo PAGE
+            try:
+                fld_page = OxmlElement('w:fldSimple')
+                fld_page.set(qn('w:instr'), 'PAGE')
+                page_para._p.append(fld_page)
+            except Exception:
+                # si no se puede insertar como fldSimple, añadir texto estático como fallback
+                page_para.add_run(str(i + 1))
+
+            page_para.add_run(" de ").font.size = Pt(9)
+
+            # Campo NUMPAGES
+            try:
+                fld_total = OxmlElement('w:fldSimple')
+                fld_total.set(qn('w:instr'), 'NUMPAGES')
+                page_para._p.append(fld_total)
+            except Exception:
+                page_para.add_run(str(self.total_pages))
+
+            # Título centrado (añadido después del posible párrafo de imagen)
+            title_para = header.add_paragraph()
+            title_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
+            # Bajar el encabezado: agregar espacio antes para mover el título hacia abajo
+            try:
+                title_para.paragraph_format.space_before = Pt(18)  # ~0.25 in
+            except Exception:
+                pass
+            title_run = title_para.add_run("DICTAMEN DE CUMPLIMIENTO")
+            title_run.bold = True
+            title_run.font.size = Pt(16)
+            title_run.font.color.rgb = RGBColor(0, 0, 0)
+
+            # Cadena de identificación (centrada bajo el título)
+            id_para = header.add_paragraph()
+            id_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
+            id_run = id_para.add_run("${cadena_identificacion}")
+            id_run.font.size = Pt(10)
+            id_run.font.color.rgb = RGBColor(0, 0, 0)
+
+            # Aumentar la distancia del header para dejar espacio entre el borde superior y el contenido
+            try:
+                section.header_distance = Inches(0.3)
+            except Exception:
+                pass
+
+            # Nota: la numeración de páginas ahora se inserta en el párrafo superior derecho
+            # (campo PAGE/NUMPAGES). No crear aquí otro párrafo con numeración para evitar duplicados.
     
     def crear_primera_pagina(self):
         """Crea el contenido de la primera página"""
         print("📄 Generando primera página...")
         
-        # ==================== TABLA DE FECHAS ====================
-        fecha_table = self.doc.add_table(rows=2, cols=2)
-        fecha_table.autofit = False
-        fecha_table.columns[0].width = Inches(3)
-        fecha_table.columns[1].width = Inches(3)
-        
-        # Encabezados de tabla de fechas
-        fecha_table.cell(0, 0).text = "Fecha de Inspección"
-        fecha_table.cell(0, 1).text = "${fverificacion}"
-        fecha_table.cell(1, 0).text = "Fecha de Emisión"
-        fecha_table.cell(1, 1).text = "${femision}"
-        
-        # Formatear tabla de fechas
-        for row in fecha_table.rows:
-            for cell in row.cells:
-                for paragraph in cell.paragraphs:
-                    paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
-                    for run in paragraph.runs:
-                        run.font.size = Pt(9)
-                        run.font.color.rgb = RGBColor(0, 0, 0)  # Negro
-        
-        # Negrita para la primera columna
-        for i in range(2):
-            for paragraph in fecha_table.cell(i, 0).paragraphs:
-                for run in paragraph.runs:
-                    run.bold = True
-        
+        # ==================== FECHAS (estilo "Etiqueta: valor") ====================
+        f1 = self.doc.add_paragraph()
+        f1_run = f1.add_run("Fecha de Inspección: ")
+        f1_run.bold = True
+        f1_run.font.size = Pt(10)
+        f1.add_run("${fverificacion}")
+
+        f2 = self.doc.add_paragraph()
+        f2_run = f2.add_run("Fecha de Emisión: ")
+        f2_run.bold = True
+        f2_run.font.size = Pt(10)
+        f2.add_run("${femision}")
+
         self.doc.add_paragraph()  # Espacio
         
         # ==================== CLIENTE Y RFC ====================
@@ -387,26 +463,29 @@ class WordGenerator:
         print("🎯 GENERANDO DOCUMENTO WORD CON FONDO Y PIE GLOBAL...")
         
         try:
+
             # Primero agregar el fondo (ajustado a la izquierda)
             fondo_agregado = self.agregar_fondo_pagina()
-            
+
             # Agregar pie de página global a TODAS las hojas
             pie_agregado = self.agregar_pie_pagina_global()
-            
+
             if not fondo_agregado:
                 print("💡 Generando documento sin fondo...")
-            
-            # Crear encabezado (contenido)
-            self.crear_encabezado()
+
+            # Crear contenido del documento (cuerpo)
+            # NOTA: El encabezado visual se instalará en los headers reales de cada sección
+            # para evitar duplicados en el flujo del documento.
+            # self.crear_encabezado()  # ya no inyecta contenido en el cuerpo
             
             # Crear primera página
             self.crear_primera_pagina()
             
             # Crear segunda página
             self.crear_segunda_pagina()
-            
-            # Agregar numeración
-            self.agregar_numeracion_paginas()
+
+            # Instalar encabezado (preserva imagen de fondo si existe) y numeración
+            self.instalar_encabezado_seccion()
             
             # Guardar documento
             output_path = "Dictamen_Final.docx"
@@ -429,6 +508,7 @@ class WordGenerator:
         """Muestra las variables disponibles para reemplazo"""
         print("\n📋 VARIABLES DISPONIBLES PARA REEMPLAZO:")
         variables = [
+            "cadena_identificacion",
             "year", "norma", "folio", "solicitud", "lista",
             "fverificacion", "femision", "cliente", "rfc",
             "producto", "pedimento", "fverificacionlarga", "capitulo",
