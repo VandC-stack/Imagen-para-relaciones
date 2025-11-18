@@ -1,9 +1,5 @@
 """
-ArmadoDictamen.py - Versión FINAL corregida
-✔ Norma ahora sí se imprime
-✔ RFC ahora sí se imprime
-✔ Observaciones vacías cuando no hay nada
-✔ Mapeo robusto NORMA UVA → NOM
+ArmadoDictamen.py
 """
 
 import pandas as pd
@@ -16,7 +12,6 @@ import os
 # ---------------------------------------------------------
 # FORMATEADORES DE FECHA
 # ---------------------------------------------------------
-
 def formatear_fecha_larga(fecha_str):
     if pd.isna(fecha_str) or fecha_str == "":
         return ""
@@ -38,7 +33,6 @@ def formatear_fecha_larga(fecha_str):
 # ---------------------------------------------------------
 # CARGA DE ARCHIVOS
 # ---------------------------------------------------------
-
 def cargar_tabla_relacion(ruta="data/tabla_de_relacion.json"):
     try:
         with open(ruta, "r", encoding="utf-8") as f:
@@ -119,7 +113,6 @@ def cargar_clientes(ruta="data/Clientes.json"):
 # ---------------------------------------------------------
 # PROCESAMIENTO DE FAMILIAS
 # ---------------------------------------------------------
-
 def procesar_familias(df):
     if df.empty:
         print("❌ DataFrame vacío")
@@ -143,7 +136,6 @@ def procesar_familias(df):
 # ---------------------------------------------------------
 # TABLA DE PRODUCTOS Y SUMA
 # ---------------------------------------------------------
-
 def preparar_datos_tabla(registros):
     filas_tabla = []
     total_cantidad = 0

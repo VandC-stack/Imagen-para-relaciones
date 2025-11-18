@@ -36,7 +36,7 @@ class SistemaDictamenesVC(ctk.CTk):
 
         # Configuración general
         self.title("Generador de Dictámenes")
-        self.geometry("900x600")  # Más ancho para acomodar dos tarjetas en fila
+        self.geometry("900x600")  # Ajustado para el nuevo diseño
         self.minsize(900, 600)
         ctk.set_appearance_mode("light")
         self.configure(fg_color=STYLE["fondo"])
@@ -48,6 +48,11 @@ class SistemaDictamenesVC(ctk.CTk):
         self.generando_dictamenes = False
         self.clientes_data = []  # Para almacenar la lista de clientes
         self.cliente_seleccionado = None  # Cliente seleccionado
+
+        # Variables para el módulo Decathlon
+        self.archivo_etiquetado_json = None
+        self.boton_subir_etiquetado = None
+        self.info_etiquetado = None
 
         # ===== HEADER =====
         self.crear_header()
@@ -78,7 +83,7 @@ class SistemaDictamenesVC(ctk.CTk):
 
     def crear_header(self):
         """Header mejorado con diseño más profesional"""
-        header = ctk.CTkFrame(self, fg_color=STYLE["fondo"], corner_radius=0, height=50)
+        header = ctk.CTkFrame(self, fg_color=STYLE["fondo"], corner_radius=0, height=60)
         header.pack(fill="x", padx=0, pady=0)
         header.pack_propagate(False)
 
@@ -193,12 +198,16 @@ class SistemaDictamenesVC(ctk.CTk):
         )
         self.info_archivo.pack(anchor="w", padx=20, pady=(0, 15))
 
-        # Botones de acción
+        # ===== BOTONES DE ACCIÓN - CON BOTÓN DECATHLON INTEGRADO =====
         botones_frame = ctk.CTkFrame(card_carga, fg_color="transparent")
         botones_frame.pack(fill="x", padx=20, pady=(0, 15))
 
+        # Primera fila de botones
+        botones_fila1 = ctk.CTkFrame(botones_frame, fg_color="transparent")
+        botones_fila1.pack(fill="x", pady=(0, 10))
+
         self.boton_cargar_excel = ctk.CTkButton(
-            botones_frame,
+            botones_fila1,
             text="Subir archivo",
             command=self.cargar_excel,
             font=("Inter", 14, "bold"),
@@ -212,7 +221,7 @@ class SistemaDictamenesVC(ctk.CTk):
         self.boton_cargar_excel.pack(side="left", padx=(0, 10))
 
         self.boton_limpiar = ctk.CTkButton(
-            botones_frame,
+            botones_fila1,
             text="Limpiar",
             command=self.limpiar_archivo,
             font=("Inter", 14),
@@ -224,7 +233,32 @@ class SistemaDictamenesVC(ctk.CTk):
             corner_radius=8,
             state="disabled"
         )
-        self.boton_limpiar.pack(side="left")
+        self.boton_limpiar.pack(side="left", padx=(0, 10))
+
+        # Botón de etiquetado Decathlon (inicialmente oculto)
+        self.boton_subir_etiquetado = ctk.CTkButton(
+            botones_fila1,
+            text="📦 Etiquetado DECATHLON",
+            command=self.cargar_base_etiquetado,
+            font=("Inter", 13, "bold"),
+            fg_color=STYLE["primario"],
+            hover_color="#D4BF22",
+            text_color=STYLE["secundario"],
+            height=40,
+            width=150,
+            corner_radius=8
+        )
+        # No empaquetamos inicialmente, se mostrará solo para Decathlon
+
+        # Información de etiquetado (segunda fila)
+        self.info_etiquetado = ctk.CTkLabel(
+            botones_frame,
+            text="",
+            font=FONT_SMALL,
+            text_color=STYLE["texto_claro"],
+            wraplength=350
+        )
+        # No empaquetamos inicialmente
 
         # Estado de conversión
         estado_frame = ctk.CTkFrame(card_carga, fg_color="transparent")
@@ -359,7 +393,8 @@ class SistemaDictamenesVC(ctk.CTk):
             messagebox.showerror("Error", f"No se pudieron cargar los clientes:\n{e}")
 
     def actualizar_cliente_seleccionado(self, cliente_nombre):
-        """Actualiza la información del cliente seleccionado"""
+        """Actualiza la información del cliente seleccionado y maneja la visibilidad del botón Decathlon"""
+
         if cliente_nombre == "Seleccione un cliente...":
             self.cliente_seleccionado = None
             self.info_cliente.configure(
@@ -367,23 +402,95 @@ class SistemaDictamenesVC(ctk.CTk):
                 text_color=STYLE["texto_claro"]
             )
             self.boton_limpiar_cliente.configure(state="disabled")
+
+            # Ocultar botón e información de etiquetado Decathlon
+            self.boton_subir_etiquetado.pack_forget()
+            self.info_etiquetado.pack_forget()
+
             return
-        
-        # Buscar el cliente en la lista
+
+        # Buscar el cliente seleccionado
         for cliente in self.clientes_data:
             if cliente['CLIENTE'] == cliente_nombre:
                 self.cliente_seleccionado = cliente
                 rfc = cliente.get('RFC', 'No disponible')
+
                 self.info_cliente.configure(
                     text=f"✅ {cliente_nombre}\n📋 RFC: {rfc}",
                     text_color=STYLE["exito"]
                 )
                 self.boton_limpiar_cliente.configure(state="normal")
-                
-                # Habilitar botón de generación si hay archivo JSON
+
+                # ⭐ MOSTRAR/OCULTAR BOTÓN DECATHLON
+                if cliente_nombre == "ARTICULOS DEPORTIVOS DECATHLON SA DE CV":
+                    # Mostrar botón de etiquetado al lado del botón "Limpiar"
+                    self.boton_subir_etiquetado.pack(side="left")
+                    # Mostrar información de etiquetado si ya hay un archivo cargado
+                    if self.archivo_etiquetado_json:
+                        self.info_etiquetado.pack(anchor="w", fill="x", pady=(5, 0))
+                else:
+                    # Ocultar botón e información de etiquetado
+                    self.boton_subir_etiquetado.pack_forget()
+                    self.info_etiquetado.pack_forget()
+
+                # Activar botón generar dictámenes si ya hay JSON
                 if self.archivo_json_generado:
                     self.boton_generar_dictamen.configure(state="normal")
+
                 break
+
+    def cargar_base_etiquetado(self):
+        """Carga el Excel de etiquetado DECATHLON y lo convierte a JSON"""
+
+        file_path = filedialog.askopenfilename(
+            title="Seleccionar Base de Etiquetado DECATHLON",
+            filetypes=[("Archivos Excel", "*.xlsx;*.xls")]
+        )
+
+        if not file_path:
+            return
+
+        try:
+            df = pd.read_excel(file_path)
+
+            if df.empty:
+                messagebox.showwarning("Archivo vacío", "El archivo de etiquetado no contiene datos.")
+                return
+
+            # Convertir fechas a texto
+            for col in df.columns:
+                if pd.api.types.is_datetime64_any_dtype(df[col]):
+                    df[col] = df[col].astype(str)
+
+            registros = df.to_dict(orient="records")
+
+            # Guardar en JSON dentro de /data
+            data_dir = os.path.join(os.path.dirname(__file__), "data")
+            os.makedirs(data_dir, exist_ok=True)
+
+            output_json = os.path.join(data_dir, "base_etiquetado.json")
+
+            with open(output_json, "w", encoding="utf-8") as f:
+                json.dump(registros, f, ensure_ascii=False, indent=2)
+
+            self.archivo_etiquetado_json = output_json
+
+            # Actualizar interfaz
+            self.info_etiquetado.configure(
+                text=f"📄 Base de etiquetado cargada ({len(registros)} registros)",
+                text_color=STYLE["exito"]
+            )
+            
+            # Asegurarse de que la información se muestre
+            self.info_etiquetado.pack(anchor="w", fill="x", pady=(5, 0))
+
+            messagebox.showinfo(
+                "Base cargada",
+                f"Base de etiquetado convertida exitosamente.\n\nGuardado en:\n{output_json}"
+            )
+
+        except Exception as e:
+            messagebox.showerror("Error", f"No se pudo procesar la base de etiquetado:\n{e}")
 
     def limpiar_cliente(self):
         """Limpia la selección del cliente"""
@@ -395,6 +502,10 @@ class SistemaDictamenesVC(ctk.CTk):
         )
         self.boton_limpiar_cliente.configure(state="disabled")
         self.boton_generar_dictamen.configure(state="disabled")
+        
+        # Ocultar el botón e información de Decathlon al limpiar el cliente
+        self.boton_subir_etiquetado.pack_forget()
+        self.info_etiquetado.pack_forget()
 
     def cargar_excel(self):
         """Selecciona el Excel y lo convierte automáticamente a JSON"""
