@@ -1,13 +1,10 @@
-"""
-ArmadoDictamen.py
-"""
+"""plantilla.py"""
 
 import pandas as pd
 import json
 from datetime import datetime
 from collections import defaultdict
 import os
-
 
 # ---------------------------------------------------------
 # FORMATEADORES DE FECHA

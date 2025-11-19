@@ -1,0 +1,54 @@
+{
+    "NOM-004-SE-2021": {
+        "campos": ["EAN", "MARCA","CUIDADO", "INSUMOS", "PAIS ORIGEN", "IMPORTADOR", "TALLA"],
+        "tamaño_cm": "(3.72,5.38)"
+    },
+    "NOM-004-TEX": {
+        "campos": ["EAN", "MARCA", "IMPORTADOR", "PAIS ORIGEN", "TALLA"],
+        "tamaño_cm": "(5.65,4.19)"     
+    },
+    "NOM-015-SCFI-2007": {
+        "campos": ["EAN", "MARCA", "LEYENDAS", "EDAD ", "PAIS ORIGEN", "IMPORTADOR"],
+        "tamaño_cm": "(5.97,4.97)"
+    },
+    "NOM-020-SCFI-1997": {
+        "campos": ["EAN", "MARCA", "INSUMOS", "PAIS ORIGEN", "IMPORTADOR"],
+        "tamaño_cm": "(4,4.5)"
+    },
+    "NOM-024-SCFI-2013": {
+        "campos": ["EAN", "MARCA", "CARACTERISTICAS", "PAIS ORIGEN", "IMPORTADOR"],
+        "tamaño_cm": "(4.97,4)"
+    },
+    "NOM-050-SCFI-2004-1": {
+        "campos": ["EAN", "MARCA", "IMPORTADOR"],
+        "tamaño_cm": "(4.72, 3.2)"
+    },
+    "NOM-050-SCFI-2004-2": {
+        "campos": ["EAN", "MARCA", "INSUMOS", "IMPORTADOR"],
+        "tamaño_cm": "(6.76, 3.58)"
+    },
+    "NOM-050-SCFI-2004-3": {
+        "campos": ["EAN", "MARCA", "CONTENIDO", "IMPORTADOR"],
+        "tamaño_cm": "(5.92, 4.07)"
+    },
+    "NOM-050-SCFI-2004-4": {
+        "campos": ["EAN", "MARCA", "CONTENIDO NETO", "IMPORTADOR"],
+        "tamaño_cm": "(5.98, 4.06)"
+    },
+    "NOM-141-SSA1 SCFI-2012": {
+        "campos": ["EAN", "MARCA", "MAGNITUD", "INSUMOS", "LEYENDAS", "IMPORTADOR"],
+        "tamaño_cm": "(4.92, 4)"
+    },
+    "NOM-189-SSA1 SCFI-2018": {
+        "campos": ["EAN", "MARCA", "CONTENIDO NETO", "INSUMOS O INGREDIENTES", "LEYENDAS", "IMPORTADOR"],
+        "tamaño_cm": "(5.92, 4.07)"
+    },
+    "NOM-142-SSA1 SCFI-2014": {
+        "campos": ["EAN", "MARCA", "INGREDIENTES", "CONTENIDO", "LOTE", "IMPORTADOR"],
+        "tamaño_cm": "(5.92, 4.07)"
+    },
+    "NOM-051-SCFI SSA1-2010": {
+        "campos": ["EAN", "MARCA", "INGREDIENTES", "CONTENIDO", "LOTE", "IMPORTADOR"],
+        "tamaño_cm": "(5.92, 4.07)"
+    }
+}

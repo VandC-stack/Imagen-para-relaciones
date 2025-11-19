@@ -1,4 +1,4 @@
-"""Generador de Dictámenes PDF - VERSIÓN CORREGIDA CON TABLA DINÁMICA"""
+"""Generador de Dictámenes PDF"""
 import os
 import sys
 import json
@@ -8,16 +8,16 @@ import traceback
 
 # Importar funciones de carga de datos
 try:
-    from ArmadoDictamen import (
+    from plantillaPDF import (
         cargar_tabla_relacion, 
         cargar_normas,
         cargar_clientes,  # Agregado import de cargar_clientes
         procesar_familias, 
         preparar_datos_familia
     )
-    print("✅ ArmadoDictamen.py cargado correctamente")
+    print("✅ plantillaPDF.py cargado correctamente")
 except ImportError as e:
-    print(f"❌ Error importando ArmadoDictamen: {e}")
+    print(f"❌ Error importando plantillaPDF: {e}")
     sys.exit(1)
 
 # Importar tu plantilla base
@@ -203,7 +203,6 @@ class PDFGeneratorConDatos(PDFGenerator):
         self.elements.append(Paragraph(obs2, self.normal_style))
         self.elements.append(Spacer(1, 0.3 * inch))
 
-
     def agregar_encabezado_pie_pagina(self, canvas, doc):
         """Sobrescribe el método para agregar encabezado y pie con datos reales"""
         canvas.saveState()
@@ -259,6 +258,9 @@ class PDFGeneratorConDatos(PDFGenerator):
         canvas.drawRightString(8.5*inch - 72, start_y - (len(lines) * line_height) - 4, formato_text)
         
         canvas.restoreState()
+
+
+
 
 def limpiar_nombre_archivo(nombre):
     """Reemplaza caracteres inválidos en nombres de archivos."""
