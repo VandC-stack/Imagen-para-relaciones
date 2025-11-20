@@ -73,6 +73,10 @@ class GeneradorEtiquetasDecathlon:
     def buscar_en_tabla_relacion(self, codigo):
         """Busca un código en la tabla de relación (que es una lista)"""
         for item in self.tabla_relacion:
+            # Intentar buscar por EAN primero
+            if str(item.get('EAN', '')).strip() == str(codigo).strip():
+                return item
+            # Si no encuentra por EAN, intentar por CODIGO
             if str(item.get('CODIGO', '')).strip() == str(codigo).strip():
                 return item
         return None
@@ -149,11 +153,11 @@ class GeneradorEtiquetasDecathlon:
                     # Tamaño de fuente basado en el área de la etiqueta
                     area = ancho_cm * alto_cm
                     if area < 25:  # Etiquetas muy pequeñas
-                        font_size = 14
+                        font_size = 15
                     elif area < 35:  # Etiquetas pequeñas
-                        font_size = 14
+                        font_size = 15
                     else:  # Etiquetas normales
-                        font_size = 18
+                        font_size = 20
                     font = ImageFont.truetype(font_path, font_size)
                     break
                 except:
@@ -169,7 +173,7 @@ class GeneradorEtiquetasDecathlon:
         # Posición inicial
         margin = 30
         y = margin
-        line_height = font_size + 10
+        line_height = font.size + 10
         espacio_entre_campos = 15
         
         # Recolectar todas las líneas que vamos a mostrar
@@ -236,47 +240,47 @@ class GeneradorEtiquetasDecathlon:
         return True
     
     def generar_etiquetas_por_codigos(self, codigos, output_dir="etiquetas_generadas"):
-        """Genera etiquetas para una lista de códigos"""
+        """Genera etiquetas para una lista de códigos EAN"""
         if not os.path.exists(output_dir):
             os.makedirs(output_dir)
         
         etiquetas_generadas = []
         
         for codigo in codigos:
-            print(f"Procesando código: {codigo}")
+            print(f"   🔍 Procesando código EAN: {codigo}")
             
-            # Buscar en tabla de relación
+            # Buscar en tabla de relación por EAN
             producto_relacionado = self.buscar_en_tabla_relacion(codigo)
             if not producto_relacionado:
-                print(f"  ❌ Código {codigo} no encontrado en tabla de relación")
+                print(f"      ❌ EAN {codigo} no encontrado en tabla de relación")
                 continue
             
             # Obtener NORMA UVA
             norma_uva = producto_relacionado.get('NORMA UVA')
             if norma_uva is None:
-                print(f"  ❌ No se encontró NORMA UVA para código {codigo}")
+                print(f"      ❌ No se encontró NORMA UVA para EAN {codigo}")
                 continue
             
-            print(f"  📋 NORMA UVA encontrada: {norma_uva}")
+            print(f"      📋 NORMA UVA encontrada: {norma_uva}")
             
-            # Buscar producto en base de etiquetado por EAN (que es el mismo código)
+            # Buscar producto en base de etiquetado por EAN
             producto = self.buscar_producto_por_ean(codigo)
             if not producto:
-                print(f"  ❌ Producto con EAN {codigo} no encontrado en base de etiquetado")
+                print(f"      ❌ Producto con EAN {codigo} no encontrado en base de etiquetado")
                 continue
             
             # Determinar norma específica basada en NORMA UVA
             norma = self.determinar_norma_por_uva(norma_uva, producto)
             if not norma:
-                print(f"  ❌ No se pudo determinar la norma para NORMA UVA {norma_uva}")
+                print(f"      ❌ No se pudo determinar la norma para NORMA UVA {norma_uva}")
                 continue
             
-            print(f"  🏷️ Norma determinada: {norma}")
+            print(f"      🏷️ Norma determinada: {norma}")
             
             # Buscar configuración
             config = self.configuraciones.get(norma)
             if not config:
-                print(f"  ❌ No hay configuración para la norma {norma}")
+                print(f"      ❌ No hay configuración para la norma {norma}")
                 continue
             
             # Generar etiqueta
@@ -294,11 +298,13 @@ class GeneradorEtiquetasDecathlon:
                         'ruta': output_path,
                         'tamaño_cm': config['tamaño']
                     })
-                    print(f"  ✅ Etiqueta generada: {nombre_archivo}")
+                    print(f"      ✅ Etiqueta generada: {nombre_archivo}")
                 else:
-                    print(f"  ❌ Error generando etiqueta para {codigo}")
+                    print(f"      ❌ Error generando etiqueta para {codigo}")
             except Exception as e:
-                print(f"  ❌ Error generando etiqueta para {codigo}: {e}")
+                print(f"      ❌ Error generando etiqueta para {codigo}: {e}")
+                import traceback
+                traceback.print_exc()
         
         return etiquetas_generadas
     

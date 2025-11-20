@@ -1,19 +1,13 @@
 """
-Generador de Plantilla PDF Corregido
-- Sin duplicación de encabezados y pies
-- Pie de página justificado con formato a la derecha
-- Encabezado único en cada página
-- Numeración corregida
+Generador de Plantilla PDF - Versión Base
 """
 
 from reportlab.lib.pagesizes import letter
 from reportlab.lib.units import inch
-from reportlab.pdfgen import canvas
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, PageBreak
+from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, PageBreak, Image as RLImage
 from reportlab.lib import colors
 import os
-from PIL import Image
 
 # Tamaño carta en puntos
 LETTER_WIDTH = 8.5 * inch
@@ -24,74 +18,77 @@ class PDFGenerator:
         self.doc = None
         self.elements = []
         self.styles = getSampleStyleSheet()
-        self.total_pages = 2  # Sabemos que son 2 páginas
+        self.total_pages = 2
         
     def crear_estilos(self):
         """Crea los estilos personalizados para el documento"""
         
-        # Estilo para el título principal
         self.title_style = ParagraphStyle(
             'CustomTitle',
             parent=self.styles['Heading1'],
             fontSize=16,
             textColor=colors.black,
-            alignment=1,  # Centrado
+            alignment=1,
             spaceAfter=6,
             fontName='Helvetica-Bold'
         )
         
-        # Estilo para el subtítulo/código
         self.code_style = ParagraphStyle(
             'CustomCode',
             parent=self.styles['Normal'],
             fontSize=10,
             textColor=colors.black,
-            alignment=1,  # Centrado
+            alignment=1,
             spaceAfter=20,
             fontName='Helvetica'
         )
         
-        # Estilo para texto normal
         self.normal_style = ParagraphStyle(
             'CustomNormal',
             parent=self.styles['Normal'],
             fontSize=9,
             textColor=colors.black,
-            alignment=4,  # Justificado
+            alignment=4,
             spaceAfter=12,
             fontName='Helvetica'
         )
         
-        # Estilo para etiquetas en segunda página
+        self.bold_style = ParagraphStyle(
+            'CustomBold',
+            parent=self.styles['Normal'],
+            fontSize=9,
+            textColor=colors.black,
+            alignment=4,
+            spaceAfter=12,
+            fontName='Helvetica-Bold'
+        )
+        
         self.label_style = ParagraphStyle(
             'CustomLabel',
             parent=self.styles['Normal'],
             fontSize=10,
             textColor=colors.black,
-            alignment=1,  # Centrado
+            alignment=1,
             spaceAfter=8,
             fontName='Helvetica-Bold'
         )
         
-        # Estilo para imágenes en segunda página
         self.image_style = ParagraphStyle(
             'CustomImage',
             parent=self.styles['Normal'],
             fontSize=9,
             textColor=colors.black,
-            alignment=1,  # Centrado
+            alignment=1,
             spaceAfter=15,
             fontName='Helvetica'
         )
 
     def agregar_primera_pagina(self):
-        """Agrega el contenido de la primera página SIN encabezado duplicado"""
+        """Agrega el contenido de la primera página"""
         
         print("📄 Generando primera página...")
         
-        # NOTA: No agregamos el encabezado aquí, solo el contenido específico
-        
-        # ==================== TABLA DE FECHAS ====================
+        # FECHAS
         cliente_text = '<b>Fecha de Inspección:</b> ${fverificacion}'
         self.elements.append(Paragraph(cliente_text, self.normal_style))
         
@@ -99,8 +96,7 @@ class PDFGenerator:
         self.elements.append(Paragraph(rfc_text, self.normal_style))
         self.elements.append(Spacer(1, 0.2*inch))
         
-        
-        # ==================== CLIENTE Y RFC ====================
+        # CLIENTE Y RFC
         cliente_text = '<b>Cliente:</b> ${cliente}'
         self.elements.append(Paragraph(cliente_text, self.normal_style))
         
@@ -108,7 +104,7 @@ class PDFGenerator:
         self.elements.append(Paragraph(rfc_text, self.normal_style))
         self.elements.append(Spacer(1, 0.2*inch))
         
-        # ==================== TEXTO PRINCIPAL ====================
+        # TEXTO PRINCIPAL
         texto_principal = (
             "De conformidad en lo dispuesto en los artículos 53, 56 fracción I, 60 fracción I, 62, 64, 68 y 140 de la Ley de Infraestructura de la "
             "Calidad; 50 del Reglamento de la Ley Federal de Metrología y Normalización; Punto 2.4.8 Fracción III ACUERDO por el que la "
@@ -122,7 +118,7 @@ class PDFGenerator:
         self.elements.append(Paragraph(texto_principal, self.normal_style))
         self.elements.append(Spacer(1, 0.2*inch))
         
-        # ==================== TABLA DE PRODUCTOS ====================
+        # TABLA DE PRODUCTOS
         productos_data = [
             ['MARCA', 'CÓDIGO', 'FACTURA', 'CANTIDAD'],
             ['${rowMarca}', '${rowCodigo}', '${rowFactura}', '${rowCantidad}']
@@ -141,7 +137,7 @@ class PDFGenerator:
         self.elements.append(productos_table)
         self.elements.append(Spacer(1, 0.2*inch))
         
-        # ==================== TAMAÑO DEL LOTE ====================
+        # TAMAÑO DEL LOTE
         lote_data = [
             ['TAMAÑO DEL LOTE', '${TCantidad}']
         ]
@@ -159,7 +155,7 @@ class PDFGenerator:
         self.elements.append(lote_table)
         self.elements.append(Spacer(1, 0.2*inch))
         
-        # ==================== OBSERVACIONES ====================
+        # OBSERVACIONES
         obs1_text = '<b>OBSERVACIONES:</b> La imagen amparada en el dictamen es una muestra de etiqueta que aplica para todos los modelos declarados en el presente dictamen lo anterior fue constatado durante la inspección.'
         self.elements.append(Paragraph(obs1_text, self.normal_style))
         
@@ -175,7 +171,7 @@ class PDFGenerator:
         # Salto de página
         self.elements.append(PageBreak())
         
-        # ==================== ETIQUETAS ====================
+        # ETIQUETAS
         self.elements.append(Paragraph("ETIQUETAS DEL PRODUCTO", self.label_style))
         
         # Primera fila de etiquetas
@@ -188,10 +184,9 @@ class PDFGenerator:
         
         self.elements.append(Spacer(1, 0.4*inch))
         
-        # ==================== IMÁGENES ====================
+        # IMÁGENES
         self.elements.append(Paragraph("IMÁGENES DEL PRODUCTO", self.label_style))
         
-        # Lista de imágenes
         imagenes = [
             "${img1}", "${img2}", "${img3}", "${img4}", "${img5}",
             "${img6}", "${img7}", "${img8}", "${img9}", "${img10}"
@@ -200,7 +195,7 @@ class PDFGenerator:
         for img in imagenes:
             self.elements.append(Paragraph(img, self.image_style))
 
-     # ==================== TABLA DE FIRMAS ====================
+        # TABLA DE FIRMAS
         firmas_data = [
             ['${firma1}', '', '${firma2}'],
             ['${nfirma1}', '', '${nfirma2}'],
@@ -210,21 +205,14 @@ class PDFGenerator:
         firmas_table = Table(firmas_data, colWidths=[2.8*inch, 0.4*inch, 2.8*inch])
 
         firmas_table.setStyle(TableStyle([
-            # Centrar todo el contenido
             ('ALIGN', (0,0), (-1,-1), 'CENTER'),
             ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
             ('FONTNAME', (0,0), (-1,-1), 'Helvetica'),
             ('FONTSIZE', (0,0), (-1,-1), 8),
-
-            # Negrita solo para la fila de títulos
             ('BOLD', (0,2), (-1,2), True),
-
-            # ❌ Eliminar todos los bordes
             ('LINEBELOW', (0,0), (-1,-1), 0, colors.white),
             ('BOX', (0,0), (-1,-1), 0, colors.white),
             ('INNERGRID', (0,0), (-1,-1), 0, colors.white),
-
-            # ✅ Línea inferior SOLO bajo las firmas (primera fila, columnas 0 y 2)
             ('LINEBELOW', (0,0), (0,0), 1, colors.black),
             ('LINEBELOW', (2,0), (2,0), 1, colors.black),
         ]))
@@ -232,7 +220,7 @@ class PDFGenerator:
         self.elements.append(firmas_table)
 
     def agregar_encabezado_pie_pagina(self, canvas, doc):
-        """Agrega encabezado, pie de página y numeración a todas las páginas"""
+        """Agrega encabezado, pie de página y numeración"""
         
         canvas.saveState()
         
@@ -249,7 +237,6 @@ class PDFGenerator:
         canvas.drawCentredString(LETTER_WIDTH/2, LETTER_HEIGHT-60, "DICTAMEN DE CUMPLIMIENTO")
         
         canvas.setFont("Helvetica", 10)
-        # CORREGIDO: Usar el placeholder de cadena_identificacion completo
         codigo_text = "${cadena_identificacion}"
         canvas.drawCentredString(LETTER_WIDTH/2, LETTER_HEIGHT-80, codigo_text)
         
@@ -259,13 +246,12 @@ class PDFGenerator:
         canvas.setFont("Helvetica", 9)
         canvas.drawRightString(LETTER_WIDTH-72, LETTER_HEIGHT-50, numeracion)
         
-       # Pie de página SUBIDO (alineado y más compacto)
+        # Pie de página
         footer_text = "Este Dictamen de Cumplimiento se emitió por medios electrónicos, conforme al oficio de autorización DGN.312.05.2012.106 de fecha 10 de enero de 2012 expedido por la DGN a esta Unidad de Inspección."
         formato_text = "Formato: PT-F-208B-00-3"
 
         canvas.setFont("Helvetica", 7)
 
-        # Dividir texto en líneas
         lines = []
         words = footer_text.split()
         current_line = ""
@@ -279,9 +265,8 @@ class PDFGenerator:
         if current_line:
             lines.append(current_line)
 
-        # 🔧 Reducir interlineado y subir ambas líneas
-        line_height = 8   # antes 10 → más compacto
-        start_y = 60      # antes 90 → sube un poco todo el pie
+        line_height = 8
+        start_y = 60
 
         for i, line in enumerate(lines):
             text_width = canvas.stringWidth(line, "Helvetica", 7)
@@ -292,106 +277,6 @@ class PDFGenerator:
                 x_position = 72
             canvas.drawString(x_position, start_y - (i * line_height), line)
 
-        # 🔧 Mover el formato más cerca (pegado al texto anterior)
         canvas.drawRightString(LETTER_WIDTH - 72, start_y - (len(lines) * line_height) - 4, formato_text)
 
         canvas.restoreState()
-
-    def generar_pdf_corregido(self):
-        """Genera el PDF corregido sin duplicaciones"""
-        
-        print("🎯 GENERANDO PDF CORREGIDO...")
-        
-        # Crear el documento PDF
-        output_path = "Dictamen.pdf"
-        self.doc = SimpleDocTemplate(
-            output_path,
-            pagesize=letter,
-            topMargin=1.5*inch,    # Margen para el encabezado
-            bottomMargin=1.5*inch, # Margen para el pie
-            leftMargin=0.75*inch,
-            rightMargin=0.75*inch
-        )
-        
-        # Crear estilos
-        self.crear_estilos()
-        
-        # Agregar contenido (SIN encabezados duplicados)
-        self.agregar_primera_pagina()
-        self.agregar_segunda_pagina()
-        
-        # Construir el documento
-        try:
-            self.doc.build(
-                self.elements,
-                onFirstPage=self.agregar_encabezado_pie_pagina,
-                onLaterPages=self.agregar_encabezado_pie_pagina
-            )
-            
-            print(f"✅ PDF CORREGIDO CREADO: {output_path}")
-            return True
-            
-        except Exception as e:
-            print(f"❌ Error al generar PDF: {e}")
-            return False
-
-    def mostrar_cambios(self):
-        """Muestra los cambios realizados"""
-        
-        print("\n🔧 CORRECIONES APLICADAS:")
-        print("   ✅ ELIMINADO: Encabezado duplicado en el contenido")
-        print("   ✅ ELIMINADO: Pie de página duplicado en el contenido")
-        print("   ✅ MEJORADO: Pie de página con texto justificado")
-        print("   ✅ MEJORADO: 'Formato: PT-F-208B-00-3' alineado a la derecha")
-        print("   ✅ MANTENIDO: Encabezado único en cada página")
-        print("   ✅ MANTENIDO: Numeración correcta de páginas")
-        print("   ✅ MANTENIDO: Fondo en todas las páginas")
-        print("   ✅ MANTENIDO: Todas las variables disponibles")
-
-def verificar_imagen_fondo():
-    """Verifica que la imagen de fondo existe"""
-    
-    image_path = "img/Fondo.jpeg"
-    
-    if not os.path.exists(image_path):
-        print(f"⚠️  No se encontró: {image_path}")
-        os.makedirs("img", exist_ok=True)
-        print("📁 Se creó la carpeta 'img/' - coloca 'Fondo.jpeg' allí")
-        return False
-    
-    print("✅ Imagen de fondo encontrada")
-    return True
-
-if __name__ == "__main__":
-    print("=" * 70)
-    print("   GENERADOR DE PDF - VERSIÓN CORREGIDA")
-    print("=" * 70)
-    
-    # Verificar imagen de fondo
-    print("\n🔍 Verificando recursos...")
-    verificar_imagen_fondo()
-    
-    # Generar PDF corregido
-    print("\n🛠️  Generando documento corregido...")
-    generador = PDFGenerator()
-    
-    if generador.generar_pdf_corregido():
-        # Mostrar información
-        generador.mostrar_cambios()
-        
-        print("\n📁 ARCHIVO CREADO:")
-        print("   • Dictamen_Corregido.pdf")
-        
-        print("\n🎯 CARACTERÍSTICAS FINALES:")
-        print("   - Un solo archivo PDF integrado")
-        print("   - Sin duplicación de textos")
-        print("   - Encabezado único por página")
-        print("   - Pie de página justificado")
-        print("   - Formato alineado a la derecha")
-        print("   - Numeración correcta")
-        print("   - Dos páginas completas")
-        
-    else:
-        print("❌ No se pudo generar el PDF corregido")
-    
-    print("\n🎉 ¡PROCESO FINALIZADO!")

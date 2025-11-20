@@ -36,8 +36,8 @@ class SistemaDictamenesVC(ctk.CTk):
 
         # Configuración general
         self.title("Generador de Dictámenes")
-        self.geometry("900x600")  # Ajustado para el nuevo diseño
-        self.minsize(900, 600)
+        self.geometry("950x600")  # Ajustado para el nuevo diseño
+        self.minsize(950, 600)
         ctk.set_appearance_mode("light")
         self.configure(fg_color=STYLE["fondo"])
 

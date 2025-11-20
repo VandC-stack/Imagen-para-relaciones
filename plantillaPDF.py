@@ -1,10 +1,11 @@
-"""plantilla.py"""
-
+"""plantilla.py - Funciones de carga y preparación de datos"""
 import pandas as pd
 import json
 from datetime import datetime
 from collections import defaultdict
 import os
+
+from etiqueta_dictamen import GeneradorEtiquetasDecathlon
 
 # ---------------------------------------------------------
 # FORMATEADORES DE FECHA
@@ -26,7 +27,6 @@ def formatear_fecha_larga(fecha_str):
     except:
         return str(fecha_str)
 
-
 # ---------------------------------------------------------
 # CARGA DE ARCHIVOS
 # ---------------------------------------------------------
@@ -40,7 +40,6 @@ def cargar_tabla_relacion(ruta="data/tabla_de_relacion.json"):
     except Exception as e:
         print(f"❌ Error cargando tabla de relación: {e}")
         return pd.DataFrame()
-
 
 def cargar_normas(ruta="data/Normas.json"):
     """Carga las NOMs y las indexa usando el número inicial (ej: 24, 50, 141)."""
@@ -59,19 +58,13 @@ def cargar_normas(ruta="data/Normas.json"):
             if not nom:
                 continue
 
-            # -----------------------------
-            # Extractor correcto:
-            # NOM-024-SCFI-2013 → "024" → "24"
-            # NOM-050-SCFI-2004 → "050" → "50"
-            # NOM-141-SSA1/SCFI-2012 → "141" → "141"
-            # -----------------------------
             try:
-                numero_nom = nom.split("-")[1]   # "024"
-                numero_nom = str(int(numero_nom))  # "024" → "24"
+                numero_nom = nom.split("-")[1]
+                numero_nom = str(int(numero_nom))
             except:
                 continue
 
-            normas_map[numero_nom] = nom  # 24 -> NOM-024-SCFI-2013
+            normas_map[numero_nom] = nom
             normas_info[nom] = {
                 "nombre": nombre,
                 "capitulo": capitulo
@@ -83,7 +76,6 @@ def cargar_normas(ruta="data/Normas.json"):
     except Exception as e:
         print(f"❌ Error cargando NOMs: {e}")
         return {}, {}
-
 
 def cargar_clientes(ruta="data/Clientes.json"):
     try:
@@ -106,7 +98,6 @@ def cargar_clientes(ruta="data/Clientes.json"):
         print(f"⚠️ No se pudo cargar {ruta}: {e}")
         return {}
 
-
 # ---------------------------------------------------------
 # PROCESAMIENTO DE FAMILIAS
 # ---------------------------------------------------------
@@ -128,7 +119,6 @@ def procesar_familias(df):
 
     print(f"✅ Familias procesadas: {len(familias)}")
     return dict(familias)
-
 
 # ---------------------------------------------------------
 # TABLA DE PRODUCTOS Y SUMA
@@ -168,7 +158,6 @@ def preparar_datos_tabla(registros):
 
     return filas_tabla, total_cantidad
 
-
 # ---------------------------------------------------------
 # PREPARAR DATOS POR FAMILIA
 # ---------------------------------------------------------
@@ -183,47 +172,35 @@ def preparar_datos_familia(
 
     r0 = registros[0]
 
-    # ----------------------------------------------------
-    # YEAR - últimos 2 dígitos
-    # ----------------------------------------------------
-    year = datetime.now().strftime("%y")   # 2025 → "25"
+    # YEAR
+    year = datetime.now().strftime("%y")
 
-    # ----------------------------------------------------
     # FOLIO, SOLICITUD, LISTA
-    # ----------------------------------------------------
     folio = str(r0.get("FOLIO", "")).strip()
     solicitud_raw = str(r0.get("SOLICITUD", "")).strip()
-    solicitud = solicitud_raw.split("/")[0]   # quita /25
+    solicitud = solicitud_raw.split("/")[0]
     lista = str(r0.get("LISTA", "")).strip()
 
-    # ----------------------------------------------------
-    # NORMA - tomar número desde "CLASIF UVA"
-    # ----------------------------------------------------
-    clasif = str(r0.get("CLASIF UVA", "")).strip()  # Ej: 24
-    norma_num = "".join([c for c in clasif if c.isdigit()])  # asegurar número limpio
+    # NORMA
+    clasif = str(r0.get("CLASIF UVA", "")).strip()
+    norma_num = "".join([c for c in clasif if c.isdigit()])
 
     norma = ""
     normades = ""
     capitulo = ""
 
     if norma_num in normas_map:
-        norma = normas_map[norma_num]                # NOM-024-SCFI-2013
+        norma = normas_map[norma_num]
         normades = normas_info_completa[norma]["nombre"]
         capitulo = normas_info_completa[norma]["capitulo"]
     else:
         print(f"⚠️ No se encontró la NOM para CLASIF UVA = {clasif}")
 
-    # ----------------------------------------------------
-    # CADENA IDENTIFICACIÓN FINAL
-    # ----------------------------------------------------
+    # CADENA IDENTIFICACIÓN
     cadena_identificacion = (
         f"{year}049UDC{norma}{folio} "
         f"Solicitud de Servicio: {year}049USD{norma}{solicitud}-{lista}"
     )
-
-    # ----------------------------------------------------
-    # RESTO DE LOS DATOS (sin cambios)
-    # ----------------------------------------------------
 
     def fecha_corta(f):
         try:
@@ -257,10 +234,31 @@ def preparar_datos_familia(
     # Tabla de productos
     filas_tabla, total_cantidad = preparar_datos_tabla(registros)
 
-    # Observaciones limpias
+    # Observaciones
     obs_raw = next((str(r.get("OBSERVACIONES DICTAMEN", "")).strip()
                     for r in registros if r.get("OBSERVACIONES DICTAMEN")), "")
     obs = "" if obs_raw.upper() == "NINGUNA" else obs_raw
+
+    print("   🔍 Iniciando generación de etiquetas...")
+    generador_etiquetas = GeneradorEtiquetasDecathlon()
+
+    # Obtener códigos EAN de los registros
+    codigos = []
+    for r in registros:
+        codigo = r.get("CODIGO")
+        if codigo and str(codigo).strip() not in ("", "None", "nan"):
+            codigos.append(str(codigo).strip())
+    
+    print(f"   📋 Códigos encontrados: {codigos}")
+
+    # Generar etiquetas
+    etiquetas_generadas = []
+    if codigos:
+        print(f"   🏷️ Generando etiquetas para {len(codigos)} códigos...")
+        etiquetas_generadas = generador_etiquetas.generar_etiquetas_por_codigos(codigos)
+        print(f"   ✅ Etiquetas generadas: {len(etiquetas_generadas)}")
+    else:
+        print("   ⚠️ No se encontraron códigos válidos en los registros")
 
     nfirma1 = str(r0.get("FIRMA", "")).strip()
 
@@ -291,12 +289,10 @@ def preparar_datos_familia(
 
         "obs": obs,
 
+        "etiquetas_lista": etiquetas_generadas,
+
         "firma1": "________________________",
         "firma2": "________________________",
         "nfirma1": nfirma1,
         "nfirma2": "Responsable de Supervisión UI",
     }
-
-# ---------------------------------------------------------
-if __name__ == "__main__":
-    print("ArmadoDictamen cargado correctamente.")

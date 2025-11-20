@@ -1,4 +1,4 @@
-"""Generador de Dictámenes PDF"""
+"""Generador de Dictámenes PDF con Datos Reales e Imágenes de Etiquetas"""
 import os
 import sys
 import json
@@ -6,30 +6,17 @@ import pandas as pd
 from datetime import datetime
 import traceback
 
-# Importar funciones de carga de datos
-try:
-    from plantillaPDF import (
-        cargar_tabla_relacion, 
-        cargar_normas,
-        cargar_clientes,  # Agregado import de cargar_clientes
-        procesar_familias, 
-        preparar_datos_familia
-    )
-    print("✅ plantillaPDF.py cargado correctamente")
-except ImportError as e:
-    print(f"❌ Error importando plantillaPDF: {e}")
-    sys.exit(1)
+from plantillaPDF import (
+    cargar_tabla_relacion, 
+    cargar_normas,
+    cargar_clientes,
+    procesar_familias, 
+    preparar_datos_familia
+)
 
-# Importar tu plantilla base
-try:
-    from DictamenPDF import PDFGenerator
-    print("✅ DictamenPDF.py cargado correctamente")
-except ImportError as e:
-    print(f"❌ Error importando DictamenPDF: {e}")
-    sys.exit(1)
+from DictamenPDF import PDFGenerator
 
-# Importaciones de ReportLab
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Table, TableStyle, Spacer
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Table, TableStyle, Spacer, Image as RLImage
 from reportlab.lib.pagesizes import letter
 from reportlab.lib.units import inch
 from reportlab.lib import colors
@@ -45,7 +32,6 @@ class PDFGeneratorConDatos(PDFGenerator):
         """Construye la tabla REAL usando tabla_productos de datos"""
         print("   📋 Construyendo tabla de productos...")
 
-        # Encabezados
         tabla_data = [['MARCA', 'CÓDIGO', 'FACTURA', 'CANTIDAD']]
 
         filas = self.datos.get('tabla_productos', [])
@@ -102,7 +88,6 @@ class PDFGeneratorConDatos(PDFGenerator):
         print(f"   🎯 Generando: {os.path.basename(output_path)}")
         
         try:
-            # Configurar documento
             self.doc = SimpleDocTemplate(
                 output_path,
                 pagesize=letter,
@@ -112,19 +97,16 @@ class PDFGeneratorConDatos(PDFGenerator):
                 rightMargin=0.75*inch
             )
             
-            # Crear estilos y contenido
             self.crear_estilos()
             self.agregar_primera_pagina_con_datos()
-            self.agregar_segunda_pagina()
+            self.agregar_segunda_pagina_con_etiquetas()
             
-            # Construir PDF
             self.doc.build(
                 self.elements,
                 onFirstPage=self.agregar_encabezado_pie_pagina,
                 onLaterPages=self.agregar_encabezado_pie_pagina
             )
             
-            # Verificar creación
             if os.path.exists(output_path) and os.path.getsize(output_path) > 0:
                 print(f"   ✅ PDF creado exitosamente")
                 return True
@@ -138,13 +120,8 @@ class PDFGeneratorConDatos(PDFGenerator):
             return False
     
     def agregar_primera_pagina_con_datos(self):
-        """Construye la primera página con datos reales y el texto original completo"""
+        """Construye la primera página con datos reales"""
         print("   📄 Construyendo primera página...")
-        
-        print(f"   🔍 DEBUG - Norma: {self.datos.get('norma', 'NO ENCONTRADA')}")
-        print(f"   🔍 DEBUG - Normades: {self.datos.get('normades', 'NO ENCONTRADA')}")
-        print(f"   🔍 DEBUG - Cliente: {self.datos.get('cliente', 'NO ENCONTRADO')}")
-        print(f"   🔍 DEBUG - RFC: {self.datos.get('rfc', 'NO ENCONTRADO')}")
 
         # Fechas
         texto_fecha_inspeccion = f"<b>Fecha de Inspección:</b> {self.datos.get('fverificacion', '')}"
@@ -162,7 +139,7 @@ class PDFGeneratorConDatos(PDFGenerator):
         self.elements.append(Paragraph(texto_rfc, self.normal_style))
         self.elements.append(Spacer(1, 0.2 * inch))
 
-        # Texto del dictamen con NORMA y NORMADES
+        # Texto del dictamen
         texto_dictamen = (
             "De conformidad en lo dispuesto en los artículos 53, 56 fracción I, 60 fracción I, 62, 64, "
             "68 y 140 de la Ley de Infraestructura de la Calidad; 50 del Reglamento de la Ley Federal "
@@ -203,6 +180,82 @@ class PDFGeneratorConDatos(PDFGenerator):
         self.elements.append(Paragraph(obs2, self.normal_style))
         self.elements.append(Spacer(1, 0.3 * inch))
 
+    def agregar_segunda_pagina_con_etiquetas(self):
+        """Construye la segunda página con imágenes reales de etiquetas"""
+        print("   📄 Construyendo segunda página con etiquetas...")
+        
+        from reportlab.platypus import PageBreak
+        
+        # Salto de página
+        self.elements.append(PageBreak())
+        
+        # Título de etiquetas
+        self.elements.append(Paragraph("ETIQUETAS DEL PRODUCTO", self.label_style))
+        self.elements.append(Spacer(1, 0.1 * inch))
+        
+        # Obtener lista de etiquetas generadas
+        etiquetas = self.datos.get('etiquetas_lista', [])
+        
+        print(f"   🔍 DEBUG: Tipo de etiquetas_lista: {type(etiquetas)}")
+        print(f"   🔍 DEBUG: Contenido de etiquetas_lista: {etiquetas}")
+        
+        if etiquetas and len(etiquetas) > 0:
+            print(f"   🏷️ Insertando {len(etiquetas)} etiquetas en el PDF...")
+            # Insertar etiquetas en filas (máximo 5 por fila)
+            etiquetas_por_fila = 5
+            
+            for i in range(0, len(etiquetas), etiquetas_por_fila):
+                fila_etiquetas = etiquetas[i:i+etiquetas_por_fila]
+                
+                # Crear tabla para la fila de etiquetas
+                imagenes_fila = []
+                for etq in fila_etiquetas:
+                    ruta_img = etq.get('ruta', '')
+                    print(f"   🔍 DEBUG: Verificando ruta de imagen: {ruta_img}")
+                    if os.path.exists(ruta_img):
+                        try:
+                            img = RLImage(ruta_img, width=1*inch, height=1*inch)
+                            imagenes_fila.append(img)
+                            print(f"      ✅ Etiqueta cargada: {os.path.basename(ruta_img)}")
+                        except Exception as e:
+                            print(f"      ⚠️ Error cargando imagen {ruta_img}: {e}")
+                    else:
+                        print(f"      ⚠️ No se encontró la imagen: {ruta_img}")
+                
+                # Si hay imágenes en esta fila, agregarlas como tabla
+                if imagenes_fila:
+                    tabla_imgs = Table([imagenes_fila], colWidths=[1.2*inch]*len(imagenes_fila))
+                    tabla_imgs.setStyle(TableStyle([
+                        ('ALIGN', (0,0), (-1,-1), 'CENTER'),
+                        ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
+                    ]))
+                    self.elements.append(tabla_imgs)
+                    self.elements.append(Spacer(1, 0.15 * inch))
+        else:
+            print("   ⚠️ No se encontraron etiquetas para insertar")
+            self.elements.append(Paragraph("No se generaron etiquetas", self.normal_style))
+        
+        self.elements.append(Spacer(1, 0.3 * inch))
+        
+        firmas_data = [
+            ['________________________', '', '________________________'],
+            [self.datos.get('nfirma1', ''), '', self.datos.get('nfirma2', '')],
+            ['Nombre del Inspector', '', 'Nombre del responsable de\nsupervisión UI']
+        ]
+
+        firmas_table = Table(firmas_data, colWidths=[2.8*inch, 0.4*inch, 2.8*inch])
+        firmas_table.setStyle(TableStyle([
+            ('ALIGN', (0,0), (-1,-1), 'CENTER'),
+            ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
+            ('FONTNAME', (0,0), (-1,-1), 'Helvetica'),
+            ('FONTSIZE', (0,0), (-1,-1), 8),
+            ('BOLD', (0,2), (-1,2), True),
+            ('LINEBELOW', (0,0), (0,0), 1, colors.black),
+            ('LINEBELOW', (2,0), (2,0), 1, colors.black),
+        ]))
+
+        self.elements.append(firmas_table)
+
     def agregar_encabezado_pie_pagina(self, canvas, doc):
         """Sobrescribe el método para agregar encabezado y pie con datos reales"""
         canvas.saveState()
@@ -235,7 +288,6 @@ class PDFGeneratorConDatos(PDFGenerator):
         
         canvas.setFont("Helvetica", 7)
         
-        # Dividir texto en líneas
         lines = []
         words = footer_text.split()
         current_line = ""
@@ -260,8 +312,6 @@ class PDFGeneratorConDatos(PDFGenerator):
         canvas.restoreState()
 
 
-
-
 def limpiar_nombre_archivo(nombre):
     """Reemplaza caracteres inválidos en nombres de archivos."""
     prohibidos = '\\/:*?"<>|'
@@ -279,7 +329,7 @@ def generar_dictamenes_completos(directorio_destino, cliente_manual=None, rfc_ma
     print("📂 Cargando datos...")
     tabla_datos = cargar_tabla_relacion()
     normas_map, normas_info_completa = cargar_normas()
-    clientes_map = cargar_clientes()  # Agregado carga de clientes
+    clientes_map = cargar_clientes()
     
     if tabla_datos is None or tabla_datos.empty:
         return False, "No se pudieron cargar los datos de la tabla de relación", None
@@ -362,11 +412,9 @@ def generar_dictamenes_gui(callback_progreso=None, callback_finalizado=None, cli
         if callback_progreso:
             callback_progreso(10, "Solicitando ubicación...")
         
-        # Importar aquí para evitar problemas de dependencia
         import tkinter as tk
         from tkinter import filedialog
         
-        # Crear ventana temporal para el diálogo
         root = tk.Tk()
         root.withdraw()
         
@@ -381,14 +429,12 @@ def generar_dictamenes_gui(callback_progreso=None, callback_finalizado=None, cli
                 callback_finalizado(False, "Operación cancelada por el usuario", None)
             return False, "Operación cancelada", None
         
-        # Crear subcarpeta con fecha
         from datetime import datetime
         carpeta_final = os.path.join(directorio_destino, f"Dictamenes_{datetime.now().strftime('%Y%m%d_%H%M%S')}")
         
         if callback_progreso:
             callback_progreso(30, "Verificando estructura de datos...")
         
-        # Generar dictámenes
         exito, mensaje, resultado = generar_dictamenes_completos(carpeta_final, cliente_manual, rfc_manual)
         
         if callback_progreso:
@@ -413,7 +459,6 @@ if __name__ == "__main__":
     print("   GENERADOR DE DICTAMENES - PRUEBA DIRECTA")
     print("="*60)
     
-    # Prueba directa
     carpeta_prueba = "dictamenes_prueba"
     exito, mensaje, resultado = generar_dictamenes_completos(carpeta_prueba)
     
