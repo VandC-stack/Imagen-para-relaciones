@@ -110,36 +110,69 @@ class GeneradorEtiquetasDecathlon:
         return "NOM-050-SCFI-2004-1"
     
     def formatear_dato(self, campo, valor):
-        """Formatea los datos según el campo - SOLO VALORES, SIN ETIQUETAS"""
+        """Formatea los datos según el campo"""
         if str(valor).upper() in ['N/A', 'NAN', ''] or not valor:
             return None
         
-        # Para PAIS ORIGEN, mantener el formato "HECHO EN"
         if campo == 'PAIS ORIGEN':
             return f"HECHO EN {valor}"
         
         if campo == 'TALLA':
             return f"TALLA {valor}"
         
-        # Para todos los demás campos, devolver solo el valor sin etiqueta
         return str(valor)
     
     def cm_a_pixeles(self, cm, dpi=300):
         """Convierte centímetros a píxeles"""
         return int(cm * dpi / 2.54)
     
+    def organizar_campos_por_seccion(self, campos, producto):
+        """Organiza los campos en tres secciones: encabezado, centro y pie
+        Si no hay talla, el importador va al pie"""
+        encabezado = ['EAN', 'MARCA']
+        pie_preferente = ['TALLA']
+        
+        campos_encabezado = []
+        campos_centro = []
+        campos_pie = []
+        
+        # Verificar si hay talla
+        tiene_talla = False
+        for campo in campos:
+            if campo == 'TALLA':
+                valor = producto.get(campo, '')
+                if valor and str(valor).upper() not in ['N/A', 'NAN', '']:
+                    tiene_talla = True
+                    break
+        
+        for campo in campos:
+            valor = producto.get(campo, '')
+            
+            if campo == 'EAN':
+                campos_encabezado.append(campo)
+            elif campo == 'MARCA' and valor and str(valor).upper() not in ['N/A', 'NAN', '']:
+                campos_encabezado.append(campo)
+            elif campo == 'IMPORTADOR' and not tiene_talla:
+                campos_pie.append(campo)
+            elif campo == 'TALLA' and tiene_talla:
+                campos_pie.append(campo)
+            # Todo lo demás va al centro
+            else:
+                if valor and str(valor).upper() not in ['N/A', 'NAN', '']:
+                    campos_centro.append(campo)
+        
+        return campos_encabezado, campos_centro, campos_pie
+    
     def crear_etiqueta(self, producto, config, output_path):
-        """Crea una imagen de etiqueta con texto centrado"""
-        # Convertir tamaño a píxeles
+        """Crea una imagen de etiqueta con layout optimizado: encabezado (EAN siempre), centro centrado, pie"""
         ancho_cm, alto_cm = config['tamaño']
         ancho = self.cm_a_pixeles(ancho_cm)
         alto = self.cm_a_pixeles(alto_cm)
         
-        # Crear imagen
         img = Image.new('RGB', (ancho, alto), 'white')
         draw = ImageDraw.Draw(img)
         
-        # Configurar fuente - tamaño adaptable según el tamaño de la etiqueta
+        # Configurar fuentes
         try:
             font_paths = [
                 "arial.ttf", 
@@ -150,13 +183,12 @@ class GeneradorEtiquetasDecathlon:
             font = None
             for font_path in font_paths:
                 try:
-                    # Tamaño de fuente basado en el área de la etiqueta
                     area = ancho_cm * alto_cm
-                    if area < 25:  # Etiquetas muy pequeñas
-                        font_size = 15
-                    elif area < 35:  # Etiquetas pequeñas
-                        font_size = 15
-                    else:  # Etiquetas normales
+                    if area < 25:
+                        font_size = 14
+                    elif area < 35:
+                        font_size = 16
+                    else:
                         font_size = 20
                     font = ImageFont.truetype(font_path, font_size)
                     break
@@ -170,78 +202,101 @@ class GeneradorEtiquetasDecathlon:
         # Dibujar borde
         draw.rectangle([0, 0, ancho-1, alto-1], outline='black', width=2)
         
-        # Posición inicial
-        margin = 30
-        y = margin
-        line_height = font.size + 10
-        espacio_entre_campos = 15
+        margin_x = 25
+        margin_y = 25
+        line_height = font.size + 14
+        max_caracteres = 35 if ancho_cm < 5 else 45
         
-        # Recolectar todas las líneas que vamos a mostrar
-        lineas_totales = []
-        for campo in config['campos']:
+        campos_encabezado, campos_centro, campos_pie = self.organizar_campos_por_seccion(config['campos'], producto)
+        
+        # ============ SECCIÓN ENCABEZADO (EAN siempre + MARCA si existe) ============
+        y_actual = margin_y
+        for campo in campos_encabezado:
             valor = producto.get(campo, '')
-            texto_formateado = self.formatear_dato(campo, valor)
+            texto = self.formatear_dato(campo, valor) if campo != 'EAN' else str(valor)
             
-            if texto_formateado:
-                # Dividir texto si es muy largo
-                max_caracteres = 25 if ancho_cm < 5 else 35
-                lines = textwrap.wrap(texto_formateado, width=max_caracteres)
-                lineas_totales.extend(lines)
-                lineas_totales.append("")  # Línea en blanco entre campos
+            if texto:
+                lines = textwrap.wrap(texto, width=max_caracteres)
+                for line in lines:
+                    if hasattr(draw, 'textbbox'):
+                        bbox = draw.textbbox((0, 0), line, font=font)
+                        text_width = bbox[2] - bbox[0]
+                    else:
+                        text_width = draw.textsize(line, font=font)[0]
+                    
+                    x_centered = (ancho - text_width) / 2
+                    draw.text((x_centered, y_actual), line, font=font, fill='black')
+                    y_actual += line_height
         
-        # Eliminar la última línea en blanco si existe
-        if lineas_totales and lineas_totales[-1] == "":
-            lineas_totales.pop()
+        y_actual += 10
         
-        # Calcular la altura total del texto
-        altura_total = len(lineas_totales) * line_height
-        # Calcular la posición Y inicial para centrar verticalmente
-        y_inicio = max(margin, (alto - altura_total) / 2)
-        y = y_inicio
+        # ============ CALCULAR ESPACIO PARA PIE ============
+        lineas_pie = []
+        for campo in campos_pie:
+            valor = producto.get(campo, '')
+            texto = self.formatear_dato(campo, valor)
+            if texto:
+                lines = textwrap.wrap(texto, width=max_caracteres)
+                lineas_pie.extend(lines)
         
-        # Dibujar todas las líneas centradas
-        campos_mostrados = 0
-        for line in lineas_totales:
-            if line == "":
-                y += espacio_entre_campos
-                continue
-                
-            # Calcular ancho del texto para centrarlo
+        altura_pie = len(lineas_pie) * line_height + margin_y
+        
+        # ============ SECCIÓN CENTRO (INSUMOS, PAIS ORIGEN centrado) ============
+        y_centro_inicio = y_actual
+        altura_disponible_centro = alto - y_actual - altura_pie
+        
+        lineas_centro_total = []
+        for campo in campos_centro:
+            valor = producto.get(campo, '')
+            texto = self.formatear_dato(campo, valor)
+            if texto:
+                lines = textwrap.wrap(texto, width=max_caracteres)
+                lineas_centro_total.extend([(campo, line) for line in lines])
+        
+        altura_contenido_centro = len(lineas_centro_total) * (line_height + 5)
+        
+        # Si hay espacio extra, centrar verticalmente
+        if altura_contenido_centro < altura_disponible_centro:
+            y_actual += (altura_disponible_centro - altura_contenido_centro) / 2
+        
+        # Dibujar líneas del centro
+        for campo, line in lineas_centro_total:
+            if y_actual >= alto - altura_pie:
+                break
+            
             if hasattr(draw, 'textbbox'):
                 bbox = draw.textbbox((0, 0), line, font=font)
                 text_width = bbox[2] - bbox[0]
             else:
-                # Para versiones antiguas de PIL
                 text_width = draw.textsize(line, font=font)[0]
             
             x_centered = (ancho - text_width) / 2
-            
-            # Verificar si hay espacio suficiente
-            if y + line_height <= alto - margin:
-                draw.text((x_centered, y), line, font=font, fill='black')
-                y += line_height
-                campos_mostrados += 1
+            draw.text((x_centered, y_actual), line, font=font, fill='black')
+            y_actual += line_height + 5
         
-        # Si no se pudo mostrar ningún campo, mostrar mensaje de error centrado
-        if campos_mostrados == 0:
-            error_msg = "No hay datos válidos"
+        # ============ SECCIÓN PIE (TALLA o IMPORTADOR) ============
+        y_pie = alto - margin_y
+        
+        # Dibujar desde abajo hacia arriba
+        for line in reversed(lineas_pie):
+            y_pie -= line_height
+            
             if hasattr(draw, 'textbbox'):
-                bbox = draw.textbbox((0, 0), error_msg, font=font)
+                bbox = draw.textbbox((0, 0), line, font=font)
                 text_width = bbox[2] - bbox[0]
             else:
-                text_width = draw.textsize(error_msg, font=font)[0]
+                text_width = draw.textsize(line, font=font)[0]
             
             x_centered = (ancho - text_width) / 2
-            y_centered = alto / 2
-            draw.text((x_centered, y_centered), error_msg, font=font, fill='red')
+            draw.text((x_centered, y_pie), line, font=font, fill='black')
         
-        # Guardar imagen con alta calidad
+        # Guardar imagen
         img.save(output_path, 'PNG', dpi=(300, 300))
         return True
     
-    def generar_etiquetas_por_codigos(self, codigos, output_dir="etiquetas_generadas"):
+    def generar_etiquetas_por_codigos(self, codigos, output_dir="etiquetas_generadas", guardar_en_disco=False):
         """Genera etiquetas para una lista de códigos EAN"""
-        if not os.path.exists(output_dir):
+        if guardar_en_disco and not os.path.exists(output_dir):
             os.makedirs(output_dir)
         
         etiquetas_generadas = []
@@ -249,13 +304,11 @@ class GeneradorEtiquetasDecathlon:
         for codigo in codigos:
             print(f"   🔍 Procesando código EAN: {codigo}")
             
-            # Buscar en tabla de relación por EAN
             producto_relacionado = self.buscar_en_tabla_relacion(codigo)
             if not producto_relacionado:
                 print(f"      ❌ EAN {codigo} no encontrado en tabla de relación")
                 continue
             
-            # Obtener NORMA UVA
             norma_uva = producto_relacionado.get('NORMA UVA')
             if norma_uva is None:
                 print(f"      ❌ No se encontró NORMA UVA para EAN {codigo}")
@@ -263,13 +316,11 @@ class GeneradorEtiquetasDecathlon:
             
             print(f"      📋 NORMA UVA encontrada: {norma_uva}")
             
-            # Buscar producto en base de etiquetado por EAN
             producto = self.buscar_producto_por_ean(codigo)
             if not producto:
                 print(f"      ❌ Producto con EAN {codigo} no encontrado en base de etiquetado")
                 continue
             
-            # Determinar norma específica basada en NORMA UVA
             norma = self.determinar_norma_por_uva(norma_uva, producto)
             if not norma:
                 print(f"      ❌ No se pudo determinar la norma para NORMA UVA {norma_uva}")
@@ -277,13 +328,11 @@ class GeneradorEtiquetasDecathlon:
             
             print(f"      🏷️ Norma determinada: {norma}")
             
-            # Buscar configuración
             config = self.configuraciones.get(norma)
             if not config:
                 print(f"      ❌ No hay configuración para la norma {norma}")
                 continue
             
-            # Generar etiqueta
             nombre_archivo = f"{codigo}_{norma}.png"
             output_path = os.path.join(output_dir, nombre_archivo)
             
@@ -314,32 +363,24 @@ class GeneradorEtiquetasDecathlon:
             c = canvas.Canvas(output_pdf, pagesize=letter)
             ancho_pagina, alto_pagina = letter
             
-            # Posición inicial en la página
             x = 1 * cm
             y = alto_pagina - 2 * cm
             max_y = 2 * cm
             
             for i, etiqueta in enumerate(etiquetas_generadas):
-                # Verificar si necesitamos nueva página
                 if y < max_y:
                     c.showPage()
                     y = alto_pagina - 2 * cm
                     x = 1 * cm
                 
-                # Obtener tamaño de la etiqueta en cm
                 ancho_cm, alto_cm = etiqueta['tamaño_cm']
-                
-                # Convertir a puntos (1 cm = 28.35 puntos)
                 ancho_pt = ancho_cm * 28.35
                 alto_pt = alto_cm * 28.35
                 
-                # Insertar imagen de la etiqueta
                 c.drawImage(etiqueta['ruta'], x, y - alto_pt, width=ancho_pt, height=alto_pt)
                 
-                # Mover posición para la siguiente etiqueta
                 x += ancho_pt + 0.5 * cm
                 
-                # Si no cabe en el ancho, pasar a siguiente fila
                 if x + ancho_pt > ancho_pagina - 1 * cm:
                     x = 1 * cm
                     y -= alto_pt + 0.5 * cm
@@ -351,34 +392,22 @@ class GeneradorEtiquetasDecathlon:
             print(f"❌ Error creando PDF: {e}")
             return False
 
-# Función principal de uso
 def main():
-    # Verificar que exista la carpeta data
     if not os.path.exists("data"):
         print("❌ Carpeta 'data' no encontrada")
-        print("   Por favor, crea la carpeta 'data' y coloca allí los archivos:")
-        print("   - BASE_ETIQUETADO.json")
-        print("   - TABLA_DE_RELACION.json") 
-        print("   - config_etiquetas.json")
         return
     
-    # Inicializar generador (ahora lee automáticamente de la carpeta data)
     generador = GeneradorEtiquetasDecathlon()
+    codigos_a_procesar = ["692071"]
     
-    # Lista de códigos a procesar
-    codigos_a_procesar = ["692071"]  # Ejemplos
-    
-    # Generar etiquetas
     print("Generando etiquetas...")
     resultados = generador.generar_etiquetas_por_codigos(codigos_a_procesar)
     
-    # Mostrar resultados
     print(f"\n--- RESULTADOS ---")
     print(f"Total de etiquetas generadas: {len(resultados)}")
     for resultado in resultados:
         print(f"✓ {resultado['archivo']} - EAN: {resultado['ean']} - Norma: {resultado['norma']}")
     
-    # Crear PDF con todas las etiquetas
     if resultados:
         print("\nCreando PDF con etiquetas...")
         generador.crear_pdf_etiquetas(resultados, "etiquetas_decathlon.pdf")

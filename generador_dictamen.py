@@ -201,22 +201,33 @@ class PDFGeneratorConDatos(PDFGenerator):
         
         if etiquetas and len(etiquetas) > 0:
             print(f"   🏷️ Insertando {len(etiquetas)} etiquetas en el PDF...")
-            # Insertar etiquetas en filas (máximo 5 por fila)
-            etiquetas_por_fila = 5
+            etiquetas_por_fila = 3
             
             for i in range(0, len(etiquetas), etiquetas_por_fila):
                 fila_etiquetas = etiquetas[i:i+etiquetas_por_fila]
                 
                 # Crear tabla para la fila de etiquetas
                 imagenes_fila = []
+                anchos_columna = []
+                
                 for etq in fila_etiquetas:
                     ruta_img = etq.get('ruta', '')
+                    tamaño_cm = etq.get('tamaño_cm', (5, 5))  # Obtener tamaño real en cm
+                    
                     print(f"   🔍 DEBUG: Verificando ruta de imagen: {ruta_img}")
+                    print(f"   🔍 DEBUG: Tamaño en cm: {tamaño_cm}")
+                    
                     if os.path.exists(ruta_img):
                         try:
-                            img = RLImage(ruta_img, width=1*inch, height=1*inch)
+                            ancho_cm, alto_cm = tamaño_cm
+                            # Convertir cm a inches (1 cm = 0.393701 inches)
+                            ancho_inch = ancho_cm * 0.393701
+                            alto_inch = alto_cm * 0.393701
+                            
+                            img = RLImage(ruta_img, width=ancho_inch*inch, height=alto_inch*inch)
                             imagenes_fila.append(img)
-                            print(f"      ✅ Etiqueta cargada: {os.path.basename(ruta_img)}")
+                            anchos_columna.append((ancho_inch + 0.2)*inch)  # Agregar margen
+                            print(f"      ✅ Etiqueta cargada: {os.path.basename(ruta_img)} ({ancho_cm}x{alto_cm} cm)")
                         except Exception as e:
                             print(f"      ⚠️ Error cargando imagen {ruta_img}: {e}")
                     else:
@@ -224,13 +235,13 @@ class PDFGeneratorConDatos(PDFGenerator):
                 
                 # Si hay imágenes en esta fila, agregarlas como tabla
                 if imagenes_fila:
-                    tabla_imgs = Table([imagenes_fila], colWidths=[1.2*inch]*len(imagenes_fila))
+                    tabla_imgs = Table([imagenes_fila], colWidths=anchos_columna)
                     tabla_imgs.setStyle(TableStyle([
                         ('ALIGN', (0,0), (-1,-1), 'CENTER'),
                         ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
                     ]))
                     self.elements.append(tabla_imgs)
-                    self.elements.append(Spacer(1, 0.15 * inch))
+                    self.elements.append(Spacer(1, 0.2 * inch))
         else:
             print("   ⚠️ No se encontraron etiquetas para insertar")
             self.elements.append(Paragraph("No se generaron etiquetas", self.normal_style))
