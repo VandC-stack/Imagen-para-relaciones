@@ -27,6 +27,24 @@ class PDFGeneratorConDatos(PDFGenerator):
     def __init__(self, datos):
         super().__init__()
         self.datos = datos
+        self.calcular_total_paginas()
+    
+    def calcular_total_paginas(self):
+        """Calcula el número total de páginas basándose en las etiquetas"""
+        etiquetas = self.datos.get('etiquetas_lista', [])
+        num_etiquetas = len(etiquetas)
+        
+        # Página 1 = Primera página con tabla
+        paginas_primera = 1
+        
+        # Páginas de etiquetas (6 etiquetas por página)
+        if num_etiquetas > 0:
+            paginas_etiquetas = (num_etiquetas + 5) // 6  # 6 etiquetas por página
+        else:
+            paginas_etiquetas = 0
+        
+        self.total_pages = paginas_primera + paginas_etiquetas
+        print(f"   📊 Total de páginas calculado: {self.total_pages} (1 primera + {paginas_etiquetas} etiquetas)")
     
     def construir_tabla_productos(self):
         """Construye la tabla REAL usando tabla_productos de datos"""
@@ -190,65 +208,70 @@ class PDFGeneratorConDatos(PDFGenerator):
         
         print(f"   🔍 Total de etiquetas: {len(etiquetas)}")
         
-        self.elements.append(PageBreak())
-        
-        if etiquetas and len(etiquetas) > 0:
-            print(f"   🏷️ Insertando {len(etiquetas)} etiquetas en el PDF...")
-            
-            etiquetas_por_fila = 3
-            max_etiquetas_por_pagina = 6  # 2 filas de 3 etiquetas
-            
-            # Procesar etiquetas en grupos de páginas
-            for pagina_idx in range(0, len(etiquetas), max_etiquetas_por_pagina):
-                if pagina_idx > 0:
-                    self.elements.append(PageBreak())
-                
-                # Título de etiquetas para cada página
-                self.elements.append(Paragraph("ETIQUETAS DEL PRODUCTO", self.label_style))
-                self.elements.append(Spacer(1, 0.2 * inch))
-                
-                # Obtener las etiquetas para esta página
-                etiquetas_pagina = etiquetas[pagina_idx:pagina_idx + max_etiquetas_por_pagina]
-                
-                # Procesar etiquetas en filas de 3
-                for i in range(0, len(etiquetas_pagina), etiquetas_por_fila):
-                    fila_etiquetas = etiquetas_pagina[i:i+etiquetas_por_fila]
-                    
-                    # Crear tabla para la fila de etiquetas
-                    imagenes_fila = []
-                    anchos_columna = []
-                    
-                    for etq in fila_etiquetas:
-                        imagen_bytes = etq.get('imagen_bytes', None)
-                        tamaño_cm = etq.get('tamaño_cm', (5, 5))
-                        
-                        if imagen_bytes:
-                            try:
-                                ancho_cm, alto_cm = tamaño_cm
-                                ancho_inch = ancho_cm * 0.393701
-                                alto_inch = alto_cm * 0.393701
-                                
-                                imagen_bytes.seek(0)
-                                img = RLImage(imagen_bytes, width=ancho_inch*inch, height=alto_inch*inch)
-                                imagenes_fila.append(img)
-                                anchos_columna.append((ancho_inch + 0.2)*inch)
-                                print(f"      ✅ Etiqueta cargada: EAN {etq.get('ean')} ({ancho_cm}x{alto_cm} cm)")
-                            except Exception as e:
-                                print(f"      ⚠️ Error cargando imagen: {e}")
-                    
-                    if imagenes_fila:
-                        tabla_imgs = Table([imagenes_fila], colWidths=anchos_columna)
-                        tabla_imgs.setStyle(TableStyle([
-                            ('ALIGN', (0,0), (-1,-1), 'CENTER'),
-                            ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
-                        ]))
-                        self.elements.append(tabla_imgs)
-                        self.elements.append(Spacer(1, 0.3 * inch))
-        else:
-            self.elements.append(Paragraph("ETIQUETAS DEL PRODUCTO", self.label_style))
-            self.elements.append(Spacer(1, 0.1 * inch))
+        if not etiquetas or len(etiquetas) == 0:
             print("   ⚠️ No se encontraron etiquetas para insertar")
-            self.elements.append(Paragraph("No se generaron etiquetas", self.normal_style))
+            return
+        
+        etiquetas_por_fila = 3
+        max_etiquetas_por_pagina = 6  # 2 filas de 3 etiquetas
+        
+        # Procesar etiquetas en grupos de páginas
+        total_paginas = (len(etiquetas) + max_etiquetas_por_pagina - 1) // max_etiquetas_por_pagina
+        
+        print(f"   📄 Distribuyendo {len(etiquetas)} etiquetas en {total_paginas} página(s)")
+        
+        for pagina_idx in range(total_paginas):
+            if pagina_idx > 0:
+                self.elements.append(PageBreak())
+            
+            if pagina_idx == 0:
+                self.elements.append(Paragraph("ETIQUETAS DEL PRODUCTO", self.label_style))
+            else:
+                self.elements.append(Paragraph("ETIQUETAS DEL PRODUCTO (continuación)", self.label_style))
+            
+            self.elements.append(Spacer(1, 0.2 * inch))
+            
+            # Obtener las etiquetas para esta página
+            inicio_idx = pagina_idx * max_etiquetas_por_pagina
+            fin_idx = inicio_idx + max_etiquetas_por_pagina
+            etiquetas_pagina = etiquetas[inicio_idx:fin_idx]
+            
+            print(f"   📄 Página {pagina_idx + 1}/{total_paginas}: {len(etiquetas_pagina)} etiquetas")
+            
+            # Procesar etiquetas en filas de 3
+            for i in range(0, len(etiquetas_pagina), etiquetas_por_fila):
+                fila_etiquetas = etiquetas_pagina[i:i+etiquetas_por_fila]
+                
+                # Crear tabla para la fila de etiquetas
+                imagenes_fila = []
+                anchos_columna = []
+                
+                for etq in fila_etiquetas:
+                    imagen_bytes = etq.get('imagen_bytes', None)
+                    tamaño_cm = etq.get('tamaño_cm', (5, 5))
+                    
+                    if imagen_bytes:
+                        try:
+                            ancho_cm, alto_cm = tamaño_cm
+                            ancho_inch = ancho_cm * 0.393701
+                            alto_inch = alto_cm * 0.393701
+                            
+                            imagen_bytes.seek(0)
+                            img = RLImage(imagen_bytes, width=ancho_inch*inch, height=alto_inch*inch)
+                            imagenes_fila.append(img)
+                            anchos_columna.append((ancho_inch + 0.2)*inch)
+                            print(f"      ✅ Etiqueta: EAN {etq.get('ean')} ({ancho_cm}x{alto_cm} cm)")
+                        except Exception as e:
+                            print(f"      ⚠️ Error cargando imagen: {e}")
+                
+                if imagenes_fila:
+                    tabla_imgs = Table([imagenes_fila], colWidths=anchos_columna)
+                    tabla_imgs.setStyle(TableStyle([
+                        ('ALIGN', (0,0), (-1,-1), 'CENTER'),
+                        ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
+                    ]))
+                    self.elements.append(tabla_imgs)
+                    self.elements.append(Spacer(1, 0.3 * inch))
         
         self.elements.append(Spacer(1, 0.4 * inch))
         
