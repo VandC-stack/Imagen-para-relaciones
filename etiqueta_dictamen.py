@@ -6,6 +6,7 @@ import ast
 from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import letter
 from reportlab.lib.units import cm
+from io import BytesIO
 
 class GeneradorEtiquetasDecathlon:
     def __init__(self):
@@ -175,21 +176,21 @@ class GeneradorEtiquetasDecathlon:
         # Configurar fuentes
         try:
             font_paths = [
-                "arial.ttf", 
-                "Arial.ttf",
-                "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
-                "C:/Windows/Fonts/arial.ttf"
+                "arialbd.ttf",  # Arial Bold
+                "Arial Bold.ttf",
+                "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf",
+                "C:/Windows/Fonts/arialbd.ttf"
             ]
             font = None
             for font_path in font_paths:
                 try:
                     area = ancho_cm * alto_cm
                     if area < 25:
-                        font_size = 14
+                        font_size = 22  # Aumentado de 20 a 22
                     elif area < 35:
-                        font_size = 16
+                        font_size = 26  # Aumentado de 24 a 26
                     else:
-                        font_size = 20
+                        font_size = 30  # Aumentado de 28 a 30
                     font = ImageFont.truetype(font_path, font_size)
                     break
                 except:
@@ -202,10 +203,10 @@ class GeneradorEtiquetasDecathlon:
         # Dibujar borde
         draw.rectangle([0, 0, ancho-1, alto-1], outline='black', width=2)
         
-        margin_x = 25
-        margin_y = 25
-        line_height = font.size + 14
-        max_caracteres = 35 if ancho_cm < 5 else 45
+        margin_x = 50  # Aumentado de 40 a 50 para márgenes más amplios y uniformes
+        margin_y = 40  # Aumentado de 35 a 40
+        line_height = font.size + 10
+        max_caracteres = 30 if ancho_cm < 5 else 40  # Reducido de 35/45 a 30/40
         
         campos_encabezado, campos_centro, campos_pie = self.organizar_campos_por_seccion(config['campos'], producto)
         
@@ -225,6 +226,12 @@ class GeneradorEtiquetasDecathlon:
                         text_width = draw.textsize(line, font=font)[0]
                     
                     x_centered = (ancho - text_width) / 2
+                    # Asegurar que no se salga de los márgenes
+                    if x_centered < margin_x:
+                        x_centered = margin_x
+                    if x_centered + text_width > ancho - margin_x:
+                        x_centered = margin_x
+                    
                     draw.text((x_centered, y_actual), line, font=font, fill='black')
                     y_actual += line_height
         
@@ -239,7 +246,7 @@ class GeneradorEtiquetasDecathlon:
                 lines = textwrap.wrap(texto, width=max_caracteres)
                 lineas_pie.extend(lines)
         
-        altura_pie = len(lineas_pie) * line_height + margin_y
+        altura_pie = len(lineas_pie) * line_height + margin_y if lineas_pie else margin_y
         
         # ============ SECCIÓN CENTRO (INSUMOS, PAIS ORIGEN centrado) ============
         y_centro_inicio = y_actual
@@ -261,7 +268,7 @@ class GeneradorEtiquetasDecathlon:
         
         # Dibujar líneas del centro
         for campo, line in lineas_centro_total:
-            if y_actual >= alto - altura_pie:
+            if y_actual >= alto - altura_pie - margin_y:
                 break
             
             if hasattr(draw, 'textbbox'):
@@ -271,13 +278,17 @@ class GeneradorEtiquetasDecathlon:
                 text_width = draw.textsize(line, font=font)[0]
             
             x_centered = (ancho - text_width) / 2
+            # Asegurar que no se salga de los márgenes
+            if x_centered < margin_x:
+                x_centered = margin_x
+            if x_centered + text_width > ancho - margin_x:
+                x_centered = margin_x
+            
             draw.text((x_centered, y_actual), line, font=font, fill='black')
             y_actual += line_height + 5
         
         # ============ SECCIÓN PIE (TALLA o IMPORTADOR) ============
         y_pie = alto - margin_y
-        
-        # Dibujar desde abajo hacia arriba
         for line in reversed(lineas_pie):
             y_pie -= line_height
             
@@ -288,6 +299,11 @@ class GeneradorEtiquetasDecathlon:
                 text_width = draw.textsize(line, font=font)[0]
             
             x_centered = (ancho - text_width) / 2
+            if x_centered < margin_x:
+                x_centered = margin_x
+            if x_centered + text_width > ancho - margin_x:
+                x_centered = margin_x
+            
             draw.text((x_centered, y_pie), line, font=font, fill='black')
         
         # Guardar imagen
@@ -295,10 +311,7 @@ class GeneradorEtiquetasDecathlon:
         return True
     
     def generar_etiquetas_por_codigos(self, codigos, output_dir="etiquetas_generadas", guardar_en_disco=False):
-        """Genera etiquetas para una lista de códigos EAN"""
-        if guardar_en_disco and not os.path.exists(output_dir):
-            os.makedirs(output_dir)
-        
+        """Genera etiquetas para una lista de códigos EAN y retorna objetos BytesIO para inserción directa"""
         etiquetas_generadas = []
         
         for codigo in codigos:
@@ -333,29 +346,176 @@ class GeneradorEtiquetasDecathlon:
                 print(f"      ❌ No hay configuración para la norma {norma}")
                 continue
             
-            nombre_archivo = f"{codigo}_{norma}.png"
-            output_path = os.path.join(output_dir, nombre_archivo)
-            
             try:
-                success = self.crear_etiqueta(producto, config, output_path)
-                if success:
-                    etiquetas_generadas.append({
-                        'codigo': codigo,
-                        'ean': producto.get('EAN'),
-                        'norma': norma,
-                        'archivo': nombre_archivo,
-                        'ruta': output_path,
-                        'tamaño_cm': config['tamaño']
-                    })
-                    print(f"      ✅ Etiqueta generada: {nombre_archivo}")
-                else:
-                    print(f"      ❌ Error generando etiqueta para {codigo}")
+                # Crear imagen en memoria
+                ancho_cm, alto_cm = config['tamaño']
+                ancho = self.cm_a_pixeles(ancho_cm)
+                alto = self.cm_a_pixeles(alto_cm)
+                
+                img = Image.new('RGB', (ancho, alto), 'white')
+                draw = ImageDraw.Draw(img)
+                
+                # Reutilizar la lógica de dibujo
+                self._dibujar_etiqueta_en_imagen(img, draw, producto, config)
+                
+                # Guardar en BytesIO en lugar de archivo
+                img_bytes = BytesIO()
+                img.save(img_bytes, format='PNG', dpi=(300, 300))
+                img_bytes.seek(0)
+                
+                etiquetas_generadas.append({
+                    'codigo': codigo,
+                    'ean': producto.get('EAN'),
+                    'norma': norma,
+                    'imagen_bytes': img_bytes,
+                    'tamaño_cm': config['tamaño']
+                })
+                print(f"      ✅ Etiqueta generada en memoria")
             except Exception as e:
                 print(f"      ❌ Error generando etiqueta para {codigo}: {e}")
                 import traceback
                 traceback.print_exc()
         
         return etiquetas_generadas
+    
+    def _dibujar_etiqueta_en_imagen(self, img, draw, producto, config):
+        """Dibuja el contenido de la etiqueta en la imagen proporcionada"""
+        ancho, alto = img.size
+        ancho_cm, alto_cm = config['tamaño']
+        
+        try:
+            font_paths = [
+                "arialbd.ttf",
+                "Arial Bold.ttf",
+                "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf",
+                "C:/Windows/Fonts/arialbd.ttf"
+            ]
+            font = None
+            for font_path in font_paths:
+                try:
+                    area = ancho_cm * alto_cm
+                    if area < 25:
+                        font_size = 22
+                    elif area < 35:
+                        font_size = 26
+                    else:
+                        font_size = 30
+                    font = ImageFont.truetype(font_path, font_size)
+                    break
+                except:
+                    continue
+            if font is None:
+                font = ImageFont.load_default()
+        except:
+            font = ImageFont.load_default()
+        
+        # Dibujar borde
+        draw.rectangle([0, 0, ancho-1, alto-1], outline='black', width=2)
+        
+        margin_x = 50  # Aumentado de 40 a 50 para márgenes más amplios y uniformes
+        margin_y = 40  # Aumentado de 35 a 40
+        line_height = font.size + 10
+        
+        ancho_disponible = ancho - (2 * margin_x)
+        
+        # Calcular max_caracteres basado en el ancho real de la fuente
+        char_width_estimate = font.size * 0.6  # Estimación del ancho promedio de carácter
+        max_caracteres = int(ancho_disponible / char_width_estimate)
+        max_caracteres = max(20, min(max_caracteres, 45))  # Entre 20 y 45 caracteres
+        
+        campos_encabezado, campos_centro, campos_pie = self.organizar_campos_por_seccion(config['campos'], producto)
+        
+        # ENCABEZADO
+        y_actual = margin_y
+        for campo in campos_encabezado:
+            valor = producto.get(campo, '')
+            texto = self.formatear_dato(campo, valor) if campo != 'EAN' else str(valor)
+            
+            if texto:
+                lines = textwrap.wrap(texto, width=max_caracteres)
+                for line in lines:
+                    if hasattr(draw, 'textbbox'):
+                        bbox = draw.textbbox((0, 0), line, font=font)
+                        text_width = bbox[2] - bbox[0]
+                    else:
+                        text_width = draw.textsize(line, font=font)[0]
+                    
+                    x_centered = (ancho - text_width) / 2
+                    # Asegurar que no se salga de los márgenes
+                    if x_centered < margin_x:
+                        x_centered = margin_x
+                    if x_centered + text_width > ancho - margin_x:
+                        x_centered = margin_x
+                    
+                    draw.text((x_centered, y_actual), line, font=font, fill='black')
+                    y_actual += line_height
+        
+        y_actual += 10
+        
+        # CALCULAR PIE
+        lineas_pie = []
+        for campo in campos_pie:
+            valor = producto.get(campo, '')
+            texto = self.formatear_dato(campo, valor)
+            if texto:
+                lines = textwrap.wrap(texto, width=max_caracteres)
+                lineas_pie.extend(lines)
+        
+        altura_pie = len(lineas_pie) * line_height + margin_y if lineas_pie else margin_y
+        
+        # CENTRO
+        altura_disponible_centro = alto - y_actual - altura_pie
+        
+        lineas_centro_total = []
+        for campo in campos_centro:
+            valor = producto.get(campo, '')
+            texto = self.formatear_dato(campo, valor)
+            if texto:
+                lines = textwrap.wrap(texto, width=max_caracteres)
+                lineas_centro_total.extend([(campo, line) for line in lines])
+        
+        altura_contenido_centro = len(lineas_centro_total) * (line_height + 5)
+        
+        if altura_contenido_centro < altura_disponible_centro:
+            y_actual += (altura_disponible_centro - altura_contenido_centro) / 2
+        
+        for campo, line in lineas_centro_total:
+            if y_actual >= alto - altura_pie - margin_y:
+                break
+            
+            if hasattr(draw, 'textbbox'):
+                bbox = draw.textbbox((0, 0), line, font=font)
+                text_width = bbox[2] - bbox[0]
+            else:
+                text_width = draw.textsize(line, font=font)[0]
+            
+            x_centered = (ancho - text_width) / 2
+            if x_centered < margin_x:
+                x_centered = margin_x
+            if x_centered + text_width > ancho - margin_x:
+                x_centered = margin_x
+            
+            draw.text((x_centered, y_actual), line, font=font, fill='black')
+            y_actual += line_height + 5
+        
+        # PIE
+        y_pie = alto - margin_y
+        for line in reversed(lineas_pie):
+            y_pie -= line_height
+            
+            if hasattr(draw, 'textbbox'):
+                bbox = draw.textbbox((0, 0), line, font=font)
+                text_width = bbox[2] - bbox[0]
+            else:
+                text_width = draw.textsize(line, font=font)[0]
+            
+            x_centered = (ancho - text_width) / 2
+            if x_centered < margin_x:
+                x_centered = margin_x
+            if x_centered + text_width > ancho - margin_x:
+                x_centered = margin_x
+            
+            draw.text((x_centered, y_pie), line, font=font, fill='black')
     
     def crear_pdf_etiquetas(self, etiquetas_generadas, output_pdf="etiquetas.pdf"):
         """Crea un PDF con todas las etiquetas generadas"""
@@ -377,7 +537,7 @@ class GeneradorEtiquetasDecathlon:
                 ancho_pt = ancho_cm * 28.35
                 alto_pt = alto_cm * 28.35
                 
-                c.drawImage(etiqueta['ruta'], x, y - alto_pt, width=ancho_pt, height=alto_pt)
+                c.drawImage(etiqueta['imagen_bytes'], x, y - alto_pt, width=ancho_pt, height=alto_pt)
                 
                 x += ancho_pt + 0.5 * cm
                 
@@ -406,7 +566,7 @@ def main():
     print(f"\n--- RESULTADOS ---")
     print(f"Total de etiquetas generadas: {len(resultados)}")
     for resultado in resultados:
-        print(f"✓ {resultado['archivo']} - EAN: {resultado['ean']} - Norma: {resultado['norma']}")
+        print(f"✓ {resultado['ean']} - Norma: {resultado['norma']}")
     
     if resultados:
         print("\nCreando PDF con etiquetas...")

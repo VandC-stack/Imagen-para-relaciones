@@ -181,72 +181,76 @@ class PDFGeneratorConDatos(PDFGenerator):
         self.elements.append(Spacer(1, 0.3 * inch))
 
     def agregar_segunda_pagina_con_etiquetas(self):
-        """Construye la segunda página con imágenes reales de etiquetas"""
+        """Construye la segunda página con imágenes reales de etiquetas con paginación de 6 etiquetas por página"""
         print("   📄 Construyendo segunda página con etiquetas...")
         
-        from reportlab.platypus import PageBreak
+        from reportlab.platypus import PageBreak, KeepTogether
         
-        # Salto de página
-        self.elements.append(PageBreak())
-        
-        # Título de etiquetas
-        self.elements.append(Paragraph("ETIQUETAS DEL PRODUCTO", self.label_style))
-        self.elements.append(Spacer(1, 0.1 * inch))
-        
-        # Obtener lista de etiquetas generadas
         etiquetas = self.datos.get('etiquetas_lista', [])
         
-        print(f"   🔍 DEBUG: Tipo de etiquetas_lista: {type(etiquetas)}")
-        print(f"   🔍 DEBUG: Contenido de etiquetas_lista: {etiquetas}")
+        print(f"   🔍 Total de etiquetas: {len(etiquetas)}")
+        
+        self.elements.append(PageBreak())
         
         if etiquetas and len(etiquetas) > 0:
             print(f"   🏷️ Insertando {len(etiquetas)} etiquetas en el PDF...")
-            etiquetas_por_fila = 3
             
-            for i in range(0, len(etiquetas), etiquetas_por_fila):
-                fila_etiquetas = etiquetas[i:i+etiquetas_por_fila]
+            etiquetas_por_fila = 3
+            max_etiquetas_por_pagina = 6  # 2 filas de 3 etiquetas
+            
+            # Procesar etiquetas en grupos de páginas
+            for pagina_idx in range(0, len(etiquetas), max_etiquetas_por_pagina):
+                if pagina_idx > 0:
+                    self.elements.append(PageBreak())
                 
-                # Crear tabla para la fila de etiquetas
-                imagenes_fila = []
-                anchos_columna = []
+                # Título de etiquetas para cada página
+                self.elements.append(Paragraph("ETIQUETAS DEL PRODUCTO", self.label_style))
+                self.elements.append(Spacer(1, 0.2 * inch))
                 
-                for etq in fila_etiquetas:
-                    ruta_img = etq.get('ruta', '')
-                    tamaño_cm = etq.get('tamaño_cm', (5, 5))  # Obtener tamaño real en cm
+                # Obtener las etiquetas para esta página
+                etiquetas_pagina = etiquetas[pagina_idx:pagina_idx + max_etiquetas_por_pagina]
+                
+                # Procesar etiquetas en filas de 3
+                for i in range(0, len(etiquetas_pagina), etiquetas_por_fila):
+                    fila_etiquetas = etiquetas_pagina[i:i+etiquetas_por_fila]
                     
-                    print(f"   🔍 DEBUG: Verificando ruta de imagen: {ruta_img}")
-                    print(f"   🔍 DEBUG: Tamaño en cm: {tamaño_cm}")
+                    # Crear tabla para la fila de etiquetas
+                    imagenes_fila = []
+                    anchos_columna = []
                     
-                    if os.path.exists(ruta_img):
-                        try:
-                            ancho_cm, alto_cm = tamaño_cm
-                            # Convertir cm a inches (1 cm = 0.393701 inches)
-                            ancho_inch = ancho_cm * 0.393701
-                            alto_inch = alto_cm * 0.393701
-                            
-                            img = RLImage(ruta_img, width=ancho_inch*inch, height=alto_inch*inch)
-                            imagenes_fila.append(img)
-                            anchos_columna.append((ancho_inch + 0.2)*inch)  # Agregar margen
-                            print(f"      ✅ Etiqueta cargada: {os.path.basename(ruta_img)} ({ancho_cm}x{alto_cm} cm)")
-                        except Exception as e:
-                            print(f"      ⚠️ Error cargando imagen {ruta_img}: {e}")
-                    else:
-                        print(f"      ⚠️ No se encontró la imagen: {ruta_img}")
-                
-                # Si hay imágenes en esta fila, agregarlas como tabla
-                if imagenes_fila:
-                    tabla_imgs = Table([imagenes_fila], colWidths=anchos_columna)
-                    tabla_imgs.setStyle(TableStyle([
-                        ('ALIGN', (0,0), (-1,-1), 'CENTER'),
-                        ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
-                    ]))
-                    self.elements.append(tabla_imgs)
-                    self.elements.append(Spacer(1, 0.2 * inch))
+                    for etq in fila_etiquetas:
+                        imagen_bytes = etq.get('imagen_bytes', None)
+                        tamaño_cm = etq.get('tamaño_cm', (5, 5))
+                        
+                        if imagen_bytes:
+                            try:
+                                ancho_cm, alto_cm = tamaño_cm
+                                ancho_inch = ancho_cm * 0.393701
+                                alto_inch = alto_cm * 0.393701
+                                
+                                imagen_bytes.seek(0)
+                                img = RLImage(imagen_bytes, width=ancho_inch*inch, height=alto_inch*inch)
+                                imagenes_fila.append(img)
+                                anchos_columna.append((ancho_inch + 0.2)*inch)
+                                print(f"      ✅ Etiqueta cargada: EAN {etq.get('ean')} ({ancho_cm}x{alto_cm} cm)")
+                            except Exception as e:
+                                print(f"      ⚠️ Error cargando imagen: {e}")
+                    
+                    if imagenes_fila:
+                        tabla_imgs = Table([imagenes_fila], colWidths=anchos_columna)
+                        tabla_imgs.setStyle(TableStyle([
+                            ('ALIGN', (0,0), (-1,-1), 'CENTER'),
+                            ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
+                        ]))
+                        self.elements.append(tabla_imgs)
+                        self.elements.append(Spacer(1, 0.3 * inch))
         else:
+            self.elements.append(Paragraph("ETIQUETAS DEL PRODUCTO", self.label_style))
+            self.elements.append(Spacer(1, 0.1 * inch))
             print("   ⚠️ No se encontraron etiquetas para insertar")
             self.elements.append(Paragraph("No se generaron etiquetas", self.normal_style))
         
-        self.elements.append(Spacer(1, 0.3 * inch))
+        self.elements.append(Spacer(1, 0.4 * inch))
         
         firmas_data = [
             ['________________________', '', '________________________'],
@@ -260,12 +264,13 @@ class PDFGeneratorConDatos(PDFGenerator):
             ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
             ('FONTNAME', (0,0), (-1,-1), 'Helvetica'),
             ('FONTSIZE', (0,0), (-1,-1), 8),
-            ('BOLD', (0,2), (-1,2), True),
+            ('FONTNAME', (0,1), (0,1), 'Helvetica-Bold'),
+            ('FONTNAME', (2,1), (2,1), 'Helvetica-Bold'),
             ('LINEBELOW', (0,0), (0,0), 1, colors.black),
             ('LINEBELOW', (2,0), (2,0), 1, colors.black),
         ]))
 
-        self.elements.append(firmas_table)
+        self.elements.append(KeepTogether([firmas_table]))
 
     def agregar_encabezado_pie_pagina(self, canvas, doc):
         """Sobrescribe el método para agregar encabezado y pie con datos reales"""
