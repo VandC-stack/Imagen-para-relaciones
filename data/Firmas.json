@@ -1,92 +1,310 @@
 [
   {
-    "NOMBRE DE USUARIO": "Arturo Flores Gómez ",
-    "IMAGEN": "Firmas/AFLORES.png",
-    "FIRMA": "AFLORES"
-  },
-  {
-    "NOMBRE DE USUARIO": "Marcos Uriel Flores Gómez ",
-    "IMAGEN": "Firmas/MFLORES.png",
-    "FIRMA": "MFLORES"
-  },
-  {
-    "NOMBRE DE USUARIO": "Mario Terrez Gonzalez",
-    "IMAGEN": "Firmas/MTERREZ.png",
-    "FIRMA": "MTERREZ"
-  },
-  {
-    "NOMBRE DE USUARIO": "Alberto Martínez Guzman",
-    "IMAGEN": "Firmas/AMARTINEZ.png",
-    "FIRMA": "AMARTINEZ"
-  },
-  {
-    "NOMBRE DE USUARIO": "Andrea Paola Ramos Santos ",
-    "IMAGEN": "Firmas/ARAMOS.png",
-    "FIRMA": "ARAMOS"
-  },
-  {
-    "NOMBRE DE USUARIO": "Ángel Imanol Pozos Zertuche",
-    "IMAGEN": "Firmas/IPOZOS.png",
-    "FIRMA": "IPOZOS"
-  },
-  {
-    "NOMBRE DE USUARIO": "Arturo Iván Cortes Flores ",
-    "IMAGEN": "Firmas/ICORTES.png",
-    "FIRMA": "ICORTES"
-  },
-  {
-    "NOMBRE DE USUARIO": "Brayan Arano Chontal ",
-    "IMAGEN": "Firmas/BCHONTAL.png",
-    "FIRMA": "BCHONTAL"
-  },
-  {
-    "NOMBRE DE USUARIO": "David García Alcántara ",
-    "IMAGEN": "Firmas/DGARCIA.png",
-    "FIRMA": "DGARCIA"
-  },
-  {
-    "NOMBRE DE USUARIO": "Flor Selenia Márquez Rivera ",
-    "IMAGEN": "Firmas/FMARQUEZ.png",
-    "FIRMA": "FMARQUEZ"
-  },
-  {
-    "NOMBRE DE USUARIO": "Gabriel Ramirez Castillo",
-    "IMAGEN": "Firmas/GRAMIREZ.png",
-    "FIRMA": "GRAMIREZ"
-  },
-  {
-    "NOMBRE DE USUARIO": "Jesús Eduardo Reyes Lozano",
-    "IMAGEN": "Firmas/EREYES.png",
-    "FIRMA": "EREYES"
-  },
-  {
-    "NOMBRE DE USUARIO": "Aitana Yolitzin Sanchez Tenorio",
+    "NOMBRE DE INSPECTOR": "Aitana Yolitzin Sánchez Tenorio",
     "IMAGEN": "Firmas/ASANCHEZ.png",
-    "FIRMA": "ASANCHEZ"
+    "FIRMA": "ASANCHEZ",
+    "Puesto": "Inspector",
+    "VIGENCIA": "INDEFINIDA",
+    "Normas acreditadas": 
+    [
+      "NOM-004-SE-2021",  
+      "NOM-020-SCFI-1997", 
+      "NOM-050-SCFI-2004"
+    ],
+    "Referencia": "24UI4399 - 24UI4400",
+    "Fecha de acreditación": "2024-10-10T00:00:00"
   },
   {
-    "NOMBRE DE USUARIO": "Alejandro Fernando Moreno Valdovinos",
+    "NOMBRE DE INSPECTOR": "Alberto Martínez Guzmán",
+    "IMAGEN": "Firmas/AMARTINEZ.png",
+    "FIRMA": "AMARTINEZ",
+    "Puesto": "Inspector",
+    "VIGENCIA": "INDEFINIDA",
+    "Normas acreditadas": 
+    [
+      "NOM-004-SE-2021",
+      "NOM-020-SCFI-1997",
+      "NOM-024-SCFI-2013",
+      "NOM-050-SCFI-2004",
+      "NOM-141-SSA1/SCFI-2012",
+      "NOM-189-SSA1/SCFI-2018"
+    ],
+    "Referencia": "24U1740-24UI2509 - 24UI2663 / 24UI5052-24UI4952",
+    "Fecha de acreditación": "2024-12-19T00:00:00"
+  },
+  {
+    "NOMBRE DE INSPECTOR": "Alejandro Fernando Moreno Valdovinos",
     "IMAGEN": "Firmas/AMORENO.png",
-    "FIRMA": "AMORENO"
+    "FIRMA": "AMORENO",
+    "Puesto": "Inspector",
+    "VIGENCIA": "INDEFINIDA",
+    "Normas acreditadas": 
+    [
+      "NOM-004-SE-2021",
+      "NOM-020-SCFI-1997"
+    ],
+    "Referencia": "24UI5052-24UI4952",
+    "Fecha de acreditación": "2024-12-19T00:00:00"
   },
   {
-    "NOMBRE DE USUARIO": "Braulio Saul Garcia Maganda",
+    "NOMBRE DE INSPECTOR": "Andrea Paola Ramos Santos",
+    "IMAGEN": "Firmas/ARAMOS.png",
+    "FIRMA": "ARAMOS",
+    "Puesto": "Inspector",
+    "VIGENCIA": "INDEFINIDA",
+    "Normas acreditadas": 
+    [
+      "NOM-142-SSA1/SCFI-2014",
+      "NOM-051-SCFI/SSA1-2010",
+      "NOM-235-SE-2020",
+      "NOM-141-SSA1/SCFI-2012"
+    ],
+    "Referencia": "22UI0932 22UI0933 22UI1080",
+    "Fecha de acreditación": "2022-04-12T00:00:00"
+  },
+  {
+    "NOMBRE DE INSPECTOR": "Ángel Imanol Pozos Zertuche",
+    "IMAGEN": "Firmas/IPOZOS.png",
+    "FIRMA": "IPOZOS",
+    "Puesto": "Inspector",
+    "VIGENCIA": "INDEFINIDA",
+    "Normas acreditadas": 
+    [
+      "NOM-020-SCFI-1997",
+      "NOM-020-SCFI-1997",
+      "NOM-050-SCFI-2004",
+      "NOM-141-SSA1/SCFI-2012"
+    ],
+    "Referencia": "21UI0624-21UI0625",
+    "Fecha de acreditación": "2021-07-09T00:00:00"
+  },
+  {
+    "NOMBRE DE INSPECTOR": "Arturo Flores Gómez",
+    "IMAGEN": "Firmas/AFLORES.png",
+    "FIRMA": "AFLORES",
+    "Puesto": "Responsable de Supervisión UI",
+    "VIGENCIA": "INDEFINIDA",
+    "Normas acreditadas": [
+      "NMX-COE-001-SCFI-2018",
+      "NOM-004-SE-2021",
+      "NOM-015-SCFI-2007",
+      "NOM-020-SCFI-1997",
+      "NOM-024-SCFI-2013",
+      "NOM-050-SCFI-2004",
+      "NOM-051-SCFI/SSA1-2010",
+      "NOM-116-SCFI-2018",
+      "NOM-141-SSA1/SCFI-2012",
+      "NOM-186-SSA1/SCFI-2013",
+      "NOM-189-SSA1/SCFI-2018",
+      "NOM-235-SE-2020" 
+    ],
+    "Referencia": "Supervisión General",
+    "Fecha de acreditación": "2024-01-01T00:00:00"
+  },
+  {
+    "NOMBRE DE INSPECTOR": "Arturo Iván Cortes Flores",
+    "IMAGEN": "Firmas/ICORTES.png",
+    "FIRMA": "ICORTES",
+    "Puesto": "Inspector",
+    "VIGENCIA": "INDEFINIDA",
+    "Normas acreditadas":
+    [
+      "NOM-004-SE-2021",
+      "NOM-015-SCFI-2007",
+      "NOM-020-SCFI-1997",
+      "NOM-024-SCFI-2013",
+      "NOM-050-SCFI-2004",
+      "NOM-051-SCFI/SSA1-2010",
+      "NOM-141-SSA1/SCFI-2012"
+
+    ],
+    "Referencia": "24UI4399",
+    "Fecha de acreditación": "2024-10-10T00:00:00"
+  },
+  {
+    "NOMBRE DE INSPECTOR": "Brayan Arano Chontal",
+    "IMAGEN": "Firmas/BCHONTAL.png",
+    "FIRMA": "BCHONTAL",
+    "Puesto": "Inspector",
+    "VIGENCIA": "INDEFINIDA",
+    "Normas acreditadas": 
+    [
+      "NOM-004-SE-2021",
+      "NOM-020-SCFI-1997",
+      "NOM-050-SCFI-2004"
+    ],
+    "Referencia": "24UI5052",
+    "Fecha de acreditación": "2024-12-19T00:00:00"
+  },
+  {
+    "NOMBRE DE INSPECTOR": "Braulio Saul Garcia Maganda",
     "IMAGEN": "Firmas/BMAGANDA.png",
-    "FIRMA": "BMAGANDA"
+    "FIRMA": "BMAGANDA",
+    "Puesto": "Inspector",
+    "VIGENCIA": "INDEFINIDA",
+    "Normas acreditadas": 
+    [
+      "NOM-004-SE-2021",
+      "NOM-051-SCFI/SSA1-2010",
+      "NOM-141-SSA1/SCFI-2012"
+    ],
+    "Referencia": "24UI5052",
+    "Fecha de acreditación": "2024-12-19T00:00:00"
   },
   {
-    "NOMBRE DE USUARIO": "Edvin Zaid Ornelas Hernández",
+    "NOMBRE DE INSPECTOR": "David García Alcántara",
+    "IMAGEN": "Firmas/DGARCIA.png",
+    "FIRMA": "DGARCIA",
+    "Puesto": "Inspector",
+    "VIGENCIA": "INDEFINIDA",
+    "Normas acreditadas": 
+    [
+      "NOM-004-SE-2021",
+      "NOM-015-SCFI-2007",
+      "NOM-020-SCFI-1997",
+      "NOM-024-SCFI-2013",
+      "NOM-050-SCFI-2004",
+      "NOM-051-SCFI/SSA1-2010",
+      "NOM-141-SSA1/SCFI-2012",
+      "NOM-189-SSA1/SCFI-2018"
+    ],
+    "Referencia": "24UI4399",
+    "Fecha de acreditación": "2024-10-10T00:00:00"
+  },
+  {
+    "NOMBRE DE INSPECTOR": "Edvin Zaid Ornelas Hernández",
     "IMAGEN": "Firmas/EORNELAS.png",
-    "FIRMA": "EORNELAS"
+    "FIRMA": "EORNELAS",
+    "Puesto": "Inspector",
+    "VIGENCIA": "INDEFINIDA",
+    "Normas acreditadas": 
+    [
+      "NOM-020-SCFI-1997"
+    ],
+    "Referencia": "24UI5052",
+    "Fecha de acreditación": "2024-12-19T00:00:00"
   },
   {
-    "NOMBRE DE USUARIO": "Jose Alberto Zuñiga Estrada",
+    "NOMBRE DE INSPECTOR": "Flor Selenia Márquez Rivera",
+    "IMAGEN": "Firmas/FMARQUEZ.png",
+    "FIRMA": "FMARQUEZ",
+    "Puesto": "Inspector",
+    "VIGENCIA": "INDEFINIDA",
+    "Normas acreditadas": 
+    [
+      "NOM-024-SCFI-2013",
+      "NOM-050-SCFI-2004",
+      "NOM-051-SCFI/SSA1-2010",
+      "NOM-142-SSA1/SCFI-2014",
+      "NOM-189-SSA1/SCFI-2018"
+    ],
+    "Referencia": "22UI0932",
+    "Fecha de acreditación": "2022-04-12T00:00:00"
+  },
+  {
+    "NOMBRE DE INSPECTOR": "Gabriel Ramirez Castillo",
+    "IMAGEN": "Firmas/GRAMIREZ.png",
+    "FIRMA": "GRAMIREZ",
+    "Puesto": "Inspector",
+    "VIGENCIA": "INDEFINIDA",
+    "Normas acreditadas": 
+    [
+      "NOM-004-SE-2021", 
+      "NOM-020-SCFI-1997",
+      "NOM-024-SCFI-2013",
+      "NOM-050-SCFI-2004",
+      "NOM-051-SCFI/SSA1-2010",
+      "NOM-142-SSA1/SCFI-2014"
+    ],
+    "Referencia": "24UI5052",
+    "Fecha de acreditación": "2024-12-19T00:00:00"
+  },
+  {
+    "NOMBRE DE INSPECTOR": "Jesús Eduardo Reyes Lozano",
+    "IMAGEN": "Firmas/EREYES.png",
+    "FIRMA": "EREYES",
+    "Puesto": "Inspector",
+    "VIGENCIA": "INDEFINIDA",
+    "Normas acreditadas": ["NOM-050-SCFI-2004"],
+    "Referencia": "24UI4399",
+    "Fecha de acreditación": "2024-10-10T00:00:00"
+  },
+  {
+    "NOMBRE DE INSPECTOR": "Jose Alberto Zuñiga Estrada",
     "IMAGEN": "Firmas/JZUNIGA.png",
-    "FIRMA": "JZUNIGA"
+    "FIRMA": "JZUNIGA",
+    "Puesto": "Inspector",
+    "VIGENCIA": "INDEFINIDA",
+    "Normas acreditadas": 
+    [
+      "NOM-004-SE-2021", 
+      "NOM-020-SCFI-1997",
+      "NOM-141-SSA1/SCFI-2012"
+    ],
+    "Referencia": "24UI5052",
+    "Fecha de acreditación": "2024-12-19T00:00:00"
   },
   {
-    "NOMBRE DE USUARIO": "Oscar Perez Ramirez",
+    "NOMBRE DE INSPECTOR": "Marcos Uriel Flores Gómez",
+    "IMAGEN": "Firmas/MFLORES.png",
+    "FIRMA": "MFLORES",
+    "Puesto": "Inspector",
+    "VIGENCIA": "INDEFINIDA",
+    "Normas acreditadas": 
+    [
+      "NMX-COE-001-SCFI-2018",
+      "NOM-004-SE-2021",
+      "NOM-020-SCFI-1997",
+      "NOM-024-SCFI-2013",
+      "NOM-050-SCFI-2004",
+      "NOM-051-SCFI/SSA1-2010",
+      "NOM-116-SCFI-2018",
+      "NOM-141-SSA1/SCFI-2012",
+      "NOM-142-SSA1/SCFI-2014",
+      "NOM-189-SSA1/SCFI-2018",
+      "NOM-199-SCFI-2017",
+      "NOM-235-SE-2020" 
+    ],
+    "Referencia": "24UI4399",
+    "Fecha de acreditación": "2024-10-10T00:00:00"
+  },
+  {
+    "NOMBRE DE INSPECTOR": "Mario Terrez Gonzalez",
+    "IMAGEN": "Firmas/MTERREZ.png",
+    "FIRMA": "MTERREZ",
+    "Puesto": "Inspector",
+    "VIGENCIA": "INDEFINIDA",
+    "Normas acreditadas": 
+    [
+      "NMX-COE-001-SCFI-2018",
+      "NOM-004-SE-2021",
+      "NOM-015-SCFI-2007",
+      "NOM-020-SCFI-1997",
+      "NOM-024-SCFI-2013",
+      "NOM-050-SCFI-2004",
+      "NOM-051-SCFI/SSA1-2010",
+      "NOM-116-SCFI-2018",
+      "NOM-141-SSA1/SCFI-2012",
+      "NOM-142-SSA1/SCFI-2014",
+      "NOM-189-SSA1/SCFI-2018",
+      "NOM-199-SCFI-2017"
+    ],
+    "Referencia": "24UI5052",
+    "Fecha de acreditación": "2024-12-19T00:00:00"
+  },
+  {
+    "NOMBRE DE INSPECTOR": "Oscar Perez Ramirez",
     "IMAGEN": "Firmas/OPEREZ.png",
-    "FIRMA": "OPEREZ"
+    "FIRMA": "OPEREZ",
+    "Puesto": "Inspector",
+    "VIGENCIA": "INDEFINIDA",
+    "Normas acreditadas":
+    [
+      "NOM-004-SE-2021",
+      "NOM-020-SCFI-1997",
+      "NOM-024-SCFI-2013"
+    ],
+    "Referencia": "24UI5052",
+    "Fecha de acreditación": "2024-12-19T00:00:00"
   }
 ]
