@@ -8,9 +8,6 @@ from docx import Document
 from docx.shared import Inches
 from PIL import Image
 
-# ------------------------------------------------------------
-# REGISTRO DE FALLOS
-# ------------------------------------------------------------
 try:
     from registro_fallos import registrar_fallo, limpiar_registro, mostrar_registro
 except Exception as e:
@@ -19,9 +16,6 @@ except Exception as e:
     limpiar_registro = None
     mostrar_registro = None
 
-# ------------------------------------------------------------
-# CONFIGURACIÓN
-# ------------------------------------------------------------
 try:
     sys.stdout.reconfigure(encoding="utf-8")
 except Exception:
@@ -38,12 +32,11 @@ FORBIDDEN_TOKENS = {
 }
 IMG_EXTS = {".png", ".jpg", ".jpeg", ".bmp", ".tif", ".tiff", ".webp"}
 
-# ------------------------------------------------------------
-# CONFIG
-# ------------------------------------------------------------
+
 def guardar_config(data):
     with open(CONFIG_FILE, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=4)
+
 
 def cargar_config():
     if not os.path.exists(CONFIG_FILE):
@@ -54,10 +47,12 @@ def cargar_config():
     except Exception:
         return {}
 
+
 def seleccionar_carpeta(titulo):
     Tk().withdraw()
     carpeta = filedialog.askdirectory(title=titulo)
     return carpeta.replace("\\", "/").strip() if carpeta else None
+
 
 def obtener_rutas():
     cfg = cargar_config()
@@ -79,21 +74,19 @@ def obtener_rutas():
     guardar_config(cfg)
     return ruta_docs, ruta_imgs
 
-# ------------------------------------------------------------
-# UTILIDADES
-# ------------------------------------------------------------
+
 def _sin_acentos(s):
     return "".join(c for c in unicodedata.normalize("NFD", s) if unicodedata.category(c) != "Mn")
+
 
 def normalizar_cadena_alnum_mayus(s):
     return re.sub(r"[^A-Za-z0-9]", "", s or "").upper()
 
+
 def contiene_digito(s):
     return any(c.isdigit() for c in s or "")
 
-# ------------------------------------------------------------
-# INDEXADO DE IMÁGENES (modo simple)
-# ------------------------------------------------------------
+
 def indexar_imagenes(carpeta_imagenes):
     index = []
     for nombre in os.listdir(carpeta_imagenes):
@@ -109,8 +102,10 @@ def indexar_imagenes(carpeta_imagenes):
         })
     return index
 
+
 def norm_path_key(path):
     return os.path.normcase(os.path.normpath(path or ""))
+
 
 def buscar_imagen_index(index, codigo_canonico, usadas_paths, usadas_bases):
     code = normalizar_cadena_alnum_mayus(codigo_canonico)
@@ -145,9 +140,7 @@ def buscar_imagen_index(index, codigo_canonico, usadas_paths, usadas_bases):
     parciales.sort(key=score)
     return parciales[0]["path"]
 
-# ------------------------------------------------------------
-# EXTRACCIÓN DE CÓDIGOS
-# ------------------------------------------------------------
+
 def extraer_codigos(doc):
     codigos = []
     patron_general = re.compile(r"[A-Za-z0-9][A-Za-z0-9.\-]{4,}", re.IGNORECASE)
@@ -185,13 +178,12 @@ def extraer_codigos(doc):
 
     return list(dict.fromkeys(codigos))
 
-# ------------------------------------------------------------
-# INSERCIÓN DE IMÁGENES (ambos modos)
-# ------------------------------------------------------------
+
 H_MAX_W_CM = 4.36
 H_MAX_H_CM = 6.37
 V_MAX_W_CM = 8.13
 V_MAX_H_CM = 4.84
+
 
 def insertar_imagen_con_transparencia(run, img_path):
     try:
@@ -220,9 +212,7 @@ def insertar_imagen_con_transparencia(run, img_path):
     except Exception as e:
         print(f"Error al insertar {img_path}: {e}")
 
-# ------------------------------------------------------------
-# MODO NUEVO: CARPETAS POR CÓDIGO
-# ------------------------------------------------------------
+
 def insertar_imagenes_en_docx_carpetas(ruta_doc, carpeta_base):
     print(f"Procesando documento (modo carpetas): {ruta_doc}")
     doc = Document(ruta_doc)
@@ -252,7 +242,7 @@ def insertar_imagenes_en_docx_carpetas(ruta_doc, carpeta_base):
                         img_path = os.path.join(carpeta_codigo, archivo)
                         insertar_imagen_con_transparencia(run, img_path)
                         imagen_insertada = True
-                        print(f"Imagen insertada: {img_path}")
+                        print(f"Imagen inserta: {img_path}")
 
             break
 
@@ -262,9 +252,44 @@ def insertar_imagenes_en_docx_carpetas(ruta_doc, carpeta_base):
     doc.save(ruta_doc)
     print(f"Documento actualizado: {ruta_doc}")
 
-# ------------------------------------------------------------
-# MODO NORMAL (ACTUAL)
-# ------------------------------------------------------------
+
+def insertar_imagenes_por_indice(ruta_doc, carpeta_imagenes):
+    print(f"Procesando documento (modo índice): {ruta_doc}")
+    doc = Document(ruta_doc)
+    codigos = extraer_codigos(doc)
+
+    if not codigos:
+        if registrar_fallo:
+            registrar_fallo(os.path.basename(ruta_doc))
+        return
+
+    imagenes = [f for f in os.listdir(carpeta_imagenes) if os.path.splitext(f)[1].lower() in IMG_EXTS]
+    imagenes.sort()
+
+    imagen_insertada = False
+
+    for p in doc.paragraphs:
+        if "${etiqueta1}" in (p.text or ""):
+            p.clear()
+            run = p.add_run()
+
+            for i, codigo in enumerate(codigos):
+                if i < len(imagenes):
+                    img_path = os.path.join(carpeta_imagenes, imagenes[i])
+                    insertar_imagen_con_transparencia(run, img_path)
+                    imagen_insertada = True
+                else:
+                    print(f"No hay imagen en índice para {codigo}")
+
+            break
+
+    if not imagen_insertada and registrar_fallo:
+        registrar_fallo(os.path.basename(ruta_doc))
+
+    doc.save(ruta_doc)
+    print(f"Documento actualizado (índice): {ruta_doc}")
+
+
 def insertar_imagenes_en_docx(ruta_doc, carpeta_imagenes, index):
     print(f"Procesando documento: {ruta_doc}")
     doc = Document(ruta_doc)
@@ -301,9 +326,7 @@ def insertar_imagenes_en_docx(ruta_doc, carpeta_imagenes, index):
     doc.save(ruta_doc)
     print(f"Documento actualizado: {ruta_doc}")
 
-# ------------------------------------------------------------
-# PROCESAMIENTO GENERAL
-# ------------------------------------------------------------
+
 def procesar_lote():
     if limpiar_registro:
         limpiar_registro()
@@ -320,6 +343,12 @@ def procesar_lote():
 
     cfg = cargar_config()
     modo = cfg.get("modo_pegado", "simple")
+
+    if modo == "indice":
+        from pegado_indice import procesar_indice
+        procesar_indice()
+        return
+
 
     if modo == "simple":
         index = indexar_imagenes(ruta_imgs)
@@ -339,6 +368,6 @@ def procesar_lote():
     if os.path.exists(log):
         os.startfile(log)
 
-# ------------------------------------------------------------
+
 if __name__ == "__main__":
     procesar_lote()

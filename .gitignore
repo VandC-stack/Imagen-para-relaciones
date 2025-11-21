@@ -44,3 +44,4 @@ Thumbs.db
 # Archivos a ignorar
 config.json
 documentos_sin_imagenes.txt
+index_indice.json
