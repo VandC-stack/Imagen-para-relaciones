@@ -33,6 +33,7 @@ class GeneradorEtiquetasDecathlon:
             self.base_etiquetado = []
             self.tabla_relacion = []
     
+    
     def cargar_configuraciones(self, config_etiquetas_path):
         """Carga las configuraciones desde un archivo JSON"""
         try:
@@ -130,7 +131,7 @@ class GeneradorEtiquetasDecathlon:
     def organizar_campos_por_seccion(self, campos, producto):
         """Organiza los campos en tres secciones: encabezado, centro y pie
         Si no hay talla, el importador va al pie"""
-        encabezado = ['EAN', 'MARCA']
+        encabezado = ['EAN', 'MARCA','INSUMOS']
         pie_preferente = ['TALLA']
         
         campos_encabezado = []
@@ -190,7 +191,7 @@ class GeneradorEtiquetasDecathlon:
                     elif area < 35:
                         font_size = 26  # Aumentado de 24 a 26
                     else:
-                        font_size = 30  # Aumentado de 28 a 30
+                        font_size = 28  # Aumentado de 28 a 30
                     font = ImageFont.truetype(font_path, font_size)
                     break
                 except:
@@ -205,7 +206,7 @@ class GeneradorEtiquetasDecathlon:
         
         margin_x = 50  # Aumentado de 40 a 50 para márgenes más amplios y uniformes
         margin_y = 40  # Aumentado de 35 a 40
-        line_height = font.size + 10
+        line_height = font.size + 12
         max_caracteres = 30 if ancho_cm < 5 else 40  # Reducido de 35/45 a 30/40
         
         campos_encabezado, campos_centro, campos_pie = self.organizar_campos_por_seccion(config['campos'], producto)
@@ -235,7 +236,7 @@ class GeneradorEtiquetasDecathlon:
                     draw.text((x_centered, y_actual), line, font=font, fill='black')
                     y_actual += line_height
         
-        y_actual += 10
+        y_actual += 30
         
         # ============ CALCULAR ESPACIO PARA PIE ============
         lineas_pie = []

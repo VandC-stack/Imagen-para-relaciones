@@ -18,7 +18,7 @@ class PDFGenerator:
         self.doc = None
         self.elements = []
         self.styles = getSampleStyleSheet()
-        self.total_pages = 2
+        self.total_pages = None
         
     def crear_estilos(self):
         """Crea los estilos personalizados para el documento"""
@@ -82,6 +82,10 @@ class PDFGenerator:
             spaceAfter=15,
             fontName='Helvetica'
         )
+
+    #Cuenta las hojas de forma automatica. 
+    def _count_pages(self, canvas, doc):
+        self.total_pages = canvas.getPageNumber()
 
     def agregar_primera_pagina(self):
         """Agrega el contenido de la primera página"""
@@ -164,38 +168,26 @@ class PDFGenerator:
         self.elements.append(Spacer(1, 0.3*inch))
         
     def agregar_segunda_pagina(self):
-        """Agrega el contenido de la segunda página"""
-        
         print("📄 Generando segunda página...")
-        
-        # Salto de página
-        self.elements.append(PageBreak())
-        
-        # ETIQUETAS
-        self.elements.append(Paragraph("ETIQUETAS DEL PRODUCTO", self.label_style))
-        
-        # Primera fila de etiquetas
+
+        # NO usar PageBreak, Platypus decide cuándo cortar
+        # self.elements.append(PageBreak())
+
+        self.elements.append, self.label_style
+
         etiquetas_linea1 = "${etiqueta1}   ${etiqueta2}   ${etiqueta3}   ${etiqueta4}   ${etiqueta5}"
         self.elements.append(Paragraph(etiquetas_linea1, self.image_style))
-        
-        # Segunda fila de etiquetas
+
         etiquetas_linea2 = "${etiqueta6}   ${etiqueta7}   ${etiqueta8}   ${etiqueta9}   ${etiqueta10}"
         self.elements.append(Paragraph(etiquetas_linea2, self.image_style))
-        
-        self.elements.append(Spacer(1, 0.4*inch))
-        
-        # IMÁGENES
-        self.elements.append(Paragraph("IMÁGENES DEL PRODUCTO", self.label_style))
-        
-        imagenes = [
-            "${img1}", "${img2}", "${img3}", "${img4}", "${img5}",
-            "${img6}", "${img7}", "${img8}", "${img9}", "${img10}"
-        ]
-        
-        for img in imagenes:
-            self.elements.append(Paragraph(img, self.image_style))
 
-        # TABLA DE FIRMAS
+        self.elements.append(Spacer(1, 0.4 * inch))
+
+        self.elements.append, self.label_style
+
+        for i in range(1, 11):
+            self.elements.append(Paragraph(f"${{img{i}}}", self.image_style))
+
         firmas_data = [
             ['${firma1}', '', '${firma2}'],
             ['${nfirma1}', '', '${nfirma2}'],
@@ -242,7 +234,9 @@ class PDFGenerator:
         
         # Numeración
         pagina_actual = canvas.getPageNumber()
-        numeracion = f"Página {pagina_actual} de {self.total_pages}"
+        numeracion_total = self.doc.page  # total real generado
+        numeracion = f"Página {pagina_actual} de {numeracion_total}"
+
         canvas.setFont("Helvetica", 9)
         canvas.drawRightString(LETTER_WIDTH-72, LETTER_HEIGHT-50, numeracion)
         

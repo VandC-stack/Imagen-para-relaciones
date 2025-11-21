@@ -1,6 +1,6 @@
 # -- convertidorjson.py --
 # Conversor de archivos Excel a JSON (para carpeta /data)
-# Para archivos normas y listado de clientes Bosch
+# Para archivos Normas, listado de clientes Firmas de inspectores
 
 import os
 import json
@@ -33,15 +33,24 @@ def convertir_excel_a_json(file_path: str) -> str:
 
         # Nombre base del archivo
         base_name = os.path.splitext(os.path.basename(file_path))[0]
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        timestamp = datetime.now().strftime("%Y%m%d")
         json_filename = f"{base_name}_{timestamp}.json"
 
         # Ruta de salida
         output_path = os.path.join(DATA_DIR, json_filename)
 
+        # Función para serializar objetos Timestamp
+        def convertir_timestamp(obj):
+            if isinstance(obj, pd.Timestamp):
+                return obj.isoformat()
+            raise TypeError(f"Tipo {type(obj)} no serializable")
+
         # Guardar JSON con formato legible
         with open(output_path, "w", encoding="utf-8") as f:
-            json.dump(records, f, ensure_ascii=False, indent=2)
+            json.dump(records, f, 
+                     ensure_ascii=False, 
+                     indent=2,
+                     default=convertir_timestamp)  # Usar conversor personalizado
 
         print(f"✅ Archivo convertido y guardado en: {output_path}")
         return output_path
@@ -77,6 +86,6 @@ def abrir_y_convertir():
 
 # EJECUCIÓN DIRECTA
 if __name__ == "__main__":
-    print("=== CONVERTIDOR JSON BOSCH ===")
+    print("=== CONVERTIDOR JSON ===")
     print("Seleccione un archivo Excel para convertirlo en JSON...")
     abrir_y_convertir()

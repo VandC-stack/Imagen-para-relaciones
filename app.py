@@ -593,39 +593,63 @@ class SistemaDictamenesVC(ctk.CTk):
         )
 
     def limpiar_archivo(self):
-        """Limpia el estado actual y elimina archivos generados"""
-        try:
-            # Eliminar archivo JSON si existe
-            if self.json_filename:
-                data_folder = os.path.join(os.path.dirname(__file__), "data")
-                json_path = os.path.join(data_folder, self.json_filename)
-                if os.path.exists(json_path):
-                    os.remove(json_path)
-                    print(f"Archivo eliminado: {json_path}")
-        except Exception as e:
-            print(f"Error al eliminar archivo: {e}")
-
-        # Resetear estado
+        """Limpia el archivo cargado, el estado visual y elimina base_etiquetado.json y tabla_de_relacion.json si existen"""
+        # --- LIMPIAR ARCHIVO PRINCIPAL ---
         self.archivo_excel_cargado = None
         self.archivo_json_generado = None
         self.json_filename = None
-        
-        # Resetear UI
+
         self.info_archivo.configure(
-            text="No se ha cargado ningún archivo", 
+            text="No se ha cargado ningún archivo",
             text_color=STYLE["texto_claro"]
         )
-        self.etiqueta_estado.configure(text="")
-        self.check_label.configure(text="")
-        
-        # REACTIVAR botón de subir archivo y DESACTIVAR botón de limpiar
+
+        # Restaurar botones
         self.boton_cargar_excel.configure(state="normal")
         self.boton_limpiar.configure(state="disabled")
         self.boton_generar_dictamen.configure(state="disabled")
+
+        # Reset de estado de conversión
+        self.etiqueta_estado.configure(text="", text_color=STYLE["texto_claro"])
+        self.check_label.configure(text="")
         self.barra_progreso.set(0)
         self.etiqueta_progreso.configure(text="")
 
-        messagebox.showinfo("Limpieza completada", "Todos los archivos y estados han sido limpiados.")
+        # --- 🔥 BORRAR base_etiquetado.json Y tabla_de_relacion.json SI EXISTEN ---
+        try:
+            data_dir = os.path.join(os.path.dirname(__file__), "data")
+            
+            # Archivos a eliminar
+            archivos_a_eliminar = [
+                "base_etiquetado.json",
+                "tabla_de_relacion.json"
+            ]
+            
+            archivos_eliminados = []
+            
+            for archivo in archivos_a_eliminar:
+                ruta_archivo = os.path.join(data_dir, archivo)
+                if os.path.exists(ruta_archivo):
+                    os.remove(ruta_archivo)
+                    archivos_eliminados.append(archivo)
+                    print(f"🗑️ {archivo} eliminado correctamente.")
+            
+            if archivos_eliminados:
+                print(f"✅ Se eliminaron {len(archivos_eliminados)} archivos: {', '.join(archivos_eliminados)}")
+            else:
+                print("ℹ️ No se encontraron archivos para eliminar.")
+
+            # Limpiar variables internas
+            self.archivo_etiquetado_json = None
+
+            # Limpiar texto en interfaz
+            self.info_etiquetado.configure(text="")
+            self.info_etiquetado.pack_forget()
+
+        except Exception as e:
+            print(f"⚠️ Error al eliminar archivos: {e}")
+
+        messagebox.showinfo("Limpieza completa", "Los datos del archivo y el etiquetado han sido limpiados.")
 
     def generar_dictamenes(self):
         """Ejecuta el generador de dictámenes PDF con barra de progreso"""

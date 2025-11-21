@@ -1,6 +1,6 @@
 {
     "NOM-004-SE-2021": {
-        "campos": ["EAN", "MARCA","CUIDADO", "INSUMOS", "PAIS ORIGEN", "IMPORTADOR", "TALLA"],
+        "campos": ["EAN", "MARCA", "INSUMOS","CUIDADO", "PAIS ORIGEN", "IMPORTADOR", "TALLA"],
         "tamaño_cm": "(5,6)"
     },
     "NOM-004-TEX": {
