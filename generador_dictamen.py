@@ -11,11 +11,9 @@ from plantillaPDF import (
     cargar_normas,
     cargar_clientes,
     cargar_firmas,
-    cargar_inspectores_acreditados,
     procesar_familias,
     preparar_datos_familia
 )
-
 
 from DictamenPDF import PDFGenerator
 
@@ -25,6 +23,7 @@ from reportlab.platypus import (
 from reportlab.lib.pagesizes import letter
 from reportlab.lib.units import inch
 from reportlab.lib import colors
+from reportlab.lib.styles import ParagraphStyle
 
 class PDFGeneratorConDatos(PDFGenerator):
     """Subclase que genera PDFs con datos reales y tablas dinámicas
@@ -59,9 +58,9 @@ class PDFGeneratorConDatos(PDFGenerator):
         else:
             for fila in filas:
                 tabla_data.append([
-                    fila.get('marca', ''),
-                    fila.get('codigo', ''),
-                    fila.get('factura', ''),
+                    str(fila.get('marca', '')),
+                    str(fila.get('codigo', '')),
+                    str(fila.get('factura', '')),
                     str(fila.get('cantidad', ''))
                 ])
         tabla = Table(tabla_data, colWidths=[1.5*inch, 1.5*inch, 1.5*inch, 1.0*inch])
@@ -77,7 +76,7 @@ class PDFGeneratorConDatos(PDFGenerator):
         return tabla
 
     def construir_tabla_lote(self):
-        total_cantidad = self.datos.get('TCantidad', '0 unidades')
+        total_cantidad = str(self.datos.get('TCantidad', '0 unidades'))
         tabla_data = [['TAMAÑO DEL LOTE', total_cantidad]]
         tabla = Table(tabla_data, colWidths=[4.5*inch, 1.5*inch])
         tabla.setStyle(TableStyle([
@@ -105,16 +104,13 @@ class PDFGeneratorConDatos(PDFGenerator):
                 rightMargin=0.75*inch
             )
 
-            # Preparar el contenido
-            self.crear_estilos()           # asume que lo proporciona la clase base
-            # Asegurar que self.elements exista (por si la clase base falla)
+            self.crear_estilos()
             if not hasattr(self, 'elements') or self.elements is None:
                 self.elements = []
 
             self.agregar_primera_pagina_con_datos()
             self.agregar_segunda_pagina_con_etiquetas()
 
-            # Build final
             self.doc.build(self.elements,
                            onFirstPage=self.agregar_encabezado_pie_pagina,
                            onLaterPages=self.agregar_encabezado_pie_pagina)
@@ -134,14 +130,14 @@ class PDFGeneratorConDatos(PDFGenerator):
     # ---------------- páginas ----------------
     def agregar_primera_pagina_con_datos(self):
         print("   📄 Construyendo primera página...")
-        texto_fecha_inspeccion = f"<b>Fecha de Inspección:</b> {self.datos.get('fverificacion','')}"
-        texto_fecha_emision = f"<b>Fecha de Emisión:</b> {self.datos.get('femision','')}"
+        texto_fecha_inspeccion = f"<b>Fecha de Inspección:</b> {str(self.datos.get('fverificacion',''))}"
+        texto_fecha_emision = f"<b>Fecha de Emisión:</b> {str(self.datos.get('femision',''))}"
         self.elements.append(Paragraph(texto_fecha_inspeccion, self.normal_style))
         self.elements.append(Paragraph(texto_fecha_emision, self.normal_style))
         self.elements.append(Spacer(1, 0.2 * inch))
 
-        texto_cliente = f"<b>Cliente:</b> {self.datos.get('cliente','')}"
-        texto_rfc = f"<b>RFC:</b> {self.datos.get('rfc','')}"
+        texto_cliente = f"<b>Cliente:</b> {str(self.datos.get('cliente',''))}"
+        texto_rfc = f"<b>RFC:</b> {str(self.datos.get('rfc',''))}"
         self.elements.append(Paragraph(texto_cliente, self.normal_style))
         self.elements.append(Paragraph(texto_rfc, self.normal_style))
         self.elements.append(Spacer(1, 0.2 * inch))
@@ -153,11 +149,11 @@ class PDFGeneratorConDatos(PDFGenerator):
             "de Economía emite Reglas y criterios de carácter general en materia de comercio exterior; "
             "publicado en el Diario Oficial de la Federación el 09 de mayo de 2022 y posteriores "
             "modificaciones; esta Unidad de Inspección a solicitud de la persona moral denominada "
-            f"<b>{self.datos.get('cliente','')}</b> dictamina el Producto: <b>{self.datos.get('producto','')}</b>; "
-            f"que la mercancía importada bajo el pedimento aduanal No. <b>{self.datos.get('pedimento','')}</b> "
-            f"de fecha <b>{self.datos.get('fverificacionlarga','')}</b>, fue etiquetada conforme a los requisitos "
-            f"de Información Comercial en el capítulo <b>{self.datos.get('capitulo','')}</b> "
-            f"de la Norma Oficial Mexicana <b>{self.datos.get('norma','')}</b> <b>{self.datos.get('normades','')}</b>. "
+            f"<b>{str(self.datos.get('cliente',''))}</b> dictamina el Producto: <b>{str(self.datos.get('producto',''))}</b>; "
+            f"que la mercancía importada bajo el pedimento aduanal No. <b>{str(self.datos.get('pedimento',''))}</b> "
+            f"de fecha <b>{str(self.datos.get('fverificacionlarga',''))}</b>, fue etiquetada conforme a los requisitos "
+            f"de Información Comercial en el capítulo <b>{str(self.datos.get('capitulo',''))}</b> "
+            f"de la Norma Oficial Mexicana <b>{str(self.datos.get('norma',''))}</b> <b>{str(self.datos.get('normades',''))}</b>. "
             "Cualquier otro requisito establecido en la norma referida es responsabilidad del titular de este Dictamen."
         )
         self.elements.append(Paragraph(texto_dictamen, self.normal_style))
@@ -176,32 +172,29 @@ class PDFGeneratorConDatos(PDFGenerator):
                 "constatado durante la inspección.")
         self.elements.append(Paragraph(obs1, self.normal_style))
 
-        obs2 = f"<b>OBSERVACIONES:</b> {self.datos.get('obs','')}"
+        obs2 = f"<b>OBSERVACIONES:</b> {str(self.datos.get('obs',''))}"
         self.elements.append(Paragraph(obs2, self.normal_style))
         self.elements.append(Spacer(1, 0.3 * inch))
 
     def agregar_segunda_pagina_con_etiquetas(self):
-        """
-        Nueva lógica SIN páginas vacías.
-        Página 2+ = etiquetas + firmas al final.
-        NO forzar PageBreak() inicial - dejar que Platypus lo maneje automáticamente.
-        """
-
+        """Genera las páginas de etiquetas con firmas al final."""
         print("   📄 Construyendo página(s) de etiquetas...")
 
         etiquetas = self.datos.get('etiquetas_lista', []) or []
+        
+        if not etiquetas:
+            print("   ⚠️ No hay etiquetas para mostrar")
+
         etiquetas_por_fila = 2
-        max_por_pagina = 6  # 3 filas x 2
+        max_por_pagina = 6
 
         paginas_contenido = []
-
         total = len(etiquetas)
         total_paginas_etq = (total + max_por_pagina - 1) // max_por_pagina if total else 1
 
         for pagina_idx in range(total_paginas_etq):
             pagina = []
 
-            # ---- etiquetas de la página ----
             inicio = pagina_idx * max_por_pagina
             fin = inicio + max_por_pagina
             etiquetas_pagina = etiquetas[inicio:fin]
@@ -231,48 +224,48 @@ class PDFGeneratorConDatos(PDFGenerator):
                     pagina.append(tabla)
                     pagina.append(Spacer(1, 0.15 * inch))
 
-            # Si es la última página de etiquetas, aquí van las FIRMAS
             if pagina_idx == total_paginas_etq - 1:
                 pagina.append(Spacer(1, 0.25 * inch))
 
-                imagen_firma1 = self.datos.get('imagen_firma1')
-                imagen_firma2 = self.datos.get('imagen_firma2')
+                imagen_firma1 = self.datos.get('imagen_firma1', '')
+                imagen_firma2 = self.datos.get('imagen_firma2', '')
                 
-                # Crear elementos para las firmas
-                firmas_elementos = []
-                
-                # Columna 1: Primera firma
+                # Columna 1: Primera firma (Inspector)
                 col1_elementos = []
                 if imagen_firma1 and os.path.exists(imagen_firma1):
                     try:
                         img1 = RLImage(imagen_firma1, width=2.0*inch, height=0.6*inch)
                         col1_elementos.append(img1)
-                    except:
-                        col1_elementos.append(Paragraph("________________________", self.normal_style))
-                else:
-                    col1_elementos.append(Paragraph("________________________", self.normal_style))
+                    except Exception as e:
+                        print(f"   ⚠️ Error cargando firma1: {e}")
                 
-                col1_elementos.append(Paragraph(self.datos.get('nfirma1',''), self.normal_style))
-                col1_elementos.append(Paragraph("Nombre del Inspector", self.small_style if hasattr(self, 'small_style') else self.normal_style))
+                # Línea divisoria
+                col1_elementos.append(Paragraph("________________________", self.normal_style))
                 
-                # Columna 3: Segunda firma
+                # Nombre en negritas y centrado
+                nombre_insp = str(self.datos.get('nfirma1',''))
+                bold_style = ParagraphStyle('BoldCenter', parent=self.normal_style, fontName='Helvetica-Bold', alignment=1)
+                col1_elementos.append(Paragraph(nombre_insp, bold_style))
+                col1_elementos.append(Paragraph("Inspector", bold_style))
+                
+                # Columna 3: Segunda firma (Responsable de Supervisión UI)
                 col3_elementos = []
                 if imagen_firma2 and os.path.exists(imagen_firma2):
                     try:
                         img2 = RLImage(imagen_firma2, width=2.0*inch, height=0.6*inch)
                         col3_elementos.append(img2)
-                    except:
-                        col3_elementos.append(Paragraph("________________________", self.normal_style))
-                else:
-                    col3_elementos.append(Paragraph("________________________", self.normal_style))
+                    except Exception as e:
+                        print(f"   ⚠️ Error cargando firma2: {e}")
                 
-                col3_elementos.append(Paragraph(self.datos.get('nfirma2',''), self.normal_style))
-                col3_elementos.append(Paragraph("Nombre del responsable de\nsupervisión UI", self.small_style if hasattr(self, 'small_style') else self.normal_style))
+                # Línea divisoria
+                col3_elementos.append(Paragraph("________________________", self.normal_style))
                 
-                # Crear tabla con los elementos
-                firmas_data = [
-                    [col1_elementos, '', col3_elementos]
-                ]
+                # Nombre en negritas y centrado
+                nombre_sup = str(self.datos.get('nfirma2',''))
+                col3_elementos.append(Paragraph(nombre_sup, bold_style))
+                col3_elementos.append(Paragraph("Responsable de Supervisión UI", bold_style))
+                
+                firmas_data = [[col1_elementos, '', col3_elementos]]
                 
                 firmas_table = Table(firmas_data, colWidths=[2.5*inch, 0.5*inch, 2.5*inch])
                 firmas_table.setStyle(TableStyle([
@@ -283,16 +276,14 @@ class PDFGeneratorConDatos(PDFGenerator):
 
             paginas_contenido.append(pagina)
 
-        # Esto evita crear una página vacía intermedia
         for idx, pagina in enumerate(paginas_contenido):
             if idx > 0:
                 self.elements.append(PageBreak())
             self.elements.extend(pagina)
 
-    # ---------------- Header / Footer ----------------
     def agregar_encabezado_pie_pagina(self, canvas, doc):
         canvas.saveState()
-        # Fondo (si existe)
+        
         image_path = "img/Fondo.jpeg"
         if os.path.exists(image_path):
             try:
@@ -303,9 +294,17 @@ class PDFGeneratorConDatos(PDFGenerator):
         # Encabezado
         canvas.setFont("Helvetica-Bold", 16)
         canvas.drawCentredString(8.5*inch/2, 11*inch-60, "DICTAMEN DE CUMPLIMIENTO")
-        canvas.setFont("Helvetica", 10)
-        codigo_text = self.datos.get('cadena_identificacion', '')
-        canvas.drawCentredString(8.5*inch/2, 11*inch-80, codigo_text)
+        
+        year = datetime.now().strftime("%y")
+        norma = str(self.datos.get('norma', '')).strip()
+        folio = str(self.datos.get('folio', '')).strip()
+        solicitud = str(self.datos.get('solicitud', '')).strip()
+        lista = str(self.datos.get('lista', '')).strip()
+        
+        # Formato: ${year}049UDC${norma}${folio} Solicitud de Servicio: ${year}049USD${norma}${solicitud}-${lista}
+        linea_completa = f"{year}049UDC{norma}{folio}   Solicitud de Servicio: {year}049USD{norma}{solicitud}-{lista}"
+        canvas.setFont("Helvetica", 9)
+        canvas.drawCentredString(8.5*inch/2, 11*inch-80, linea_completa)
 
         # Numeración
         pagina_actual = canvas.getPageNumber()
@@ -319,7 +318,6 @@ class PDFGeneratorConDatos(PDFGenerator):
         formato_text = "Formato: PT-F-208B-00-3"
         canvas.setFont("Helvetica", 7)
 
-        # Línea break manual en footer para evitar que sobrepase ancho
         words = footer_text.split()
         lines = []
         current_line = ""
@@ -357,7 +355,6 @@ def generar_dictamenes_completos(directorio_destino, cliente_manual=None, rfc_ma
     normas_map, normas_info_completa = cargar_normas()
     clientes_map = cargar_clientes()
     firmas_map = cargar_firmas()
-    inspectores_normas = cargar_inspectores_acreditados()
 
     if tabla_datos is None or tabla_datos.empty:
         return False, "No se pudieron cargar los datos de la tabla de relación", None
@@ -367,8 +364,14 @@ def generar_dictamenes_completos(directorio_destino, cliente_manual=None, rfc_ma
         return False, "No se encontraron familias para procesar", None
 
     os.makedirs(directorio_destino, exist_ok=True)
+    
     dictamenes_generados = 0
+    dictamenes_con_firma = 0
+    dictamenes_sin_firma = 0
+    dictamenes_error = 0
+    
     archivos_creados = []
+    sin_firma_detalle = []
 
     for lista, registros in familias.items():
         print(f"\n📄 Procesando familia LISTA {lista} ({len(registros)} registros)...")
@@ -379,14 +382,17 @@ def generar_dictamenes_completos(directorio_destino, cliente_manual=None, rfc_ma
                 normas_info_completa,
                 clientes_map,
                 firmas_map,
-                inspectores_normas,
                 cliente_manual,
                 rfc_manual
             )
+            
             if datos is None:
-                print(f"   ⚠️ No se pudieron preparar datos para lista {lista}")
+                dictamenes_error += 1
+                print(f"   ❌ ERROR: No se pudieron preparar datos para lista {lista}")
                 continue
 
+            tiene_firma = datos.get("firma_valida", False)
+            
             generador = PDFGeneratorConDatos(datos)
             nombre_archivo = limpiar_nombre_archivo(f"Dictamen_Lista_{lista}.pdf")
             ruta_completa = os.path.join(directorio_destino, nombre_archivo)
@@ -394,28 +400,69 @@ def generar_dictamenes_completos(directorio_destino, cliente_manual=None, rfc_ma
             if generador.generar_pdf_con_datos(ruta_completa):
                 dictamenes_generados += 1
                 archivos_creados.append(ruta_completa)
-                print(f"   ✅ Creado: {nombre_archivo}")
+                
+                if tiene_firma:
+                    dictamenes_con_firma += 1
+                    print(f"   ✅ Creado CON FIRMA: {nombre_archivo}")
+                else:
+                    dictamenes_sin_firma += 1
+                    print(f"   ⚠️ Creado SIN FIRMA: {nombre_archivo}")
+                    
+                    sin_firma_detalle.append({
+                        "lista": lista,
+                        "norma": datos.get("norma", ""),
+                        "firma_solicitada": datos.get("codigo_firma_solicitado", ""),
+                        "razon": datos.get("razon_sin_firma", "Desconocida")
+                    })
             else:
+                dictamenes_error += 1
                 print(f"   ❌ Error creando dictamen para lista {lista}")
 
         except Exception as e:
+            dictamenes_error += 1
             print(f"   ❌ Error en familia {lista}: {e}")
             traceback.print_exc()
             continue
 
+    print("\n" + "="*60)
+    print("📊 RESUMEN DE GENERACIÓN")
+    print("="*60)
+    print(f"✅ Total generados: {dictamenes_generados}/{len(familias)}")
+    print(f"✅ Con firma válida: {dictamenes_con_firma}")
+    print(f"⚠️  Sin firma: {dictamenes_sin_firma}")
+    
+    if dictamenes_error > 0:
+        print(f"❌ Con errores: {dictamenes_error}")
+    
+    if sin_firma_detalle:
+        print("\n" + "="*60)
+        print("⚠️  DICTÁMENES SIN FIRMA - DETALLE")
+        print("="*60)
+        for item in sin_firma_detalle:
+            print(f"\n📄 Lista: {item['lista']}")
+            print(f"   Norma: {item['norma']}")
+            print(f"   Firma solicitada: {item['firma_solicitada']}")
+            print(f"   Razón: {item['razon']}")
+    
+    print("\n" + "="*60)
+
     resultado = {
         'directorio': directorio_destino,
         'total_generados': dictamenes_generados,
+        'con_firma': dictamenes_con_firma,
+        'sin_firma': dictamenes_sin_firma,
+        'con_error': dictamenes_error,
         'total_familias': len(familias),
-        'archivos': archivos_creados
+        'archivos': archivos_creados,
+        'sin_firma_detalle': sin_firma_detalle
     }
-    mensaje = f"Se generaron {dictamenes_generados} de {len(familias)} dictámenes"
+    
+    mensaje = f"Se generaron {dictamenes_generados} dictámenes ({dictamenes_con_firma} con firma, {dictamenes_sin_firma} sin firma)"
     success = dictamenes_generados > 0
     return success, mensaje if success else "No se pudo generar ningún dictamen", resultado
 
 def generar_dictamenes_gui(callback_progreso=None, callback_finalizado=None, cliente_manual=None, rfc_manual=None):
     try:
-        # pedir carpeta
         import tkinter as tk
         from tkinter import filedialog
         root = tk.Tk()
