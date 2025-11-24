@@ -240,7 +240,7 @@ class PDFGeneratorConDatos(PDFGenerator):
                         print(f"   ⚠️ Error cargando firma1: {e}")
                 
                 # Línea divisoria
-                col1_elementos.append(Paragraph("________________________", self.normal_style))
+                col1_elementos.append(Paragraph("_______________________________", self.normal_style))
                 
                 # Nombre en negritas y centrado
                 nombre_insp = str(self.datos.get('nfirma1',''))
@@ -258,7 +258,7 @@ class PDFGeneratorConDatos(PDFGenerator):
                         print(f"   ⚠️ Error cargando firma2: {e}")
                 
                 # Línea divisoria
-                col3_elementos.append(Paragraph("________________________", self.normal_style))
+                col3_elementos.append(Paragraph("_______________________________", self.normal_style))
                 
                 # Nombre en negritas y centrado
                 nombre_sup = str(self.datos.get('nfirma2',''))
