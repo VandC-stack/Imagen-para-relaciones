@@ -16,6 +16,7 @@ from plantillaPDF import (
     preparar_datos_familia
 )
 
+
 from DictamenPDF import PDFGenerator
 
 from reportlab.platypus import (
@@ -181,15 +182,16 @@ class PDFGeneratorConDatos(PDFGenerator):
 
     def agregar_segunda_pagina_con_etiquetas(self):
         """
-        Construye páginas de etiquetas.
-        SI NO HAY FIRMAS VÁLIDAS: solo muestra líneas en blanco sin nombres.
+        Nueva lógica SIN páginas vacías.
+        Página 2+ = etiquetas + firmas al final.
+        NO forzar PageBreak() inicial - dejar que Platypus lo maneje automáticamente.
         """
 
         print("   📄 Construyendo página(s) de etiquetas...")
 
         etiquetas = self.datos.get('etiquetas_lista', []) or []
         etiquetas_por_fila = 2
-        max_por_pagina = 6
+        max_por_pagina = 6  # 3 filas x 2
 
         paginas_contenido = []
 
@@ -229,67 +231,55 @@ class PDFGeneratorConDatos(PDFGenerator):
                     pagina.append(tabla)
                     pagina.append(Spacer(1, 0.15 * inch))
 
-            # Si es la última página de etiquetas, aquí van las FIRMAS (si existen)
+            # Si es la última página de etiquetas, aquí van las FIRMAS
             if pagina_idx == total_paginas_etq - 1:
                 pagina.append(Spacer(1, 0.25 * inch))
 
-                tiene_firmas = self.datos.get('tiene_firmas_validas', False)
+                imagen_firma1 = self.datos.get('imagen_firma1')
+                imagen_firma2 = self.datos.get('imagen_firma2')
                 
-                if tiene_firmas:
-                    # Mostrar tabla de firmas con imágenes y nombres
-                    imagen_firma1 = self.datos.get('imagen_firma1')
-                    imagen_firma2 = self.datos.get('imagen_firma2')
-                    
-                    col1_elementos = []
-                    if imagen_firma1 and os.path.exists(imagen_firma1):
-                        try:
-                            img1 = RLImage(imagen_firma1, width=2.0*inch, height=0.6*inch)
-                            col1_elementos.append(img1)
-                        except:
-                            col1_elementos.append(Paragraph("________________________", self.normal_style))
-                    else:
+                # Crear elementos para las firmas
+                firmas_elementos = []
+                
+                # Columna 1: Primera firma
+                col1_elementos = []
+                if imagen_firma1 and os.path.exists(imagen_firma1):
+                    try:
+                        img1 = RLImage(imagen_firma1, width=2.0*inch, height=0.6*inch)
+                        col1_elementos.append(img1)
+                    except:
                         col1_elementos.append(Paragraph("________________________", self.normal_style))
-                    
-                    nfirma1 = self.datos.get('nfirma1')
-                    if nfirma1:
-                        col1_elementos.append(Paragraph(nfirma1, self.normal_style))
-                        col1_elementos.append(Paragraph("Nombre del Inspector", self.small_style if hasattr(self, 'small_style') else self.normal_style))
-                    
-                    # Columna 2: Segunda firma
-                    col3_elementos = []
-                    if imagen_firma2 and os.path.exists(imagen_firma2):
-                        try:
-                            img2 = RLImage(imagen_firma2, width=2.0*inch, height=0.6*inch)
-                            col3_elementos.append(img2)
-                        except:
-                            col3_elementos.append(Paragraph("________________________", self.normal_style))
-                    else:
-                        col3_elementos.append(Paragraph("________________________", self.normal_style))
-                    
-                    nfirma2 = self.datos.get('nfirma2')
-                    if nfirma2:
-                        col3_elementos.append(Paragraph(nfirma2, self.normal_style))
-                        col3_elementos.append(Paragraph("Nombre del responsable de\nsupervisión UI", self.small_style if hasattr(self, 'small_style') else self.normal_style))
-                    
-                    firmas_data = [[col1_elementos, '', col3_elementos]]
-                    firmas_table = Table(firmas_data, colWidths=[2.5*inch, 0.5*inch, 2.5*inch])
-                    firmas_table.setStyle(TableStyle([
-                        ('ALIGN',(0,0),(-1,-1),'CENTER'),
-                        ('VALIGN',(0,0),(-1,-1),'TOP'),
-                    ]))
-                    pagina.append(firmas_table)
                 else:
-                    print("   ⚠️ NO hay firmas válidas - generando PDF sin firmas")
-                    col1_elementos = [Paragraph("________________________", self.normal_style)]
-                    col3_elementos = [Paragraph("________________________", self.normal_style)]
-                    
-                    firmas_data = [[col1_elementos, '', col3_elementos]]
-                    firmas_table = Table(firmas_data, colWidths=[2.5*inch, 0.5*inch, 2.5*inch])
-                    firmas_table.setStyle(TableStyle([
-                        ('ALIGN',(0,0),(-1,-1),'CENTER'),
-                        ('VALIGN',(0,0),(-1,-1),'TOP'),
-                    ]))
-                    pagina.append(firmas_table)
+                    col1_elementos.append(Paragraph("________________________", self.normal_style))
+                
+                col1_elementos.append(Paragraph(self.datos.get('nfirma1',''), self.normal_style))
+                col1_elementos.append(Paragraph("Nombre del Inspector", self.small_style if hasattr(self, 'small_style') else self.normal_style))
+                
+                # Columna 3: Segunda firma
+                col3_elementos = []
+                if imagen_firma2 and os.path.exists(imagen_firma2):
+                    try:
+                        img2 = RLImage(imagen_firma2, width=2.0*inch, height=0.6*inch)
+                        col3_elementos.append(img2)
+                    except:
+                        col3_elementos.append(Paragraph("________________________", self.normal_style))
+                else:
+                    col3_elementos.append(Paragraph("________________________", self.normal_style))
+                
+                col3_elementos.append(Paragraph(self.datos.get('nfirma2',''), self.normal_style))
+                col3_elementos.append(Paragraph("Nombre del responsable de\nsupervisión UI", self.small_style if hasattr(self, 'small_style') else self.normal_style))
+                
+                # Crear tabla con los elementos
+                firmas_data = [
+                    [col1_elementos, '', col3_elementos]
+                ]
+                
+                firmas_table = Table(firmas_data, colWidths=[2.5*inch, 0.5*inch, 2.5*inch])
+                firmas_table.setStyle(TableStyle([
+                    ('ALIGN',(0,0),(-1,-1),'CENTER'),
+                    ('VALIGN',(0,0),(-1,-1),'TOP'),
+                ]))
+                pagina.append(firmas_table)
 
             paginas_contenido.append(pagina)
 

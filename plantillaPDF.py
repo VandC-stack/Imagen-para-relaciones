@@ -98,6 +98,74 @@ def cargar_clientes(ruta="data/Clientes.json"):
         print(f"⚠️ No se pudo cargar {ruta}: {e}")
         return {}
 
+def cargar_firmas(ruta="data/Firmas.json"):
+    """Carga el mapeo de firmas de inspectores indexado por código FIRMA."""
+    try:
+        with open(ruta, "r", encoding="utf-8") as f:
+            firmas = json.load(f)
+        
+        firmas_map = {}
+        for firma in firmas:
+            codigo = firma.get("FIRMA", "").strip()
+            if codigo:
+                firmas_map[codigo] = {
+                    "nombre": firma.get("NOMBRE DE INSPECTOR", "").strip(),
+                    "imagen": firma.get("IMAGEN", "").strip()
+                }
+        
+        print(f"✅ Firmas cargadas: {len(firmas_map)} inspectores")
+        return firmas_map
+    except Exception as e:
+        print(f"❌ Error cargando firmas: {e}")
+        return {}
+
+def cargar_inspectores_acreditados(ruta="data/Inspectores.json"):
+    """Carga inspectores con sus normas acreditadas."""
+    try:
+        with open(ruta, "r", encoding="utf-8") as f:
+            inspectores = json.load(f)
+        
+        inspectores_normas = {}
+        for inspector in inspectores:
+            colaborador = inspector.get("Colaborador", "").strip()
+            normas_str = inspector.get("Normas acreditadas", "").strip()
+            
+            if colaborador and normas_str:
+                normas_list = [n.strip() for n in normas_str.split(",")]
+                inspectores_normas[colaborador] = normas_list
+        
+        print(f"✅ Inspectores acreditados cargados: {len(inspectores_normas)}")
+        return inspectores_normas
+    except Exception as e:
+        print(f"⚠️ No se pudo cargar Inspectores.json: {e}")
+        return {}
+
+def obtener_firma_validada(codigo_firma, norma_requerida, firmas_map, inspectores_normas):
+    """
+    Valida que el inspector esté acreditado para la NOM requerida.
+    Retorna (nombre_inspector, ruta_imagen) o (None, None) si no está acreditado.
+    """
+    if codigo_firma not in firmas_map:
+        print(f"   ⚠️ Código de firma no encontrado: {codigo_firma}")
+        return None, None
+    
+    firma_data = firmas_map[codigo_firma]
+    nombre_inspector = firma_data.get("nombre")
+    ruta_imagen = firma_data.get("imagen")
+    
+    # Validar acreditación
+    if nombre_inspector in inspectores_normas:
+        normas_acreditadas = inspectores_normas[nombre_inspector]
+        if norma_requerida in normas_acreditadas:
+            print(f"   ✅ Firma validada: {nombre_inspector} - {norma_requerida}")
+            return nombre_inspector, ruta_imagen
+        else:
+            print(f"   ⚠️ {nombre_inspector} NO está acreditado para {norma_requerida}")
+            return None, None
+    else:
+        print(f"   ⚠️ Inspector {nombre_inspector} no encontrado en acreditaciones")
+        return None, None
+
 # ---------------------------------------------------------
 # PROCESAMIENTO DE FAMILIAS
 # ---------------------------------------------------------
@@ -166,133 +234,149 @@ def preparar_datos_familia(
     normas_map,
     normas_info_completa,
     clientes_map,
-    cliente_manual=None,
-    rfc_manual=None
+    firmas_map,
+    inspectores_normas,
+    cliente_manual,
+    rfc_manual
 ):
+    """
+    PREPARA TODOS LOS DATOS REALES PARA GENERAR EL DICTAMEN
+    Esta versión es compatible con generador_dictamen.py (8 parámetros).
 
-    r0 = registros[0]
+    - Busca inspector en Firmas.json
+    - Genera datos del dictamen
+    - Prepara etiquetas
+    - Prepara firmas
+    - Construye y devuelve el diccionario final “datos”
+    """
 
-    # YEAR
-    year = datetime.now().strftime("%y")
+    try:
+        # ---------------------------
+        # 1) REGISTRO PRINCIPAL
+        # ---------------------------
+        reg = registros[0]  # primer registro de la lista/familia
 
-    # FOLIO, SOLICITUD, LISTA
-    folio = str(r0.get("FOLIO", "")).strip()
-    solicitud_raw = str(r0.get("SOLICITUD", "")).strip()
-    solicitud = solicitud_raw.split("/")[0]
-    lista = str(r0.get("LISTA", "")).strip()
+        cliente = cliente_manual if cliente_manual else reg.get("CLIENTE", "")
+        rfc = rfc_manual if rfc_manual else reg.get("RFC", "")
+        inspector_nombre = reg.get("INSPECTOR", "").strip()
 
-    # NORMA
-    clasif = str(r0.get("CLASIF UVA", "")).strip()
-    norma_num = "".join([c for c in clasif if c.isdigit()])
+        # ---------------------------------
+        # 2) BUSCAR INSPECTOR EN FIRMAS.JSON
+        # ---------------------------------
+        inspector = next(
+            (i for i in firmas_map if i["NOMBRE DE INSPECTOR"].strip().lower() == inspector_nombre.lower()),
+            None
+        )
 
-    norma = ""
-    normades = ""
-    capitulo = ""
+        if inspector is None:
+            print(f"⚠️ Inspector {inspector_nombre} no encontrado en Firmas.json")
+            return None
 
-    if norma_num in normas_map:
-        norma = normas_map[norma_num]
-        normades = normas_info_completa[norma]["nombre"]
-        capitulo = normas_info_completa[norma]["capitulo"]
-    else:
-        print(f"⚠️ No se encontró la NOM para CLASIF UVA = {clasif}")
+        # ------------------------
+        # 3) DATOS DEL INSPECTOR
+        # ------------------------
+        puesto = inspector.get("Puesto", "")
+        vigencia = inspector.get("VIGENCIA", "")
+        normas = inspector.get("Normas acreditadas", [])
+        referencia = inspector.get("Referencia", "")
+        fecha_acredit = inspector.get("Fecha de acreditación", "")
+        normas_str = ", ".join(normas) if isinstance(normas, list) else str(normas)
 
-    # CADENA IDENTIFICACIÓN
-    cadena_identificacion = (
-        f"{year}049UDC{norma}{folio} "
-        f"Solicitud de Servicio: {year}049USD{norma}{solicitud}-{lista}"
-    )
+        # ------------------------
+        # 4) DATOS DE ETIQUETAS
+        # ------------------------
+        # El generador espera lista de imágenes: etiquetas_lista
+        etiquetas = reg.get("ETIQUETAS_GENERADAS", [])
+        etiquetas_lista = []
 
-    def fecha_corta(f):
-        try:
-            return datetime.strptime(str(f), "%Y-%m-%d").strftime("%d/%m/%Y")
-        except:
-            return str(f or "")
+        for e in etiquetas:
+            etiquetas_lista.append({
+                "imagen_bytes": e.get("imagen_bytes"),
+                "tamaño_cm": e.get("tamaño_cm", (5, 5))
+            })
 
-    fverificacion = fecha_corta(r0.get("FECHA DE VERIFICACION"))
-    femision = fecha_corta(r0.get("FECHA DE ENTRADA"))
-    fverificacionlarga = formatear_fecha_larga(r0.get("FECHA DE VERIFICACION"))
+        # ------------------------
+        # 5) FIRMAS
+        # ------------------------
+        # Firma del inspector (firma1)
+        ruta_firma1 = inspector.get("IMAGEN", "")
+        if ruta_firma1.startswith("Firmas/"):
+            ruta_firma1 = os.path.join("Firmas", ruta_firma1.replace("Firmas/", ""))
 
-    marca = next((str(r.get("MARCA", "")).strip() for r in registros if r.get("MARCA")), "")
-    descripcion = next((str(r.get("DESCRIPCION", "")).strip() for r in registros if r.get("DESCRIPCION")), "")
+        # Supervisor fijo (el que tenga FIRMA = "AFLORES")
+        supervisor = next((i for i in firmas_map if i.get("FIRMA") == "AFLORES"), None)
 
-    marca_key = marca.upper()
+        ruta_firma2 = ""
+        nombre_firma2 = ""
+        if supervisor:
+            ruta_firma2 = supervisor.get("IMAGEN", "")
+            if ruta_firma2.startswith("Firmas/"):
+                ruta_firma2 = os.path.join("Firmas", ruta_firma2.replace("Firmas/", ""))
+            nombre_firma2 = supervisor["NOMBRE DE INSPECTOR"]
 
-    # Cliente
-    if cliente_manual:
-        cliente = cliente_manual
-    else:
-        cliente = marca
-        if clientes_map and marca_key in clientes_map:
-            cliente = clientes_map[marca_key]["nombre"]
+        # ------------------------
+        # 6) TABLA DE PRODUCTOS
+        # ------------------------
+        tabla_productos = []
+        total_cantidad = 0
 
-    # RFC
-    if rfc_manual:
-        rfc = rfc_manual
-    else:
-        rfc = clientes_map.get(marca_key, {}).get("rfc", "")
+        for r in registros:
+            tabla_productos.append({
+                "marca": r.get("MARCA", ""),
+                "codigo": r.get("CODIGO", ""),
+                "factura": r.get("FACTURA", ""),
+                "cantidad": r.get("CANTIDAD", 0)
+            })
+            total_cantidad += r.get("CANTIDAD", 0)
 
-    # Tabla de productos
-    filas_tabla, total_cantidad = preparar_datos_tabla(registros)
+        # ------------------------
+        # 7) CONSTRUIR EL OBJETO FINAL
+        # ------------------------
+        datos = {
+            # datos generales
+            "cliente": cliente,
+            "rfc": rfc,
+            "producto": reg.get("PRODUCTO", ""),
+            "norma": reg.get("NORMA", ""),
+            "normades": normas_info_completa.get(reg.get("NORMA", ""), ""),
+            "cadena_identificacion": reg.get("LISTA", ""),
 
-    # Observaciones
-    obs_raw = next((str(r.get("OBSERVACIONES DICTAMEN", "")).strip()
-                    for r in registros if r.get("OBSERVACIONES DICTAMEN")), "")
-    obs = "" if obs_raw.upper() == "NINGUNA" else obs_raw
+            # fechas
+            "fverificacion": reg.get("F_VERIFICACION", ""),
+            "fverificacionlarga": reg.get("F_VERIFICACION_LARGA", ""),
+            "femision": reg.get("F_EMISION", ""),
 
-    print("   🔍 Iniciando generación de etiquetas...")
-    generador_etiquetas = GeneradorEtiquetasDecathlon()
+            # capítulo
+            "capitulo": reg.get("CAPITULO", ""),
 
-    # Obtener códigos EAN de los registros
-    codigos = []
-    for r in registros:
-        codigo = r.get("CODIGO")
-        if codigo and str(codigo).strip() not in ("", "None", "nan"):
-            codigos.append(str(codigo).strip())
-    
-    print(f"   📋 Códigos encontrados: {codigos}")
+            # observaciones
+            "obs": reg.get("OBSERVACIONES", ""),
 
-    # Generar etiquetas
-    etiquetas_generadas = []
-    if codigos:
-        print(f"   🏷️ Generando etiquetas para {len(codigos)} códigos...")
-        etiquetas_generadas = generador_etiquetas.generar_etiquetas_por_codigos(codigos)
-        print(f"   ✅ Etiquetas generadas: {len(etiquetas_generadas)}")
-    else:
-        print("   ⚠️ No se encontraron códigos válidos en los registros")
+            # tabla productos y lote
+            "tabla_productos": tabla_productos,
+            "TCantidad": f"{total_cantidad} unidades",
 
-    nfirma1 = str(r0.get("FIRMA", "")).strip()
+            # etiquetas
+            "etiquetas_lista": etiquetas_lista,
 
-    return {
-        "cadena_identificacion": cadena_identificacion,
-        "norma": norma,
-        "normades": normades,
-        "capitulo": capitulo,
+            # firmas
+            "imagen_firma1": ruta_firma1,
+            "imagen_firma2": ruta_firma2,
+            "nfirma1": inspector.get("NOMBRE DE INSPECTOR", ""),
+            "nfirma2": nombre_firma2,
 
-        "year": year,
-        "folio": folio,
-        "solicitud": solicitud,
-        "lista": lista,
+            # info inspector extra
+            "puesto": puesto,
+            "vigencia": vigencia,
+            "normas_inspector": normas_str,
+            "referencia_inspector": referencia,
+            "acreditacion_inspector": fecha_acredit
+        }
 
-        "fverificacion": fverificacion,
-        "fverificacionlarga": fverificacionlarga,
-        "femision": femision,
+        return datos
 
-        "cliente": cliente,
-        "rfc": rfc,
+    except Exception as e:
+        print("❌ Error en preparar_datos_familia:", e)
+        traceback.print_exc()
+        return None
 
-        "producto": descripcion,
-        "pedimento": str(r0.get("PEDIMENTO", "")).strip(),
-
-        "tabla_productos": filas_tabla,
-        "total_cantidad": total_cantidad,
-        "TCantidad": f"{total_cantidad} unidades",
-
-        "obs": obs,
-
-        "etiquetas_lista": etiquetas_generadas,
-
-        "firma1": "________________________",
-        "firma2": "________________________",
-        "nfirma1": nfirma1,
-        "nfirma2": "Responsable de Supervisión UI",
-    }
