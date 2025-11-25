@@ -4,8 +4,26 @@ import json
 from datetime import datetime
 from collections import defaultdict
 import os
+import sys
 import traceback
 from etiqueta_dictamen import GeneradorEtiquetasDecathlon
+
+# ---------------------------------------------------------
+# FUNCIONES AUXILIARES
+# ---------------------------------------------------------
+def obtener_ruta_recurso(ruta_relativa):
+    """
+    Obtiene la ruta absoluta del recurso, funciona tanto para .py como para .exe
+    PyInstaller crea una carpeta temporal y guarda la ruta en _MEIPASS
+    """
+    try:
+        # PyInstaller crea una carpeta temporal y guarda la ruta en _MEIPASS
+        ruta_base = sys._MEIPASS
+    except Exception:
+        # Si no existe _MEIPASS, estamos corriendo como .py normal
+        ruta_base = os.path.abspath(".")
+    
+    return os.path.join(ruta_base, ruta_relativa)
 
 # ---------------------------------------------------------
 # FORMATEADORES DE FECHA
@@ -32,7 +50,8 @@ def formatear_fecha_larga(fecha_str):
 # ---------------------------------------------------------
 def cargar_tabla_relacion(ruta="data/tabla_de_relacion.json"):
     try:
-        with open(ruta, "r", encoding="utf-8") as f:
+        ruta_completa = obtener_ruta_recurso(ruta)
+        with open(ruta_completa, "r", encoding="utf-8") as f:
             data = json.load(f)
         df = pd.DataFrame(data)
         print(f"✅ Tabla de relación cargada: {len(df)} registros")
@@ -44,7 +63,8 @@ def cargar_tabla_relacion(ruta="data/tabla_de_relacion.json"):
 def cargar_normas(ruta="data/Normas.json"):
     """Carga las NOMs y las indexa usando el número inicial (ej: 24, 50, 141)."""
     try:
-        with open(ruta, "r", encoding="utf-8") as f:
+        ruta_completa = obtener_ruta_recurso(ruta)
+        with open(ruta_completa, "r", encoding="utf-8") as f:
             normas = json.load(f)
 
         normas_map = {}
@@ -79,7 +99,8 @@ def cargar_normas(ruta="data/Normas.json"):
 
 def cargar_clientes(ruta="data/Clientes.json"):
     try:
-        with open(ruta, "r", encoding="utf-8") as f:
+        ruta_completa = obtener_ruta_recurso(ruta)
+        with open(ruta_completa, "r", encoding="utf-8") as f:
             clientes = json.load(f)
 
         clientes_map = {}
@@ -105,7 +126,8 @@ def cargar_firmas(ruta="data/Firmas.json"):
     Indexado por código FIRMA para búsqueda rápida.
     """
     try:
-        with open(ruta, "r", encoding="utf-8") as f:
+        ruta_completa = obtener_ruta_recurso(ruta)
+        with open(ruta_completa, "r", encoding="utf-8") as f:
             firmas = json.load(f)
         
         firmas_map = {}

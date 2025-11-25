@@ -66,6 +66,25 @@ class SistemaDictamenesVC(ctk.CTk):
         # Cargar clientes al iniciar
         self.cargar_clientes_desde_json()
 
+        # --------------------------- ICONO ---------------------------- #
+        def resource_path(relative_path):
+            """Obtiene la ruta absoluta en ejecución normal y en exe."""
+            try:
+                base_path = sys._MEIPASS
+            except Exception:
+                base_path = os.path.abspath(".")
+            return os.path.join(base_path, relative_path)
+
+        try:
+            icon_path = resource_path("img/icono.ico")
+            if os.path.exists(icon_path):
+                self.iconbitmap(icon_path)
+                print(f"🟡 Icono cargado: {icon_path}")
+            else:
+                print("⚠ No se encontró icono.ico")
+        except Exception as e:
+            print(f"⚠ Error cargando icono.ico: {e}")
+
     def centerwindow(self):
         """Centra la ventana en la pantalla"""
         self.update_idletasks()
@@ -786,3 +805,4 @@ class SistemaDictamenesVC(ctk.CTk):
 if __name__ == "__main__":
     app = SistemaDictamenesVC()
     app.mainloop()
+

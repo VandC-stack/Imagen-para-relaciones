@@ -25,6 +25,18 @@ from reportlab.lib.units import inch
 from reportlab.lib import colors
 from reportlab.lib.styles import ParagraphStyle
 
+def obtener_ruta_recurso(ruta_relativa):
+    """
+    Obtiene la ruta absoluta del recurso, funciona tanto para .py como para .exe.
+    PyInstaller crea una carpeta temporal y guarda la ruta en _MEIPASS.
+    """
+    try:
+        base_path = sys._MEIPASS   # ruta temporal del .exe
+    except Exception:
+        base_path = os.path.abspath(".")  # ruta local en modo .py
+
+    return os.path.join(base_path, ruta_relativa)
+
 class PDFGeneratorConDatos(PDFGenerator):
     """Subclase que genera PDFs con datos reales y tablas dinámicas
        Evita saltos de página vacíos y calcula correctamente total_pages.
@@ -227,8 +239,9 @@ class PDFGeneratorConDatos(PDFGenerator):
             if pagina_idx == total_paginas_etq - 1:
                 pagina.append(Spacer(1, 0.25 * inch))
 
-                imagen_firma1 = self.datos.get('imagen_firma1', '')
-                imagen_firma2 = self.datos.get('imagen_firma2', '')
+                imagen_firma1 = obtener_ruta_recurso(self.datos.get('imagen_firma1',''))
+                imagen_firma2 = obtener_ruta_recurso(self.datos.get('imagen_firma2',''))
+
                 
                 # Columna 1: Primera firma (Inspector)
                 col1_elementos = []
@@ -284,7 +297,7 @@ class PDFGeneratorConDatos(PDFGenerator):
     def agregar_encabezado_pie_pagina(self, canvas, doc):
         canvas.saveState()
         
-        image_path = "img/Fondo.jpeg"
+        image_path = obtener_ruta_recurso("img/Fondo.jpeg")
         if os.path.exists(image_path):
             try:
                 canvas.drawImage(image_path, 0, 0, width=8.5*inch, height=11*inch)

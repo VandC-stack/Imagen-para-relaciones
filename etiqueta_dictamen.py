@@ -1,5 +1,6 @@
 import json
 import os
+import sys
 from PIL import Image, ImageDraw, ImageFont
 import textwrap
 import ast
@@ -7,19 +8,26 @@ from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import letter
 from reportlab.lib.units import cm
 from io import BytesIO
+from PyPDF2 import PdfReader, PdfWriter
+from reportlab.pdfgen import canvas
+from reportlab.lib.pagesizes import letter
+from io import BytesIO
 
 class GeneradorEtiquetasDecathlon:
     def __init__(self):
-        # Rutas dentro de la carpeta data
-        self.data_dir = "data"
+        # Detectar ruta base compatible con PyInstaller
+        base_path = getattr(sys, '_MEIPASS', os.path.abspath("."))
+        self.data_dir = os.path.join(base_path, "data")
+
+        # Rutas completas
         base_etiquetado_path = os.path.join(self.data_dir, "BASE_ETIQUETADO.json")
         tabla_relacion_path = os.path.join(self.data_dir, "TABLA_DE_RELACION.json")
         config_etiquetas_path = os.path.join(self.data_dir, "config_etiquetas.json")
-        
+
         self.cargar_datos(base_etiquetado_path, tabla_relacion_path)
         self.configuraciones = self.cargar_configuraciones(config_etiquetas_path)
         self.mapeo_norma_uva = self.crear_mapeo_norma_uva()
-        
+
     def cargar_datos(self, base_etiquetado_path, tabla_relacion_path):
         """Carga los datos de la base de etiquetado y tabla de relación"""
         try:
@@ -33,7 +41,59 @@ class GeneradorEtiquetasDecathlon:
             self.base_etiquetado = []
             self.tabla_relacion = []
     
-    
+    def insertar_etiquetas_en_dictamen(self, dictamen_path, etiquetas, output_pdf="DICTAMEN_FINAL.pdf"):
+        try:
+            print("🔧 Insertando etiquetas dentro del dictamen...")
+
+            # 1) Leer PDF original
+            reader = PdfReader(dictamen_path)
+            writer = PdfWriter()
+
+            # 2) Copiar todas las hojas del dictamen al writer
+            for page in reader.pages:
+                writer.add_page(page)
+
+            # 3) Crear una página nueva para etiquetas
+            packet = BytesIO()
+            c = canvas.Canvas(packet, pagesize=letter)
+
+            x = 40
+            y = 720
+
+            for etiqueta in etiquetas:
+                ancho_cm, alto_cm = etiqueta["tamaño_cm"]
+                ancho_pt = ancho_cm * 28.35
+                alto_pt = alto_cm * 28.35
+
+                img_bytes = etiqueta["imagen_bytes"]
+
+                # Insertar etiqueta en PDF temporal
+                c.drawImage(img_bytes, x, y - alto_pt, width=ancho_pt, height=alto_pt)
+
+                x += ancho_pt + 20
+                if x > 500:
+                    x = 40
+                    y -= alto_pt + 40
+
+            c.save()
+
+            packet.seek(0)
+            nueva_pagina = PdfReader(packet).pages[0]
+
+            # 4) Añadir la nueva página al final del PDF
+            writer.add_page(nueva_pagina)
+
+            # 5) Guardar PDF final
+            with open(output_pdf, "wb") as f:
+                writer.write(f)
+
+            print(f"✅ Dictamen final generado: {output_pdf}")
+            return True
+
+        except Exception as e:
+            print(f"❌ Error insertando etiquetas en dictamen: {e}")
+            return False
+
     def cargar_configuraciones(self, config_etiquetas_path):
         """Carga las configuraciones desde un archivo JSON"""
         try:
@@ -574,6 +634,13 @@ def main():
         generador.crear_pdf_etiquetas(resultados, "etiquetas_decathlon.pdf")
     
     print("\n🎉 Proceso completado!")
+
+    if resultados:
+        generador.insertar_etiquetas_en_dictamen(
+            dictamen_path="Dictamen_Lista_4_nan_007045_25_5.pdf",
+            etiquetas=resultados,
+            output_pdf="DICTAMEN_FINAL.pdf"
+    )
 
 if __name__ == "__main__":
     main()
