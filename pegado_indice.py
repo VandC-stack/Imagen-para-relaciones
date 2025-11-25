@@ -4,9 +4,9 @@ import pandas as pd
 from tkinter import filedialog, Tk
 from docx import Document
 from registro_fallos import registrar_fallo, limpiar_registro, mostrar_registro
-from main import obtener_rutas, insertar_imagen_con_transparencia
+from main import obtener_rutas, insertar_imagen_con_transparencia, APPDATA_DIR
 
-INDEX_FILE = "index_indice.json"
+INDEX_FILE = os.path.join(APPDATA_DIR, "index_indice.json")
 IMG_EXTS = [".png", ".jpg", ".jpeg", ".webp", ".bmp", ".tif"]
 
 

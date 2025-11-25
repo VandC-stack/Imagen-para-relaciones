@@ -21,7 +21,15 @@ try:
 except Exception:
     pass
 
-CONFIG_FILE = os.path.abspath("config.json")
+# ==============================
+# NUEVO SISTEMA DE ARCHIVOS EN APPDATA
+# ==============================
+APPDATA_DIR = os.path.join(os.getenv("APPDATA"), "ImagenesVC")
+os.makedirs(APPDATA_DIR, exist_ok=True)
+
+CONFIG_FILE = os.path.join(APPDATA_DIR, "config.json")
+LOG_FILE = os.path.join(APPDATA_DIR, "documentos_sin_imagenes.txt")
+# ==============================
 
 FORBIDDEN_TOKENS = {
     "TOTAL", "CANTIDAD", "FACTURA", "MARCA", "DESCRIPCION", "DESCRIPCIÓN",
@@ -349,7 +357,6 @@ def procesar_lote():
         procesar_indice()
         return
 
-
     if modo == "simple":
         index = indexar_imagenes(ruta_imgs)
 
@@ -364,9 +371,8 @@ def procesar_lote():
     if mostrar_registro:
         mostrar_registro()
 
-    log = os.path.abspath("documentos_sin_imagenes.txt")
-    if os.path.exists(log):
-        os.startfile(log)
+    if os.path.exists(LOG_FILE):
+        os.startfile(LOG_FILE)
 
 
 if __name__ == "__main__":

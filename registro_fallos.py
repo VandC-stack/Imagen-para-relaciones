@@ -1,10 +1,11 @@
 import os
+from main import APPDATA_DIR
 
-LOG_FILE = os.path.abspath("documentos_sin_imagenes.txt")
+LOG_FILE = os.path.join(APPDATA_DIR, "documentos_sin_imagenes.txt")
 
 def registrar_fallo(nombre_doc):
     try:
-        with open(LOG_FILE, "a", encoding="utf-8")as f:
+        with open(LOG_FILE, "a", encoding="utf-8") as f:
             f.write(f"{nombre_doc}\n")
         print(f"Documento agregado al registro de fallos: {nombre_doc}")
     except Exception as e:
