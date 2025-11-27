@@ -3,7 +3,7 @@ import json
 import pandas as pd
 from tkinter import filedialog, Tk
 from docx import Document
-from registro_fallos import registrar_fallo, limpiar_registro, mostrar_registro
+from registro_fallos import registrar_fallo, limpiar_registro, mostrar_registro, LOG_FILE
 from main import obtener_rutas, insertar_imagen_con_transparencia, APPDATA_DIR
 
 INDEX_FILE = os.path.join(APPDATA_DIR, "index_indice.json")
@@ -49,6 +49,9 @@ def construir_indice_desde_excel(ruta_excel):
 def extraer_codigos_tabla(doc):
     codigos = []
     for tabla in doc.tables:
+        if not tabla.rows:
+            continue
+
         encabezados = [c.text.strip().upper() for c in tabla.rows[0].cells]
         if any("CODIGO" in h.replace("Ó", "O") or "SKU" in h or "CLAVE" in h for h in encabezados):
             idx = 0
@@ -57,10 +60,25 @@ def extraer_codigos_tabla(doc):
                 if "CODIGO" in h_norm or "SKU" in h_norm or "CLAVE" in h_norm:
                     idx = i
                     break
+
             for fila in tabla.rows[1:]:
-                texto = fila.cells[idx].text.strip()
-                if texto and any(c.isdigit() for c in texto) and len(texto) >= 6:
-                    codigos.append(texto)
+                texto = (fila.cells[idx].text or "").strip()
+                if not texto:
+                    continue
+
+                canon = "".join(ch for ch in texto if ch.isalnum())
+                if not canon:
+                    continue
+
+                tiene_letras = any(c.isalpha() for c in canon)
+                tiene_digitos = any(c.isdigit() for c in canon)
+
+                # Nueva regla: el código debe tener letras y números (sin importar longitud)
+                if not (tiene_letras and tiene_digitos):
+                    continue
+
+                codigos.append(texto)
+
             break
     return codigos
 
@@ -109,7 +127,7 @@ def procesar_doc_con_indice(ruta_doc, ruta_imagenes, indice):
 
             for codigo in codigos:
                 if codigo not in indice:
-                    continue  # si no existe en el índice, probaremos con el siguiente
+                    continue
 
                 destino = indice[codigo]
                 tipo, ruta = buscar_destino(ruta_imagenes, destino)
@@ -138,6 +156,7 @@ def procesar_doc_con_indice(ruta_doc, ruta_imagenes, indice):
     doc.save(ruta_doc)
     print(f"Documento actualizado: {ruta_doc}")
 
+
 def procesar_indice():
     limpiar_registro()
 
@@ -160,6 +179,5 @@ def procesar_indice():
 
     mostrar_registro()
 
-    log = os.path.abspath("documentos_sin_imagenes.txt")
-    if os.path.exists(log):
-        os.startfile(log)
+    if os.path.exists(LOG_FILE):
+        os.startfile(LOG_FILE)

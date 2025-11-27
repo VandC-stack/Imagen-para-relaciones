@@ -336,19 +336,6 @@ def insertar_imagenes_en_docx(ruta_doc, carpeta_imagenes, index):
 
 
 def procesar_lote():
-    if limpiar_registro:
-        limpiar_registro()
-
-    ruta_docs, ruta_imgs = obtener_rutas()
-    if not ruta_docs or not ruta_imgs:
-        return
-
-    archivos = [f for f in os.listdir(ruta_docs) if f.endswith(".docx") and not f.startswith("~$")]
-
-    if not archivos:
-        print(f"No se encontraron archivos .docx en '{ruta_docs}'")
-        return
-
     cfg = cargar_config()
     modo = cfg.get("modo_pegado", "simple")
 
@@ -357,23 +344,15 @@ def procesar_lote():
         procesar_indice()
         return
 
-    if modo == "simple":
-        index = indexar_imagenes(ruta_imgs)
+    if modo == "carpetas":
+        from pegado_carpetas import procesar_carpetas
+        procesar_carpetas()
+        return
 
-    for archivo in archivos:
-        ruta_doc = os.path.join(ruta_docs, archivo)
-
-        if modo == "carpetas":
-            insertar_imagenes_en_docx_carpetas(ruta_doc, ruta_imgs)
-        else:
-            insertar_imagenes_en_docx(ruta_doc, ruta_imgs, index)
-
-    if mostrar_registro:
-        mostrar_registro()
-
-    if os.path.exists(LOG_FILE):
-        os.startfile(LOG_FILE)
-
+    # modo simple (default)
+    from pegado_simple import procesar_simple
+    procesar_simple()
+    
 
 if __name__ == "__main__":
     procesar_lote()
