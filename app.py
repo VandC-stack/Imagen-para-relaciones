@@ -37,8 +37,8 @@ class SistemaDictamenesVC(ctk.CTk):
 
         # Configuración general
         self.title("Generador de Dictámenes")
-        self.geometry("900x600")
-        self.minsize(900, 600)
+        self.geometry("1200x600")
+        self.minsize(1200, 600)
         ctk.set_appearance_mode("light")
         self.configure(fg_color=STYLE["fondo"])
 
@@ -1107,19 +1107,28 @@ class SistemaDictamenesVC(ctk.CTk):
 
     def _ejecutar_generador_con_progreso(self):
         try:
+            # VERIFICAR SI LA VENTANA SIGUE ABIERTA
+            if not self.winfo_exists():
+                return
+                
             sys.path.append(os.path.dirname(__file__))
             from generador_dictamen import generar_dictamenes_gui
             
             def actualizar_progreso(porcentaje, mensaje):
-                self.actualizar_progreso(porcentaje, mensaje)
+                # VERIFICACIÓN EN CALLBACK
+                if self.winfo_exists():
+                    self.actualizar_progreso(porcentaje, mensaje)
             
             def finalizado(exito, mensaje, resultado):
+                # VERIFICACIÓN EN CALLBACK FINAL
+                if not self.winfo_exists():
+                    return
+                    
                 if exito and resultado:
                     directorio = resultado['directorio']
                     total_gen = resultado['total_generados']
                     total_fam = resultado['total_familias']
                     
-                    # OBTENER INFORMACIÓN DE FOLIOS
                     dictamenes_fallidos = resultado.get('dictamenes_fallidos', 0)
                     folios_fallidos = resultado.get('folios_fallidos', [])
                     folios_utilizados = resultado.get('folios_utilizados', "No disponible")
@@ -1135,27 +1144,26 @@ class SistemaDictamenesVC(ctk.CTk):
                     else:
                         mensaje_final += "\n⚠️  No se encontraron archivos PDF en la carpeta"
                     
-                    # MOSTRAR INFORMACIÓN DE FOLIOS NO GENERADOS
                     if dictamenes_fallidos > 0:
                         mensaje_final += f"\n❌ Dictámenes no generados: {dictamenes_fallidos}"
                         if folios_fallidos:
                             mensaje_final += f"\n📋 Folios fallidos: {', '.join(map(str, folios_fallidos))}"
                     
-                    self.after(0, lambda: messagebox.showinfo("Generación Completada", mensaje_final))
-                    
-                    # REGISTRAR VISITA AUTOMÁTICAMENTE con información de folios
-                    resultado['folios_utilizados_info'] = folios_utilizados
-                    self.registrar_visita_automatica(resultado)
-                    
-                    if archivos_existentes:
-                        self.after(1000, lambda: self._abrir_carpeta(directorio))
+                    # VERIFICAR ANTES DE MOSTRAR MESSAGEBOX
+                    if self.winfo_exists():
+                        self.after(0, lambda: messagebox.showinfo("Generación Completada", mensaje_final) if self.winfo_exists() else None)
+                        
+                        resultado['folios_utilizados_info'] = folios_utilizados
+                        self.registrar_visita_automatica(resultado)
+                        
+                        if archivos_existentes and self.winfo_exists():
+                            self.after(1000, lambda: self._abrir_carpeta(directorio) if self.winfo_exists() else None)
                     
                 else:
-                    self.after(0, lambda: self.mostrar_error(mensaje))
+                    if self.winfo_exists():
+                        self.after(0, lambda: self.mostrar_error(mensaje) if self.winfo_exists() else None)
             
-            # OBTENER INFORMACIÓN DE FOLIOS ANTES DE GENERAR
-            folios_info = self._obtener_folios_de_tabla()
-            
+            # LLAMADA CORREGIDA - sin folios_info
             generar_dictamenes_gui(
                 cliente_manual=self.cliente_seleccionado['CLIENTE'],
                 rfc_manual=self.cliente_seleccionado.get('RFC', ''),
@@ -1165,9 +1173,14 @@ class SistemaDictamenesVC(ctk.CTk):
             
         except Exception as e:
             error_msg = f"Error iniciando generador: {str(e)}"
-            self.after(0, lambda: self.mostrar_error(error_msg))
+            if self.winfo_exists():
+                self.after(0, lambda: self.mostrar_error(error_msg) if self.winfo_exists() else None)
         finally:
-            self.after(0, self._finalizar_generacion)
+            if self.winfo_exists():
+                self.after(0, self._finalizar_generacion)
+
+
+
 
     def _abrir_carpeta(self, directorio):
         try:
