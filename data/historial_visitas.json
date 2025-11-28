@@ -1,0 +1,34 @@
+{
+  "last_folio_visita": 0,
+  "visitas": [
+    {
+      "folio_visita": "0001",
+      "folio_acta": "AC0001",
+      "fecha_inicio": "28/11/2025",
+      "fecha_termino": "29/11/2025",
+      "hora_inicio": "10:09 am",
+      "hora_termino": "6:00 pm",
+      "norma": "VARIAS",
+      "cliente": "ARTICULOS DEPORTIVOS DECATHLON SA DE CV",
+      "nfirma1": "Marcos Uriel Flores Gomez",
+      "nfirma2": "",
+      "estatus": "Completada",
+      "folios_utilizados": "No se encontraron folios en la tabla",
+      "_id": "1edc76a6-344d-4cfc-b694-ff3fdd30ad46"
+    },
+    {
+      "folio_visita": "0002",
+      "folio_acta": "AC0002",
+      "fecha_inicio": "28/11/2025",
+      "fecha_termino": "28/11/2025",
+      "hora_inicio": "11:36",
+      "hora_termino": "11:37",
+      "norma": "",
+      "cliente": "ARTICULOS DEPORTIVOS DECATHLON SA DE CV",
+      "nfirma1": "Sistema Automático",
+      "estatus": "Completada",
+      "folios_utilizados": "Total: 224 | Rango: 000001 - 000095",
+      "_id": "1067423b-a0c0-448c-91c5-c07809d5150c"
+    }
+  ]
+}
