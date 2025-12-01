@@ -36,8 +36,8 @@ class SistemaDictamenesVC(ctk.CTk):
 
         # Configuración general
         self.title("Generador de Dictámenes")
-        self.geometry("1200x600")
-        self.minsize(1200, 600)
+        self.geometry("1275x600")
+        self.minsize(1275, 600)
         ctk.set_appearance_mode("light")
         self.configure(fg_color=STYLE["fondo"])
 
@@ -57,6 +57,9 @@ class SistemaDictamenesVC(ctk.CTk):
         self.historial_data = []
         self.historial_data_original = []
         self.historial_path = os.path.join(os.path.dirname(__file__), "data", "historial_visitas.json")
+        
+        # INICIALIZAR self.historial COMO DICCIONARIO
+        self.historial = {"visitas": []}  # <- AÑADIR ESTA LÍNEA
 
         # ===== NUEVA ESTRUCTURA DE NAVEGACIÓN =====
         self.crear_navegacion()
@@ -98,7 +101,7 @@ class SistemaDictamenesVC(ctk.CTk):
         self.geometry(f"{ancho_ventana}x{alto_ventana}+{x}+{y}")
 
     def crear_navegacion(self):
-        """Crea la barra de navegación con botones"""
+        """Crea la barra de navegación con botones mejorados"""
         nav_frame = ctk.CTkFrame(self, fg_color=STYLE["surface"], height=60)
         nav_frame.pack(fill="x", padx=20, pady=(15, 0))
         nav_frame.pack_propagate(False)
@@ -107,7 +110,7 @@ class SistemaDictamenesVC(ctk.CTk):
         botones_frame = ctk.CTkFrame(nav_frame, fg_color="transparent")
         botones_frame.pack(expand=True, fill="both", padx=20, pady=12)
         
-        # Botón Principal
+        # Botón Principal con estilo mejorado
         self.btn_principal = ctk.CTkButton(
             botones_frame,
             text="🏠 Principal",
@@ -116,24 +119,28 @@ class SistemaDictamenesVC(ctk.CTk):
             fg_color=STYLE["primario"],
             hover_color="#D4BF22",
             text_color=STYLE["secundario"],
-            height=35,
-            width=120,
-            corner_radius=8
+            height=38,
+            width=130,
+            corner_radius=10,
+            border_width=2,
+            border_color=STYLE["secundario"]
         )
         self.btn_principal.pack(side="left", padx=(0, 10))
         
-        # Botón Historial
+        # Botón Historial con estilo mejorado
         self.btn_historial = ctk.CTkButton(
             botones_frame,
             text="📊 Historial",
             command=self.mostrar_historial,
             font=("Inter", 14, "bold"),
-            fg_color=STYLE["secundario"],
-            hover_color="#1a1a1a",
-            text_color=STYLE["surface"],
-            height=35,
-            width=120,
-            corner_radius=8
+            fg_color=STYLE["surface"],
+            hover_color=STYLE["primario"],
+            text_color=STYLE["secundario"],
+            height=38,
+            width=130,
+            corner_radius=10,
+            border_width=2,
+            border_color=STYLE["secundario"]
         )
         self.btn_historial.pack(side="left", padx=(0, 10))
         
@@ -177,14 +184,16 @@ class SistemaDictamenesVC(ctk.CTk):
         # Mostrar el frame principal
         self.frame_principal.pack(fill="both", expand=True)
         
-        # Actualizar estado de los botones
+        # Actualizar estado de los botones con mejor contraste
         self.btn_principal.configure(
             fg_color=STYLE["primario"],
-            text_color=STYLE["secundario"]
+            text_color=STYLE["secundario"],
+            border_color=STYLE["primario"]
         )
         self.btn_historial.configure(
-            fg_color=STYLE["secundario"],
-            text_color=STYLE["surface"]
+            fg_color=STYLE["surface"],
+            text_color=STYLE["secundario"],
+            border_color=STYLE["secundario"]
         )
 
     def mostrar_historial(self):
@@ -196,14 +205,16 @@ class SistemaDictamenesVC(ctk.CTk):
         # Mostrar el frame de historial
         self.frame_historial.pack(fill="both", expand=True)
         
-        # Actualizar estado de los botones
+        # Actualizar estado de los botones con mejor contraste
         self.btn_principal.configure(
-            fg_color=STYLE["secundario"],
-            text_color=STYLE["surface"]
+            fg_color=STYLE["surface"],
+            text_color=STYLE["secundario"],
+            border_color=STYLE["secundario"]
         )
         self.btn_historial.configure(
             fg_color=STYLE["primario"],
-            text_color=STYLE["secundario"]
+            text_color=STYLE["secundario"],
+            border_color=STYLE["primario"]
         )
         
         # Refrescar el historial si es necesario
@@ -634,18 +645,18 @@ class SistemaDictamenesVC(ctk.CTk):
         cont = ctk.CTkFrame(parent, fg_color=STYLE["surface"], corner_radius=8)
         cont.pack(fill="both", expand=True, padx=0, pady=0)
 
-        # ===== BARRA SUPERIOR CON BUSCADORES =====
-        barra_superior_historial = ctk.CTkFrame(cont, fg_color="transparent", height=80)
-        barra_superior_historial.pack(fill="x", pady=(0, 10))
+        # ===== BARRA SUPERIOR CON BUSCADORES EN LÍNEA =====
+        barra_superior_historial = ctk.CTkFrame(cont, fg_color="transparent", height=60)
+        barra_superior_historial.pack(fill="x", pady=(10, 10))
         barra_superior_historial.pack_propagate(False)
 
-        # Frame para los buscadores
+        # Frame para los buscadores en horizontal
         buscadores_frame = ctk.CTkFrame(barra_superior_historial, fg_color="transparent")
-        buscadores_frame.pack(side="left", fill="x", expand=True, padx=10, pady=10)
+        buscadores_frame.pack(side="left", fill="x", expand=True, padx=15, pady=10)
 
-        # Fila 1: Buscador por folio
+        # Buscador por folio (primero)
         busqueda_folio_frame = ctk.CTkFrame(buscadores_frame, fg_color="transparent")
-        busqueda_folio_frame.pack(fill="x", pady=(0, 8))
+        busqueda_folio_frame.pack(side="left", padx=(0, 20))
 
         ctk.CTkLabel(
             busqueda_folio_frame,
@@ -657,7 +668,7 @@ class SistemaDictamenesVC(ctk.CTk):
         self.entry_buscar_folio = ctk.CTkEntry(
             busqueda_folio_frame,
             placeholder_text="Ej: 0001",
-            width=180,
+            width=120,
             height=32,
             corner_radius=8
         )
@@ -665,21 +676,21 @@ class SistemaDictamenesVC(ctk.CTk):
 
         btn_buscar_folio = ctk.CTkButton(
             busqueda_folio_frame,
-            text="Buscar Folio",
+            text="Buscar",
             command=self.hist_buscar_por_folio,
             font=("Inter", 11, "bold"),
             fg_color=STYLE["secundario"],
             hover_color="#1a1a1a",
             text_color=STYLE["surface"],
             height=32,
-            width=100,
+            width=80,
             corner_radius=8
         )
-        btn_buscar_folio.pack(side="left", padx=(0, 8))
+        btn_buscar_folio.pack(side="left")
 
-        # Fila 2: Buscador general
+        # Buscador general (segundo, al lado del primero)
         busqueda_general_frame = ctk.CTkFrame(buscadores_frame, fg_color="transparent")
-        busqueda_general_frame.pack(fill="x", pady=(0, 0))
+        busqueda_general_frame.pack(side="left", padx=(0, 10))
 
         ctk.CTkLabel(
             busqueda_general_frame,
@@ -691,7 +702,7 @@ class SistemaDictamenesVC(ctk.CTk):
         self.entry_buscar_general = ctk.CTkEntry(
             busqueda_general_frame,
             placeholder_text="Buscar por cliente, folio, fecha...",
-            width=250,
+            width=220,
             height=32,
             corner_radius=8
         )
@@ -707,22 +718,22 @@ class SistemaDictamenesVC(ctk.CTk):
             hover_color="#b85a52",
             text_color=STYLE["surface"],
             height=32,
-            width=80,
+            width=70,
             corner_radius=8
         )
-        btn_limpiar_busqueda.pack(side="left", padx=(0, 8))
+        btn_limpiar_busqueda.pack(side="left")
 
-        # ===== TABLA MEJORADA =====
+        # ===== TABLA MEJORADA CON NUEVAS COLUMNAS =====
         tabla_container = ctk.CTkFrame(cont, fg_color=STYLE["fondo"], corner_radius=8)
         tabla_container.pack(fill="both", expand=True, pady=(0, 10))
 
-        # Encabezados de la tabla
+        # Encabezados de la tabla (agregada columna Supervisor)
         header_frame = ctk.CTkFrame(tabla_container, fg_color=STYLE["secundario"], height=35)
         header_frame.pack(fill="x", padx=0, pady=(0, 1))
         header_frame.pack_propagate(False)
 
-        # Configuración de anchos fijos para cada columna
-        column_widths = [90, 90, 100, 100, 80, 80, 200, 100, 120, 100]
+        # Configuración de anchos fijos para cada columna (incluyendo Supervisor)
+        column_widths = [90, 90, 100, 100, 90, 90, 180, 120, 100, 120, 110]
 
         headers = [
             "Folio Visita",
@@ -732,6 +743,7 @@ class SistemaDictamenesVC(ctk.CTk):
             "Hora Inicio",
             "Hora Termino",
             "Cliente",
+            "Supervisor",
             "Estatus",
             "Folios Usados",
             "Acciones"
@@ -791,7 +803,36 @@ class SistemaDictamenesVC(ctk.CTk):
         self.historial_path = os.path.join(os.path.dirname(__file__), "data", "historial_visitas.json")
         self._cargar_historial()
         self._poblar_historial_ui()
+
+    def _formatear_hora_12h(self, hora_str):
+        """Convierte hora de formato 24h a formato 12h con AM/PM"""
+        if not hora_str or hora_str.strip() == "":
+            return ""
         
+        try:
+            # Eliminar espacios y puntos (por si viene como "17.25")
+            hora_str = hora_str.replace(".", ":").strip()
+            
+            # Parsear la hora
+            if ":" in hora_str:
+                hora, minutos = hora_str.split(":", 1)
+                hora = int(hora)
+                minutos = minutos[:2]  # Tomar solo los primeros 2 dígitos de los minutos
+                
+                # Determinar AM/PM
+                if hora == 0:
+                    return f"12:{minutos} AM"
+                elif hora < 12:
+                    return f"{hora}:{minutos} AM"
+                elif hora == 12:
+                    return f"12:{minutos} PM"
+                else:
+                    return f"{hora-12}:{minutos} PM"
+            else:
+                return hora_str
+        except:
+            return hora_str
+    
     def crear_footer(self):
         footer = ctk.CTkFrame(self, fg_color=STYLE["fondo"], corner_radius=0, height=40)
         footer.pack(fill="x", side="bottom")
@@ -1459,8 +1500,10 @@ class SistemaDictamenesVC(ctk.CTk):
                     data = json.load(f)
                     # Extraer solo las visitas
                     self.historial_data = data.get("visitas", [])
+                    self.historial = data  # <- CARGAR EL DICCIONARIO COMPLETO
             else:
                 self.historial_data = []
+                self.historial = {"visitas": []}
                 
             # Inicializar también historial_data_original
             self.historial_data_original = self.historial_data.copy()
@@ -1471,6 +1514,7 @@ class SistemaDictamenesVC(ctk.CTk):
             print(f"❌ Error cargando historial: {e}")
             self.historial_data = []
             self.historial_data_original = []
+            self.historial = {"visitas": []}
 
     def hist_borrar_visita(self, id_):
         """Elimina una visita y recalcula el folio actual si es necesario"""
@@ -1501,13 +1545,19 @@ class SistemaDictamenesVC(ctk.CTk):
     def _guardar_historial(self):
         """Guarda el historial en un único archivo"""
         try:
+            # ACTUALIZAR self.historial_data DESDE self.historial
+            self.historial_data = self.historial.get("visitas", [])
+            
             with open(self.historial_path, "w", encoding="utf-8") as f:
                 json.dump(self.historial, f, ensure_ascii=False, indent=2)
-            self.hist_info_label.configure(text=f"Guardado OK — {len(self.historial.get('visitas',[]))} visitas")
+                
+            self.hist_info_label.configure(text=f"Guardado OK — {len(self.historial_data)} visitas")
+            print(f"✅ Historial guardado: {len(self.historial_data)} registros")
+            
         except Exception as e:
             print(f"❌ Error guardando historial: {e}")
             self.hist_info_label.configure(text=f"Error guardando: {e}")
-
+    
     def hist_hacer_backup(self):
         """Crea un respaldo manual del historial"""
         try:
@@ -1553,41 +1603,56 @@ class SistemaDictamenesVC(ctk.CTk):
         for i, registro in enumerate(self.historial_data):
             # Alternar colores de fondo para mejor contraste
             if i % 2 == 0:
-                row_color = STYLE["surface"]  # Color base
+                row_color = STYLE["surface"]
             else:
-                row_color = "#f8f9fa"  # Color ligeramente más claro para contraste
+                row_color = "#f8f9fa"
 
             row_frame = ctk.CTkFrame(self.hist_scroll, fg_color=row_color, height=32)
             row_frame.pack(fill="x", pady=1)
             row_frame.pack_propagate(False)
 
-            # Función para obtener datos con valores por defecto
-            def get_value(key, default="-"):
-                return str(registro.get(key, default)) if registro.get(key) not in [None, ""] else default
-
-            # Datos de la fila
+            # Obtener datos del registro con valores por defecto
+            hora_inicio = registro.get('hora_inicio', '')
+            hora_termino = registro.get('hora_termino', '')
+            
             datos = [
-                get_value("folio_visita"),
-                get_value("folio_acta"),
-                get_value("fecha_inicio"),
-                get_value("fecha_termino"),
-                get_value("hora_inicio"),
-                get_value("hora_termino"),
-                get_value("cliente"),
-                get_value("estatus", "Completado"),
-                get_value("folios_utilizados", "0"),  # Cambiado de 'folios_usados' a 'folios_utilizados'
+                registro.get('folio_visita', '-'),
+                registro.get('folio_acta', '-'),
+                registro.get('fecha_inicio', '-'),
+                registro.get('fecha_termino', '-'),
+                self._formatear_hora_12h(hora_inicio) if hora_inicio else '-',
+                self._formatear_hora_12h(hora_termino) if hora_termino else '-',
+                registro.get('cliente', '-'),
+                registro.get('nfirma1', 'No especificado'),  # Supervisor
+                registro.get('estatus', 'Completado'),
+                registro.get('folios_utilizados', '0'),
                 ""  # Espacio para acciones
             ]
 
             # Configuración de anchos (misma que headers)
-            column_widths = [90, 90, 100, 100, 80, 80, 200, 100, 120, 100]
+            column_widths = [90, 90, 100, 100, 90, 90, 180, 120, 100, 120, 110]
 
             # Crear celdas
             for j, dato in enumerate(datos):
-                if j == 9:  # Columna de acciones
+                if j == 10:  # Columna de acciones
                     acciones_frame = ctk.CTkFrame(row_frame, fg_color="transparent", width=column_widths[j])
                     acciones_frame.pack(side="left", padx=1)
                     acciones_frame.pack_propagate(False)
+
+                    # Botón de modificar (en lugar del ojo)
+                    btn_modificar = ctk.CTkButton(
+                        acciones_frame,
+                        text="✏️",
+                        command=lambda r=registro: self.hist_editar_registro(r),
+                        font=("Inter", 12),
+                        fg_color=STYLE["primario"],
+                        hover_color="#D4BF22",
+                        text_color=STYLE["secundario"],
+                        width=30,
+                        height=24,
+                        corner_radius=6
+                    )
+                    btn_modificar.pack(side="left", padx=2)
 
                     # Botón de eliminar
                     btn_eliminar = ctk.CTkButton(
@@ -1604,37 +1669,26 @@ class SistemaDictamenesVC(ctk.CTk):
                     )
                     btn_eliminar.pack(side="left", padx=2)
 
-                    # Botón de ver detalles
-                    btn_detalles = ctk.CTkButton(
-                        acciones_frame,
-                        text="👁️",
-                        command=lambda r=registro: self.hist_ver_detalles(r),
-                        font=("Inter", 12),
-                        fg_color=STYLE["primario"],
-                        hover_color="#D4BF22",
-                        text_color=STYLE["secundario"],
-                        width=30,
-                        height=24,
-                        corner_radius=6
-                    )
-                    btn_detalles.pack(side="left", padx=2)
-
                 else:
                     # Para datos normales
                     lbl = ctk.CTkLabel(
                         row_frame,
-                        text=dato,
+                        text=str(dato),
                         font=("Inter", 11),
                         text_color=STYLE["texto_oscuro"],
                         width=column_widths[j],
                         anchor="center",
-                        wraplength=column_widths[j]-10  # Permitir wrap sin deformar
+                        wraplength=column_widths[j]-10
                     )
                     lbl.pack(side="left", padx=1)
 
         # Actualizar información del pie de página
         total_registros = len(self.historial_data) if hasattr(self, 'historial_data') else 0
         self.hist_info_label.configure(text=f"Total de registros: {total_registros} - Sistema de historial de visitas - V&C")
+
+    def hist_editar_registro(self, registro):
+        """Abre el formulario para editar un registro del historial"""
+        self._crear_formulario_visita(registro)
 
     def hist_buscar_general(self, event=None):
         """Buscar en el historial por cualquier campo"""
@@ -1724,29 +1778,6 @@ class SistemaDictamenesVC(ctk.CTk):
         except Exception as e:
             messagebox.showerror("Error", f"No se pudo eliminar el registro:\n{e}")
 
-    def hist_ver_detalles(self, registro):
-        """Ver detalles completos de un registro"""
-        try:
-            detalles = f"""
-    📋 DETALLES COMPLETOS DEL REGISTRO
-
-    📄 Folio Visita: {registro.get('folio_visita', 'N/A')}
-    📄 Folio Acta: {registro.get('folio_acta', 'N/A')}
-    📅 Fecha Inicio: {registro.get('fecha_inicio', 'N/A')}
-    ⏰ Hora Inicio: {registro.get('hora_inicio', 'N/A')}
-    📅 Fecha Término: {registro.get('fecha_termino', 'N/A')}
-    ⏰ Hora Término: {registro.get('hora_termino', 'N/A')}
-    👤 Cliente: {registro.get('cliente', 'N/A')}
-    📊 Estatus: {registro.get('estatus', 'N/A')}
-    📋 Folios Utilizados: {registro.get('folios_utilizados', 'N/A')}
-    👨‍💼 Supervisor: {registro.get('nfirma1', 'N/A')}
-            """
-            
-            messagebox.showinfo("Detalles del Registro", detalles)
-            
-        except Exception as e:
-            messagebox.showerror("Error", f"No se pudieron cargar los detalles:\n{e}")
-
     def hist_create_visita(self, payload, es_automatica=False):
         """Crea una nueva visita en el historial"""
         try:
@@ -1763,7 +1794,13 @@ class SistemaDictamenesVC(ctk.CTk):
             payload.setdefault("hora_termino", "")
             
             # Agregar a la lista
-            self.historial.setdefault("visitas", []).append(payload)
+            if "visitas" not in self.historial:
+                self.historial["visitas"] = []
+            self.historial["visitas"].append(payload)
+            
+            # Actualizar datos
+            self.historial_data = self.historial["visitas"]
+            
             self._guardar_historial()
             self._poblar_historial_ui()
             
@@ -1796,25 +1833,29 @@ class SistemaDictamenesVC(ctk.CTk):
         except Exception as e:
             print(f"Error en búsqueda por folio: {e}")
 
-    def hist_editar_visita(self, id_):
-        visita = next((v for v in self.historial.get("visitas",[]) if v["_id"]==id_), None)
-        if not visita:
-            messagebox.showerror("No encontrado", "Registro no encontrado")
-            return
-        self._crear_formulario_visita(visita)
-
     def hist_update_visita(self, id_, nuevos):
+        """Actualiza una visita existente"""
         try:
-            for i, v in enumerate(self.historial.get("visitas",[])):
+            # Buscar la visita a actualizar
+            for i, v in enumerate(self.historial.get("visitas", [])):
                 if v["_id"] == id_:
+                    # Mantener el ID y folio original
                     nuevos["_id"] = id_
                     nuevos["folio_visita"] = v.get("folio_visita", nuevos.get("folio_visita"))
+                    
+                    # Actualizar en el historial
                     self.historial["visitas"][i] = nuevos
+                    
+                    # Actualizar datos
+                    self.historial_data = self.historial["visitas"]
+                    
                     self._guardar_historial()
                     self._poblar_historial_ui()
                     messagebox.showinfo("OK", f"Visita {nuevos['folio_visita']} actualizada")
                     return
+                    
             messagebox.showerror("Error", "No se encontró la visita para actualizar")
+            
         except Exception as e:
             messagebox.showerror("Error actualizando", str(e))
 
@@ -1833,11 +1874,15 @@ class SistemaDictamenesVC(ctk.CTk):
             hora_termino = self.entry_hora_termino.get().strip()
             supervisor = self.entry_supervisor.get().strip()
 
+            # Formatear horas a 12h para almacenamiento
+            hora_inicio_formateada = self._formatear_hora_12h(hora_inicio) if hora_inicio else ""
+            hora_termino_formateada = self._formatear_hora_12h(hora_termino) if hora_termino else ""
+
             # Si no hay fecha/hora de término, usar la actual
             if not fecha_termino:
                 fecha_termino = datetime.now().strftime("%d/%m/%Y")
-            if not hora_termino:
-                hora_termino = datetime.now().strftime("%H:%M")
+            if not hora_termino_formateada:
+                hora_termino_formateada = self._formatear_hora_12h(datetime.now().strftime("%H:%M"))
 
             # OBTENER INFORMACIÓN DE FOLIOS UTILIZADOS
             folios_utilizados = self._obtener_folios_de_tabla()
@@ -1848,14 +1893,14 @@ class SistemaDictamenesVC(ctk.CTk):
                 "folio_acta": folio_acta or f"AC{self.current_folio}",
                 "fecha_inicio": fecha_inicio or datetime.now().strftime("%d/%m/%Y"),
                 "fecha_termino": fecha_termino,
-                "hora_inicio": hora_inicio or datetime.now().strftime("%H:%M"),
-                "hora_termino": hora_termino,
+                "hora_inicio": hora_inicio_formateada or self._formatear_hora_12h(datetime.now().strftime("%H:%M")),
+                "hora_termino": hora_termino_formateada,
                 "norma": "",
                 "cliente": self.cliente_seleccionado['CLIENTE'],
-                "nfirma1": supervisor or "Sistema Automático",
+                "nfirma1": supervisor or " ",  # Supervisor
                 "nfirma2": "",
                 "estatus": "Completada",
-                "folios_utilizados": folios_utilizados  # INFORMACIÓN DE FOLIOS
+                "folios_utilizados": folios_utilizados
             }
 
             # Guardar visita automática
@@ -2070,7 +2115,6 @@ class SistemaDictamenesVC(ctk.CTk):
             
         except Exception as e:
             messagebox.showerror("Error", f"No se pudo verificar integridad:\n{e}")
-
 
 # ================== EJECUCIÓN ================== #
 if __name__ == "__main__":
