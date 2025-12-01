@@ -815,6 +815,10 @@ class SistemaDictamenesVC(ctk.CTk):
         self._cargar_historial()
         self._poblar_historial_ui()
 
+
+
+
+
     def _formatear_hora_12h(self, hora_str):
         """Convierte hora de formato 24h a formato 12h con AM/PM de forma consistente"""
         if not hora_str or hora_str.strip() == "":
@@ -1698,6 +1702,8 @@ class SistemaDictamenesVC(ctk.CTk):
         for child in self.hist_scroll.winfo_children():
             child.destroy()
 
+
+    # -- BOTONES DE ACCION PARA CADA VISITA -- #
     def _poblar_historial_ui(self):
         """Poblar la interfaz de historial con datos mejorados"""
         # Limpiar el scroll
@@ -1717,6 +1723,31 @@ class SistemaDictamenesVC(ctk.CTk):
                 text_color=STYLE["texto_claro"]
             ).pack(expand=True, fill="both")
             return
+
+        # Configuración estandarizada para todos los botones
+        BUTTON_CONFIG = {
+            "width": 30,
+            "height": 30,
+            "corner_radius": 6,
+            "font": ("Segoe UI Symbol", 12),  # Reducimos tamaño de fuente
+            "text_color": STYLE["surface"]
+        }
+
+        # Colores específicos para cada tipo de botón
+        BUTTON_COLORS = {
+            "descargar": {"fg_color": STYLE["exito"], "hover_color": "#1f8c4d"},
+            "documentos": {"fg_color": STYLE["secundario"], "hover_color": "#4b4b4b"},
+            "modificar": {"fg_color": STYLE["primario"], "hover_color": "#D4BF22"},
+            "eliminar": {"fg_color": STYLE["advertencia"], "hover_color": "#b85a52"}
+        }
+
+        # Textos alternativos para los botones (más compactos)
+        BUTTON_TEXTS = {
+            "descargar": "⏬",  # Alternativa a 📥
+            "documentos": "📋",  # Alternativa a 📄
+            "modificar": "✎",   # Alternativa a ✏️ (lápiz más simple)
+            "eliminar": "🗑"    # Alternativa a ❌
+        }
 
         # Crear filas con mejor contraste
         for i, registro in enumerate(self.historial_data):
@@ -1772,65 +1803,55 @@ class SistemaDictamenesVC(ctk.CTk):
                     botones_frame = ctk.CTkFrame(botones_container, fg_color="transparent")
                     botones_frame.pack(expand=True, fill="both")
 
-                    # Botón de descargar folios
-                    btn_descargar = ctk.CTkButton(
-                        botones_frame,
-                        text="📥",
-                        command=lambda r=registro: self.descargar_folios_visita(r),
-                        font=("Inter", 12),
-                        fg_color=STYLE["exito"],
-                        hover_color="#1f8c4d",
-                        text_color=STYLE["surface"],
-                        width=20,
-                        height=26,
-                        corner_radius=5
-                    )
-                    btn_descargar.pack(side="left", padx=2)
+                    # Crear una función auxiliar para crear botones consistentes
+                    def crear_boton_contenedor(parent, texto, comando, tipo):
+                        """Crea un botón dentro de un contenedor con tamaño fijo"""
+                        # Contenedor con tamaño fijo
+                        container = ctk.CTkFrame(parent, fg_color="transparent", width=32, height=32)
+                        container.pack(side="left", padx=1)
+                        container.pack_propagate(False)
+                        
+                        # Crear el botón
+                        btn = ctk.CTkButton(
+                            container,
+                            text=texto,
+                            command=comando,
+                            **BUTTON_CONFIG,
+                            **BUTTON_COLORS[tipo]
+                        )
+                        
+                        # Usar grid para centrar el botón
+                        btn.place(relx=0.5, rely=0.5, anchor="center", relwidth=0.9, relheight=0.9)
+                        return btn
 
-                    # Botón para descargar documentación
-                    btn_documentos = ctk.CTkButton(
+                    # Crear todos los botones usando la función auxiliar
+                    crear_boton_contenedor(
                         botones_frame,
-                        text="📄",
-                        command=lambda r=registro: self.mostrar_opciones_documentos(r),
-                        font=("Inter", 12),
-                        fg_color=STYLE["secundario"],
-                        hover_color="#4b4b4b",
-                        text_color=STYLE["surface"],
-                        width=20,
-                        height=26,
-                        corner_radius=5
+                        BUTTON_TEXTS["descargar"],
+                        lambda r=registro: self.descargar_folios_visita(r),
+                        "descargar"
                     )
-                    btn_documentos.pack(side="left", padx=2)
 
-                    # Botón de modificar
-                    btn_modificar = ctk.CTkButton(
+                    crear_boton_contenedor(
                         botones_frame,
-                        text="✏️",
-                        command=lambda r=registro: self.hist_editar_registro(r),
-                        font=("Inter", 12),
-                        fg_color=STYLE["primario"],
-                        hover_color="#D4BF22",
-                        text_color=STYLE["secundario"],
-                        width=20,
-                        height=26,
-                        corner_radius=5
+                        BUTTON_TEXTS["documentos"],
+                        lambda r=registro: self.mostrar_opciones_documentos(r),
+                        "documentos"
                     )
-                    btn_modificar.pack(side="left", padx=2)
 
-                    # Botón de eliminar
-                    btn_eliminar = ctk.CTkButton(
+                    crear_boton_contenedor(
                         botones_frame,
-                        text="❌",
-                        command=lambda r=registro: self.hist_eliminar_registro(r),
-                        font=("Inter", 12),
-                        fg_color=STYLE["advertencia"],
-                        hover_color="#b85a52",
-                        text_color=STYLE["surface"],
-                        width=20,
-                        height=26,
-                        corner_radius=5
+                        BUTTON_TEXTS["modificar"],
+                        lambda r=registro: self.hist_editar_registro(r),
+                        "modificar"
                     )
-                    btn_eliminar.pack(side="left", padx=2)
+
+                    crear_boton_contenedor(
+                        botones_frame,
+                        BUTTON_TEXTS["eliminar"],
+                        lambda r=registro: self.hist_eliminar_registro(r),
+                        "eliminar"
+                    )
 
                 else:
                     # Para datos normales
@@ -1848,6 +1869,10 @@ class SistemaDictamenesVC(ctk.CTk):
         # Actualizar información del pie de página
         total_registros = len(self.historial_data) if hasattr(self, 'historial_data') else 0
         self.hist_info_label.configure(text=f"Total de registros: {total_registros} - Sistema de historial de visitas - V&C")
+
+
+
+
 
     def mostrar_opciones_documentos(self, registro):
         """Muestra una ventana con opciones para descargar documentos"""
