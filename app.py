@@ -59,7 +59,15 @@ class SistemaDictamenesVC(ctk.CTk):
         self.historial_path = os.path.join(os.path.dirname(__file__), "data", "historial_visitas.json")
         
         # INICIALIZAR self.historial COMO DICCIONARIO
-        self.historial = {"visitas": []}  # <- AÑADIR ESTA LÍNEA
+        self.historial = {"visitas": []}
+
+        # ===== NUEVA VARIABLE PARA FOLIOS POR VISITA =====
+        # Crear directorios necesarios
+        data_dir = os.path.join(os.path.dirname(__file__), "data")
+        os.makedirs(data_dir, exist_ok=True)
+        
+        self.folios_visita_path = os.path.join(data_dir, "folios_visitas")
+        os.makedirs(self.folios_visita_path, exist_ok=True)
 
         # ===== NUEVA ESTRUCTURA DE NAVEGACIÓN =====
         self.crear_navegacion()
@@ -197,29 +205,32 @@ class SistemaDictamenesVC(ctk.CTk):
         )
 
     def mostrar_historial(self):
-        """Muestra la sección de historial y oculta las demás"""
-        # Ocultar todos los frames primero
-        self.frame_principal.pack_forget()
-        self.frame_historial.pack_forget()
-        
-        # Mostrar el frame de historial
-        self.frame_historial.pack(fill="both", expand=True)
-        
-        # Actualizar estado de los botones con mejor contraste
-        self.btn_principal.configure(
-            fg_color=STYLE["surface"],
-            text_color=STYLE["secundario"],
-            border_color=STYLE["secundario"]
-        )
-        self.btn_historial.configure(
-            fg_color=STYLE["primario"],
-            text_color=STYLE["secundario"],
-            border_color=STYLE["primario"]
-        )
-        
-        # Refrescar el historial si es necesario
-        self._cargar_historial()
-        self._poblar_historial_ui()
+            """Muestra la sección de historial y oculta las demás"""
+            # Ocultar todos los frames primero
+            self.frame_principal.pack_forget()
+            self.frame_historial.pack_forget()
+            
+            # Mostrar el frame de historial
+            self.frame_historial.pack(fill="both", expand=True)
+            
+            # Actualizar estado de los botones con mejor contraste
+            self.btn_principal.configure(
+                fg_color=STYLE["surface"],
+                text_color=STYLE["secundario"],
+                border_color=STYLE["secundario"]
+            )
+            self.btn_historial.configure(
+                fg_color=STYLE["primario"],
+                text_color=STYLE["secundario"],
+                border_color=STYLE["primario"]
+            )
+            
+            # Verificar y reparar datos existentes al mostrar historial
+            self.verificar_datos_folios_existentes()
+            
+            # Refrescar el historial si es necesario
+            self._cargar_historial()
+            self._poblar_historial_ui()
 
     def _construir_tab_principal(self, parent):
         """Construye la interfaz principal con dos tarjetas en proporción 30%/70%"""
@@ -647,12 +658,12 @@ class SistemaDictamenesVC(ctk.CTk):
 
         # ===== BARRA SUPERIOR CON BUSCADORES EN LÍNEA =====
         barra_superior_historial = ctk.CTkFrame(cont, fg_color="transparent", height=60)
-        barra_superior_historial.pack(fill="x", pady=(10, 10))
+        barra_superior_historial.pack(fill="x", pady=(0, 0))
         barra_superior_historial.pack_propagate(False)
 
         # Frame para los buscadores en horizontal
         buscadores_frame = ctk.CTkFrame(barra_superior_historial, fg_color="transparent")
-        buscadores_frame.pack(side="left", fill="x", expand=True, padx=15, pady=10)
+        buscadores_frame.pack(side="left", fill="x", expand=True, padx=0, pady=0)
 
         # Buscador por folio (primero)
         busqueda_folio_frame = ctk.CTkFrame(buscadores_frame, fg_color="transparent")
@@ -805,19 +816,37 @@ class SistemaDictamenesVC(ctk.CTk):
         self._poblar_historial_ui()
 
     def _formatear_hora_12h(self, hora_str):
-        """Convierte hora de formato 24h a formato 12h con AM/PM"""
+        """Convierte hora de formato 24h a formato 12h con AM/PM de forma consistente"""
         if not hora_str or hora_str.strip() == "":
             return ""
         
         try:
-            # Eliminar espacios y puntos (por si viene como "17.25")
-            hora_str = hora_str.replace(".", ":").strip()
+            # Limpiar y estandarizar la cadena
+            hora_str = str(hora_str).strip()
+            
+            # Si ya contiene AM/PM, devolver tal cual (pero limpiando espacios)
+            hora_str_upper = hora_str.upper()
+            if "AM" in hora_str_upper or "PM" in hora_str_upper:
+                # Ya está en formato 12h, solo limpiar
+                # Asegurar que AM/PM estén separados correctamente
+                if "AM" in hora_str_upper:
+                    hora_str = hora_str_upper.replace("AM", " AM")
+                elif "PM" in hora_str_upper:
+                    hora_str = hora_str_upper.replace("PM", " PM")
+                return hora_str.strip()
+            
+            # Reemplazar punto por dos puntos (por si viene como "17.25")
+            hora_str = hora_str.replace(".", ":")
             
             # Parsear la hora
             if ":" in hora_str:
-                hora, minutos = hora_str.split(":", 1)
-                hora = int(hora)
-                minutos = minutos[:2]  # Tomar solo los primeros 2 dígitos de los minutos
+                partes = hora_str.split(":")
+                hora = int(partes[0].strip())
+                minutos = partes[1].strip()[:2]  # Tomar solo los primeros 2 dígitos
+                
+                # Formatear minutos a 2 dígitos
+                if len(minutos) == 1:
+                    minutos = f"0{minutos}"
                 
                 # Determinar AM/PM
                 if hora == 0:
@@ -829,10 +858,12 @@ class SistemaDictamenesVC(ctk.CTk):
                 else:
                     return f"{hora-12}:{minutos} PM"
             else:
+                # Si no tiene formato de hora, devolver tal cual
                 return hora_str
-        except:
+        except Exception as e:
+            print(f"⚠️ Error formateando hora {hora_str}: {e}")
             return hora_str
-    
+
     def crear_footer(self):
         footer = ctk.CTkFrame(self, fg_color=STYLE["fondo"], corner_radius=0, height=40)
         footer.pack(fill="x", side="bottom")
@@ -1145,6 +1176,14 @@ class SistemaDictamenesVC(ctk.CTk):
                 if pd.api.types.is_datetime64_any_dtype(df[col]):
                     df[col] = df[col].astype(str)
 
+            # Limpiar nombres de columnas (eliminar espacios extra)
+            df.columns = df.columns.str.strip()
+
+            # Buscar y renombrar la columna de solicitud para consistencia
+            col_solicitud = self._obtener_columna_solicitud(df)
+            if col_solicitud and col_solicitud != 'SOLICITUD':
+                df.rename(columns={col_solicitud: 'SOLICITUD'}, inplace=True)
+
             records = df.to_dict(orient="records")
 
             data_folder = os.path.join(os.path.dirname(__file__), "data")
@@ -1159,11 +1198,30 @@ class SistemaDictamenesVC(ctk.CTk):
             # EXTRAER Y GUARDAR INFORMACIÓN DE FOLIOS
             self._extraer_informacion_folios(records)
 
+            # GUARDAR FOLIOS PARA VISITA ACTUAL CON PERSISTENCIA
+            if hasattr(self, 'current_folio') and self.current_folio:
+                # Crear también un backup de la tabla de relación
+                backup_dir = os.path.join(data_folder, "tabla_relacion_backups")
+                os.makedirs(backup_dir, exist_ok=True)
+                
+                backup_path = os.path.join(
+                    backup_dir, 
+                    f"tabla_relacion_backup_{self.current_folio}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
+                )
+                
+                with open(backup_path, "w", encoding="utf-8") as backup_file:
+                    json.dump(records, backup_file, ensure_ascii=False, indent=2)
+                
+                print(f"📁 Backup de tabla de relación creado: {backup_path}")
+                
+                # Guardar folios de la visita
+                self.guardar_folios_visita(self.current_folio, records)
+
             self.after(0, self._actualizar_ui_conversion_exitosa, output_path, len(records))
 
         except Exception as e:
             self.after(0, self.mostrar_error, f"Error al convertir el archivo:\n{e}")
-
+    
     def _extraer_informacion_folios(self, datos_tabla):
         """Extrae y procesa la información de folios de la tabla de relación"""
         try:
@@ -1178,12 +1236,14 @@ class SistemaDictamenesVC(ctk.CTk):
                     # Convertir a string y limpiar
                     folio_str = str(folio_valor).strip()
                     
-                    # Si es numérico, guardar como número
-                    if folio_str.isdigit():
-                        folio_num = int(folio_str)
+                    # Intentar convertir a número y formatear a 6 dígitos
+                    try:
+                        # Manejar casos donde folio_str puede ser decimal
+                        folio_num = int(float(folio_str))
                         folios_numericos.append(folio_num)
-                        folios_encontrados.append(folio_str)
-                    else:
+                        folios_encontrados.append(f"{folio_num:06d}")
+                    except (ValueError, TypeError):
+                        # Si no se puede convertir, usar el valor original
                         folios_encontrados.append(folio_str)
             
             # Procesar la información de folios
@@ -1191,7 +1251,8 @@ class SistemaDictamenesVC(ctk.CTk):
                 "total_folios": len(folios_encontrados),
                 "folios_unicos": len(set(folios_encontrados)),
                 "rango_folios": "",
-                "lista_folios": folios_encontrados
+                "lista_folios": folios_encontrados,
+                "folios_formateados": folios_encontrados  # Agregar versión formateada
             }
             
             # Calcular rango si hay folios numéricos
@@ -1200,6 +1261,7 @@ class SistemaDictamenesVC(ctk.CTk):
                 max_folio = max(folios_numericos)
                 info_folios["rango_folios"] = f"{min_folio:06d} - {max_folio:06d}"
                 info_folios["total_numericos"] = len(folios_numericos)
+                info_folios["rango_numerico"] = f"{min_folio} - {max_folio}"
             
             # Guardar información de folios para usar después
             self.info_folios_actual = info_folios
@@ -1207,13 +1269,70 @@ class SistemaDictamenesVC(ctk.CTk):
             print(f"📊 Información de folios extraída:")
             print(f"   - Total folios: {info_folios['total_folios']}")
             print(f"   - Folios únicos: {info_folios['folios_unicos']}")
-            print(f"   - Rango: {info_folios['rango_folios']}")
+            print(f"   - Rango formateado: {info_folios['rango_folios']}")
+            if folios_numericos:
+                print(f"   - Rango numérico: {info_folios['rango_numerico']}")
             
             return info_folios
             
         except Exception as e:
             print(f"⚠️ Error extrayendo información de folios: {e}")
             return None
+
+    def verificar_datos_folios_existentes(self):
+        """Verifica y repara datos de folios existentes para asegurar consistencia"""
+        try:
+            print("🔍 Verificando datos de folios existentes...")
+            
+            if not os.path.exists(self.folios_visita_path):
+                print("ℹ️ No hay carpeta de folios para verificar")
+                return
+            
+            # Listar todos los archivos JSON de folios
+            archivos_folios = [f for f in os.listdir(self.folios_visita_path) if f.endswith('.json')]
+            
+            archivos_reparados = 0
+            for archivo in archivos_folios:
+                archivo_path = os.path.join(self.folios_visita_path, archivo)
+                
+                try:
+                    with open(archivo_path, 'r', encoding='utf-8') as f:
+                        datos = json.load(f)
+                    
+                    datos_modificados = False
+                    
+                    # Verificar y reparar cada registro
+                    for item in datos:
+                        # Reparar formato de FOLIOS a 6 dígitos
+                        if 'FOLIOS' in item:
+                            folio_raw = item['FOLIOS']
+                            if folio_raw:
+                                try:
+                                    # Intentar convertir a número y formatear
+                                    folio_num = int(float(str(folio_raw)))
+                                    folio_formateado = f"{folio_num:06d}"
+                                    
+                                    if folio_formateado != str(folio_raw):
+                                        item['FOLIOS'] = folio_formateado
+                                        datos_modificados = True
+                                        print(f"   🔧 Reparado: {folio_raw} -> {folio_formateado}")
+                                except (ValueError, TypeError):
+                                    pass
+                    
+                    # Guardar si hubo modificaciones
+                    if datos_modificados:
+                        with open(archivo_path, 'w', encoding='utf-8') as f:
+                            json.dump(datos, f, ensure_ascii=False, indent=2)
+                        archivos_reparados += 1
+                        print(f"✅ Archivo reparado: {archivo}")
+                        
+                except Exception as e:
+                    print(f"⚠️ Error procesando archivo {archivo}: {e}")
+            
+            print(f"📊 Verificación completada. Archivos reparados: {archivos_reparados}/{len(archivos_folios)}")
+            
+        except Exception as e:
+            print(f"❌ Error en verificación de datos: {e}")
 
     def _obtener_folios_de_tabla(self):
         """Obtiene la información de folios de la tabla de relación con formato mejorado"""
@@ -1607,30 +1726,36 @@ class SistemaDictamenesVC(ctk.CTk):
             else:
                 row_color = "#f8f9fa"
 
-            row_frame = ctk.CTkFrame(self.hist_scroll, fg_color=row_color, height=32)
+            row_frame = ctk.CTkFrame(self.hist_scroll, fg_color=row_color, height=35)
             row_frame.pack(fill="x", pady=1)
             row_frame.pack_propagate(False)
 
-            # Obtener datos del registro con valores por defecto
-            hora_inicio = registro.get('hora_inicio', '')
-            hora_termino = registro.get('hora_termino', '')
-            
+            # En la sección de datos del registro:
+            hora_inicio = registro.get('hora_inicio', '')  # Ya debería estar formateada
+            hora_termino = registro.get('hora_termino', '')  # Ya debería estar formateada
+
+            # Si no están formateadas, formatearlas
+            if hora_inicio and ("AM" not in hora_inicio.upper() and "PM" not in hora_inicio.upper()):
+                hora_inicio = self._formatear_hora_12h(hora_inicio)
+            if hora_termino and ("AM" not in hora_termino.upper() and "PM" not in hora_termino.upper()):
+                hora_termino = self._formatear_hora_12h(hora_termino)
+                
             datos = [
                 registro.get('folio_visita', '-'),
                 registro.get('folio_acta', '-'),
                 registro.get('fecha_inicio', '-'),
                 registro.get('fecha_termino', '-'),
-                self._formatear_hora_12h(hora_inicio) if hora_inicio else '-',
-                self._formatear_hora_12h(hora_termino) if hora_termino else '-',
+                hora_inicio if hora_inicio else '-',
+                hora_termino if hora_termino else '-',
                 registro.get('cliente', '-'),
-                registro.get('nfirma1', 'No especificado'),  # Supervisor
+                registro.get('nfirma1', 'No especificado'),
                 registro.get('estatus', 'Completado'),
                 registro.get('folios_utilizados', '0'),
                 ""  # Espacio para acciones
             ]
 
             # Configuración de anchos (misma que headers)
-            column_widths = [90, 90, 100, 100, 90, 90, 180, 120, 100, 120, 110]
+            column_widths = [90, 90, 100, 100, 90, 90, 180, 120, 90, 110, 200]
 
             # Crear celdas
             for j, dato in enumerate(datos):
@@ -1639,33 +1764,71 @@ class SistemaDictamenesVC(ctk.CTk):
                     acciones_frame.pack(side="left", padx=1)
                     acciones_frame.pack_propagate(False)
 
-                    # Botón de modificar (en lugar del ojo)
+                    # Contenedor para botones centrados
+                    botones_container = ctk.CTkFrame(acciones_frame, fg_color="transparent")
+                    botones_container.pack(expand=True, fill="both", padx=5)
+                    
+                    # Frame para botones en horizontal
+                    botones_frame = ctk.CTkFrame(botones_container, fg_color="transparent")
+                    botones_frame.pack(expand=True, fill="both")
+
+                    # Botón de descargar folios
+                    btn_descargar = ctk.CTkButton(
+                        botones_frame,
+                        text="📥",
+                        command=lambda r=registro: self.descargar_folios_visita(r),
+                        font=("Inter", 12),
+                        fg_color=STYLE["exito"],
+                        hover_color="#1f8c4d",
+                        text_color=STYLE["surface"],
+                        width=20,
+                        height=26,
+                        corner_radius=5
+                    )
+                    btn_descargar.pack(side="left", padx=2)
+
+                    # Botón para descargar documentación
+                    btn_documentos = ctk.CTkButton(
+                        botones_frame,
+                        text="📄",
+                        command=lambda r=registro: self.mostrar_opciones_documentos(r),
+                        font=("Inter", 12),
+                        fg_color=STYLE["secundario"],
+                        hover_color="#4b4b4b",
+                        text_color=STYLE["surface"],
+                        width=20,
+                        height=26,
+                        corner_radius=5
+                    )
+                    btn_documentos.pack(side="left", padx=2)
+
+                    # Botón de modificar
                     btn_modificar = ctk.CTkButton(
-                        acciones_frame,
+                        botones_frame,
                         text="✏️",
                         command=lambda r=registro: self.hist_editar_registro(r),
                         font=("Inter", 12),
                         fg_color=STYLE["primario"],
                         hover_color="#D4BF22",
                         text_color=STYLE["secundario"],
-                        width=30,
-                        height=24,
-                        corner_radius=6
+                        width=20,
+                        height=26,
+                        corner_radius=5
                     )
                     btn_modificar.pack(side="left", padx=2)
 
                     # Botón de eliminar
                     btn_eliminar = ctk.CTkButton(
-                        acciones_frame,
-                        text="🗑️",
+                        botones_frame,
+                        text="❌",
                         command=lambda r=registro: self.hist_eliminar_registro(r),
                         font=("Inter", 12),
                         fg_color=STYLE["advertencia"],
                         hover_color="#b85a52",
                         text_color=STYLE["surface"],
-                        width=30,
-                        height=24,
-                        corner_radius=6
+                        width=20,
+                        height=26,
+                        corner_radius=5
                     )
                     btn_eliminar.pack(side="left", padx=2)
 
@@ -1686,6 +1849,418 @@ class SistemaDictamenesVC(ctk.CTk):
         total_registros = len(self.historial_data) if hasattr(self, 'historial_data') else 0
         self.hist_info_label.configure(text=f"Total de registros: {total_registros} - Sistema de historial de visitas - V&C")
 
+    def mostrar_opciones_documentos(self, registro):
+        """Muestra una ventana con opciones para descargar documentos"""
+        # Crear ventana modal
+        modal = ctk.CTkToplevel(self)
+        modal.title("Descargar Documentos")
+        modal.geometry("750x400")
+        modal.transient(self)
+        modal.grab_set()
+        
+        # Centrar ventana
+        modal.update_idletasks()
+        x = self.winfo_x() + (self.winfo_width() - modal.winfo_width()) // 2
+        y = self.winfo_y() + (self.winfo_height() - modal.winfo_height()) // 2
+        modal.geometry(f"+{x}+{y}")
+        
+        # Frame principal
+        main_frame = ctk.CTkFrame(modal, fg_color=STYLE["surface"], corner_radius=0)
+        main_frame.pack(fill="both", expand=True, padx=0, pady=0)
+        
+        # Título
+        ctk.CTkLabel(
+            main_frame,
+            text="📄 Documentos de la Visita",
+            font=("Inter", 20, "bold"),
+            text_color=STYLE["texto_oscuro"]
+        ).pack(pady=(15, 10))
+        
+        # Información de la visita
+        info_frame = ctk.CTkFrame(main_frame, fg_color="transparent")
+        info_frame.pack(fill="x", padx=20, pady=(5, 15))
+        
+        ctk.CTkLabel(
+            info_frame,
+            text=f"Folio Visita: {registro.get('folio_visita', 'N/A')} | Cliente: {registro.get('cliente', 'N/A')}",
+            font=("Inter", 13),
+            text_color=STYLE["texto_oscuro"]
+        ).pack()
+        
+        # Línea separadora
+        separador = ctk.CTkFrame(main_frame, fg_color=STYLE["borde"], height=1)
+        separador.pack(fill="x", padx=30, pady=(0, 20))
+        
+        # Frame para las opciones de documentos en horizontal
+        documentos_frame = ctk.CTkFrame(main_frame, fg_color="transparent")
+        documentos_frame.pack(fill="both", expand=True, padx=20, pady=10)
+        
+        # Configurar grid para 3 columnas
+        documentos_frame.grid_columnconfigure(0, weight=1)
+        documentos_frame.grid_columnconfigure(1, weight=1)
+        documentos_frame.grid_columnconfigure(2, weight=1)
+        documentos_frame.grid_rowconfigure(0, weight=1)
+        
+        # Función para manejar la descarga de documentos
+        def descargar_documento(tipo, nombre):
+            modal.destroy()
+            # Por ahora solo mostramos un mensaje
+            messagebox.showinfo("En desarrollo", f"Función para descargar {nombre} en desarrollo.")
+        
+        # Botón 1: Oficio de Comisión
+        oficio_frame = ctk.CTkFrame(documentos_frame, fg_color=STYLE["surface"], 
+                                    border_width=1, border_color=STYLE["borde"], 
+                                    corner_radius=10)
+        oficio_frame.grid(row=0, column=0, padx=10, pady=5, sticky="nsew")
+        
+        # Icono grande
+        ctk.CTkLabel(
+            oficio_frame,
+            text="📝",
+            font=("Inter", 48),
+            text_color=STYLE["primario"]
+        ).pack(pady=(25, 15))
+        
+        # Nombre del documento
+        ctk.CTkLabel(
+            oficio_frame,
+            text="OFICIO DE COMISIÓN",
+            font=("Inter", 14, "bold"),
+            text_color=STYLE["texto_oscuro"]
+        ).pack(pady=(0, 10))
+        
+        # Descripción
+        ctk.CTkLabel(
+            oficio_frame,
+            text="Documento que autoriza la comisión de inspección",
+            font=("Inter", 10),
+            text_color=STYLE["texto_oscuro"],
+            wraplength=180,
+            justify="center"
+        ).pack(pady=(0, 15), padx=15)
+        
+        # Botón de descarga - CAMBIADO: Color secundario con texto claro
+        btn_oficio = ctk.CTkButton(
+            oficio_frame,
+            text="Descargar",
+            command=lambda: descargar_documento("oficio", "Oficio de Comisión"),
+            font=("Inter", 12, "bold"),
+            fg_color=STYLE["secundario"],  # Cambiado a color secundario
+            hover_color="#1a1a1a",  # Hover más oscuro
+            text_color=STYLE["texto_claro"],  # Cambiado a texto claro
+            height=35,
+            corner_radius=6
+        )
+        btn_oficio.pack(pady=(0, 20), padx=15, fill="x")
+        
+        # Botón 2: Formato de Supervisión
+        formato_frame = ctk.CTkFrame(documentos_frame, fg_color=STYLE["surface"], 
+                                    border_width=1, border_color=STYLE["borde"], 
+                                    corner_radius=10)
+        formato_frame.grid(row=0, column=1, padx=10, pady=5, sticky="nsew")
+        
+        # Icono grande
+        ctk.CTkLabel(
+            formato_frame,
+            text="📊",
+            font=("Inter", 48),
+            text_color=STYLE["primario"]
+        ).pack(pady=(25, 15))
+        
+        # Nombre del documento
+        ctk.CTkLabel(
+            formato_frame,
+            text="FORMATO DE SUPERVISIÓN",
+            font=("Inter", 14, "bold"),
+            text_color=STYLE["texto_oscuro"]
+        ).pack(pady=(0, 10))
+        
+        # Descripción
+        ctk.CTkLabel(
+            formato_frame,
+            text="Formato para registrar observaciones de supervisión",
+            font=("Inter", 10),
+            text_color=STYLE["texto_oscuro"],
+            wraplength=180,
+            justify="center"
+        ).pack(pady=(0, 15), padx=15)
+        
+        # Botón de descarga - CAMBIADO: Color secundario con texto claro
+        btn_formato = ctk.CTkButton(
+            formato_frame,
+            text="Descargar",
+            command=lambda: descargar_documento("formato", "Formato de Supervisión"),
+            font=("Inter", 12, "bold"),
+            fg_color=STYLE["secundario"],  # Cambiado a color secundario
+            hover_color="#1a1a1a",  # Hover más oscuro
+            text_color=STYLE["texto_claro"],  # Cambiado a texto claro
+            height=35,
+            corner_radius=6
+        )
+        btn_formato.pack(pady=(0, 20), padx=15, fill="x")
+        
+        # Botón 3: Acta de Inspección
+        acta_frame = ctk.CTkFrame(documentos_frame, fg_color=STYLE["surface"], 
+                                border_width=1, border_color=STYLE["borde"], 
+                                corner_radius=10)
+        acta_frame.grid(row=0, column=2, padx=10, pady=5, sticky="nsew")
+        
+        # Icono grande
+        ctk.CTkLabel(
+            acta_frame,
+            text="📋",
+            font=("Inter", 48),
+            text_color=STYLE["primario"]
+        ).pack(pady=(25, 15))
+        
+        # Nombre del documento
+        ctk.CTkLabel(
+            acta_frame,
+            text="ACTA DE INSPECCIÓN",
+            font=("Inter", 14, "bold"),
+            text_color=STYLE["texto_oscuro"]
+        ).pack(pady=(0, 10))
+        
+        # Descripción
+        ctk.CTkLabel(
+            acta_frame,
+            text="Documento oficial de la visita de inspección",
+            font=("Inter", 10),
+            text_color=STYLE["texto_oscuro"],
+            wraplength=180,
+            justify="center"
+        ).pack(pady=(0, 15), padx=15)
+        
+        # Botón de descarga - CAMBIADO: Color secundario con texto claro
+        btn_acta = ctk.CTkButton(
+            acta_frame,
+            text="Descargar",
+            command=lambda: descargar_documento("acta", "Acta de Inspección"),
+            font=("Inter", 12, "bold"),
+            fg_color=STYLE["secundario"],  # Cambiado a color secundario
+            hover_color="#1a1a1a",  # Hover más oscuro
+            text_color=STYLE["texto_claro"],  # Cambiado a texto claro
+            height=35,
+            corner_radius=6
+        )
+        btn_acta.pack(pady=(0, 20), padx=15, fill="x")
+        
+        # Frame para botón cerrar
+        footer_frame = ctk.CTkFrame(main_frame, fg_color="transparent")
+        footer_frame.pack(fill="x", pady=(20, 0))
+        
+    def guardar_folios_visita(self, folio_visita, datos_tabla):
+        """Guarda los folios de una visita en un archivo JSON con formato 6 dígitos"""
+        try:
+            if not datos_tabla:
+                print(f"⚠️ No hay datos de folios para guardar en la visita {folio_visita}")
+                return False
+            
+            # Preparar datos para el archivo JSON
+            folios_data = []
+            
+            for item in datos_tabla:
+                # Obtener y formatear el folio a 6 dígitos
+                folio_raw = item.get('FOLIO', '')
+                folio_formateado = ""
+                
+                if folio_raw is not None:
+                    try:
+                        # Convertir a entero y formatear a 6 dígitos
+                        folio_num = int(float(str(folio_raw).strip()))
+                        folio_formateado = f"{folio_num:06d}"
+                    except (ValueError, TypeError):
+                        # Si no se puede convertir, usar el valor original
+                        folio_formateado = str(folio_raw).strip()
+                
+                # Obtener solicitud - buscar en varias posibles columnas
+                solicitud = ""
+                posibles_columnas_solicitud = ['SOLICITUD', 'SOLICITUDES', 'NO. SOLICITUD']
+                for col in posibles_columnas_solicitud:
+                    if col in item and item[col] is not None:
+                        solicitud = str(item[col]).strip()
+                        break
+                
+                # Extraer los campos necesarios
+                folio_data = {
+                    "FOLIOS": folio_formateado,
+                    "MARCA": str(item.get('MARCA', '')).strip() if item.get('MARCA') else "",
+                    "SOLICITUDES": solicitud,
+                    "FECHA DE IMPRESION": self.entry_fecha_termino.get().strip() or datetime.now().strftime("%d/%m/%Y"),
+                    "FECHA DE VERIFICACION": str(item.get('FECHA DE VERIFICACION', '')).strip() if item.get('FECHA DE VERIFICACION') else "",
+                    "TIPO DE DOCUMENTO": str(item.get('TIPO DE DOCUMENTO', 'D')).strip()
+                }
+                
+                # Agregar solo si tiene folio
+                if folio_data["FOLIOS"]:
+                    folios_data.append(folio_data)
+            
+            if not folios_data:
+                print(f"⚠️ No se encontraron folios válidos para guardar en la visita {folio_visita}")
+                return False
+            
+            # Crear archivo JSON
+            archivo_folios = os.path.join(self.folios_visita_path, f"folios_{folio_visita}.json")
+            
+            with open(archivo_folios, 'w', encoding='utf-8') as f:
+                json.dump(folios_data, f, ensure_ascii=False, indent=2)
+            
+            print(f"✅ Folios guardados para visita {folio_visita}: {len(folios_data)} registros")
+            return True
+            
+        except Exception as e:
+            print(f"❌ Error guardando folios para visita {folio_visita}: {e}")
+            return False
+
+    def descargar_folios_visita(self, registro):
+        """Descarga los folios de una visita en formato Excel con columnas personalizadas"""
+        try:
+            folio_visita = registro.get('folio_visita', '')
+            if not folio_visita:
+                messagebox.showwarning("Error", "No se pudo obtener el folio de la visita.")
+                return
+            
+            # Buscar el archivo JSON de folios
+            archivo_folios = os.path.join(self.folios_visita_path, f"folios_{folio_visita}.json")
+            
+            if not os.path.exists(archivo_folios):
+                messagebox.showinfo("Sin datos", f"No se encontró archivo de folios para la visita {folio_visita}.")
+                return
+            
+            # Cargar los datos
+            with open(archivo_folios, 'r', encoding='utf-8') as f:
+                folios_data = json.load(f)
+            
+            if not folios_data:
+                messagebox.showinfo("Sin datos", f"No hay datos de folios para la visita {folio_visita}.")
+                return
+            
+            # Crear DataFrame con el orden de columnas específico
+            df = pd.DataFrame(folios_data)
+            
+            # Definir el orden de columnas deseado
+            column_order = ["FOLIOS", "MARCA", "SOLICITUDES", "FECHA DE IMPRESION", "FECHA DE VERIFICACION", "TIPO DE DOCUMENTO"]
+            
+            # Reordenar columnas si existen
+            existing_columns = [col for col in column_order if col in df.columns]
+            df = df[existing_columns]
+            
+            # Preguntar donde guardar el archivo Excel
+            file_path = filedialog.asksaveasfilename(
+                title="Guardar archivo de folios",
+                defaultextension=".xlsx",
+                filetypes=[
+                    ("Archivos Excel", "*.xlsx"),
+                    ("Archivos Excel 97-2003", "*.xls"),
+                    ("Archivos CSV", "*.csv"),
+                    ("Todos los archivos", "*.*")
+                ],
+                initialfile=f"Folios_Visita_{folio_visita}_{datetime.now().strftime('%Y%m%d')}.xlsx"
+            )
+            
+            if not file_path:
+                return
+            
+            # Guardar en Excel con formato
+            if file_path.endswith('.csv'):
+                df.to_csv(file_path, index=False, encoding='utf-8-sig')
+            else:
+                # Usar ExcelWriter para aplicar formato
+                with pd.ExcelWriter(file_path, engine='openpyxl') as writer:
+                    df.to_excel(writer, index=False, sheet_name='Folios')
+                    
+                    # Obtener el libro y la hoja para aplicar formato
+                    workbook = writer.book
+                    worksheet = writer.sheets['Folios']
+                    
+                    # Ajustar ancho de columnas automáticamente
+                    for column in worksheet.columns:
+                        max_length = 0
+                        column_letter = column[0].column_letter
+                        for cell in column:
+                            try:
+                                if len(str(cell.value)) > max_length:
+                                    max_length = len(str(cell.value))
+                            except:
+                                pass
+                        adjusted_width = min(max_length + 2, 50)
+                        worksheet.column_dimensions[column_letter].width = adjusted_width
+            
+            # Verificar persistencia - mantener una copia en la carpeta de respaldo
+            backup_dir = os.path.join(self.folios_visita_path, "backups")
+            os.makedirs(backup_dir, exist_ok=True)
+            
+            backup_file = os.path.join(
+                backup_dir, 
+                f"Folios_Visita_{folio_visita}_backup_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
+            )
+            
+            # Crear copia de respaldo
+            try:
+                if file_path.endswith('.xlsx') or file_path.endswith('.xls'):
+                    shutil.copy2(file_path, backup_file)
+                    print(f"📁 Copia de respaldo creada: {backup_file}")
+            except Exception as backup_error:
+                print(f"⚠️ No se pudo crear copia de respaldo: {backup_error}")
+            
+            # Mostrar información detallada
+            info_mensaje = f"""
+✅ Folios descargados exitosamente:
+
+📁 Archivo: {os.path.basename(file_path)}
+📋 Total de folios: {len(folios_data)}
+📅 Fecha de generación: {datetime.now().strftime('%d/%m/%Y %H:%M:%S')}
+📍 Ubicación: {file_path}
+
+📊 Columnas incluidas:
+   • FOLIOS (formato 6 dígitos: 000001)
+   • MARCA
+   • SOLICITUDES
+   • FECHA DE IMPRESION
+   • FECHA DE VERIFICACION
+   • TIPO DE DOCUMENTO
+"""
+            
+            messagebox.showinfo("Descarga completada", info_mensaje)
+            
+            # Opcional: Abrir el archivo
+            respuesta = messagebox.askyesno("Abrir archivo", "¿Desea abrir el archivo descargado?")
+            if respuesta:
+                self._abrir_archivo(file_path)
+                
+        except Exception as e:
+            messagebox.showerror("Error", f"No se pudieron descargar los folios:\n{str(e)}")
+
+    # Agregar este método para buscar la columna correcta de solicitud
+    def _obtener_columna_solicitud(self, df):
+        """Busca la columna correcta que contiene las solicitudes"""
+        posibles_nombres = ['SOLICITUD', 'SOLICITUDES', 'NO. SOLICITUD', 'NO SOLICITUD', 'SOLICITUD NO.', 'NÚMERO DE SOLICITUD']
+        
+        for nombre in posibles_nombres:
+            if nombre in df.columns:
+                return nombre
+        
+        # Si no encuentra ninguna, buscar columnas que contengan "solicitud" (case insensitive)
+        for col in df.columns:
+            if isinstance(col, str) and 'solicitud' in col.lower():
+                return col
+        
+        return None
+
+    def _abrir_archivo(self, file_path):
+        """Abre un archivo en el sistema operativo correspondiente"""
+        try:
+            if os.path.exists(file_path):
+                if os.name == 'nt':  # Windows
+                    os.startfile(file_path)
+                elif os.name == 'posix':  # macOS o Linux
+                    if sys.platform == 'darwin':  # macOS
+                        subprocess.Popen(['open', file_path])
+                    else:  # Linux
+                        subprocess.Popen(['xdg-open', file_path])
+        except Exception as e:
+            print(f"Error abriendo archivo: {e}")
+    
     def hist_editar_registro(self, registro):
         """Abre el formulario para editar un registro del historial"""
         self._crear_formulario_visita(registro)
@@ -1874,25 +2449,69 @@ class SistemaDictamenesVC(ctk.CTk):
             hora_termino = self.entry_hora_termino.get().strip()
             supervisor = self.entry_supervisor.get().strip()
 
-            # Formatear horas a 12h para almacenamiento
-            hora_inicio_formateada = self._formatear_hora_12h(hora_inicio) if hora_inicio else ""
-            hora_termino_formateada = self._formatear_hora_12h(hora_termino) if hora_termino else ""
+            # Convertir horas a formato consistente (24h para almacenamiento)
+            def estandarizar_hora_24h(hora_str):
+                """Estandariza hora a formato 24h HH:MM"""
+                if not hora_str or hora_str.strip() == "":
+                    return ""
+                
+                try:
+                    hora_str = str(hora_str).strip()
+                    # Reemplazar punto por dos puntos
+                    hora_str = hora_str.replace(".", ":")
+                    
+                    if ":" in hora_str:
+                        partes = hora_str.split(":")
+                        hora = int(partes[0].strip())
+                        minutos = partes[1].strip()[:2]
+                        
+                        # Asegurar rango válido
+                        if hora < 0 or hora > 23:
+                            hora = 0
+                        
+                        # Formatear a 2 dígitos
+                        return f"{hora:02d}:{minutos}"
+                    else:
+                        return hora_str
+                except:
+                    return hora_str
+            
+            # Estandarizar horas a 24h
+            hora_inicio_24h = estandarizar_hora_24h(hora_inicio)
+            hora_termino_24h = estandarizar_hora_24h(hora_termino)
+            
+            # Formatear horas a 12h para visualización
+            hora_inicio_formateada = self._formatear_hora_12h(hora_inicio_24h) if hora_inicio_24h else ""
+            hora_termino_formateada = self._formatear_hora_12h(hora_termino_24h) if hora_termino_24h else ""
 
             # Si no hay fecha/hora de término, usar la actual
             if not fecha_termino:
                 fecha_termino = datetime.now().strftime("%d/%m/%Y")
-            if not hora_termino_formateada:
-                hora_termino_formateada = self._formatear_hora_12h(datetime.now().strftime("%H:%M"))
+            if not hora_termino_24h:
+                hora_termino_24h = datetime.now().strftime("%H:%M")
+                hora_termino_formateada = self._formatear_hora_12h(hora_termino_24h)
 
             # OBTENER INFORMACIÓN DE FOLIOS UTILIZADOS
             folios_utilizados = self._obtener_folios_de_tabla()
 
+            # CARGAR DATOS DE TABLA DE RELACIÓN SI EXISTEN
+            datos_tabla = []
+            if self.archivo_json_generado and os.path.exists(self.archivo_json_generado):
+                with open(self.archivo_json_generado, 'r', encoding='utf-8') as f:
+                    datos_tabla = json.load(f)
+                    
+                # Guardar folios específicos para esta visita
+                self.guardar_folios_visita(folio_visita, datos_tabla)
+
             # Crear payload para visita automática con información de folios
+            # GUARDAR HORAS EN FORMATO 24h Y TAMBIÉN FORMATEADAS PARA VISUALIZACIÓN
             payload = {
                 "folio_visita": folio_visita,
                 "folio_acta": folio_acta or f"AC{self.current_folio}",
                 "fecha_inicio": fecha_inicio or datetime.now().strftime("%d/%m/%Y"),
                 "fecha_termino": fecha_termino,
+                "hora_inicio_24h": hora_inicio_24h or datetime.now().strftime("%H:%M"),
+                "hora_termino_24h": hora_termino_24h or datetime.now().strftime("%H:%M"),
                 "hora_inicio": hora_inicio_formateada or self._formatear_hora_12h(datetime.now().strftime("%H:%M")),
                 "hora_termino": hora_termino_formateada,
                 "norma": "",
@@ -1900,7 +2519,8 @@ class SistemaDictamenesVC(ctk.CTk):
                 "nfirma1": supervisor or " ",  # Supervisor
                 "nfirma2": "",
                 "estatus": "Completada",
-                "folios_utilizados": folios_utilizados
+                "folios_utilizados": folios_utilizados,
+                "total_folios": len(datos_tabla) if datos_tabla else 0
             }
 
             # Guardar visita automática
@@ -1938,6 +2558,7 @@ class SistemaDictamenesVC(ctk.CTk):
         try:
             data_dir = os.path.join(os.path.dirname(__file__), "data")
             
+            # Archivos a eliminar (pero NO los de folios_visitas)
             archivos_a_eliminar = [
                 "base_etiquetado.json",
                 "tabla_de_relacion.json"
@@ -1964,107 +2585,224 @@ class SistemaDictamenesVC(ctk.CTk):
         except Exception as e:
             print(f"⚠️ Error al eliminar archivos: {e}")
 
-        messagebox.showinfo("Limpieza completa", "Los datos del archivo y el etiquetado han sido limpiados.")
+        messagebox.showinfo("Limpieza completa", "Los datos del archivo y el etiquetado han sido limpiados.\n\nNota: Los archivos de folios por visita se conservan en la carpeta 'folios_visitas'.")
 
     def _crear_formulario_visita(self, datos=None):
-        """Crea un formulario modal para editar visitas con todos los campos"""
+        """Crea un formulario modal para editar visitas con disposición organizada"""
         datos = datos or {}
         modal = ctk.CTkToplevel(self)
         modal.title("Editar Visita")
-        modal.geometry("560x450")
+        modal.geometry("900x550")  # Aumentado altura para mejor visibilidad
         modal.transient(self)
         modal.grab_set()
 
-        form = ctk.CTkFrame(modal, fg_color=STYLE["surface"])
-        form.pack(fill="both", expand=True, padx=12, pady=12)
-
+        # Centrar ventana
+        modal.update_idletasks()
+        x = self.winfo_x() + (self.winfo_width() - modal.winfo_width()) // 2
+        y = self.winfo_y() + (self.winfo_height() - modal.winfo_height()) // 2
+        modal.geometry(f"+{x}+{y}")
+        
+        # Frame principal
+        main_frame = ctk.CTkFrame(modal, fg_color=STYLE["surface"], corner_radius=0)
+        main_frame.pack(fill="both", expand=True, padx=0, pady=0)
+        
+        # Título
+        title_frame = ctk.CTkFrame(main_frame, fg_color="transparent")
+        title_frame.pack(fill="x", padx=25, pady=(20, 10))
+        
         ctk.CTkLabel(
-            form,
-            text="Editar visita",
+            title_frame,
+            text="✏️ Editar Visita",
             font=FONT_SUBTITLE,
             text_color=STYLE["texto_oscuro"]
-        ).pack(anchor="w", pady=(0, 15))
-
-        campos = [
-            ("folio_visita", "Folio Visita"),
-            ("folio_acta", "Folio Acta"),
-            ("fecha_inicio", "Fecha Inicio (dd/mm/yyyy)"),
-            ("fecha_termino", "Fecha Termino (dd/mm/yyyy)"),
-            ("hora_inicio", "Hora Inicio (HH:MM)"),
-            ("hora_termino", "Hora Termino (HH:MM)"),
-            ("norma", "Norma"),
-            ("cliente", "Cliente"),
-            ("nfirma1", "Nombre Supervisor"),
-            ("estatus", "Estatus"),
-            ("folios_utilizados", "Folios Utilizados")
-        ]
+        ).pack(anchor="w")
+        
+        # Línea separadora
+        separador = ctk.CTkFrame(main_frame, fg_color=STYLE["borde"], height=1)
+        separador.pack(fill="x", padx=25, pady=(0, 10))
+        
+        # Frame para contenido principal con scroll
+        content_scroll = ctk.CTkScrollableFrame(
+            main_frame, 
+            fg_color="transparent",
+            scrollbar_button_color=STYLE["primario"],
+            scrollbar_button_hover_color=STYLE["primario"],
+            height=350
+        )
+        content_scroll.pack(fill="both", expand=True, padx=25, pady=(5, 10))
+        
+        # Frame para contenido en grid (3 columnas para mejor organización)
+        content_frame = ctk.CTkFrame(content_scroll, fg_color="transparent")
+        content_frame.pack(fill="both", expand=True)
+        
+        # Configurar 3 columnas
+        content_frame.grid_columnconfigure(0, weight=1)
+        content_frame.grid_columnconfigure(1, weight=1)
+        content_frame.grid_columnconfigure(2, weight=1)
+        
         entries = {}
         
-        # Configurar scrollbar con color personalizado
-        scroll_frame = ctk.CTkScrollableFrame(
-            form, 
-            height=300,
-            fg_color=STYLE["surface"],
-            scrollbar_button_color=STYLE["primario"],
-            scrollbar_button_hover_color=STYLE["primario"]
-        )
-        scroll_frame.pack(fill="both", expand=True, pady=(0, 15))
+        # Definir campos organizados por columnas
+        campos_por_columna = [
+            [  # Columna 1: Información básica
+                ("folio_visita", "Folio Visita"),
+                ("folio_acta", "Folio Acta"),
+                ("norma", "Norma"),
+            ],
+            [  # Columna 2: Fechas y horas
+                ("fecha_inicio", "Fecha Inicio"),
+                ("fecha_termino", "Fecha Termino"),
+                ("hora_inicio", "Hora Inicio"),
+                ("hora_termino", "Hora Termino"),
+            ],
+            [  # Columna 3: Cliente y estatus
+                ("cliente", "Cliente"),
+                ("estatus", "Estatus"),
+                ("folios_utilizados", "Folios Utilizados"),
+                ("nfirma1", "Nombre Supervisor"),
+            ]
+        ]
         
-        r = 0
-        for key, label in campos:
-            # Labels con color de fondo uniforme
-            ctk.CTkLabel(
-                scroll_frame, 
-                text=label, 
-                anchor="w", 
-                font=FONT_SMALL,
-                fg_color=STYLE["surface"],  # Mismo color de fondo para todos
-                text_color=STYLE["texto_oscuro"]
-            ).grid(row=r, column=0, sticky="w", padx=8, pady=6)
+        # Crear campos para cada columna
+        for col_idx, campos in enumerate(campos_por_columna):
+            col_frame = ctk.CTkFrame(content_frame, fg_color="transparent")
+            col_frame.grid(row=0, column=col_idx, padx=10, pady=0, sticky="nsew")
             
-            ent = ctk.CTkEntry(scroll_frame, width=300, height=25)
-            ent.grid(row=r, column=1, padx=8, pady=6, sticky="w")
-            entries[key] = ent
-            r += 1
-
-        if datos:
-            for k in entries:
-                entries[k].insert(0, str(datos.get(k,"")))
-
-        btn_frame = ctk.CTkFrame(form, fg_color="transparent")
-        btn_frame.pack(fill="x", pady=(12,6))
+            for i, (key, label) in enumerate(campos):
+                field_frame = ctk.CTkFrame(col_frame, fg_color="transparent")
+                field_frame.pack(fill="x", pady=(0, 12))
+                
+                ctk.CTkLabel(
+                    field_frame, 
+                    text=label, 
+                    anchor="w", 
+                    font=FONT_SMALL,
+                    text_color=STYLE["texto_oscuro"]
+                ).pack(anchor="w", pady=(0, 5))
+                
+                if key == "cliente":
+                    # Obtener lista de clientes
+                    clientes_lista = ["Seleccione un cliente..."]
+                    if hasattr(self, 'clientes_data') and self.clientes_data:
+                        clientes_lista.extend([cliente['CLIENTE'] for cliente in self.clientes_data])
+                    
+                    # Crear combobox para clientes
+                    ent = ctk.CTkComboBox(
+                        field_frame,
+                        values=clientes_lista,
+                        font=FONT_SMALL,
+                        dropdown_font=FONT_SMALL,
+                        state="readonly",
+                        height=35,
+                        corner_radius=8,
+                        width=250
+                    )
+                    ent.pack(fill="x")
+                    
+                    # Establecer cliente si existe en datos
+                    if datos and "cliente" in datos:
+                        cliente_actual = datos.get("cliente", "")
+                        if cliente_actual in clientes_lista:
+                            ent.set(cliente_actual)
+                        else:
+                            ent.set("Seleccione un cliente...")
+                    else:
+                        ent.set("Seleccione un cliente...")
+                        
+                elif key == "estatus":
+                    # Combobox para estatus
+                    ent = ctk.CTkComboBox(
+                        field_frame,
+                        values=["En proceso", "Completada", "Cancelada", "Pendiente"],
+                        font=FONT_SMALL,
+                        dropdown_font=FONT_SMALL,
+                        state="readonly",
+                        height=35,
+                        corner_radius=8,
+                        width=250
+                    )
+                    ent.pack(fill="x")
+                    
+                    if datos and "estatus" in datos:
+                        ent.set(datos.get("estatus", "En proceso"))
+                    else:
+                        ent.set("En proceso")
+                        
+                else:
+                    # Campo de texto normal
+                    ent = ctk.CTkEntry(
+                        field_frame, 
+                        height=35,
+                        corner_radius=8,
+                        font=FONT_SMALL,
+                        placeholder_text=f"Ingrese {label.lower()}" if key not in ["hora_inicio", "hora_termino"] else "HH:MM"
+                    )
+                    ent.pack(fill="x")
+                    
+                    # Insertar datos si existen
+                    if datos and key in datos:
+                        ent.insert(0, str(datos.get(key, "")))
+                
+                entries[key] = ent
+        
+        # Frame para botones
+        btn_frame = ctk.CTkFrame(main_frame, fg_color="transparent")
+        btn_frame.pack(fill="x", pady=(15, 20), padx=25)
         
         def _guardar():
-            payload = {k: entries[k].get().strip() for k in entries}
+            # Recoger datos de todos los campos
+            payload = {}
+            for key, entry in entries.items():
+                if key in ["cliente", "estatus"]:
+                    # Para combobox, obtener el valor seleccionado
+                    value = entry.get()
+                    if key == "cliente" and value == "Seleccione un cliente...":
+                        value = ""
+                else:
+                    value = entry.get().strip()
+                payload[key] = value
+            
+            # Validaciones
             if not payload.get("cliente"):
-                messagebox.showwarning("Validación", "Cliente requerido")
+                messagebox.showwarning("Validación", "Por favor seleccione un cliente")
                 return
-
+            
+            if not payload.get("estatus"):
+                payload["estatus"] = "En proceso"
+            
+            # Actualizar la visita
             self.hist_update_visita(datos["_id"], payload)
             modal.destroy()
         
         # Botones mejorados
         ctk.CTkButton(
             btn_frame, 
-            text="Guardar", 
-            command=_guardar, 
-            fg_color=STYLE["primario"],
-            hover_color=STYLE["primario"],  # Evita el cambio a azul
-            height=25,
-            width=100,
-            text_color=STYLE["texto_oscuro"]  # Texto oscuro para mejor contraste
-        ).pack(side="right", padx=8)
+            text="Cancelar", 
+            command=modal.destroy,
+            font=("Inter", 13),
+            fg_color=STYLE["secundario"],
+            hover_color="#1a1a1a",
+            text_color=STYLE["texto_claro"],
+            height=38,
+            width=130,
+            corner_radius=8
+        ).pack(side="right", padx=(8, 0))
         
         ctk.CTkButton(
             btn_frame, 
-            text="Cancelar", 
-            command=modal.destroy,
-            fg_color=STYLE["secundario"],
-            hover_color=STYLE["secundario"],  # Evita el cambio a azul
-            height=25,
-            width=100,
-            text_color=STYLE["texto_claro"]  # Texto oscuro para mejor contraste
-        ).pack(side="right", padx=8)
+            text="Guardar Cambios", 
+            command=_guardar,
+            font=("Inter", 13, "bold"),
+            fg_color=STYLE["primario"],
+            hover_color="#D4BF22",
+            text_color=STYLE["secundario"],
+            height=38,
+            width=150,
+            corner_radius=8
+        ).pack(side="right")
+        
+        # Agregar un pequeño espaciador para empujar botones a la derecha
+        ctk.CTkLabel(btn_frame, text="", fg_color="transparent").pack(side="left", expand=True)
 
     # -----------------------------------------------------------
     # NUEVOS MÉTODOS PARA DIAGNÓSTICO Y LIMPIEZA
