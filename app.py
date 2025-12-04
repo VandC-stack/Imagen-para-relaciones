@@ -1320,17 +1320,6 @@ class SistemaDictamenesVC(ctk.CTk):
                 "mensaje": f"Error: {str(e)}"
             }
 
-
-
-
-
-
-
-
-
-
-
-
     def verificar_datos_folios_existentes(self):
         """Verifica y repara datos de folios existentes para asegurar consistencia"""
         try:
@@ -1750,7 +1739,6 @@ class SistemaDictamenesVC(ctk.CTk):
         for child in self.hist_scroll.winfo_children():
             child.destroy()
 
-
     # -- BOTONES DE ACCION PARA CADA VISITA -- #
     def _poblar_historial_ui(self):
         """Poblar la interfaz de historial con diseño optimizado"""
@@ -1773,7 +1761,7 @@ class SistemaDictamenesVC(ctk.CTk):
             return
 
         # ANCHOS OPTIMIZADOS (deben coincidir con los headers)
-        column_widths = [70, 70, 85, 85, 70, 70, 190, 140, 100, 160, 170]
+        column_widths = [70, 70, 85, 85, 70, 70, 160, 140, 100, 150, 170]
 
         # CONFIGURACIÓN DE BOTONES MÁS COMPACTA
         BUTTON_CONFIG = {
