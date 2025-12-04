@@ -111,7 +111,6 @@ class OficioPDFGenerator:
         # Espacio final para evitar empalmes
         self.cursor_y -= 15
 
-    
     def dibujar_datos_empresa(self, c):
         """Dibuja los datos de la empresa visitada sin bordes"""
         x_start = 25 * mm
@@ -257,10 +256,6 @@ class OficioPDFGenerator:
         # Espacio final
         self.cursor_y -= 20
 
-
-
-
-
     def dibujar_observaciones(self, c):
         """Dibuja las observaciones y número de solicitudes"""
         x_start = 25 * mm
@@ -349,10 +344,6 @@ class OficioPDFGenerator:
         # Ajustar cursor a la posición más baja de ambas columnas
         self.cursor_y = min(y_final_izq, y_final_der) - 5 * mm
 
-
-
-
-
     def _dividir_texto(self, c, texto, max_width):
         """Divide texto en líneas según el ancho máximo"""
         palabras = texto.split()
@@ -412,7 +403,6 @@ class OficioPDFGenerator:
         print(f"✅ PDF generado exitosamente: {nombre_archivo}")
         return nombre_archivo
 
-
 # Función principal para usar desde tu aplicación
 def generar_oficio_pdf(datos, ruta_salida="Oficio.pdf"):
     """
@@ -444,7 +434,6 @@ def generar_oficio_pdf(datos, ruta_salida="Oficio.pdf"):
     # Generar PDF
     generador = OficioPDFGenerator(datos)
     return generador.generar(ruta_salida)
-
 
 # Función para preparar datos desde la tabla de relación
 def preparar_datos_desde_visita(datos_visita, firmas_json_path="data/Firmas.json"):
@@ -483,7 +472,6 @@ def preparar_datos_desde_visita(datos_visita, firmas_json_path="data/Firmas.json
     
     return datos_oficio
 
-
 # Ejemplo de uso
 if __name__ == "__main__":
     # Datos de ejemplo
@@ -509,4 +497,6 @@ if __name__ == "__main__":
     os.makedirs("data", exist_ok=True)
     
     # Generar PDF
-    generar_oficio_pdf(datos_ejemplo, "Oficio_Ejemplo.pdf")
+    generar_oficio_pdf(datos_ejemplo, "Oficio_comision.pdf")
+
+
