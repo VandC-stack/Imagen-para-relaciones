@@ -2,6 +2,8 @@ import customtkinter as ctk
 from tkinter import messagebox, filedialog
 import threading
 from main import procesar_lote, cargar_config, guardar_config
+from ASCII_ART import print_ascii, ASCII_ART
+
 
 ctk.set_appearance_mode("light")
 ctk.set_default_color_theme("blue")
@@ -28,7 +30,7 @@ class App(ctk.CTk):
 
         version = ctk.CTkLabel(
             header,
-            text="v3.2",
+            text="v03.9",
             font=("Segoe UI", 11),
             text_color="#4b4b4b"
         )
@@ -221,7 +223,10 @@ class App(ctk.CTk):
         self.status.configure(text="Error en el procesamiento", text_color="#f44336")
         messagebox.showerror("Error", f"Ocurrió un problema:\n{error}")
 
+
 if __name__ == "__main__":
+    # Firma interna – NO visible para el usuario final
+    print_ascii(ASCII_ART, typing=False)
+
     app = App()
     app.mainloop()  
-
