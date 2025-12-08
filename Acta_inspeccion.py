@@ -6,7 +6,6 @@ from reportlab.lib.utils import ImageReader
 import os
 import json
 from datetime import datetime
-
 class ActaPDFGenerator:
     def __init__(self, datos, path_firmas_json="data/Firmas.json"):
         """
@@ -166,124 +165,198 @@ class ActaPDFGenerator:
         # Configuración inicial
         x = 25 * mm
         ancho_total = 165 * mm
-        
-        # Anchos de columna (ajustados para mejor distribución)
-        ancho_nombre = 60 * mm     # Columnas 0 y 2: para nombres
-        ancho_firma = 22.5 * mm    # Columnas 1 y 3: para firmas
-        
-        # Posiciones x de cada columna
-        col0 = x                    # Nombre cliente
-        col1 = col0 + ancho_nombre  # Firma cliente
-        col2 = col1 + ancho_firma   # Nombre inspector
-        col3 = col2 + ancho_nombre  # Firma inspector
-        
-        # Altura inicial
+
+        # Anchos de columna
+        ancho_nombre = 60 * mm     # Columnas 0 y 2: nombres
+        ancho_firma = 22.5 * mm    # Columnas 1 y 3: firmas
+
+        # Posiciones x
+        col0 = x
+        col1 = col0 + ancho_nombre
+        col2 = col1 + ancho_firma
+        col3 = col2 + ancho_nombre
+
         c.setFont("Helvetica", 9)
         y = self.cursor_y - 15
-        
-        # ============================================
+
+        # ==========================
+        # OBTENER INSPECTOR REAL
+        # ==========================
+        # inspectores = self.datos.get("inspectores", [])
+        # inspector_nombre = inspectores[0] if inspectores else ""
+
+        # OBTENER INSPECTOR DESDE DATOS #
+        inspector_nombre = (
+            self.datos.get("NOMBRE_DE_INSPECTOR")
+            or self.datos.get("inspector")
+            or self.datos.get("INSPECTOR")
+            or ""
+        )
+
+
+
+        # ==========================================================
         # 1. PRIMERA FILA: CLIENTE E INSPECTOR
-        # ============================================
-        
-        # Títulos de la primera fila - dividido en dos líneas
-        # Primera línea: "Nombre del cliente o responsable"
+        # ==========================================================
+
+        # Títulos del cliente (dos líneas)
         c.drawString(col0, y, "Nombre del cliente o responsable")
-        
-        # Segunda línea: "de atender la visita" (7 puntos más abajo)
         c.drawString(col0, y - 7, "de atender la visita")
-        
-        # Firma del cliente
+
+        # Títulos de firma del cliente e inspector
         c.drawString(col1, y, "Firma")
-        
-        # Nombre del inspector (en una sola línea)
         c.drawString(col2, y, "Nombre del Inspector")
-        
-        # Firma del inspector
         c.drawString(col3, y, "Firma")
-        
-        # Bajar para línea de firma (después del título completo)
-        y -= 25  # 15 puntos de espacio + 7 puntos de la segunda línea + 3 puntos extra
-        
-        # Líneas para firma (solo en columnas de firma - 1 y 3)
+
+        # Espaciado general para bajar a las líneas de firma
+        y -= 25
+
+        # Líneas de firma (cliente e inspector)
         c.line(col1, y, col1 + ancho_firma - 5, y)
         c.line(col3, y, col3 + ancho_firma - 5, y)
-        
-        # Bajar para nombres escritos (más espacio porque el título ocupa 2 líneas)
+
+        # Bajar para escribir nombres
         y -= 25
-        
-        # Mostrar nombre del inspector si existe en datos
-        inspector_nombre = "Arturo Flores Gómez"  # Ejemplo, podrías obtenerlo de self.datos
+
+        # Nombre del inspector
         if inspector_nombre:
-            # Ajustar nombre si es muy largo
             if len(inspector_nombre) > 20:
                 c.setFont("Helvetica", 8)
             c.drawString(col2 + 2, y, inspector_nombre)
             c.setFont("Helvetica", 9)
-        
-        # Bajar para siguiente fila
-        y -= 30  # Un poco menos porque ya tenemos más espacio
-        
-        # ============================================
+
+        # ==========================
+        # FIRMA DEL INSPECTOR (IMAGEN)
+        # ==========================
+        firma_path = self.obtener_firma_inspector(inspector_nombre)
+
+        if firma_path:
+            try:
+                firma_img = ImageReader(firma_path)
+                firma_ancho = ancho_firma - 5
+                firma_alto = 20
+                c.drawImage(
+                    firma_img,
+                    col3,
+                    y - 10,
+                    width=firma_ancho,
+                    height=firma_alto,
+                    preserveAspectRatio=True,
+                    mask='auto'
+                )
+            except Exception as e:
+                print(f"⚠️ Error al cargar firma del inspector: {e}")
+        else:
+            c.line(col3, y, col3 + ancho_firma - 5, y)
+
+        # Espacio para siguiente sección
+        y -= 30
+
+        # ==========================================================
         # 2. SEGUNDA FILA: TESTIGOS
-        # ============================================
-        
-        # Títulos de la segunda fila (una sola línea cada uno)
+        # ==========================================================
         c.drawString(col0, y, "Nombre (Testigo 1)")
         c.drawString(col1, y, "Firma")
         c.drawString(col2, y, "Nombre (Testigo 2)")
         c.drawString(col3, y, "Firma")
-        
-        # Bajar para línea de firma
+
         y -= 15
-        
-        # Líneas para firma de testigos
+
+        # Líneas firma testigos
         c.line(col1, y, col1 + ancho_firma - 5, y)
         c.line(col3, y, col3 + ancho_firma - 5, y)
-        
-        # Bajar para siguiente sección
+
         y -= 40
-        
-        # ============================================
+
+        # ==========================================================
         # 3. NOTAS Y OBSERVACIONES
-        # ============================================
-        
+        # ==========================================================
         c.setFont("Helvetica-Bold", 10)
         c.drawCentredString(x + ancho_total / 2, y, "NOTAS Y OBSERVACIONES:")
-        
+
         y -= 20
-        
+
         # Observaciones Cliente
         c.setFont("Helvetica", 9)
         c.drawString(col0, y, "Observaciones (Cliente):")
         y -= 10
-        
+
         for _ in range(3):
             c.line(col0, y, col0 + ancho_total - 10, y)
             y -= 15
-        
+
         y -= 10
-        
+
         # Observaciones Inspector
         c.drawString(col0, y, "Observaciones (Inspector):")
         y -= 10
-        
+
         for _ in range(3):
             c.line(col0, y, col0 + ancho_total - 10, y)
             y -= 15
-        
+
         y -= 20
-        
-        # ============================================
-        # 4. ACTA Y CÓDIGO POSTAL
-        # ============================================
-        
-        # Usar datos reales si existen
-        acta = self.datos.get("acta", "C.P.12345")  # Ejemplo por defecto
-        cp = self.datos.get("cp", "CP07890")        # Ejemplo por defecto
-        
+
+        # ==========================================================
+        # 4. ACTA Y C.P.
+        # ==========================================================
+        acta = self.datos.get("acta", "C.P.12345")
+        cp = self.datos.get("cp", "CP07890")
+
         c.drawString(col0, y, f"Acta: {acta}    C.P.: {cp}")
-        
+
+        # Actualizar cursor general
         self.cursor_y = y - 25
+
+    def obtener_firma_inspector(self, inspector_nombre):
+        """
+        Devuelve la ruta de la firma del inspector según Firmas.json.
+        """
+        if not inspector_nombre:
+            print("⚠️ Nombre de inspector vacío.")
+            return None
+
+        inspector_normalizado = inspector_nombre.lower().strip()
+
+        for f in self.firmas_data:
+
+            # DETECTAR EL NOMBRE (incluye 'NOMBRE DE INSPECTOR')
+            posible_nombre = (
+                f.get("NOMBRE DE INSPECTOR") or
+                f.get("nombre") or
+                f.get("inspector") or
+                f.get("nombre_inspector") or
+                f.get("name") or
+                ""
+            )
+
+            if posible_nombre.lower().strip() == inspector_normalizado:
+
+                # DETECTAR LA RUTA (incluye 'IMAGEN')
+                posible_ruta = (
+                    f.get("IMAGEN") or
+                    f.get("FIRMA") or   # tu JSON trae esto, pero es el código, no la imagen
+                    f.get("ruta") or
+                    f.get("path") or
+                    ""
+                )
+
+                # Si la ruta es algo como "ASANCHEZ", convertirla en archivo
+                if posible_ruta and "." not in posible_ruta:
+                    posible_ruta = os.path.join("Firmas", posible_ruta + ".png")
+
+                if posible_ruta and os.path.exists(posible_ruta):
+                    return posible_ruta
+
+        # Buscar por nombre de archivo directo
+        nombre_archivo = inspector_nombre.replace(" ", "").upper() + ".png"
+        ruta_directa = os.path.join("Firmas", nombre_archivo)
+
+        if os.path.exists(ruta_directa):
+            return ruta_directa
+
+        print(f"⚠️ No se encontró firma para: {inspector_nombre}")
+        return None
 
     def generar(self, nombre_archivo="Acta.pdf"):
         """Genera el archivo PDF"""
@@ -315,8 +388,6 @@ class ActaPDFGenerator:
         c.save()
         print(f"✅ PDF generado exitosamente: {nombre_archivo}")
         return nombre_archivo
-
-
 
 # Función principal para usar desde tu aplicación
 def generar_acta_pdf(datos, ruta_salida="Acta.pdf"):
@@ -404,7 +475,9 @@ if __name__ == "__main__":
         'colonia': 'CENTRO',
         'municipio': 'BENITO JUAREZ',
         'ciudad_estado': 'CIUDAD DE MEXICO, CDMX',
-        'firma_inspector': 'Firmas/AFLORES.png'
+        'firma_inspector': 'Firmas/AFLORES.png',
+        'NOMBRE_DE_INSPECTOR': 'Arturo Flores Gómez',
+
 
     }
     # Crear carpetas si no existen
