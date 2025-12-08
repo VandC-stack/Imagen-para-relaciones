@@ -393,5 +393,5 @@ datos_demo = {
     "supervisor": " "
 }
 
-generar_supervision(datos_demo, "Formato_Supervision.pdf")
+generar_supervision(datos_demo, "Plantillas PDF/Formato_Supervision.pdf")
 

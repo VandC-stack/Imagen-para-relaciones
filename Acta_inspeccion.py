@@ -486,6 +486,6 @@ if __name__ == "__main__":
     os.makedirs("data", exist_ok=True)
     
     # Generar PDF
-    generar_acta_pdf(datos, "Acta_inspeccion.pdf")
+    generar_acta_pdf(datos, "Plantillas PDF/Acta_inspeccion.pdf")
 
 

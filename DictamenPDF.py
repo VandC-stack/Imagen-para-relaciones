@@ -274,3 +274,4 @@ class PDFGenerator:
         canvas.drawRightString(LETTER_WIDTH - 72, start_y - (len(lines) * line_height) - 4, formato_text)
 
         canvas.restoreState()
+

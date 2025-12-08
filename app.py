@@ -922,8 +922,11 @@ class SistemaDictamenesVC(ctk.CTk):
             self.info_etiquetado.pack_forget()
             return
 
-        # Listas para clasificar clientes
+        # ─────────────────────────────────────────────
+        #  1) CLIENTES QUE SOLO PEGAN EVIDENCIA
+        # ─────────────────────────────────────────────
         CLIENTES_EVIDENCIA = {
+            # Pegado Indice
             "BASECO SAPI DE CV",
             "BLUE STRIPES SA DE CV",
             "GRUPO GUESS S DE RL DE CV",
@@ -933,22 +936,30 @@ class SistemaDictamenesVC(ctk.CTk):
             "MODA RAPSODIA SA DE CV",
             "MULTIBRAND OUTLET STORES SAPI DE CV",
             "RED STRIPES SA DE CV",
+
+            # Pegado simple
             "ROBERT BOSCH S DE RL DE CV",
+
+            # Pegado en múltiples carpetas
             "UNILEVER MANUFACTURERA S DE RL DE CV",
-            "UNILEVER DE MÉXICO S DE RL DE CV"
+            "UNILEVER DE MÉXICO S DE RL DE CV",
         }
 
+        # ─────────────────────────────────────────────
+        # 2) CLIENTES QUE PEGAN ETIQUETAS
+        # ─────────────────────────────────────────────
         CLIENTES_ETIQUETA = {
             "ARTICULOS DEPORTIVOS DECATHLON SA DE CV",
-            "FERRAGAMO MEXICO S DE RL DE CV",
-            "ULTA BEAUTY SAPI DE CV"  # Evaluado según norma en generador
+            "FERRAGAMO  MEXICO S DE RL DE CV",
+            "ULTA BEAUTY SAPI DE CV",  # Tiene reglas especiales
         }
 
-        # Buscar cliente
+        # Buscar cliente en clientes_data
         for cliente in self.clientes_data:
-            if cliente['CLIENTE'] == cliente_nombre:
+            if cliente["CLIENTE"] == cliente_nombre:
+
                 self.cliente_seleccionado = cliente
-                rfc = cliente.get('RFC', 'No disponible')
+                rfc = cliente.get("RFC", "No disponible")
 
                 self.info_cliente.configure(
                     text=f"✅ {cliente_nombre}\n📋 RFC: {rfc}",
@@ -956,22 +967,41 @@ class SistemaDictamenesVC(ctk.CTk):
                 )
                 self.boton_limpiar_cliente.configure(state="normal")
 
-                # ----- LÓGICA PARA EVIDENCIA O ETIQUETA -----
-                if cliente_nombre in CLIENTES_ETIQUETA:
-                    # Mostrar botón de subir etiquetado SOLO PARA ETIQUETAS
-                    self.boton_subir_etiquetado.pack(side="left", padx=(0, 8))
-                    if self.archivo_etiquetado_json:
-                        self.info_etiquetado.pack(anchor="w", fill="x", pady=(5, 0))
-                else:
-                    # Clientes de evidencia → NO requieren archivo de etiquetas
+                # ─────────────────────────────────────────────
+                # CASO: CLIENTE QUE SOLO PEGARÁ EVIDENCIA
+                # ─────────────────────────────────────────────
+                if cliente_nombre in CLIENTES_EVIDENCIA:
+                    self.tipo_operacion = "EVIDENCIA"
                     self.boton_subir_etiquetado.pack_forget()
                     self.info_etiquetado.pack_forget()
+                    break
 
-                # Habilitar dictamen si ya hay JSON cargado
-                if self.archivo_json_generado:
-                    self.boton_generar_dictamen.configure(state="normal")
+                # ─────────────────────────────────────────────
+                # CASO: CLIENTE QUE REQUIERE PEGADO DE ETIQUETAS
+                # ─────────────────────────────────────────────
+                if cliente_nombre in CLIENTES_ETIQUETA:
+                    self.tipo_operacion = "ETIQUETA"
+
+                    # ULTA BEAUTY TIENE FLUJO ESPECIAL
+                    if cliente_nombre == "ULTA BEAUTY SAPI DE CV":
+                        self.tipo_operacion = "ULTA"
+
+                    # Mostrar botón de subir base de etiquetado
+                    self.boton_subir_etiquetado.pack(side="left", padx=(0, 8))
+                    
+                    if self.archivo_etiquetado_json:
+                        self.info_etiquetado.pack(anchor="w", fill="x", pady=(5, 0))
+                    break
 
                 break
+
+        # ─────────────────────────────────────────────
+        # SI YA HAY JSON GENERADO → habilitar dictamen
+        # ─────────────────────────────────────────────
+        if self.archivo_json_generado:
+            self.boton_generar_dictamen.configure(state="normal")
+
+
 
 
 
@@ -3114,3 +3144,4 @@ class SistemaDictamenesVC(ctk.CTk):
 if __name__ == "__main__":
     app = SistemaDictamenesVC()
     app.mainloop()
+

@@ -497,6 +497,6 @@ if __name__ == "__main__":
     os.makedirs("data", exist_ok=True)
     
     # Generar PDF
-    generar_oficio_pdf(datos_ejemplo, "Oficio_comision.pdf")
+    generar_oficio_pdf(datos_ejemplo, "Plantillas PDF/Oficio_comision.pdf")
 
 

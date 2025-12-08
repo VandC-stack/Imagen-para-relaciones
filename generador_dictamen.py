@@ -300,8 +300,6 @@ class PDFGeneratorConDatos(PDFGenerator):
                 self.elements.append(PageBreak())
             self.elements.extend(pagina)
 
-
-
     def agregar_encabezado_pie_pagina(self, canvas, doc):
         canvas.saveState()
         
@@ -519,3 +517,4 @@ if __name__ == "__main__":
         print(f"📁 Ubicación: {resultado['directorio']}")
     else:
         print(f"\n❌ {mensaje}")
+
