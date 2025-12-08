@@ -910,6 +910,7 @@ class SistemaDictamenesVC(ctk.CTk):
             messagebox.showerror("Error", f"No se pudieron cargar los clientes:\n{e}")
 
     def actualizar_cliente_seleccionado(self, cliente_nombre):
+        # Reset si no se selecciona cliente válido
         if cliente_nombre == "Seleccione un cliente...":
             self.cliente_seleccionado = None
             self.info_cliente.configure(
@@ -921,6 +922,29 @@ class SistemaDictamenesVC(ctk.CTk):
             self.info_etiquetado.pack_forget()
             return
 
+        # Listas para clasificar clientes
+        CLIENTES_EVIDENCIA = {
+            "BASECO SAPI DE CV",
+            "BLUE STRIPES SA DE CV",
+            "GRUPO GUESS S DE RL DE CV",
+            "EAST COAST MODA SA DE CV",
+            "I NOSTRI FRATELLI S DE RL DE CV",
+            "LEDERY MEXICO SA DE CV",
+            "MODA RAPSODIA SA DE CV",
+            "MULTIBRAND OUTLET STORES SAPI DE CV",
+            "RED STRIPES SA DE CV",
+            "ROBERT BOSCH S DE RL DE CV",
+            "UNILEVER MANUFACTURERA S DE RL DE CV",
+            "UNILEVER DE MÉXICO S DE RL DE CV"
+        }
+
+        CLIENTES_ETIQUETA = {
+            "ARTICULOS DEPORTIVOS DECATHLON SA DE CV",
+            "FERRAGAMO MEXICO S DE RL DE CV",
+            "ULTA BEAUTY SAPI DE CV"  # Evaluado según norma en generador
+        }
+
+        # Buscar cliente
         for cliente in self.clientes_data:
             if cliente['CLIENTE'] == cliente_nombre:
                 self.cliente_seleccionado = cliente
@@ -932,17 +956,25 @@ class SistemaDictamenesVC(ctk.CTk):
                 )
                 self.boton_limpiar_cliente.configure(state="normal")
 
-                if cliente_nombre == "ARTICULOS DEPORTIVOS DECATHLON SA DE CV":
+                # ----- LÓGICA PARA EVIDENCIA O ETIQUETA -----
+                if cliente_nombre in CLIENTES_ETIQUETA:
+                    # Mostrar botón de subir etiquetado SOLO PARA ETIQUETAS
                     self.boton_subir_etiquetado.pack(side="left", padx=(0, 8))
                     if self.archivo_etiquetado_json:
                         self.info_etiquetado.pack(anchor="w", fill="x", pady=(5, 0))
                 else:
+                    # Clientes de evidencia → NO requieren archivo de etiquetas
                     self.boton_subir_etiquetado.pack_forget()
                     self.info_etiquetado.pack_forget()
 
+                # Habilitar dictamen si ya hay JSON cargado
                 if self.archivo_json_generado:
                     self.boton_generar_dictamen.configure(state="normal")
+
                 break
+
+
+
 
     def cargar_base_etiquetado(self):
         file_path = filedialog.askopenfilename(
@@ -2755,17 +2787,6 @@ class SistemaDictamenesVC(ctk.CTk):
             
         except Exception as e:
             print(f"⚠️ Error registrando visita automática: {e}")
-
-
-
-
-
-
-
-
-
-
-
 
     def limpiar_archivo(self):
         self.archivo_excel_cargado = None

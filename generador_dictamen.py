@@ -50,7 +50,13 @@ class PDFGeneratorConDatos(PDFGenerator):
 
     def calcular_total_paginas(self):
         """Calcula el número total de páginas correctamente."""
-        etiquetas = self.datos.get('etiquetas_lista', []) or []
+        modo = self.datos.get("modo_insertado", "etiqueta")
+
+        if modo == "evidencia":
+            etiquetas = self.datos.get('evidencias_lista', []) or []
+        else:
+            etiquetas = self.datos.get('etiquetas_lista', []) or []
+
         num_etiquetas = len(etiquetas)
         
         paginas_datos = 1
@@ -293,6 +299,8 @@ class PDFGeneratorConDatos(PDFGenerator):
             if idx > 0:
                 self.elements.append(PageBreak())
             self.elements.extend(pagina)
+
+
 
     def agregar_encabezado_pie_pagina(self, canvas, doc):
         canvas.saveState()
