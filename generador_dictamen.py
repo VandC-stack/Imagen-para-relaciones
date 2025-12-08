@@ -49,22 +49,63 @@ class PDFGeneratorConDatos(PDFGenerator):
         self.calcular_total_paginas()
 
     def calcular_total_paginas(self):
-        """Calcula el número total de páginas correctamente."""
+        """Calcula correctamente las páginas según modo y estructura final."""
+
         modo = self.datos.get("modo_insertado", "etiqueta")
 
-        if modo == "evidencia":
-            etiquetas = self.datos.get('evidencias_lista', []) or []
-        else:
-            etiquetas = self.datos.get('etiquetas_lista', []) or []
+        # --- SIEMPRE existe HOJA 1 = DATOS ---
+        paginas = 1
 
-        num_etiquetas = len(etiquetas)
-        
-        paginas_datos = 1
-        max_por_pagina = 6
-        paginas_etiquetas = (num_etiquetas + max_por_pagina - 1) // max_por_pagina if num_etiquetas > 0 else 0
-        
-        self.total_pages = paginas_datos + max(1, paginas_etiquetas)
-        print(f"   📊 Total de páginas calculado: {self.total_pages}")
+        # -------------------------------------------------------------------
+        # MODO: PEGADO DE EVIDENCIA
+        # -------------------------------------------------------------------
+        if modo == "evidencia":
+            print("📌 MODO EVIDENCIA → Datos + Evidencia + Firmas")
+            paginas += 1            # Hoja de evidencia
+            paginas += 1            # Hoja de firmas
+            self.total_pages = paginas
+            return
+
+        # -------------------------------------------------------------------
+        # MODO: MIXTO (ULTA con NOM-024)
+        # -------------------------------------------------------------------
+        if modo == "mixto":
+            print("📌 MODO MIXTO → Datos + Mixta + Firmas")
+            paginas += 1            # Hoja mixta
+            paginas += 1            # Firmas
+            self.total_pages = paginas
+            return
+
+        # -------------------------------------------------------------------
+        # MODO ETIQUETADO NORMAL / BASE ETIQUETAS
+        # -------------------------------------------------------------------
+        if modo in ("etiqueta", "base_etiquetado"):
+            etiquetas = self.datos.get("etiquetas_lista", []) or []
+            
+            # Si no hay etiquetas, solo hay DATOS + FIRMAS = 2 páginas
+            if not etiquetas:
+                print(f"📌 MODO ETIQUETA → SIN ETIQUETAS (solo Datos + Firmas)")
+                paginas += 1           # Hoja de firmas
+                self.total_pages = paginas
+                return
+            
+            # Si hay etiquetas, calcular páginas de etiquetas
+            max_por_pagina = 6
+            paginas_etq = (len(etiquetas) + max_por_pagina - 1) // max_por_pagina
+
+            print(f"📌 MODO ETIQUETA → {paginas_etq} páginas de etiquetas ({len(etiquetas)} etiquetas)")
+
+            paginas += paginas_etq     # Agregar páginas de etiquetas
+            paginas += 1               # Hoja de firmas
+
+            self.total_pages = paginas
+            return
+
+        # -------------------------------------------------------------------
+        # FALLBACK (por si llega un modo desconocido)
+        # -------------------------------------------------------------------
+        print(f"⚠️ MODO DESCONOCIDO: {modo}, asignando modo etiqueta")
+        self.total_pages = 2  # Datos + Firmas mínimo
 
     # ---------------- tablas auxiliares ----------------
     def construir_tabla_productos(self):
@@ -127,7 +168,35 @@ class PDFGeneratorConDatos(PDFGenerator):
                 self.elements = []
 
             self.agregar_primera_pagina_con_datos()
-            self.agregar_segunda_pagina_con_etiquetas()
+
+            modo = self.datos.get("modo_insertado", "etiqueta")
+
+            # 🚀 RUTEAMOS SEGÚN RAZÓN SOCIAL
+            if modo == "evidencia":
+                print("   📌 MODO: SOLO EVIDENCIA")
+                self.agregar_hoja_evidencia()
+
+            elif modo == "mixto":
+                print("   📌 MODO: MIXTO (EVIDENCIA + ETIQUETAS EN UNA HOJA)")
+                self.agregar_hoja_mixta()
+
+            elif modo == "etiqueta":
+                # agregar_segunda_pagina_con_etiquetas devolverá True si ya colocó las firmas
+                firmas_colocadas = self.agregar_segunda_pagina_con_etiquetas()
+                if not firmas_colocadas:
+                    # Agregar firmas en página separada
+                    self.agregar_hoja_firmas()
+
+            elif modo == "base_etiquetado":
+                print("   📌 MODO: BASE DE ETIQUETADO (Decathlon)")
+                firmas_colocadas = self.agregar_segunda_pagina_con_etiquetas()
+                if not firmas_colocadas:
+                    self.agregar_hoja_firmas()
+
+            else:
+                print(f"   ⚠️ Modo desconocido: {modo}, se usa modo etiqueta.")
+                self.agregar_segunda_pagina_con_etiquetas()
+
 
             self.doc.build(self.elements,
                            onFirstPage=self.agregar_encabezado_pie_pagina,
@@ -242,63 +311,122 @@ class PDFGeneratorConDatos(PDFGenerator):
                     pagina.append(tabla)
                     pagina.append(Spacer(1, 0.15 * inch))
 
-            if pagina_idx == total_paginas_etq - 1:
-                pagina.append(Spacer(1, 0.25 * inch))
-
-                imagen_firma1 = obtener_ruta_recurso(self.datos.get('imagen_firma1',''))
-                imagen_firma2 = obtener_ruta_recurso(self.datos.get('imagen_firma2',''))
-
-                
-                # Columna 1: Primera firma (Inspector)
-                col1_elementos = []
-                if imagen_firma1 and os.path.exists(imagen_firma1):
-                    try:
-                        img1 = RLImage(imagen_firma1, width=2.0*inch, height=0.6*inch)
-                        col1_elementos.append(img1)
-                    except Exception as e:
-                        print(f"   ⚠️ Error cargando firma1: {e}")
-                
-                # Línea divisoria
-                col1_elementos.append(Paragraph("_______________________________", self.normal_style))
-                
-                # Nombre en negritas y centrado
-                nombre_insp = str(self.datos.get('nfirma1',''))
-                bold_style = ParagraphStyle('BoldCenter', parent=self.normal_style, fontName='Helvetica-Bold', alignment=1)
-                col1_elementos.append(Paragraph(nombre_insp, bold_style))
-                col1_elementos.append(Paragraph("Inspector", bold_style))
-                
-                # Columna 3: Segunda firma (Responsable de Supervisión UI)
-                col3_elementos = []
-                if imagen_firma2 and os.path.exists(imagen_firma2):
-                    try:
-                        img2 = RLImage(imagen_firma2, width=2.0*inch, height=0.6*inch)
-                        col3_elementos.append(img2)
-                    except Exception as e:
-                        print(f"   ⚠️ Error cargando firma2: {e}")
-                
-                # Línea divisoria
-                col3_elementos.append(Paragraph("_______________________________", self.normal_style))
-                
-                # Nombre en negritas y centrado
-                nombre_sup = str(self.datos.get('nfirma2',''))
-                col3_elementos.append(Paragraph(nombre_sup, bold_style))
-                col3_elementos.append(Paragraph("Responsable de Supervisión UI", bold_style))
-                
-                firmas_data = [[col1_elementos, '', col3_elementos]]
-                
-                firmas_table = Table(firmas_data, colWidths=[2.5*inch, 0.5*inch, 2.5*inch])
-                firmas_table.setStyle(TableStyle([
-                    ('ALIGN',(0,0),(-1,-1),'CENTER'),
-                    ('VALIGN',(0,0),(-1,-1),'TOP'),
-                ]))
-                pagina.append(firmas_table)
-
             paginas_contenido.append(pagina)
 
         for idx, pagina in enumerate(paginas_contenido):
+            # If this is not the first etiqueta page, add a page break
             if idx > 0:
                 self.elements.append(PageBreak())
+
+            # If we're on the last etiqueta page AND there are less than 5 etiquetas,
+            # append the firmas flowables to this page so they remain on the same page
+            if idx == (len(paginas_contenido) - 1) and len(etiquetas) < 5:
+                print("   📌 Firmas mostradas ABAJO de etiquetas (menos de 5 etiquetas)")
+                # add a small spacer then the firmas
+                pagina.append(Spacer(1, 0.15 * inch))
+                for e in self._get_firmas_elements():
+                    pagina.append(e)
+                # extend the page content (no extra PageBreak)
+                self.elements.extend(pagina)
+                return True
+
+            # Otherwise just extend the page content normally
             self.elements.extend(pagina)
+
+        # If we reach here, firmas were not placed; caller should add a separate firmas page
+        print("   📌 Firmas mostradas en PÁGINA SEPARADA (5+ etiquetas)")
+        return False
+
+    # Agregar hoja para pegado de evidencias fotograficas #
+    def agregar_hoja_evidencia(self):
+        """Hoja en blanco para evidencia + hoja de firmas."""
+        print("   📄 Generando hoja en blanco para evidencia...")
+
+        # HOJA 2 – Evidencia
+        self.elements.append(PageBreak())
+        self.elements.append(Spacer(1, 2 * inch))
+        self.elements.append(Paragraph(
+            "<b>IMAGEN</b>",
+            ParagraphStyle('Center', parent=self.normal_style, alignment=1, fontSize=12)
+        ))
+
+        # HOJA 3 – Firmas
+        self.agregar_hoja_firmas()
+
+    # Funcion para el caso de ULTA BEAUTY ya que para la norma 024 es pegado de evidencia y pegado de etiquetas para las demas normas #
+    def agregar_hoja_mixta(self):
+        """Mezcla en una sola hoja evidencia y etiquetas."""
+        evidencias = self.datos.get('evidencias_lista', []) or []
+        etiquetas = self.datos.get('etiquetas_lista', []) or []
+
+        self.elements.append(PageBreak())
+        self.elements.append(Paragraph("<b>EVIDENCIA Y ETIQUETAS</b>", self.normal_style))
+        self.elements.append(Spacer(1, 0.25 * inch))
+
+        # --- Mostrar evidencia ---
+        if evidencias:
+            for ev in evidencias:
+                img_bytes = ev.get('imagen_bytes')
+                if img_bytes:
+                    img_bytes.seek(0)
+                    img = RLImage(img_bytes, width=4.5*inch, height=4.5*inch)
+                    self.elements.append(img)
+                    self.elements.append(Spacer(1, 0.25 * inch))
+
+        # --- Mostrar etiquetas a un tamaño menor ---
+        if etiquetas:
+            for etq in etiquetas:
+                img_bytes = etq.get('imagen_bytes')
+                w_cm, h_cm = etq.get("tamaño_cm", (5,5))
+                if img_bytes:
+                    img_bytes.seek(0)
+                    img = RLImage(img_bytes, width=w_cm*0.393701*inch/1.4,
+                                            height=h_cm*0.393701*inch/1.4)
+                    self.elements.append(img)
+                    self.elements.append(Spacer(1, 0.15 * inch))
+
+    def agregar_hoja_firmas(self):
+        """Agrega una hoja con las firmas al final (PÁGINA SEPARADA)."""
+        print("   🖊 Agregando hoja de firmas (PÁGINA SEPARADA)")
+        self.elements.append(PageBreak())
+        for e in self._get_firmas_elements():
+            self.elements.append(e)
+
+    def _get_firmas_elements(self):
+        """Devuelve la lista de flowables que representan las firmas (sin PageBreak)."""
+        elems = []
+        bold_style = ParagraphStyle('BoldCenter', parent=self.normal_style, fontName='Helvetica-Bold', alignment=1)
+
+        ruta_firma1 = self.datos.get('imagen_firma1', '')
+        ruta_firma2 = self.datos.get('imagen_firma2', '')
+        imagen_firma1 = obtener_ruta_recurso(ruta_firma1) if ruta_firma1 else None
+        imagen_firma2 = obtener_ruta_recurso(ruta_firma2) if ruta_firma2 else None
+
+        col1 = []
+        if imagen_firma1 and os.path.exists(imagen_firma1):
+            img1 = RLImage(imagen_firma1, width=2.0*inch, height=0.6*inch)
+            col1.append(img1)
+        col1.append(Paragraph("_______________________________", self.normal_style))
+        col1.append(Paragraph(self.datos.get("nfirma1",""), bold_style))
+        col1.append(Paragraph("Inspector", bold_style))
+
+        col3 = []
+        if imagen_firma2 and os.path.exists(imagen_firma2):
+            img2 = RLImage(imagen_firma2, width=2.0*inch, height=0.6*inch)
+            col3.append(img2)
+        col3.append(Paragraph("_______________________________", self.normal_style))
+        col3.append(Paragraph(self.datos.get("nfirma2",""), bold_style))
+        col3.append(Paragraph("Responsable de Supervisión UI", bold_style))
+
+        firmas_table = Table([[col1, "", col3]], colWidths=[2.5*inch, 0.5*inch, 2.5*inch])
+        firmas_table.setStyle(TableStyle([
+            ('ALIGN',(0,0),(-1,-1),'CENTER'),
+            ('VALIGN',(0,0),(-1,-1),'TOP'),
+        ]))
+
+        elems.append(Spacer(1, 1 * inch))
+        elems.append(firmas_table)
+        return elems
 
     def agregar_encabezado_pie_pagina(self, canvas, doc):
         canvas.saveState()
@@ -320,8 +448,10 @@ class PDFGeneratorConDatos(PDFGenerator):
         solicitud = str(self.datos.get('solicitud', '')).strip()
         lista = str(self.datos.get('lista', '')).strip()
         
-        # Formato: ${year}049UDC${norma}${folio} Solicitud de Servicio: ${year}049USD${norma}${solicitud}-${lista}
-        linea_completa = f"{year}049UDC{norma}{folio}   Solicitud de Servicio: {year}049USD{norma}{solicitud}-{lista}"
+        # Formato folio a 6 dígitos: ${year}049UDC${norma}${folio} Solicitud de Servicio: ${year}049USD${norma}${solicitud}-${lista}
+        folio_formateado = f"{int(folio) if folio.isdigit() else 0:06d}"
+        solicitud_formateado = f"{int(solicitud) if solicitud.isdigit() else 0:06d}"
+        linea_completa = f"{year}049UDC{norma}{folio_formateado}   Solicitud de Servicio: {year}049USD{norma}{solicitud_formateado}-{lista}"
         canvas.setFont("Helvetica", 9)
         canvas.drawCentredString(8.5*inch/2, 11*inch-80, linea_completa)
 
@@ -364,6 +494,58 @@ def limpiar_nombre_archivo(nombre):
     for p in prohibidos:
         nombre = nombre.replace(p, "_")
     return nombre
+
+def detectar_flujo_cliente(cliente_nombre, norma_nombre=""):
+    """
+    Detecta automáticamente qué flujo debe usar el cliente.
+    Retorna: 'evidencia', 'etiqueta', 'mixto', o 'etiqueta' (default)
+    """
+    cliente_upper = str(cliente_nombre).upper().strip()
+    norma_upper = str(norma_nombre).upper().strip()
+    
+    # ─────────────────────────────────────────────
+    # CLIENTES QUE PEGAN EVIDENCIA
+    # ─────────────────────────────────────────────
+    CLIENTES_EVIDENCIA = {
+        "BASECO SAPI DE CV",
+        "BLUE STRIPES SA DE CV",
+        "GRUPO GUESS S DE RL DE CV",
+        "EAST COAST MODA SA DE CV",
+        "I NOSTRI FRATELLI S DE RL DE CV",
+        "LEDERY MEXICO SA DE CV",
+        "MODA RAPSODIA SA DE CV",
+        "MULTIBRAND OUTLET STORES SAPI DE CV",
+        "RED STRIPES SA DE CV",
+        "ROBERT BOSCH S DE RL DE CV",
+        "UNILEVER MANUFACTURERA S DE RL DE CV",
+        "UNILEVER DE MÉXICO S DE RL DE CV",
+    }
+    
+    # ─────────────────────────────────────────────
+    # CLIENTES QUE PEGAN ETIQUETAS
+    # ─────────────────────────────────────────────
+    CLIENTES_ETIQUETA = {
+        "ARTICULOS DEPORTIVOS DECATHLON SA DE CV",
+        "FERRAGAMO MEXICO S DE RL DE CV",
+    }
+    
+    # ─────────────────────────────────────────────
+    # ULTA BEAUTY: MIXTO PARA NOM-024, ETIQUETA PARA OTRAS
+    # ─────────────────────────────────────────────
+    if "ULTA BEAUTY" in cliente_upper:
+        if "NOM-024" in norma_upper:
+            return "mixto"
+        else:
+            return "etiqueta"
+    
+    if cliente_upper in CLIENTES_EVIDENCIA:
+        return "evidencia"
+    
+    if cliente_upper in CLIENTES_ETIQUETA:
+        return "etiqueta"
+    
+    # Default: etiqueta
+    return "etiqueta"
 
 def generar_dictamenes_completos(directorio_destino, cliente_manual=None, rfc_manual=None):
     print("🚀 INICIANDO GENERACIÓN DE DICTÁMENES")
@@ -410,11 +592,24 @@ def generar_dictamenes_completos(directorio_destino, cliente_manual=None, rfc_ma
                 print(f"   ❌ ERROR: No se pudieron preparar datos para lista {lista}")
                 continue
 
+            # 🎯 DETECTAR Y ASIGNAR FLUJO AUTOMÁTICAMENTE
+            cliente = datos.get('cliente', 'DESCONOCIDO')
+            norma = datos.get('norma', '')
+            flujo_detectado = detectar_flujo_cliente(cliente, norma)
+            datos['modo_insertado'] = flujo_detectado
+            print(f"   📌 Flujo detectado: {flujo_detectado.upper()} (Cliente: {cliente})")
+            
             tiene_firma = datos.get("firma_valida", False)
+            
+            # 🎯 CREAR CARPETA POR SOLICITUD (SOL{solicitud})
+            solicitud = str(datos.get('solicitud', '000000')).strip()
+            solicitud_formateado = f"{int(solicitud) if solicitud.isdigit() else 0:06d}"
+            carpeta_solicitud = os.path.join(directorio_destino, f"SOL {solicitud_formateado}")
+            os.makedirs(carpeta_solicitud, exist_ok=True)
             
             generador = PDFGeneratorConDatos(datos)
             nombre_archivo = limpiar_nombre_archivo(f"Dictamen_Lista_{lista}.pdf")
-            ruta_completa = os.path.join(directorio_destino, nombre_archivo)
+            ruta_completa = os.path.join(carpeta_solicitud, nombre_archivo)
 
             if generador.generar_pdf_con_datos(ruta_completa):
                 dictamenes_generados += 1
@@ -514,7 +709,6 @@ if __name__ == "__main__":
     exito, mensaje, resultado = generar_dictamenes_completos(carpeta_prueba)
     if exito:
         print(f"\n🎉 {mensaje}")
-        print(f"📁 Ubicación: {resultado['directorio']}")
     else:
         print(f"\n❌ {mensaje}")
 

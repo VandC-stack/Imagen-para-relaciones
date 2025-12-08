@@ -1,0 +1,67 @@
+{
+  "operaciones": [
+    {
+      "timestamp": "2025-12-08T15:56:25.708439",
+      "tipo": "eliminar_registro",
+      "folio": "000001",
+      "status": "exitosa",
+      "detalles": "Archivos: 4, Errores: 0"
+    },
+    {
+      "timestamp": "2025-12-08T15:56:30.804440",
+      "tipo": "eliminar_registro",
+      "folio": "000002",
+      "status": "exitosa",
+      "detalles": "Archivos: 3, Errores: 0"
+    },
+    {
+      "timestamp": "2025-12-08T15:56:36.204735",
+      "tipo": "eliminar_registro",
+      "folio": "000005",
+      "status": "exitosa",
+      "detalles": "Archivos: 4, Errores: 0"
+    },
+    {
+      "timestamp": "2025-12-08T15:56:53.310884",
+      "tipo": "eliminar_registro",
+      "folio": "000003",
+      "status": "exitosa",
+      "detalles": "Archivos: 4, Errores: 0"
+    },
+    {
+      "timestamp": "2025-12-08T15:57:04.849922",
+      "tipo": "eliminar_registro",
+      "folio": "000004",
+      "status": "exitosa",
+      "detalles": "Archivos: 4, Errores: 0"
+    },
+    {
+      "timestamp": "2025-12-08T15:57:07.135409",
+      "tipo": "eliminar_registro",
+      "folio": "000006",
+      "status": "exitosa",
+      "detalles": "Archivos: 5, Errores: 0"
+    },
+    {
+      "timestamp": "2025-12-08T15:57:09.732022",
+      "tipo": "eliminar_registro",
+      "folio": "000007",
+      "status": "exitosa",
+      "detalles": "Archivos: 4, Errores: 0"
+    },
+    {
+      "timestamp": "2025-12-08T15:57:10.325923",
+      "tipo": "eliminar_registro",
+      "folio": "000008",
+      "status": "exitosa",
+      "detalles": "Archivos: 4, Errores: 0"
+    },
+    {
+      "timestamp": "2025-12-08T15:57:11.101104",
+      "tipo": "eliminar_registro",
+      "folio": "000009",
+      "status": "exitosa",
+      "detalles": "Archivos: 3, Errores: 0"
+    }
+  ]
+}
