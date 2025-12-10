@@ -2,7 +2,6 @@ import customtkinter as ctk
 from tkinter import messagebox, filedialog
 import threading
 from main import procesar_lote, cargar_config, guardar_config
-from ASCII_ART import print_ascii, ASCII_ART
 
 
 ctk.set_appearance_mode("light")
@@ -226,7 +225,5 @@ class App(ctk.CTk):
 
 if __name__ == "__main__":
     # Firma interna – NO visible para el usuario final
-    print_ascii(ASCII_ART, typing=False)
-
     app = App()
     app.mainloop()  

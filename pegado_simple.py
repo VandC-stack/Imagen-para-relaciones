@@ -11,7 +11,7 @@ from main import (
     norm_path_key,
     insertar_imagenes_en_pdf_placeholder,
 )
-from registro_fallos import registrar_fallo, limpiar_registro, mostrar_registro, LOG_FILE
+from registro_fallos import registrar_fallo, limpiar_registro, mostrar_registro, LOG_FILE, set_base_docs_path
 
 
 def procesar_simple():
@@ -20,6 +20,9 @@ def procesar_simple():
     ruta_docs, ruta_imgs = obtener_rutas()
     if not ruta_docs or not ruta_imgs:
         return
+
+    # Establecer la base para rutas relativas en el log
+    set_base_docs_path(ruta_docs)
 
     # Índice normal de imágenes para el modo simple
     index = indexar_imagenes(ruta_imgs)
@@ -44,7 +47,7 @@ def procesar_simple():
             codigos = extraer_codigos(doc)
 
             if not codigos:
-                registrar_fallo(archivo)
+                registrar_fallo(ruta_doc)
                 continue
 
             imagen_insertada = False
@@ -68,7 +71,7 @@ def procesar_simple():
                     break
 
             if not imagen_insertada:
-                registrar_fallo(archivo)
+                registrar_fallo(ruta_doc)
 
             doc.save(ruta_doc)
             print(f"Documento DOCX actualizado: {ruta_doc}")
@@ -83,7 +86,7 @@ def procesar_simple():
             codigos = extraer_codigos_pdf(ruta_doc)
 
             if not codigos:
-                registrar_fallo(archivo)
+                registrar_fallo(ruta_doc)
                 continue
 
             rutas_imagenes = []
@@ -99,13 +102,13 @@ def procesar_simple():
                     usadas_bases.add(usar_base)
 
             if not rutas_imagenes:
-                registrar_fallo(archivo)
+                registrar_fallo(ruta_doc)
                 continue
 
             exito = insertar_imagenes_en_pdf_placeholder(ruta_doc, rutas_imagenes)
             if not exito:
-                registrar_fallo(archivo)
+                registrar_fallo(ruta_doc)
 
     mostrar_registro()
     if os.path.exists(LOG_FILE):
-        os.startfile(LOG_FILE)  
+        os.startfile(LOG_FILE)
