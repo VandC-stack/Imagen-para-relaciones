@@ -48,6 +48,13 @@
       "folio": "CP000002",
       "status": "exitosa",
       "detalles": "Archivos: 5, Errores: 0"
+    },
+    {
+      "timestamp": "2025-12-10T11:34:46.271574",
+      "tipo": "eliminar_registro",
+      "folio": "CP000001",
+      "status": "exitosa",
+      "detalles": "Archivos: 6, Errores: 0"
     }
   ]
 }

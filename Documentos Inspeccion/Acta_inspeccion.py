@@ -170,7 +170,6 @@ class ActaPDFGenerator:
         - Nombre y Firma del cliente o responsable de atender la visita
         - Nombre y Firma (Testigo 1)
         - Nombre y Firma del Inspector (uno o varios)
-        - Nombre y Firma (Testigo 2)
 
         Esta versión sólo ajusta el orden y la disposición de nombres/firma;
         no modifica el resto de campos del documento.
@@ -216,7 +215,7 @@ class ActaPDFGenerator:
 
         # 1) Cliente / responsable
         cliente_nombre = self.datos.get('empresa_visitada') or self.datos.get('cliente') or ''
-        y = dibujar_nombre_y_firma('Nombre y Firma del cliente o responsable de atender la visita', cliente_nombre, y)
+        y = dibujar_nombre_y_firma('Nombre y Firma del cliente o responsable de atender la visita', y)
 
         # 2) Testigo 1
         testigo1 = self.datos.get('testigo1') or self.datos.get('testigo_1') or ''
@@ -236,10 +235,6 @@ class ActaPDFGenerator:
         else:
             # Si no hay inspectores, dejar un espacio vacío para firma
             y = dibujar_nombre_y_firma('Nombre y Firma del Inspector', '', y)
-
-        # 4) Testigo 2
-        testigo2 = self.datos.get('testigo2') or self.datos.get('testigo_2') or ''
-        y = dibujar_nombre_y_firma('Nombre y Firma (Testigo 2)', testigo2, y)
 
         # Espacio para siguiente sección
         y -= 6
@@ -322,14 +317,14 @@ class ActaPDFGenerator:
                 except Exception:
                     pass
 
-                y = self.height - 50
-                c.setFont("Helvetica-Bold", 9)
+                y = self.height - 90
+                c.setFont("Helvetica-Bold", 7)
                 x = left
                 for i, h in enumerate(headers):
                     c.drawString(x + 2, y, h)
                     x += col_widths[i]
                 y -= row_h
-                c.setFont("Helvetica", 9)
+                c.setFont("Helvetica", 7)
 
             x = left
             # Obtener valores con fallback
