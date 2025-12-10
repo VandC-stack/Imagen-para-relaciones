@@ -178,3 +178,82 @@ Si el mensaje "No se generaron etiquetas" persiste:
 1. Verificar que los códigos EAN existan en BASE_ETIQUETADO.json
 2. Revisar que NORMA UVA esté en el mapeo de normas
 3. Comprobar que config_etiquetas.json tenga la configuración de la norma
+
+## 🧭 Documentación del Código (desarrolladores)
+
+Esta sección documenta los archivos principales, responsabilidades y puntos de extensión para que cualquier desarrollador pueda entender y modificar el proyecto.
+
+- **`app.py`**: Interfaz gráfica (CustomTkinter) y orquestador principal.
+   - Gestor de UI: pestañas *Principal* y *Historial*.
+   - Funcionalidades clave: carga de clientes, preparación de visita, generación de dictámenes (dispara `generador_dictamen.py`), registro y sincronización del `historial_visitas.json`.
+   - Módulos importantes: métodos `_cargar_historial`, `_guardar_historial`, `_poblar_historial_ui`, `hist_create_visita`, `hist_eliminar_registro`, `registrar_visita_automatica`.
+   - Notas: la UI ya no contiene campo `Supervisor` manual; el inspector se determina desde `data/tabla_de_relacion.json` y `data/Firmas.json` cuando se generan dictámenes.
+
+- **`generador_dictamen.py`**: Lógica que procesa los datos y genera los PDFs (usa ReportLab y plantillas).
+   - Provee `generar_dictamenes_gui` y funciones auxiliares para construir tablas, calcular páginas y crear contenido dinámico.
+   - Integra `plantillaPDF.py`, `DictamenPDF.py` y `etiqueta_dictamen.py` para componer documentos completos.
+
+- **`plantillaPDF.py`**: Funciones de carga y preparación de datos.
+   - Lectura de `data/tabla_de_relacion.json`, `data/Normas.json`, `data/Clientes.json`, `data/Firmas.json`.
+   - Funciones: `cargar_tabla_relacion`, `cargar_normas`, `cargar_clientes`, `cargar_firmas`, `preparar_datos_familia`.
+   - Normaliza y transforma los registros para que el generador tenga la estructura esperada.
+
+- **`DictamenPDF.py`**: Clase base para generación de PDF con ReportLab.
+   - Define estilos, layout y utilidades para encabezados, pies de página y paginación.
+   - Se extiende desde `PDFGeneratorConDatos` en `generador_dictamen.py` para adaptarse a datos reales.
+
+- **`etiqueta_dictamen.py`**: Generador de imágenes de etiquetas (Pillow).
+   - Encargado de renderizar etiquetas PNG a partir de `BASE_ETIQUETADO.json` y `config_etiquetas.json`.
+   - Métodos clave: `crear_mapeo_norma_uva`, `crear_etiqueta`, `generar_etiquetas_por_codigos`.
+
+- **`data/`**: Carpeta con los JSON que alimentan el sistema.
+   - `tabla_de_relacion.json`: tabla principal con filas para cada folio/solicitud (entradas usadas para generar dictámenes).
+   - `Firmas.json`: mapeo FIRMA → NOMBRE DE INSPECTOR (usado para mostrar el inspector detectado en el historial).
+   - `historial_visitas.json`: historial persistente de visitas (creado y mantenido por `app.py`).
+   - `folios_visitas/`: archivos `folios_{CPxxxxx}.json` con listado de folios asociados a una visita; usados para eliminar persistencia por visita.
+
+- **`Pegado de Evidenvia Fotografica/`**: utilidades para procesamiento de documentos e inserción de imágenes (dividido en `interfaz.py`, `main.py`, `pegado_*` y `registro_fallos.py`).
+   - `interfaz.py`: UI para el módulo de imágenes.
+   - `main.py`: utilidades centrales (indexado de imágenes, extracción de códigos, helpers para DOCX/PDF).
+
+- **Otros**:
+   - `DictamenMachote.py`, `Armado.py`, `DictamenPDF.py` (plantillas y utilidades históricas/auxiliares).
+   - `requirements.txt`: dependencias mínimas.
+
+### Flujo interno (resumen técnico)
+
+1. El usuario carga una `tabla_de_relacion` (Excel → JSON) y selecciona un cliente.
+2. `generador_dictamen.py` procesa familias, genera etiquetas PNG y construye PDFs mediante `DictamenPDF`.
+3. Cuando se generan dictámenes, `app.py` recibe resultados y ejecuta `registrar_visita_automatica` para crear una entrada en `historial_visitas.json`.
+4. `hist_eliminar_registro` borra solo la fila seleccionada, elimina `data/folios_visitas/folios_{folio}.json`, hace backup y limpia coincidencias en `data/tabla_de_relacion.json`.
+
+### Puntos de extensión / cómo añadir nuevas normas
+
+- Para agregar una norma nueva que afecte etiquetas:
+   1. Añadir la entrada en `data/Normas.json` y en `data/Firmas.json` si aplica.
+   2. Actualizar `config_etiquetas.json` con los campos y tamaños de la norma.
+   3. Si la lógica es muy específica, extender `etiqueta_dictamen.py::crear_mapeo_norma_uva`.
+
+### Desarrollo y pruebas rápidas
+
+- Instalar dependencias:
+
+```bash
+pip install -r requirements.txt
+```
+
+- Ejecutar la app (GUI):
+
+```bash
+python app.py
+```
+
+- Para pruebas unitarias simples (no incluidas en el repo):
+   - Puedes escribir scripts que llamen `plantillaPDF.cargar_tabla_relacion()` o `generador_dictamen.generar_dictamenes_completos(...)` con muestras de `data/`.
+
+### Notas de mantenimiento
+
+- Respaldos: antes de modificar `data/tabla_de_relacion.json` el sistema crea copias en `data/tabla_relacion_backups/`.
+- Concurrencia: las actualizaciones del UI desde procesos en segundo plano usan `self.after(...)` para evitar problemas con Tkinter.
+- Para registrar una operación (audit): consultar `data/operaciones_log.json` (método `_registrar_operacion` en `app.py`).
+

@@ -1,47 +1,6 @@
 {
   "last_folio_visita": 0,
   "visitas": [
-    {
-      "folio_visita": "CP000001",
-      "folio_acta": "AC000001",
-      "fecha_inicio": "08/12/2025",
-      "fecha_termino": "08/12/2025",
-      "hora_inicio_24h": "16:58",
-      "hora_termino_24h": "18:00",
-      "hora_inicio": "4:58 PM",
-      "hora_termino": "6:00 PM",
-      "norma": "NOM-004-SE-2021, NOM-020-SCFI-1997",
-      "cliente": "BASECO SAPI DE CV",
-      "nfirma1": "Ángel Imanol Pozos Zertuche",
-      "nfirma2": "",
-      "estatus": "Completada",
-      "folios_utilizados": "Total: 14 | Folios: 046294, 046294, 046294, 046294, 046294, 046294, 046295, 046296, 046297, 046298...",
-      "total_folios": 14,
-      "total_folios_numericos": 14,
-      "supervisores_tabla": "Ángel Imanol Pozos Zertuche",
-      "supervisor_formulario": "",
-      "_id": "f01f1a47-b243-4fed-9152-2e16324ac4c9"
-    },
-    {
-      "folio_visita": "CP000001",
-      "folio_acta": "AC000001",
-      "fecha_inicio": "08/12/2025",
-      "fecha_termino": "08/12/2025",
-      "hora_inicio_24h": "17:28",
-      "hora_termino_24h": "18:00",
-      "hora_inicio": "5:28 PM",
-      "hora_termino": "6:00 PM",
-      "norma": "NOM-004-SE-2021, NOM-020-SCFI-1997",
-      "cliente": "BASECO SAPI DE CV",
-      "nfirma1": "Ángel Imanol Pozos Zertuche",
-      "nfirma2": "",
-      "estatus": "Completada",
-      "folios_utilizados": "046294 - 046302",
-      "total_folios": 14,
-      "total_folios_numericos": 14,
-      "supervisores_tabla": "Ángel Imanol Pozos Zertuche",
-      "supervisor_formulario": "",
-      "_id": "17ace669-3df2-40be-b7c7-1f6c863d8598"
-    }
+    
   ]
 }

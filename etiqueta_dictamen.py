@@ -1,3 +1,5 @@
+# IMPRIME LAS ETIQUETAS DENTRO DEL DICTAMEN #  
+
 import json
 import os
 import sys

@@ -396,33 +396,15 @@ class SistemaDictamenesVC(ctk.CTk):
         self.entry_hora_termino.insert(0, "18:00")
         self.entry_hora_termino.configure(state="readonly")
 
-        # Supervisor
-        supervisor_frame = ctk.CTkFrame(scroll_form, fg_color="transparent")
-        supervisor_frame.pack(fill="x", pady=(0, 10))
+        # Supervisor field removed from UI: supervisor is derived from the loaded tabla de relación
 
-        ctk.CTkLabel(
-            supervisor_frame,
-            text="Supervisor:",
-            font=FONT_SMALL,
-            text_color=STYLE["texto_oscuro"]
-        ).pack(anchor="w", pady=(0, 5))
-
-        self.entry_supervisor = ctk.CTkEntry(
-            supervisor_frame,
-            placeholder_text="Nombre supervisor (opcional)",
-            font=FONT_SMALL,
-            height=35,
-            corner_radius=8
-        )
-        self.entry_supervisor.pack(fill="x", pady=(0, 5))
-
-        # ===== TARJETA GENERACIÓN (DERECHA) - 70% =====
+        # ===== TARJETA GENERADOR (DERECHA) - 70% =====
         card_generacion = ctk.CTkFrame(main_frame, fg_color=STYLE["surface"], corner_radius=12)
         card_generacion.grid(row=0, column=1, padx=(10, 0), pady=0, sticky="nsew")
 
         ctk.CTkLabel(
             card_generacion,
-            text="🚀 Generación de Dictámenes",
+            text="🚀 Generador de Dictámenes",
             font=FONT_SUBTITLE,
             text_color=STYLE["texto_oscuro"]
         ).pack(anchor="w", padx=20, pady=(20, 15))
@@ -430,7 +412,7 @@ class SistemaDictamenesVC(ctk.CTk):
         generacion_frame = ctk.CTkFrame(card_generacion, fg_color="transparent")
         generacion_frame.pack(fill="both", expand=True, padx=20, pady=(0, 20))
 
-        # Contenedor principal de generación con scrollbar
+        # Contenedor principal de generador con scrollbar
         scroll_generacion = ctk.CTkScrollableFrame(
             generacion_frame,
             fg_color="transparent",
@@ -488,6 +470,23 @@ class SistemaDictamenesVC(ctk.CTk):
             wraplength=350
         )
         self.info_cliente.pack(anchor="w", fill="x")
+
+        # Botón para configurar carpetas de evidencias (abre modal para elegir grupo y carpeta)
+        self.boton_configurar_evidencias = ctk.CTkButton(
+            cliente_section,
+            text="🖼️ Configurar Carpeta Evidencias",
+            command=self.configurar_carpeta_evidencias,
+            font=("Inter", 11),
+            fg_color=STYLE["primario"],
+            hover_color="#D4BF22",
+            text_color=STYLE["secundario"],
+            height=32,
+            width=220,
+            corner_radius=8
+        )
+        # NOTA: no empacamos el botón aquí para que permanezca oculto hasta
+        # que el usuario seleccione un cliente que requiera configuración
+        # (se mostrará desde `actualizar_cliente_seleccionado`).
 
         # --- CARGAR TABLA DE RELACIÓN ---
         carga_section = ctk.CTkFrame(scroll_generacion, fg_color="transparent")
@@ -662,7 +661,7 @@ class SistemaDictamenesVC(ctk.CTk):
         # ===========================================================
         # BARRA SUPERIOR EN UNA SOLA LÍNEA (COMO EN LA IMAGEN)
         # ===========================================================
-        barra_superior = ctk.CTkFrame(cont, fg_color="transparent", height=100)
+        barra_superior = ctk.CTkFrame(cont, fg_color="transparent", height=50)
         barra_superior.pack(fill="x", pady=(0, 10))
         barra_superior.pack_propagate(False)
 
@@ -677,7 +676,7 @@ class SistemaDictamenesVC(ctk.CTk):
         ).pack(side="left", padx=(0, 8))
 
         self.entry_buscar_folio = ctk.CTkEntry(
-            linea_busqueda, width=100, height=35,
+            linea_busqueda, width=100, height=25,
             corner_radius=6, placeholder_text="CP0001"
         )
         self.entry_buscar_folio.pack(side="left", padx=(0, 8))
@@ -685,7 +684,7 @@ class SistemaDictamenesVC(ctk.CTk):
         ctk.CTkButton(
             linea_busqueda, text="Buscar",
             command=self.hist_buscar_por_folio,
-            width=80, height=35, corner_radius=6,
+            width=40, height=25, corner_radius=6,
             fg_color=STYLE["secundario"], text_color=STYLE["surface"]
         ).pack(side="left", padx=(0, 30))
 
@@ -696,16 +695,16 @@ class SistemaDictamenesVC(ctk.CTk):
         ).pack(side="left", padx=(30, 8))
 
         self.entry_buscar_general = ctk.CTkEntry(
-            linea_busqueda, width=300, height=35,
+            linea_busqueda, width=250, height=25,
             corner_radius=6, placeholder_text="Cliente, folio, fecha, supervisor..."
         )
         self.entry_buscar_general.pack(side="left", padx=(0, 8))
         self.entry_buscar_general.bind("<KeyRelease>", self.hist_buscar_general)
 
         ctk.CTkButton(
-            linea_busqueda, text="X Limpiar",
+            linea_busqueda, text="X",
             command=self.hist_limpiar_busqueda,
-            width=80, height=35, corner_radius=6,
+            width=40, height=25, corner_radius=6,
             fg_color=STYLE["advertencia"], text_color=STYLE["surface"]
         ).pack(side="left")
 
@@ -764,7 +763,7 @@ class SistemaDictamenesVC(ctk.CTk):
             fg_color=STYLE["fondo"],
             scrollbar_button_color=STYLE["primario"],
             scrollbar_button_hover_color=STYLE["primario"],
-            height=400
+            height=300
         )
         self.hist_scroll.pack(fill="both", expand=True)
 
@@ -793,28 +792,6 @@ class SistemaDictamenesVC(ctk.CTk):
         # Cargar data
         self._cargar_historial()
         self._poblar_historial_ui()
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
     def _formatear_hora_12h(self, hora_str):
         """Convierte hora de formato 24h a formato 12h con AM/PM de forma consistente"""
@@ -941,6 +918,11 @@ class SistemaDictamenesVC(ctk.CTk):
             self.boton_limpiar_cliente.configure(state="disabled")
             self.safe_forget(self.boton_subir_etiquetado)
             self.safe_forget(self.info_etiquetado)
+            # Ocultar botón de configuración de evidencias cuando no hay cliente
+            try:
+                self.safe_forget(self.boton_configurar_evidencias)
+            except Exception:
+                pass
             return
 
         # ─────────────────────────────────────────────
@@ -995,6 +977,11 @@ class SistemaDictamenesVC(ctk.CTk):
                     self.tipo_operacion = "EVIDENCIA"
                     self.safe_forget(self.boton_subir_etiquetado)
                     self.safe_forget(self.info_etiquetado)
+                    # Mostrar botón para configurar carpeta de evidencias
+                    try:
+                        self.safe_pack(self.boton_configurar_evidencias, anchor="w", pady=(8, 0))
+                    except Exception:
+                        pass
                     break
 
                 # ─────────────────────────────────────────────
@@ -1013,6 +1000,11 @@ class SistemaDictamenesVC(ctk.CTk):
                     if self.archivo_etiquetado_json:
                         self.safe_pack(self.info_etiquetado, anchor="w", fill="x", pady=(5, 0))
 
+                    # Asegurarse de ocultar el botón de evidencias en flujos de etiquetas
+                    try:
+                        self.safe_forget(self.boton_configurar_evidencias)
+                    except Exception:
+                        pass
                     break
 
                 break
@@ -1020,6 +1012,15 @@ class SistemaDictamenesVC(ctk.CTk):
         # ─────────────────────────────────────────────
         # SI YA SE CARGÓ EL JSON → habilitar dictamen
         # ─────────────────────────────────────────────
+        # Mostrar/ocultar el botón de configuración según el cliente seleccionado
+        try:
+            if cliente_nombre in CLIENTES_EVIDENCIA:
+                self.safe_pack(self.boton_configurar_evidencias, anchor="w", pady=(8, 0))
+            else:
+                self.safe_forget(self.boton_configurar_evidencias)
+        except Exception:
+            pass
+
         if self.archivo_json_generado:
             self.boton_generar_dictamen.configure(state="normal")
 
@@ -1079,6 +1080,7 @@ class SistemaDictamenesVC(ctk.CTk):
         self.boton_limpiar_cliente.configure(state="disabled")
         self.boton_generar_dictamen.configure(state="disabled")
         self.boton_subir_etiquetado.pack_forget()
+        self.boton_configurar_evidencias.pack_forget()
         self.info_etiquetado.pack_forget()
 
     # -----------------------------------------------------------
@@ -1096,9 +1098,14 @@ class SistemaDictamenesVC(ctk.CTk):
                     # Obtener todos los folios existentes
                     folios_existentes = set()
                     for visita in visitas:
-                        folio = visita.get("folio_visita", "0")
-                        if folio.isdigit():
-                            folios_existentes.add(int(folio))
+                        folio_raw = visita.get("folio_visita", "")
+                        # Extraer solo los dígitos del folio (soporta prefijo CP)
+                        folio_digits = ''.join([c for c in str(folio_raw) if c.isdigit()])
+                        if folio_digits:
+                            try:
+                                folios_existentes.add(int(folio_digits))
+                            except Exception:
+                                pass
                     
                     # Encontrar el primer folio disponible
                     folio_disponible = 1
@@ -1108,21 +1115,23 @@ class SistemaDictamenesVC(ctk.CTk):
                     self.current_folio = f"{folio_disponible:06d}"
                 else:
                     self.current_folio = "000001"
-                    
-                    
-                    # Actualizar el campo en la interfaz con prefijo CP
-                    if hasattr(self, 'entry_folio_visita'):
+
+                # Actualizar el campo en la interfaz con prefijo CP (si existen widgets)
+                try:
+                    if hasattr(self, 'entry_folio_visita') and hasattr(self, 'entry_folio_acta'):
                         self.entry_folio_visita.configure(state="normal")
                         self.entry_folio_visita.delete(0, "end")
                         folio_con_prefijo = f"CP{self.current_folio}"
                         self.entry_folio_visita.insert(0, folio_con_prefijo)
                         self.entry_folio_visita.configure(state="readonly")
-                        
+
                         # Actualizar también el folio del acta
                         self.entry_folio_acta.configure(state="normal")
                         self.entry_folio_acta.delete(0, "end")
                         self.entry_folio_acta.insert(0, f"AC{self.current_folio}")
                         self.entry_folio_acta.configure(state="readonly")
+                except Exception:
+                    pass
                     
         except Exception as e:
             print(f"❌ Error cargando último folio: {e}")
@@ -1154,7 +1163,7 @@ class SistemaDictamenesVC(ctk.CTk):
             self.entry_hora_inicio.insert(0, datetime.now().strftime("%H:%M"))
             self.entry_fecha_termino.delete(0, "end")
             self.entry_hora_termino.delete(0, "end")
-            self.entry_supervisor.delete(0, "end")
+            # Supervisor input removed from UI; nothing to clear here
             
             messagebox.showinfo("Nueva Visita", "Formulario listo para nueva visita")
             
@@ -1300,6 +1309,31 @@ class SistemaDictamenesVC(ctk.CTk):
                 
                 # Guardar folios de la visita
                 self.guardar_folios_visita(self.current_folio, records)
+
+                # Generar Acta de inspección automáticamente para la visita cargada
+                try:
+                    import importlib.util
+                    acta_path = os.path.join(data_folder, f"Acta_CP{self.current_folio}.pdf")
+                    acta_file = os.path.join(os.path.dirname(__file__), "Documentos Inspeccion", "Acta_inspeccion.py")
+                    if os.path.exists(acta_file):
+                        spec = importlib.util.spec_from_file_location("Acta_inspeccion", acta_file)
+                        acta_mod = importlib.util.module_from_spec(spec)
+                        spec.loader.exec_module(acta_mod)
+                        try:
+                            # Llamar al helper que genera el acta a partir de los JSON
+                            ruta_generada = acta_mod.generar_acta_desde_visita(folio_visita=f"CP{self.current_folio}", ruta_salida=acta_path)
+                            print(f"✅ Acta generada: {ruta_generada}")
+                            # Mostrar notificación en hilo principal
+                            try:
+                                self.after(0, lambda: messagebox.showinfo("Acta generada", f"Acta de inspección generada:\n{ruta_generada}"))
+                            except Exception:
+                                pass
+                        except Exception as e:
+                            print(f"⚠️ Error generando acta desde Acta_inspeccion: {e}")
+                    else:
+                        print(f"⚠️ No se encontró Acta_inspeccion.py en Documentos Inspeccion: {acta_file}")
+                except Exception as e:
+                    print(f"⚠️ Error importando módulo de acta: {e}")
 
             self.after(0, self._actualizar_ui_conversion_exitosa, output_path, len(records))
 
@@ -2200,8 +2234,271 @@ class SistemaDictamenesVC(ctk.CTk):
         # Función para manejar la descarga de documentos
         def descargar_documento(tipo, nombre):
             modal.destroy()
-            # Por ahora solo mostramos un mensaje
-            messagebox.showinfo("En desarrollo", f"Función para descargar {nombre} en desarrollo.")
+            try:
+                if tipo == "acta":
+                    folio = registro.get('folio_visita', '')
+                    if not folio:
+                        messagebox.showwarning("Error", "No se encontró el folio de la visita para generar el acta.")
+                        return
+
+                    # Preferir el backup más reciente en data/tabla_relacion_backups si existe
+                    data_dir_local = os.path.join(os.path.dirname(__file__), 'data')
+                    backups_dir = os.path.join(data_dir_local, 'tabla_relacion_backups')
+                    tabla_dest = os.path.join(data_dir_local, 'tabla_de_relacion.json')
+
+                    if os.path.exists(backups_dir):
+                        archivos = [os.path.join(backups_dir, f) for f in os.listdir(backups_dir) if f.lower().endswith('.json')]
+                        if archivos:
+                            latest = max(archivos, key=os.path.getmtime)
+                            try:
+                                shutil.copy2(latest, tabla_dest)
+                                print(f"📁 Usando backup de tabla de relación: {latest}")
+                            except Exception as e:
+                                print(f"⚠️ No se pudo copiar backup de tabla de relación: {e}")
+
+                    # Pedir al usuario dónde guardar el PDF (Explorador de archivos)
+                    default_name = f"Acta_{folio}.pdf"
+                    save_path = filedialog.asksaveasfilename(
+                        title="Guardar Acta de Inspección",
+                        defaultextension=".pdf",
+                        filetypes=[("PDF", "*.pdf")],
+                        initialfile=default_name
+                    )
+
+                    if not save_path:
+                        return
+
+                    # Importar dinámicamente el generador de actas y generar
+                    try:
+                        import importlib.util
+                        acta_file = os.path.join(os.path.dirname(__file__), 'Documentos Inspeccion', 'Acta_inspeccion.py')
+                        if not os.path.exists(acta_file):
+                            messagebox.showerror("Error", f"No se encontró el generador de actas: {acta_file}")
+                            return
+
+                        spec = importlib.util.spec_from_file_location("Acta_inspeccion", acta_file)
+                        acta_mod = importlib.util.module_from_spec(spec)
+                        spec.loader.exec_module(acta_mod)
+
+                        # Generar acta para el folio y guardarla en la ruta indicada
+                        ruta_generada = acta_mod.generar_acta_desde_visita(folio_visita=folio, ruta_salida=save_path)
+
+                        # Persistir la ruta del acta en el historial (si corresponde)
+                        try:
+                            for v in self.historial.get('visitas', []):
+                                if v.get('folio_visita') == folio:
+                                    v['ruta_acta'] = save_path
+                                    break
+                            # Guardar historial
+                            self._guardar_historial()
+                        except Exception as e:
+                            print(f"⚠️ Error guardando ruta de acta en historial: {e}")
+
+                        messagebox.showinfo("Acta generada", f"Acta guardada en:\n{ruta_generada}")
+                        return
+                    except Exception as e:
+                        messagebox.showerror("Error", f"Error generando acta:\n{e}")
+                        return
+
+                # Otros documentos: Oficio y Formato -> generar desde módulos correspondientes
+                folio = registro.get('folio_visita', '')
+                if not folio:
+                    messagebox.showwarning("Error", "No se encontró el folio de la visita para generar el documento.")
+                    return
+
+                # Asegurar que usamos el backup más reciente para tabla_de_relacion
+                data_dir_local = os.path.join(os.path.dirname(__file__), 'data')
+                backups_dir = os.path.join(data_dir_local, 'tabla_relacion_backups')
+                tabla_dest = os.path.join(data_dir_local, 'tabla_de_relacion.json')
+
+                if os.path.exists(backups_dir):
+                    archivos = [os.path.join(backups_dir, f) for f in os.listdir(backups_dir) if f.lower().endswith('.json')]
+                    if archivos:
+                        latest = max(archivos, key=os.path.getmtime)
+                        try:
+                            shutil.copy2(latest, tabla_dest)
+                            print(f"📁 Usando backup de tabla de relación: {latest}")
+                        except Exception as e:
+                            print(f"⚠️ No se pudo copiar backup de tabla de relación: {e}")
+
+                # Calcular lista de folios asociados a la visita (int)
+                folios_list = []
+                try:
+                    fol_num = ''.join([c for c in folio if c.isdigit()])
+                    folios_file = os.path.join(data_dir_local, 'folios_visitas', f'folios_{fol_num}.json')
+                    if os.path.exists(folios_file):
+                        with open(folios_file, 'r', encoding='utf-8') as ff:
+                            data_f = json.load(ff)
+                            if isinstance(data_f, list):
+                                folios_list = [int(x) for x in data_f if str(x).isdigit()]
+                            elif isinstance(data_f, dict) and 'folios' in data_f:
+                                folios_list = [int(x) for x in data_f.get('folios', []) if str(x).isdigit()]
+                except Exception:
+                    folios_list = []
+
+                # fallback: parsear rango en registro
+                if not folios_list:
+                    fu = registro.get('folios_utilizados') or ''
+                    if fu and isinstance(fu, str):
+                        if '-' in fu:
+                            parts = [p.strip() for p in fu.split('-')]
+                            try:
+                                start = int(parts[0])
+                                end = int(parts[1]) if len(parts) > 1 else start
+                                folios_list = list(range(start, end+1))
+                            except Exception:
+                                folios_list = []
+                        elif ',' in fu:
+                            vals = [p.strip() for p in fu.split(',')]
+                            for v in vals:
+                                if v.isdigit():
+                                    folios_list.append(int(v))
+
+                # Cargar tabla_de_relacion y extraer solicitudes únicas y FECHA DE VERIFICACION
+                solicitudes = set()
+                fecha_verificacion = None
+                try:
+                    if os.path.exists(tabla_dest):
+                        with open(tabla_dest, 'r', encoding='utf-8') as tf:
+                            tabla = json.load(tf)
+                            for rec in tabla:
+                                try:
+                                    fol = rec.get('FOLIO')
+                                    fol_int = int(fol) if fol is not None and str(fol).isdigit() else None
+                                except Exception:
+                                    fol_int = None
+                                if folios_list and fol_int in folios_list:
+                                    sol = rec.get('SOLICITUD') or rec.get('SOLICITUDES')
+                                    if sol:
+                                        solicitudes.add(str(sol).strip())
+                                    if not fecha_verificacion and rec.get('FECHA DE VERIFICACION'):
+                                        fecha_verificacion = rec.get('FECHA DE VERIFICACION')
+                            # si no filtró por folios, intentar colectar solicitudes globales
+                            if not solicitudes and isinstance(tabla, list):
+                                for rec in tabla:
+                                    sol = rec.get('SOLICITUD') or rec.get('SOLICITUDES')
+                                    if sol:
+                                        solicitudes.add(str(sol).strip())
+                except Exception as e:
+                    print(f"⚠️ Error leyendo tabla de relación para generar documento: {e}")
+
+                # Formatear fecha_verificacion si está en ISO
+                fecha_formateada = None
+                if fecha_verificacion:
+                    try:
+                        if '-' in fecha_verificacion:
+                            dt = datetime.strptime(fecha_verificacion[:10], '%Y-%m-%d')
+                        else:
+                            dt = datetime.strptime(fecha_verificacion[:10], '%d/%m/%Y')
+                        fecha_formateada = dt.strftime('%d/%m/%Y')
+                    except Exception:
+                        fecha_formateada = fecha_verificacion
+
+                # Preparar nombre por defecto y pedir ruta
+                default_name = f"{nombre.replace(' ', '_')}_{folio}.pdf"
+                save_path = filedialog.asksaveasfilename(
+                    title=f"Guardar {nombre}",
+                    defaultextension=".pdf",
+                    filetypes=[("PDF", "*.pdf")],
+                    initialfile=default_name
+                )
+                if not save_path:
+                    return
+
+                # Importar dinámicamente y generar según tipo
+                try:
+                    import importlib.util
+                    if tipo == 'formato':
+                        formato_file = os.path.join(os.path.dirname(__file__), 'Documentos Inspeccion', 'Formato_supervision.py')
+                        if not os.path.exists(formato_file):
+                            messagebox.showerror('Error', f'No se encontró el módulo: {formato_file}')
+                            return
+                        spec = importlib.util.spec_from_file_location('Formato_supervision', formato_file)
+                        mod = importlib.util.module_from_spec(spec)
+                        spec.loader.exec_module(mod)
+
+                        datos = {
+                            'solicitud': ', '.join(sorted(list(solicitudes))) if solicitudes else registro.get('folio_visita',''),
+                            'servicio': None,
+                            'fecha': registro.get('fecha_inicio') or registro.get('fecha_termino') or datetime.now().strftime('%d/%m/%Y'),
+                            'cliente': registro.get('cliente',''),
+                            'supervisor': 'Mario Terrez Gonzalez'
+                        }
+                        # Determinar servicio a partir de tabla (si hay alguna entrada con TIP0...)
+                        try:
+                            # buscar primer registro en tabla_dest que corresponda a folios_list
+                            if os.path.exists(tabla_dest):
+                                with open(tabla_dest, 'r', encoding='utf-8') as tf:
+                                    tabla = json.load(tf)
+                                    for rec in tabla:
+                                        try:
+                                            fol = rec.get('FOLIO')
+                                            fol_int = int(fol) if fol is not None and str(fol).isdigit() else None
+                                        except Exception:
+                                            fol_int = None
+                                        if folios_list and fol_int in folios_list:
+                                            tipo_doc = (rec.get('TIPO DE DOCUMENTO') or rec.get('TIPO_DE_DOCUMENTO') or 'D')
+                                            datos['servicio'] = 'DICTAMEN' if str(tipo_doc).strip().upper() == 'D' else str(tipo_doc)
+                                            break
+                        except Exception:
+                            datos['servicio'] = datos.get('servicio') or 'DICTAMEN'
+
+                        # Llamar al generador
+                        try:
+                            mod.generar_supervision(datos, save_path)
+                        except Exception as e:
+                            messagebox.showerror('Error', f'Error generando Formato de Supervisión:\n{e}')
+                            return
+
+                    elif tipo == 'oficio':
+                        oficio_file = os.path.join(os.path.dirname(__file__), 'Documentos Inspeccion', 'Oficio_comision.py')
+                        if not os.path.exists(oficio_file):
+                            messagebox.showerror('Error', f'No se encontró el módulo: {oficio_file}')
+                            return
+                        spec = importlib.util.spec_from_file_location('Oficio_comision', oficio_file)
+                        mod = importlib.util.module_from_spec(spec)
+                        spec.loader.exec_module(mod)
+
+                        datos_oficio = {
+                            'no_oficio': registro.get('folio_visita',''),
+                            'fecha_inspeccion': fecha_formateada or registro.get('fecha_termino') or datetime.now().strftime('%d/%m/%Y'),
+                            'normas': registro.get('norma','').split(', ') if registro.get('norma') else [],
+                            'empresa_visitada': registro.get('cliente',''),
+                            'calle_numero': registro.get('direccion',''),
+                            'colonia': registro.get('colonia',''),
+                            'municipio': registro.get('municipio',''),
+                            'ciudad_estado': registro.get('ciudad_estado',''),
+                            'fecha_confirmacion': registro.get('fecha_inicio') or datetime.now().strftime('%d/%m/%Y'),
+                            'medio_confirmacion': 'correo electrónico',
+                            'inspectores': [s.strip() for s in (registro.get('supervisores_tabla') or registro.get('nfirma1') or '').split(',') if s.strip()],
+                            'observaciones': registro.get('observaciones',''),
+                            'num_solicitudes': ', '.join(sorted(list(solicitudes))) if solicitudes else ''
+                        }
+
+                        try:
+                            mod.generar_oficio_pdf(datos_oficio, save_path)
+                        except Exception as e:
+                            messagebox.showerror('Error', f'Error generando Oficio de Comisión:\n{e}')
+                            return
+
+                    # Persistir la ruta en historial
+                    try:
+                        for v in self.historial.get('visitas', []):
+                            if v.get('folio_visita') == folio:
+                                key = 'ruta_' + nombre.replace(' ', '_').lower()
+                                v[key] = save_path
+                                break
+                        self._guardar_historial()
+                    except Exception as e:
+                        print(f"⚠️ Error guardando ruta en historial: {e}")
+
+                    messagebox.showinfo(f"{nombre} generado", f"{nombre} guardado en:\n{save_path}")
+                    return
+                except Exception as e:
+                    messagebox.showerror("Error", f"Error generando documento {nombre}:\n{e}")
+                    return
+            except Exception as e:
+                messagebox.showerror("Error", f"Error al procesar descarga:\n{e}")
         
         # Botón 1: Oficio de Comisión
         oficio_frame = ctk.CTkFrame(documentos_frame, fg_color=STYLE["surface"], 
@@ -2778,21 +3075,110 @@ class SistemaDictamenesVC(ctk.CTk):
             if not confirmacion:
                 return
             
-            # Eliminar archivos asociados de forma segura
+            # Eliminar archivos asociados de forma segura (folios file + backups)
             resultados = self._eliminar_archivos_asociados_folio(folio)
-            
-            # Eliminar del historial_data
-            self.historial_data = [r for r in self.historial_data if r.get('folio_visita') != folio]
-            self.historial_data_original = [r for r in self.historial_data_original if r.get('folio_visita') != folio]
+
+            # Eliminar SOLO la fila correspondiente en memoria (preferir _id cuando exista)
+            registro_id = registro.get('_id')
+            if registro_id:
+                # Eliminar únicamente el registro con ese _id
+                original_len = len(self.historial_data)
+                self.historial_data = [r for r in self.historial_data if r.get('_id') != registro_id]
+                self.historial_data_original = [r for r in self.historial_data_original if r.get('_id') != registro_id]
+                if len(self.historial_data) < original_len:
+                    resultados['eliminados'].append(f"Entrada en historial (id={registro_id})")
+            else:
+                # Fallback por folio si no hay _id
+                self.historial_data = [r for r in self.historial_data if r.get('folio_visita') != folio]
+                self.historial_data_original = [r for r in self.historial_data_original if r.get('folio_visita') != folio]
+                resultados['eliminados'].append("Entrada en historial (por folio)")
             
             # Sincronizar con el archivo JSON (esto actualiza self.historial y guarda)
             sincronizacion_exitosa = self._sincronizar_historial()
             
             if sincronizacion_exitosa:
-                resultados["eliminados"].append("✅ Entrada en historial_visitas.json")
+                resultados["eliminados"].append("✅ Entrada en historial visitas")
             else:
-                resultados["errores"].append("⚠️ Error al sincronizar historial JSON")
+                resultados["errores"].append("⚠️ Error al sincronizar historial")
             
+            # Adicional: eliminar entradas de data/tabla_de_relacion.json que pertenezcan a estos folios
+            try:
+                # Determinar folios numéricos asociados a esta visita (preferir archivo folios_{folio}.json)
+                folios_asociados = set()
+                folios_visita_file = os.path.join(self.folios_visita_path, f"folios_{folio}.json")
+                if os.path.exists(folios_visita_file):
+                    try:
+                        with open(folios_visita_file, 'r', encoding='utf-8') as f:
+                            fv = json.load(f)
+                            if isinstance(fv, list):
+                                for v in fv:
+                                    try:
+                                        folios_asociados.add(int(v))
+                                    except Exception:
+                                        pass
+                    except Exception as e:
+                        resultados['errores'].append(f"Error leyendo folios de {folios_visita_file}: {e}")
+                # Fallback: extraer números del campo 'folios_utilizados' del registro
+                if not folios_asociados:
+                    posibles = []
+                    raw = registro.get('folios_utilizados', '')
+                    import re
+                    posibles = re.findall(r"\d{1,6}", str(raw))
+                    for p in posibles:
+                        try:
+                            folios_asociados.add(int(p))
+                        except Exception:
+                            pass
+
+                tabla_relacion_path = os.path.join(os.path.dirname(__file__), 'data', 'tabla_de_relacion.json')
+                if os.path.exists(tabla_relacion_path):
+                    # Hacer backup antes de modificar
+                    try:
+                        backup_dir = os.path.join(os.path.dirname(__file__), 'data', 'tabla_relacion_backups')
+                        os.makedirs(backup_dir, exist_ok=True)
+                        ts = datetime.now().strftime('%Y%m%d%H%M%S')
+                        shutil.copyfile(tabla_relacion_path, os.path.join(backup_dir, f"tabla_de_relacion_{folio}_{ts}.json"))
+                    except Exception as e:
+                        resultados['errores'].append(f"No se pudo crear backup de tabla_de_relacion: {e}")
+
+                    try:
+                        with open(tabla_relacion_path, 'r', encoding='utf-8') as f:
+                            tabla = json.load(f)
+
+                        # Filtrar filas cuya columna 'FOLIO' coincida con alguno de los folios asociados
+                        nueva_tabla = []
+                        for row in tabla:
+                            try:
+                                val = row.get('FOLIO', None)
+                                if val is None:
+                                    nueva_tabla.append(row)
+                                    continue
+                                # Normalizar y comparar
+                                try:
+                                    val_int = int(float(val))
+                                except Exception:
+                                    val_int = None
+
+                                if val_int is not None and val_int in folios_asociados:
+                                    # Saltar -> será eliminado
+                                    continue
+                                # Si val no es numérico, comparar como string con alguno de los folios formateados
+                                if str(val).strip() in {str(f).zfill(6) for f in folios_asociados}:
+                                    continue
+                                nueva_tabla.append(row)
+                            except Exception:
+                                nueva_tabla.append(row)
+
+                        # Guardar nueva tabla
+                        with open(tabla_relacion_path, 'w', encoding='utf-8') as f:
+                            json.dump(nueva_tabla, f, ensure_ascii=False, indent=2)
+                        resultados['eliminados'].append('Entradas en tabla_de_relacion.json')
+                    except Exception as e:
+                        resultados['errores'].append(f"Error modificando tabla_de_relacion.json: {e}")
+
+            except Exception as e:
+                resultados['errores'].append(f"Error eliminando entradas de tabla de relación: {e}")
+
             # Garantizar persistencia completa (verificar que no queden rastros)
             persistencia_garantizada = self._garantizar_persistencia(folio)
             
@@ -2935,7 +3321,12 @@ class SistemaDictamenesVC(ctk.CTk):
             fecha_termino = self.entry_fecha_termino.get().strip()
             hora_inicio = self.entry_hora_inicio.get().strip()
             hora_termino = self.entry_hora_termino.get().strip()
-            supervisor = self.entry_supervisor.get().strip()
+            # Leer supervisor de forma segura (proviene de la tabla de relación; el campo UI fue removido)
+            safe_supervisor_widget = getattr(self, 'entry_supervisor', None)
+            try:
+                supervisor = safe_supervisor_widget.get().strip() if safe_supervisor_widget and safe_supervisor_widget.winfo_exists() else ""
+            except Exception:
+                supervisor = ""
 
             # Convertir horas a formato consistente (24h para almacenamiento)
             def estandarizar_hora_24h(hora_str):
@@ -3276,19 +3667,21 @@ class SistemaDictamenesVC(ctk.CTk):
             [  # Columna 1: Información básica
                 ("folio_visita", "Folio Visita"),
                 ("folio_acta", "Folio Acta"),
+                ("nfirma1", "Nombre Supervisor"),
                 ("norma", "Norma"),
             ],
             [  # Columna 2: Fechas y horas
+                ("folios_utilizados", "Folios Utilizados"),
                 ("fecha_inicio", "Fecha Inicio"),
                 ("fecha_termino", "Fecha Termino"),
-                ("hora_inicio", "Hora Inicio"),
-                ("hora_termino", "Hora Termino"),
+                # ("hora_inicio", "Hora Inicio"),
+                # ("hora_termino", "Hora Termino"),
             ],
             [  # Columna 3: Cliente y estatus
                 ("cliente", "Cliente"),
                 ("estatus", "Estatus"),
-                ("folios_utilizados", "Folios Utilizados"),
-                ("nfirma1", "Nombre Supervisor"),
+                
+                
             ]
         ]
         
@@ -3483,8 +3876,93 @@ class SistemaDictamenesVC(ctk.CTk):
         except Exception as e:
             messagebox.showerror("Error", f"No se pudo verificar integridad:\n{e}")
 
+    # ------------------ EVIDENCIAS: carga y persistencia ------------------
+    def _load_evidence_paths(self):
+        """Carga el archivo `data/evidence_paths.json` si existe."""
+        try:
+            data_file = os.path.join(os.path.dirname(__file__), "data", "evidence_paths.json")
+            if os.path.exists(data_file):
+                with open(data_file, "r", encoding="utf-8") as f:
+                    return json.load(f)
+            return {}
+        except Exception:
+            return {}
+
+    def _save_evidence_path(self, group, path):
+        """Guarda la ruta `path` bajo la clave `group` en `data/evidence_paths.json`."""
+        data_file = os.path.join(os.path.dirname(__file__), "data", "evidence_paths.json")
+        os.makedirs(os.path.dirname(data_file), exist_ok=True)
+        data = self._load_evidence_paths() or {}
+        existing = data.get(group, [])
+        if path not in existing:
+            existing.append(path)
+        data[group] = existing
+        with open(data_file, "w", encoding="utf-8") as f:
+            json.dump(data, f, indent=2, ensure_ascii=False)
+
+    def configurar_carpeta_evidencias(self):
+        """Abre un modal para elegir a qué grupo se guardará la ruta y seleccionar carpeta."""
+        modal = ctk.CTkToplevel(self)
+        modal.title("Configurar Carpeta de Evidencias")
+        modal.geometry("520x260")
+        modal.transient(self)
+        modal.grab_set()
+
+        ctk.CTkLabel(modal, text="Seleccione el grupo y luego elija la carpeta de evidencias:",
+                     font=FONT_SMALL, text_color=STYLE["texto_oscuro"]).pack(anchor="w", padx=16, pady=(12, 8))
+
+        var_grupo = ctk.StringVar(value="grupo_axo")
+        opciones = [
+            ("Grupo Axo (varios clientes)", "grupo_axo"),
+            ("Bosch", "bosch"),
+            ("Unilever", "unilever"),
+        ]
+
+        for texto, valor in opciones:
+            ctk.CTkRadioButton(modal, text=texto, variable=var_grupo, value=valor).pack(anchor="w", padx=20, pady=6)
+
+        # Mostrar rutas actualmente guardadas
+        rutas_frame = ctk.CTkFrame(modal, fg_color="transparent")
+        rutas_frame.pack(fill="both", expand=True, padx=12, pady=(6, 0))
+
+        lbl_actual = ctk.CTkLabel(rutas_frame, text="Rutas guardadas:", font=FONT_SMALL, text_color=STYLE["texto_oscuro"]) 
+        lbl_actual.pack(anchor="w")
+
+        lista_rutas = ctk.CTkLabel(rutas_frame, text="(ninguna)", font=("Inter", 10), text_color=STYLE["texto_claro"], wraplength=480)
+        lista_rutas.pack(anchor="w", pady=(4, 0))
+
+        def _refrescar_rutas():
+            data = self._load_evidence_paths() or {}
+            lines = []
+            for g, lst in data.items():
+                lines.append(f"{g}: \n  " + "\n  ".join(lst))
+            lista_rutas.configure(text="\n\n".join(lines) if lines else "(ninguna)")
+
+        _refrescar_rutas()
+
+        def elegir_carpeta():
+            grp = var_grupo.get()
+            carpeta = filedialog.askdirectory(title="Seleccionar carpeta de evidencias")
+            if not carpeta:
+                return
+            try:
+                self._save_evidence_path(grp, carpeta)
+                messagebox.showinfo("Guardado", f"Ruta guardada para '{grp}':\n{carpeta}")
+                _refrescar_rutas()
+            except Exception as e:
+                messagebox.showerror("Error", f"No se pudo guardar la ruta:\n{e}")
+
+        btn_frame = ctk.CTkFrame(modal, fg_color="transparent")
+        btn_frame.pack(fill="x", pady=10)
+
+        ctk.CTkButton(btn_frame, text="Seleccionar carpeta y guardar", command=elegir_carpeta,
+                      fg_color=STYLE["primario"], text_color=STYLE["secundario"], height=36).pack(side="left", padx=12)
+        ctk.CTkButton(btn_frame, text="Cerrar", command=modal.destroy, height=36).pack(side="right", padx=12)
+
 # ================== EJECUCIÓN ================== #
 if __name__ == "__main__":
     app = SistemaDictamenesVC()
     app.mainloop()
+
+
 

@@ -404,7 +404,7 @@ class PDFGeneratorConDatos(PDFGenerator):
 
         col1 = []
         if imagen_firma1 and os.path.exists(imagen_firma1):
-            img1 = RLImage(imagen_firma1, width=2.0*inch, height=0.6*inch)
+            img1 = RLImage(imagen_firma1, width=2.2*inch, height=0.9*inch)
             col1.append(img1)
         col1.append(Paragraph("_______________________________", self.normal_style))
         col1.append(Paragraph(self.datos.get("nfirma1",""), bold_style))
@@ -412,7 +412,7 @@ class PDFGeneratorConDatos(PDFGenerator):
 
         col3 = []
         if imagen_firma2 and os.path.exists(imagen_firma2):
-            img2 = RLImage(imagen_firma2, width=2.0*inch, height=0.6*inch)
+            img2 = RLImage(imagen_firma2, width=2.2*inch, height=0.9*inch)
             col3.append(img2)
         col3.append(Paragraph("_______________________________", self.normal_style))
         col3.append(Paragraph(self.datos.get("nfirma2",""), bold_style))
