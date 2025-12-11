@@ -1861,7 +1861,7 @@ class SistemaDictamenesVC(ctk.CTk):
 
         except Exception as e:
             messagebox.showerror("Error", str(e))
-
+  
     def _guardar_historial(self):
         """Guarda el historial en un único archivo con validación de persistencia"""
         try:
@@ -3963,6 +3963,7 @@ class SistemaDictamenesVC(ctk.CTk):
 if __name__ == "__main__":
     app = SistemaDictamenesVC()
     app.mainloop()
+
 
 
 

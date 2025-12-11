@@ -215,7 +215,7 @@ class ActaPDFGenerator:
 
         # 1) Cliente / responsable
         cliente_nombre = self.datos.get('empresa_visitada') or self.datos.get('cliente') or ''
-        y = dibujar_nombre_y_firma('Nombre y Firma del cliente o responsable de atender la visita', y)
+        y = dibujar_nombre_y_firma('Nombre y Firma del cliente o responsable de atender la visita', cliente_nombre, y)
 
         # 2) Testigo 1
         testigo1 = self.datos.get('testigo1') or self.datos.get('testigo_1') or ''
