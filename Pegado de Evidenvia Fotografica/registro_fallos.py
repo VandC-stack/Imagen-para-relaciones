@@ -1,47 +1,86 @@
 import os
+import tempfile
 
-# Directorio APPDATA local de la aplicación (sin depender de main.py)
-APPDATA_DIR = os.path.join(os.getenv("APPDATA"), "ImagenesVC")
-os.makedirs(APPDATA_DIR, exist_ok=True)
+# Archivo temporal para esta ejecución
+_temp_file = tempfile.NamedTemporaryFile(delete=False, suffix=".txt", mode="w+", encoding="utf-8")
+LOG_FILE = _temp_file.name  # Ruta del archivo temporal
 
-LOG_FILE = os.path.join(APPDATA_DIR, "documentos_sin_imagenes.txt")
+# Esta variable se asigna dinámicamente desde cada módulo
+RUTA_DOCS_BASE = None  
 
 
-def registrar_fallo(nombre_doc):
+def set_base_docs_path(path):
     """
-    Registra el nombre de un documento que no recibió imágenes en el archivo de log.
+    Se llama desde cada módulo antes de registrar fallos.
+    Permite convertir rutas absolutas a rutas relativas.
+    """
+    global RUTA_DOCS_BASE
+    RUTA_DOCS_BASE = path.replace("\\", "/").rstrip("/") + "/"
+
+
+def ruta_relativa(ruta_completa):
+    """
+    Convierte una ruta absoluta a ruta relativa respecto a RUTA_DOCS_BASE.
+    """
+    if not RUTA_DOCS_BASE:
+        return os.path.basename(ruta_completa)
+
+    ruta = ruta_completa.replace("\\", "/")
+    if ruta.startswith(RUTA_DOCS_BASE):
+        return ruta[len(RUTA_DOCS_BASE):]
+
+    return os.path.basename(ruta_completa)
+
+
+def registrar_fallo(ruta_doc):
+    """
+    Registra la ruta relativa de un documento que no recibió imágenes.
+    Evita duplicados en el archivo temporal.
     """
     try:
+        relativa = ruta_relativa(ruta_doc)
+
+        # Evitar duplicados
+        with open(LOG_FILE, "r", encoding="utf-8") as f:
+            existentes = {line.strip() for line in f.readlines()}
+        if relativa in existentes:
+            return
+
+        # Registrar el nuevo fallo
         with open(LOG_FILE, "a", encoding="utf-8") as f:
-            f.write(f"{nombre_doc}\n")
-        print(f"Documento agregado al registro de fallos: {nombre_doc}")
+            f.write(f"{relativa}\n")
+
+        print(f"Documento agregado al registro de fallos: {relativa}")
+
     except Exception as e:
-        print(f"Error al registrar el fallo de {nombre_doc}: {e}")
+        print(f"Error al registrar el fallo de {ruta_doc}: {e}")
 
 
 def limpiar_registro():
     """
-    Borra el archivo de log si existe.
+    Reinicia el archivo temporal borrando su contenido.
     """
     try:
-        if os.path.exists(LOG_FILE):
-            os.remove(LOG_FILE)
-            print("Registro de fallos reiniciado correctamente.")
+        open(LOG_FILE, "w").close()
+        print("Registro de fallos reiniciado correctamente.")
     except Exception as e:
         print(f"Error al limpiar el registro: {e}")
 
 
 def mostrar_registro():
     """
-    Imprime en consola el contenido del archivo de log si existe.
+    Muestra el contenido del archivo temporal.
     """
-    if not os.path.exists(LOG_FILE):
-        print("No hay registro de fallos todavía.")
-        return
-
-    print("\n===== DOCUMENTOS SIN IMÁGENES =====")
     try:
         with open(LOG_FILE, "r", encoding="utf-8") as f:
-            print(f.read())
+            contenido = f.read()
+
+        if not contenido.strip():
+            print("No hay registro de fallos todavía.")
+            return
+
+        print("\n===== DOCUMENTOS SIN IMÁGENES =====")
+        print(contenido)
+
     except Exception as e:
         print(f"Error al leer el registro de fallos: {e}")
