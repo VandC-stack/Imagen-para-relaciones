@@ -68,6 +68,8 @@ class SistemaDictamenesVC(ctk.CTk):
         
         self.folios_visita_path = os.path.join(data_dir, "folios_visitas")
         os.makedirs(self.folios_visita_path, exist_ok=True)
+        # Directorio donde están los generadores/documentos (ReportLab, tablas, etc.)
+        self.documentos_dir = os.path.join(os.path.dirname(__file__), "Documentos Inspeccion")
 
         # ===== NUEVA ESTRUCTURA DE NAVEGACIÓN =====
         self.crear_navegacion()
@@ -76,9 +78,16 @@ class SistemaDictamenesVC(ctk.CTk):
         # ===== FOOTER =====
         self.crear_footer()
 
+        # Cargar configuración de exportación Excel (persistente)
+        self._cargar_config_exportacion()
+
         # Cargar clientes al iniciar
         self.cargar_clientes_desde_json()
         self.cargar_ultimo_folio()
+        try:
+            self._generar_datos_exportable()
+        except Exception:
+            pass
 
         # --------------------------- ICONO ---------------------------- #
         def resource_path(relative_path):
@@ -789,6 +798,21 @@ class SistemaDictamenesVC(ctk.CTk):
             hover_color="#D4BF22"
         ).pack(side="right", padx=(0, 15))
 
+        # Botones globales para exportar Excel (EMA / Control Anual)
+        ctk.CTkButton(
+            footer, text="📈 Anual",
+            command=self.descargar_excel_anual,  # método existente (acepta registro opcional)
+            height=28, width=90, corner_radius=6,
+            fg_color=("#1976D2", "#0D47A1"), text_color=STYLE["secundario"]
+        ).pack(side="right", padx=6)
+
+        ctk.CTkButton(
+            footer, text="📊 EMA",
+            command=self.descargar_excel_ema,
+            height=28, width=90, corner_radius=6,
+            fg_color=("#2E7D32", "#1B5E20"), text_color=STYLE["secundario"]
+        ).pack(side="right", padx=6)
+
         # Cargar data
         self._cargar_historial()
         self._poblar_historial_ui()
@@ -1308,6 +1332,11 @@ class SistemaDictamenesVC(ctk.CTk):
                 print(f"📁 Backup de tabla de relación creado: {backup_path}")
                 
                 # Guardar folios de la visita
+                # Regenerar cache exportable para Excel (persistente)
+                try:
+                    self._generar_datos_exportable()
+                except Exception:
+                    pass
                 self.guardar_folios_visita(self.current_folio, records)
 
                 # Generar Acta de inspección automáticamente para la visita cargada
@@ -1830,6 +1859,11 @@ class SistemaDictamenesVC(ctk.CTk):
             
             # Actualizar original
             self.historial_data_original = self.historial_data.copy()
+            # Regenerar cache exportable para Excel (persistente)
+            try:
+                self._generar_datos_exportable()
+            except Exception:
+                pass
             
             return True
         except Exception as e:
@@ -1869,31 +1903,48 @@ class SistemaDictamenesVC(ctk.CTk):
             self.historial_data = self.historial.get("visitas", [])
             self.historial_data_original = self.historial_data.copy()
             
-            # Crear directorio si no existe
-            os.makedirs(os.path.dirname(self.historial_path), exist_ok=True)
-            
+            # Determinar ruta de guardado (soporte para .exe congelado y rutas no escribibles)
+            target_path = self.historial_path
+            try:
+                base_dir = os.path.dirname(self.historial_path)
+                os.makedirs(base_dir, exist_ok=True)
+            except Exception:
+                base_dir = None
+
+            try:
+                # Si estamos en un ejecutable congelado (PyInstaller) o el directorio no es escribible,
+                # redirigir a APPDATA\GeneradorDictamenes para persistencia.
+                if getattr(sys, 'frozen', False) or (base_dir and not os.access(base_dir, os.W_OK)):
+                    alt_base = os.path.join(os.environ.get('APPDATA', os.path.expanduser('~')), 'GeneradorDictamenes')
+                    os.makedirs(alt_base, exist_ok=True)
+                    target_path = os.path.join(alt_base, os.path.basename(self.historial_path))
+                    # actualizar historial_path para futuras operaciones
+                    self.historial_path = target_path
+            except Exception:
+                target_path = self.historial_path
+
             # Guardar con respaldo (backup)
-            backup_path = self.historial_path + ".backup"
-            if os.path.exists(self.historial_path):
+            backup_path = target_path + ".backup"
+            if os.path.exists(target_path):
                 try:
-                    shutil.copy2(self.historial_path, backup_path)
+                    shutil.copy2(target_path, backup_path)
                 except Exception:
                     pass
-            
+
             # Escribir archivo principal
-            with open(self.historial_path, "w", encoding="utf-8") as f:
+            with open(target_path, "w", encoding="utf-8") as f:
                 json.dump(self.historial, f, ensure_ascii=False, indent=2)
-            
+
             # Verificar que se escribió correctamente
-            if os.path.exists(self.historial_path):
-                with open(self.historial_path, 'r', encoding='utf-8') as f:
+            if os.path.exists(target_path):
+                with open(target_path, 'r', encoding='utf-8') as f:
                     verificacion = json.load(f)
                     if verificacion.get('visitas'):
                         if self.hist_info_label and self.hist_info_label.winfo_exists():
                             self.hist_info_label.configure(text=f"✅ Guardado — {len(self.historial_data)} registros")
             else:
                 print("⚠️ Error: No se pudo verificar el archivo guardado")
-            print(f"✅ Historial guardado: {len(self.historial_data)} registros")
+            print(f"✅ Historial guardado: {len(self.historial_data)} registros (ruta: {target_path})")
             
         except Exception as e:
             print(f"❌ Error guardando historial: {e}")
@@ -2026,10 +2077,11 @@ class SistemaDictamenesVC(ctk.CTk):
                         acciones_frame.pack(side="left", padx=1)
                         acciones_frame.pack_propagate(False)
                         
-                        # Contenedor para botones
+                        # Contenedor para botones (fila única por registro)
                         btn_container = ctk.CTkFrame(acciones_frame, fg_color="transparent")
                         btn_container.pack(expand=True, fill="both")
-                        
+                        btn_container.pack_propagate(False)
+
                         # Botones de acción más compactos
                         btn_config = {
                             "width": 32,  # Ancho fijo
@@ -2037,8 +2089,7 @@ class SistemaDictamenesVC(ctk.CTk):
                             "corner_radius": 4,
                             "font": ("Segoe UI Symbol", 10)
                         }
-                        
-                        # Organizar botones en una sola fila
+
                         ctk.CTkButton(
                             btn_container,
                             text="⏬Folios",
@@ -2047,7 +2098,7 @@ class SistemaDictamenesVC(ctk.CTk):
                             text_color=STYLE["surface"],
                             **btn_config
                         ).pack(side="left", padx=1)
-                        
+
                         ctk.CTkButton(
                             btn_container,
                             text="📄 Archivos",
@@ -2056,7 +2107,7 @@ class SistemaDictamenesVC(ctk.CTk):
                             text_color=STYLE["surface"],
                             **btn_config
                         ).pack(side="left", padx=1)
-                        
+
                         ctk.CTkButton(
                             btn_container,
                             text="✏️ Editar",
@@ -2065,7 +2116,7 @@ class SistemaDictamenesVC(ctk.CTk):
                             text_color=STYLE["surface"],
                             **btn_config
                         ).pack(side="left", padx=1)
-                        
+
                         ctk.CTkButton(
                             btn_container,
                             text="🗑️ Borrar",
@@ -2853,6 +2904,338 @@ class SistemaDictamenesVC(ctk.CTk):
                         subprocess.Popen(['xdg-open', file_path])
         except Exception as e:
             print(f"Error abriendo archivo: {e}")
+
+    # ----------------- Config y export persistente -----------------
+    def _cargar_config_exportacion(self):
+        """Carga o crea la configuración persistente para las exportaciones Excel."""
+        try:
+            data_folder = os.path.join(os.path.dirname(__file__), "data")
+            os.makedirs(data_folder, exist_ok=True)
+            cfg_path = os.path.join(data_folder, 'excel_export_config.json')
+            if not os.path.exists(cfg_path):
+                # Contenido por defecto
+                default = {
+                    "tabla_de_relacion": os.path.join(data_folder, 'tabla_de_relacion.json'),
+                    "tabla_backups_dir": os.path.join(data_folder, 'tabla_relacion_backups'),
+                    "clientes": os.path.join(data_folder, 'Clientes.json'),
+                    "export_cache": os.path.join(data_folder, 'excel_export_data.json')
+                }
+                with open(cfg_path, 'w', encoding='utf-8') as f:
+                    json.dump(default, f, ensure_ascii=False, indent=2)
+                self.excel_export_config = default
+            else:
+                with open(cfg_path, 'r', encoding='utf-8') as f:
+                    self.excel_export_config = json.load(f)
+            # Ensure directories exist
+            os.makedirs(os.path.dirname(self.excel_export_config.get('tabla_de_relacion','') or data_folder), exist_ok=True)
+            os.makedirs(self.excel_export_config.get('tabla_backups_dir', data_folder), exist_ok=True)
+        except Exception as e:
+            print(f"Error cargando config exportacion: {e}")
+            self.excel_export_config = {}
+
+    def _guardar_config_exportacion(self):
+        try:
+            data_folder = os.path.join(os.path.dirname(__file__), "data")
+            cfg_path = os.path.join(data_folder, 'excel_export_config.json')
+            with open(cfg_path, 'w', encoding='utf-8') as f:
+                json.dump(self.excel_export_config, f, ensure_ascii=False, indent=2)
+        except Exception as e:
+            print(f"Error guardando config exportacion: {e}")
+
+    def _generar_datos_exportable(self):
+        """Genera y persiste un JSON consolidado que será la fuente para las exportaciones EMA y anual."""
+        try:
+            data_folder = os.path.join(os.path.dirname(__file__), "data")
+            tabla_path = self.excel_export_config.get('tabla_de_relacion') or os.path.join(data_folder, 'tabla_de_relacion.json')
+            clientes_path = self.excel_export_config.get('clientes') or os.path.join(data_folder, 'Clientes.json')
+            export_cache = self.excel_export_config.get('export_cache') or os.path.join(data_folder, 'excel_export_data.json')
+
+            # Cargar tabla de relación
+            tabla = []
+            if os.path.exists(tabla_path):
+                try:
+                    with open(tabla_path, 'r', encoding='utf-8') as f:
+                        tabla = json.load(f)
+                except Exception:
+                    tabla = []
+
+            # Cargar historial (ya en self.historial_data)
+            visitas = getattr(self, 'historial_data', [])
+
+            # Cargar clientes para enriquecer
+            clientes = {}
+            if os.path.exists(clientes_path):
+                try:
+                    with open(clientes_path, 'r', encoding='utf-8') as f:
+                        cl = json.load(f)
+                        if isinstance(cl, list):
+                            for c in cl:
+                                clientes[c.get('CLIENTE','').upper()] = c
+                except Exception:
+                    pass
+
+            # Preparar estructura
+            ema_rows = []
+            for r in tabla:
+                try:
+                    cliente = r.get('EMPRESA','') or r.get('EMPRESA_VISITADA', r.get('CLIENTE',''))
+                    cliente_key = (cliente or '').upper()
+                    cliente_info = clientes.get(cliente_key, {})
+                    # Enriquecer como en generar_reporte_ema
+                    solicitud_full = r.get('ENCABEZADO', '') or r.get('SOLICITUD_ENCABEZADO', '') or r.get('SOLICITUD','')
+                    sol_parts = str(solicitud_full).split()[-1] if solicitud_full else ''
+                    ema_rows.append({
+                        'NUMERO_SOLICITUD': sol_parts,
+                        'CLIENTE': cliente,
+                        'NUMERO_CONTRATO': cliente_info.get('NÚMERO_DE_CONTRATO',''),
+                        'RFC': cliente_info.get('RFC',''),
+                        'CURP': cliente_info.get('CURP','N/A') or 'N/A',
+                        'PRODUCTO_VERIFICADO': r.get('DESCRIPCION',''),
+                        'MARCAS': r.get('MARCA',''),
+                        'NOM': r.get('CLASIF UVA') or r.get('CLASIF_UVA') or r.get('NOM',''),
+                        'TIPO_DOCUMENTO': r.get('TIPO DE DOCUMENTO') or r.get('TIPO_DE_DOCUMENTO',''),
+                        'DOCUMENTO_EMITIDO': solicitud_full,
+                        'FECHA_DOCUMENTO_EMITIDO': r.get('FECHA DE VERIFICACION') or r.get('FECHA_DE_VERIFICACION') or '',
+                        'VERIFICADOR': r.get('VERIFICADOR') or r.get('INSPECTOR',''),
+                        'PEDIMENTO_IMPORTACION': r.get('PEDIMENTO',''),
+                        'FECHA_DESADUANAMIENTO': r.get('FECHA DE ENTRADA') or r.get('FECHA_ENTRADA',''),
+                        'MODELOS': r.get('CODIGO',''),
+                        'FOLIO_EMA': str(r.get('FOLIO','')).zfill(6) if str(r.get('FOLIO','')).strip() else ''
+                    })
+                except Exception:
+                    continue
+
+            anual_rows = []
+            for v in visitas:
+                try:
+                    anual_rows.append({
+                        'FECHA_VISITA': v.get('fecha_termino') or v.get('fecha_inicio'),
+                        'FOLIO_VISITA': v.get('folio_visita',''),
+                        'CLIENTE': v.get('cliente',''),
+                        'SOLICITUD': v.get('solicitud',''),
+                        'FOLIOS_USADOS': v.get('folios_utilizados',''),
+                        'NUM_SOLICITUDES': v.get('num_solicitudes',''),
+                        'NORMAS': v.get('norma','')
+                    })
+                except Exception:
+                    continue
+
+            export_data = {
+                'ema': ema_rows,
+                'anual': anual_rows,
+                'generated_at': datetime.now().isoformat()
+            }
+
+            # Guardar cache exportable
+            try:
+                with open(export_cache, 'w', encoding='utf-8') as f:
+                    json.dump(export_data, f, ensure_ascii=False, indent=2)
+            except Exception as e:
+                print(f"Error guardando export cache: {e}")
+
+            return export_data
+        except Exception as e:
+            print(f"Error generando datos exportable: {e}")
+            return {}
+    
+    def descargar_excel_ema(self, registro=None):
+        """Descarga el reporte EMA en Excel"""
+        try:
+            # Cargar el módulo Excel_generadores dinámicamente
+            import importlib.util
+            
+            excel_gen_file = os.path.join(self.documentos_dir, 'Excel_generadores.py')
+            
+            if not os.path.exists(excel_gen_file):
+                messagebox.showerror("Error", f"No se encontró el archivo generador de Excel: {excel_gen_file}")
+                return
+            
+            spec = importlib.util.spec_from_file_location('Excel_generadores', excel_gen_file)
+            excel_mod = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(excel_mod)
+            
+            # Preparar rutas (usar config persistente si existe)
+            tabla_de_relacion_path = self.excel_export_config.get('tabla_de_relacion') if hasattr(self, 'excel_export_config') else os.path.join(self.documentos_dir, 'tabla_de_relacion.json')
+            
+            # Pedir ruta de guardado
+            file_path = filedialog.asksaveasfilename(
+                title="Guardar Reporte EMA",
+                defaultextension=".xlsx",
+                filetypes=[
+                    ("Archivos Excel", "*.xlsx"),
+                    ("Archivos Excel 97-2003", "*.xls"),
+                    ("Todos los archivos", "*.*")
+                ],
+                initialfile=f"Reporte_EMA_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
+            )
+            
+            if not file_path:
+                return
+            
+            # Si existe cache exportable, usar su sección 'ema' para generar el archivo
+            export_cache = None
+            if hasattr(self, 'excel_export_config'):
+                export_cache = self.excel_export_config.get('export_cache')
+
+            if export_cache and os.path.exists(export_cache):
+                try:
+                    with open(export_cache, 'r', encoding='utf-8') as f:
+                        ec = json.load(f)
+                    ema_list = ec.get('ema') if isinstance(ec, dict) else None
+                    if ema_list is not None:
+                        tmp_path = os.path.join(os.path.dirname(export_cache), f"_tmp_ema_{int(datetime.now().timestamp())}.json")
+                        with open(tmp_path, 'w', encoding='utf-8') as tf:
+                            json.dump(ema_list, tf, ensure_ascii=False, indent=2)
+                        tabla_de_relacion_path_to_use = tmp_path
+                    else:
+                        tabla_de_relacion_path_to_use = tabla_de_relacion_path
+                except Exception:
+                    tabla_de_relacion_path_to_use = tabla_de_relacion_path
+            else:
+                tabla_de_relacion_path_to_use = tabla_de_relacion_path
+
+            excel_mod.generar_reporte_ema(
+                tabla_de_relacion_path_to_use,
+                self.historial_path,
+                file_path,
+                export_cache=export_cache if hasattr(self, 'excel_export_config') else None
+            )
+            
+            messagebox.showinfo("Éxito", f"Reporte EMA generado exitosamente:\n{file_path}")
+            
+            # Preguntar si abrir el archivo
+            if messagebox.askyesno("Abrir archivo", "¿Desea abrir el archivo descargado?"):
+                self._abrir_archivo(file_path)
+                
+        except Exception as e:
+            messagebox.showerror("Error", f"No se pudo generar el reporte EMA:\n{str(e)}")
+    
+    def descargar_excel_anual(self, registro=None):
+        """Descarga el reporte de control de folios anual en Excel"""
+        try:
+            # Cargar el módulo Excel_generadores dinámicamente
+            import importlib.util
+            
+            excel_gen_file = os.path.join(self.documentos_dir, 'Excel_generadores.py')
+            
+            if not os.path.exists(excel_gen_file):
+                messagebox.showerror("Error", f"No se encontró el archivo generador de Excel: {excel_gen_file}")
+                return
+            
+            spec = importlib.util.spec_from_file_location('Excel_generadores', excel_gen_file)
+            excel_mod = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(excel_mod)
+            
+            # Obtener el año actual
+            year = datetime.now().year
+            # Mostrar diálogo para seleccionar rango de fechas (opcional)
+            def _pedir_rango_fechas_default():
+                # Modal para pedir start/end date
+                modal = ctk.CTkToplevel(self)
+                modal.title("Rango para Control Anual")
+                modal.geometry("420x180")
+                modal.transient(self)
+                modal.grab_set()
+
+                ctk.CTkLabel(modal, text="Seleccione el rango de fechas (dd/mm/YYYY)\nDejar vacío para año completo:", anchor="w").pack(pady=(12,6), padx=12)
+
+                frame = ctk.CTkFrame(modal, fg_color="transparent")
+                frame.pack(fill="x", padx=12)
+
+                ctk.CTkLabel(frame, text="Fecha inicio:").grid(row=0, column=0, sticky="w", padx=(0,6))
+                ent_start = ctk.CTkEntry(frame, width=180)
+                ent_start.grid(row=0, column=1, pady=6)
+
+                ctk.CTkLabel(frame, text="Fecha fin:").grid(row=1, column=0, sticky="w", padx=(0,6))
+                ent_end = ctk.CTkEntry(frame, width=180)
+                ent_end.grid(row=1, column=1, pady=6)
+
+                # Pre-fill with year bounds
+                ent_start.insert(0, f"01/01/{year}")
+                ent_end.insert(0, f"31/12/{year}")
+
+                result = {"start": None, "end": None}
+
+                def _aceptar():
+                    s = ent_start.get().strip()
+                    e = ent_end.get().strip()
+                    result['start'] = s if s else None
+                    result['end'] = e if e else None
+                    modal.destroy()
+
+                def _cancelar():
+                    result['start'] = None
+                    result['end'] = None
+                    modal.destroy()
+
+                btn_frame = ctk.CTkFrame(modal, fg_color="transparent")
+                btn_frame.pack(fill="x", pady=8, padx=12)
+                ctk.CTkButton(btn_frame, text="Aceptar", command=_aceptar, width=100).pack(side="right", padx=6)
+                ctk.CTkButton(btn_frame, text="Cancelar", command=_cancelar, width=100).pack(side="right", padx=6)
+
+                self.wait_window(modal)
+                return result['start'], result['end']
+
+            start_date, end_date = _pedir_rango_fechas_default()
+
+            # Pedir ruta de guardado
+            file_path = filedialog.asksaveasfilename(
+                title="Guardar Control de Folios Anual",
+                defaultextension=".xlsx",
+                filetypes=[
+                    ("Archivos Excel", "*.xlsx"),
+                    ("Archivos Excel 97-2003", "*.xls"),
+                    ("Todos los archivos", "*.*")
+                ],
+                initialfile=f"Control_Folios_Anual_{year}_{datetime.now().strftime('%H%M%S')}.xlsx"
+            )
+            
+            if not file_path:
+                return
+            
+            # Generar el reporte anual (usar backups configurados si existen)
+            tabla_backups_dir = self.excel_export_config.get('tabla_backups_dir') if hasattr(self, 'excel_export_config') else os.path.join(self.documentos_dir, 'tabla_relacion_backups')
+
+            # Si existe cache exportable, usar su sección 'anual' para alimentar el generador
+            export_cache = None
+            if hasattr(self, 'excel_export_config'):
+                export_cache = self.excel_export_config.get('export_cache')
+
+            if export_cache and os.path.exists(export_cache):
+                try:
+                    with open(export_cache, 'r', encoding='utf-8') as f:
+                        ec = json.load(f)
+                    anual_list = ec.get('anual') if isinstance(ec, dict) else None
+                    if anual_list is not None:
+                        tmp_hist = os.path.join(os.path.dirname(export_cache), f"_tmp_hist_{int(datetime.now().timestamp())}.json")
+                        with open(tmp_hist, 'w', encoding='utf-8') as th:
+                            json.dump({'visitas': anual_list}, th, ensure_ascii=False, indent=2)
+                        historial_path_to_use = tmp_hist
+                    else:
+                        historial_path_to_use = self.historial_path
+                except Exception:
+                    historial_path_to_use = self.historial_path
+            else:
+                historial_path_to_use = self.historial_path
+
+            excel_mod.generar_control_folios_anual(
+                historial_path_to_use,
+                tabla_backups_dir,
+                file_path,
+                year,
+                start_date=start_date,
+                end_date=end_date,
+                export_cache=export_cache
+            )
+            
+            messagebox.showinfo("Éxito", f"Control de Folios Anual generado exitosamente:\n{file_path}")
+            
+            # Preguntar si abrir el archivo
+            if messagebox.askyesno("Abrir archivo", "¿Desea abrir el archivo descargado?"):
+                self._abrir_archivo(file_path)
+                
+        except Exception as e:
+            messagebox.showerror("Error", f"No se pudo generar el control de folios anual:\n{str(e)}")
     
     def hist_editar_registro(self, registro):
         """Abre el formulario para editar un registro del historial"""
@@ -3191,6 +3574,11 @@ class SistemaDictamenesVC(ctk.CTk):
             
             # Actualizar la UI
             self._poblar_historial_ui()
+            # Recalcular folio actual en memoria y UI para que tome efecto inmediato
+            try:
+                self.cargar_ultimo_folio()
+            except Exception:
+                pass
             
             # Mostrar resumen de eliminación
             mensaje = f"✅ Registro del folio {folio} eliminado correctamente\n\n"
@@ -3243,6 +3631,11 @@ class SistemaDictamenesVC(ctk.CTk):
                     # Guardar y refrescar UI
                     self._guardar_historial()
                     self._poblar_historial_ui()
+                    # Recalcular folio actual inmediatamente
+                    try:
+                        self.cargar_ultimo_folio()
+                    except Exception:
+                        pass
 
                     if not es_automatica:
                         messagebox.showinfo("OK", f"Visita {payload.get('folio_visita','-')} guardada correctamente")
@@ -3300,6 +3693,11 @@ class SistemaDictamenesVC(ctk.CTk):
                     
                     self._guardar_historial()
                     self._poblar_historial_ui()
+                    # Recalcular folio actual tras la actualización
+                    try:
+                        self.cargar_ultimo_folio()
+                    except Exception:
+                        pass
                     messagebox.showinfo("OK", f"Visita {nuevos['folio_visita']} actualizada")
                     return
                     
@@ -3963,7 +4361,4 @@ class SistemaDictamenesVC(ctk.CTk):
 if __name__ == "__main__":
     app = SistemaDictamenesVC()
     app.mainloop()
-
-
-
 

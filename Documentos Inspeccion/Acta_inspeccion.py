@@ -25,6 +25,17 @@ class ActaPDFGenerator:
             if os.path.exists(path_firmas_json):
                 with open(path_firmas_json, 'r', encoding='utf-8') as f:
                     return json.load(f)
+
+            # Fallback: buscar en APPDATA\GeneradorDictamenes
+            try:
+                alt_base = os.path.join(os.environ.get('APPDATA', os.path.expanduser('~')), 'GeneradorDictamenes')
+                alt_path = os.path.join(alt_base, os.path.basename(path_firmas_json))
+                if os.path.exists(alt_path):
+                    with open(alt_path, 'r', encoding='utf-8') as f:
+                        return json.load(f)
+            except Exception:
+                pass
+
             return []
         except Exception as e:
             print(f"⚠️ Error al cargar firmas: {e}")
@@ -164,7 +175,7 @@ class ActaPDFGenerator:
         self.cursor_y -= 20  # Espacio después de la sección
     
     def dibujar_tabla_firmas(self, c):
-        """Dibuja la sección de firmas en el orden solicitado
+        """Dibuja la sección de firmas en el orden solicitado con mejor espaciado
 
         Orden:
         - Nombre y Firma del cliente o responsable de atender la visita
@@ -180,8 +191,30 @@ class ActaPDFGenerator:
         c.setFont("Helvetica", 9)
         y = self.cursor_y - 15
 
-        firma_ancho = 50 * mm
-        firma_alto = 18
+        # Helper para asegurarse de que hay espacio suficiente en la página;
+        # si no, crea una nueva página, dibuja el fondo y la paginación,
+        # incrementando el contador de páginas.
+        def ensure_space(pos_y, min_space=80):
+            if pos_y < min_space:
+                try:
+                    self.page_num = getattr(self, 'page_num', 1) + 1
+                except Exception:
+                    self.page_num = 2
+                c.showPage()
+                try:
+                    self.dibujar_fondo(c)
+                except Exception:
+                    pass
+                try:
+                    self.dibujar_paginacion(c)
+                except Exception:
+                    pass
+                # resetear un cursor en la nueva página (margen superior)
+                return self.height - 60
+            return pos_y
+
+        firma_ancho = 55 * mm  # Aumentar ancho
+        firma_alto = 20  # Aumentar alto
 
         # Helper para dibujar nombre + firma (imagen o línea)
         def dibujar_nombre_y_firma(label, nombre, pos_y):
@@ -203,7 +236,7 @@ class ActaPDFGenerator:
             if firma_path and os.path.exists(firma_path):
                 try:
                     img = ImageReader(firma_path)
-                    c.drawImage(img, x + 90 * mm, pos_y - 6, width=firma_ancho, height=firma_alto, preserveAspectRatio=True, mask='auto')
+                    c.drawImage(img, x + 90 * mm, pos_y - 10, width=firma_ancho, height=firma_alto, preserveAspectRatio=True, mask='auto')
                 except Exception as e:
                     print(f"⚠️ Error cargando firma {firma_path}: {e}")
                     c.line(x + 90 * mm, pos_y, x + 90 * mm + firma_ancho, pos_y)
@@ -211,14 +244,16 @@ class ActaPDFGenerator:
                 # línea de firma
                 c.line(x + 90 * mm, pos_y, x + 90 * mm + firma_ancho, pos_y)
 
-            return pos_y - 26
+            return pos_y - 30  # Aumentar espaciamiento
 
         # 1) Cliente / responsable
         cliente_nombre = self.datos.get('empresa_visitada') or self.datos.get('cliente') or ''
+        y = ensure_space(y)
         y = dibujar_nombre_y_firma('Nombre y Firma del cliente o responsable de atender la visita', cliente_nombre, y)
 
         # 2) Testigo 1
         testigo1 = self.datos.get('testigo1') or self.datos.get('testigo_1') or ''
+        y = ensure_space(y)
         y = dibujar_nombre_y_firma('Nombre y Firma (Testigo 1)', testigo1, y)
 
         # 3) Inspector(es)
@@ -231,9 +266,11 @@ class ActaPDFGenerator:
         # Si hay varios inspectores, listarlos uno por uno
         if inspectores:
             for insp in inspectores:
+                y = ensure_space(y)
                 y = dibujar_nombre_y_firma('Nombre y Firma del Inspector', insp, y)
         else:
             # Si no hay inspectores, dejar un espacio vacío para firma
+            y = ensure_space(y)
             y = dibujar_nombre_y_firma('Nombre y Firma del Inspector', '', y)
 
         # Espacio para siguiente sección
@@ -433,9 +470,12 @@ class ActaPDFGenerator:
         # Si hay tabla de productos en los datos, añadir una segunda hoja
         productos = self.datos.get('tabla_productos', []) or []
         if productos:
-            # terminar la primera página y crear la segunda
+            # terminar la primera página y crear la siguiente
             # aumentar contador
-            self.page_num = 2
+            try:
+                self.page_num = getattr(self, 'page_num', 1) + 1
+            except Exception:
+                self.page_num = 2
             c.showPage()
             # Dibujar fondo y paginación en la segunda hoja
             try:
@@ -508,19 +548,52 @@ def preparar_datos_desde_visita(datos_visita, firmas_json_path="data/Firmas.json
     elif 'nfirma1' in datos_visita and datos_visita['nfirma1']:
         inspectores = [datos_visita['nfirma1']]
     
+    # Intentar completar dirección y datos desde Clientes.json
+    calle = datos_visita.get('direccion', '')
+    colonia = datos_visita.get('colonia', '')
+    municipio = datos_visita.get('municipio', '')
+    ciudad_estado = datos_visita.get('ciudad_estado', '')
+    numero_contrato = ''
+    rfc = ''
+    curp = ''
+    clientes_path = os.path.join(os.path.dirname(__file__), '..', 'data', 'Clientes.json')
+    try:
+        if os.path.exists(clientes_path):
+            with open(clientes_path, 'r', encoding='utf-8') as cf:
+                clientes = json.load(cf)
+                # Clientes.json puede ser lista
+                if isinstance(clientes, list):
+                    for c in clientes:
+                        # comparar por nombre de cliente (case-insensitive)
+                        if str(c.get('CLIENTE','')).strip().upper() == str(datos_visita.get('cliente','')).strip().upper():
+                            calle = c.get('CALLE Y NO') or c.get('CALLE','') or calle
+                            colonia = c.get('COLONIA O POBLACION') or c.get('COLONIA','') or colonia
+                            municipio = c.get('MUNICIPIO O ALCADIA') or c.get('MUNICIPIO','') or municipio
+                            ciudad_estado = c.get('CIUDAD O ESTADO') or c.get('CIUDAD/ESTADO') or ciudad_estado
+                            numero_contrato = c.get('NÚMERO_DE_CONTRATO','')
+                            rfc = c.get('RFC','')
+                            curp = c.get('CURP','') or curp
+                            break
+    except Exception:
+        pass
+
     # Preparar datos para el PDF
     datos_acta = {
         'fecha_inspeccion': datos_visita.get('fecha_termino', datetime.now().strftime('%d/%m/%Y')),
         'normas': datos_visita.get('norma', '').split(', ') if datos_visita.get('norma') else [],
         'empresa_visitada': datos_visita.get('cliente', ''),
-        'calle_numero': datos_visita.get('direccion', ''),
-        'colonia': datos_visita.get('colonia', ''),
-        'municipio': datos_visita.get('municipio', ''),
-        'ciudad_estado': datos_visita.get('ciudad_estado', ''),
+        'calle_numero': calle,
+        'colonia': colonia,
+        'municipio': municipio,
+        'ciudad_estado': ciudad_estado,
         'fecha_confirmacion': datos_visita.get('fecha_inicio', datetime.now().strftime('%d/%m/%Y')),
         'medio_confirmacion': 'correo electrónico',
         'inspectores': inspectores,
-        'observaciones': datos_visita.get('observaciones', 'Sin observaciones')
+        'NOMBRE_DE_INSPECTOR': (datos_visita.get('supervisores_tabla') or datos_visita.get('nfirma1') or '').strip(),
+        'observaciones': datos_visita.get('observaciones', 'Sin observaciones'),
+        'NUMERO_DE_CONTRATO': numero_contrato,
+        'RFC': rfc,
+        'CURP': curp
         
     }
     

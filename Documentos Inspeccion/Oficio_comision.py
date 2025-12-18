@@ -21,9 +21,21 @@ class OficioPDFGenerator:
     def cargar_firmas(self, path_firmas_json):
         """Carga los datos de las firmas desde el archivo JSON"""
         try:
+            # Intentar ruta proporcionada
             if os.path.exists(path_firmas_json):
                 with open(path_firmas_json, 'r', encoding='utf-8') as f:
                     return json.load(f)
+
+            # Fallback: si la app está empacada o la ruta no existe, buscar en APPDATA/GeneradorDictamenes
+            try:
+                alt_base = os.path.join(os.environ.get('APPDATA', os.path.expanduser('~')), 'GeneradorDictamenes')
+                alt_path = os.path.join(alt_base, os.path.basename(path_firmas_json))
+                if os.path.exists(alt_path):
+                    with open(alt_path, 'r', encoding='utf-8') as f:
+                        return json.load(f)
+            except Exception:
+                pass
+
             return []
         except Exception as e:
             print(f"⚠️ Error al cargar firmas: {e}")
@@ -42,7 +54,8 @@ class OficioPDFGenerator:
     def dibujar_paginacion(self, c):
         """Dibuja la paginación"""
         c.setFont("Helvetica", 9)
-        c.drawRightString(self.width - 20, self.height - 20, "Página 1 de 1")
+        page_num = getattr(self, 'page_num', 1)
+        c.drawRightString(self.width - 20, self.height - 20, f"Página {page_num}")
     
     def dibujar_encabezado(self, c):
         """Encabezado centrado arriba del documento"""
@@ -286,28 +299,49 @@ class OficioPDFGenerator:
         self.cursor_y -= 40  # Espacio antes de la tabla de firmas
     
     def dibujar_tabla_firmas(self, c):
-        """Dibuja la sección de firmas SIN bordes, sin empalmes y con texto pequeño."""
+        """Dibuja la sección de firmas sin empalmes y sin partirse entre páginas."""
+        from reportlab.lib.units import mm
+        from reportlab.lib.utils import ImageReader
+        import os
+
+        # Posición base para empezar a dibujar la tabla de firmas
+        # Dejamos un margen inferior mínimo de 80 mm
+        margen_inferior_minimo = 80 * mm
+        
+        # Calcular espacio requerido para la tabla de firmas
+        inspectores = self.datos.get("inspectores", []) or []
+        num_inspectores = len([i for i in inspectores if i])
+        
+        # Altura aproximada requerida (reducida para que quede más junto):
+        # - Encabezados: 15mm (reducido de 25mm)
+        # - Por cada inspector: 20mm (reducido de 25mm)
+        altura_requerida = 15 * mm + (num_inspectores * 20 * mm)
+        
+        # Verificar si hay suficiente espacio en la página actual
+        if self.cursor_y < margen_inferior_minimo + altura_requerida:
+            # No hay suficiente espacio, crear nueva página
+            self.page_num = getattr(self, "page_num", 1) + 1
+            c.showPage()
+            
+            # Dibujar fondo en nueva página
+            self.dibujar_fondo(c)
+            self.dibujar_paginacion(c)
+            
+            # Resetear cursor para nueva página
+            self.cursor_y = self.height - 100  # Empezar más arriba en la nueva página (reducido de 120)
+        
+        # Ahora dibujar la tabla de firmas
         x_start = 25 * mm
+        
+        col_izq = 50 * mm
+        col_der = 50 * mm
 
-        # Asegurar espacio en la página
-        if self.cursor_y < 60:
-            self.cursor_y = 60
-
-        ancho_total = 165 * mm
-
-        # Columnas ajustadas
-        col_izq = 75 * mm     # Responsable de atender la visita
-        col_der = 75 * mm     # Inspector
-
-        # Altura inicial
-        y_text = self.cursor_y - 10 * mm
-
-        # Letra más pequeña
+        y_text = self.cursor_y - 8 * mm  # Reducido de 10mm
         c.setFont("Helvetica", 8)
 
-        # =====================================================
-        # Función interna para escribir texto en columnas sin empalme
-        # =====================================================
+        # -------------------------------------------------
+        # Función para texto envuelto (con interlineado reducido)
+        # -------------------------------------------------
         def write_wrapped(texto, x, y, max_width):
             palabras = texto.split()
             linea = ""
@@ -315,34 +349,105 @@ class OficioPDFGenerator:
                 test = (linea + " " + palabra).strip()
                 if c.stringWidth(test, "Helvetica", 8) > max_width:
                     c.drawString(x, y, linea)
-                    y -= 4 * mm
+                    y -= 3 * mm  # Reducido de 4mm
                     linea = palabra
                 else:
                     linea = test
             if linea:
                 c.drawString(x, y, linea)
-                y -= 4 * mm
+                y -= 3 * mm  # Reducido de 4mm
             return y
 
-        # =====================================================
-        # COLUMNA IZQUIERDA
-        # =====================================================
-        texto_izq = "Nombre y Firma del responsable de atender la visita"
-        y_final_izq = write_wrapped(texto_izq, x_start + 5*mm, y_text, col_izq)
-
-        # =====================================================
-        # COLUMNA DERECHA
-        # =====================================================
-        texto_der = "Nombre y Firma del Inspector"
-        y_final_der = write_wrapped(
-            texto_der,
-            x_start + col_izq + 15*mm,   # separación entre columnas
-            y_text,
-            col_der
+        # Encabezados
+        y_i = write_wrapped(
+            "Nombre y Firma del responsable de atender la visita",
+            x_start + 5 * mm, y_text, col_izq
         )
 
-        # Ajustar cursor a la posición más baja de ambas columnas
-        self.cursor_y = min(y_final_izq, y_final_der) - 5 * mm
+        y_d = write_wrapped(
+            "Nombre y Firma del Inspector",
+            x_start + col_izq + 15 * mm, y_text, col_der
+        )
+
+        # Cursor después del encabezado (reducido)
+        current_y = min(y_i, y_d) - 12 * mm  # Reducido de 20mm
+
+        # -------------------------------------------------
+        # Datos de firmas
+        # -------------------------------------------------
+        firma_w = 50 * mm
+        firma_h = 18 * mm
+        inspector_x = x_start + col_izq + 15 * mm
+        firma_x = inspector_x + 60 * mm
+
+        # -------------------------------------------------
+        # Obtener firma
+        # -------------------------------------------------
+        def obtener_firma(nombre):
+            nombre_norm = nombre.strip().lower()
+            for f in getattr(self, "firmas_data", []):
+                if f.get("NOMBRE DE INSPECTOR", "").strip().lower() == nombre_norm:
+                    ruta = f.get("IMAGEN") or f.get("FIRMA")
+                    if ruta and os.path.exists(ruta):
+                        return ruta
+                    posible = os.path.join("Firmas", os.path.basename(ruta)) if ruta else None
+                    if posible and os.path.exists(posible):
+                        return posible
+
+            nombre_arch = nombre.replace(" ", "").upper() + ".png"
+            ruta = os.path.join("Firmas", nombre_arch)
+            return ruta if os.path.exists(ruta) else None
+
+        # -------------------------------------------------
+        # DIBUJAR INSPECTORES (con espaciado reducido)
+        # -------------------------------------------------
+        for insp in inspectores:
+            if not insp:
+                continue
+
+            # Nombre (con fuente ligeramente más grande para mejor legibilidad)
+            c.setFont("Helvetica", 10)  # Aumentado de 9 a 10
+            c.drawString(inspector_x, current_y, insp)
+
+            # Firma debajo del nombre (espacio reducido)
+            firma_y = current_y - 5 * mm - firma_h  # Reducido de 6mm a 5mm
+
+            ruta = obtener_firma(insp)
+            if ruta:
+                try:
+                    img = ImageReader(ruta)
+                    c.drawImage(
+                        img,
+                        firma_x,
+                        firma_y,
+                        width=firma_w,
+                        height=firma_h,
+                        preserveAspectRatio=True,
+                        mask="auto"
+                    )
+                except Exception:
+                    # Dibujar línea si no hay imagen
+                    c.line(firma_x, firma_y + 2 * mm, firma_x + firma_w, firma_y + 2 * mm)
+            else:
+                # Dibujar línea si no hay imagen
+                c.line(firma_x, firma_y + 2 * mm, firma_x + firma_w, firma_y + 2 * mm)
+
+            # Espacio entre inspectores (reducido significativamente)
+            current_y -= 25 * mm  # Reducido de 35mm a 25mm
+
+        # Actualizar cursor global
+        self.cursor_y = current_y
+        
+        # Añadir pie de página si estamos en la página de firmas
+        if getattr(self, 'page_num', 1) > 1:
+            # Añadir texto de prohibición en la página de firmas
+            c.setFont("Helvetica", 7)
+            texto_prohibicion = "SE PROHIBE LA REPRODUCCIÓN TOTAL O PARCIAL DE ESTE DOCUMENTO SIN PREVIA AUTORIZACIÓN POR ESCRITO DE LA GERENCIA TÉCNICA DE VERIFICACIÓN & CONTROLIVA, S.C."
+            c.drawCentredString(self.width / 2, 15 * mm, texto_prohibicion)  # Reducido de 20mm a 15mm   
+
+
+
+
 
     def _dividir_texto(self, c, texto, max_width):
         """Divide texto en líneas según el ancho máximo"""
@@ -367,13 +472,14 @@ class OficioPDFGenerator:
     def generar(self, nombre_archivo="Oficio.pdf"):
         """Genera el archivo PDF"""
         c = canvas.Canvas(nombre_archivo, pagesize=letter)
-        
-        # Resetear cursor al inicio
+
+        # Inicializar contador de páginas y cursor
+        self.page_num = 1
         self.cursor_y = self.height - 40
-        
+
         # Dibujar fondo (si existe)
         self.dibujar_fondo(c)
-        
+
         # Dibujar paginación
         self.dibujar_paginacion(c)
         
@@ -452,22 +558,49 @@ def preparar_datos_desde_visita(datos_visita, firmas_json_path="data/Firmas.json
         inspectores = [s.strip() for s in datos_visita['supervisores_tabla'].split(',')]
     elif 'nfirma1' in datos_visita and datos_visita['nfirma1']:
         inspectores = [datos_visita['nfirma1']]
-    
+
+    # Intentar obtener dirección/datos desde Clientes.json
+    calle = datos_visita.get('direccion','')
+    colonia = datos_visita.get('colonia','')
+    municipio = datos_visita.get('municipio','')
+    ciudad_estado = datos_visita.get('ciudad_estado','')
+    numero_contrato = ''
+    rfc = ''
+    clientes_path = os.path.join(os.path.dirname(__file__), '..', 'data', 'Clientes.json')
+    try:
+        if os.path.exists(clientes_path):
+            with open(clientes_path, 'r', encoding='utf-8') as cf:
+                clientes = json.load(cf)
+                if isinstance(clientes, list):
+                    for c in clientes:
+                        if str(c.get('CLIENTE','')).strip().upper() == str(datos_visita.get('cliente','')).strip().upper():
+                            calle = c.get('CALLE Y NO') or c.get('CALLE','') or calle
+                            colonia = c.get('COLONIA O POBLACION') or c.get('COLONIA','') or colonia
+                            municipio = c.get('MUNICIPIO O ALCADIA') or c.get('MUNICIPIO','') or municipio
+                            ciudad_estado = c.get('CIUDAD O ESTADO') or c.get('CIUDAD/ESTADO') or ciudad_estado
+                            numero_contrato = c.get('NÚMERO_DE_CONTRATO','')
+                            rfc = c.get('RFC','')
+                            break
+    except Exception:
+        pass
+
     # Preparar datos para el PDF
     datos_oficio = {
         'no_oficio': datos_visita.get('folio_acta', 'AC' + datos_visita.get('folio_visita', '0000')),
         'fecha_inspeccion': datos_visita.get('fecha_termino', datetime.now().strftime('%d/%m/%Y')),
         'normas': datos_visita.get('norma', '').split(', ') if datos_visita.get('norma') else [],
         'empresa_visitada': datos_visita.get('cliente', ''),
-        'calle_numero': datos_visita.get('direccion', ''),
-        'colonia': datos_visita.get('colonia', ''),
-        'municipio': datos_visita.get('municipio', ''),
-        'ciudad_estado': datos_visita.get('ciudad_estado', ''),
+        'calle_numero': calle,
+        'colonia': colonia,
+        'municipio': municipio,
+        'ciudad_estado': ciudad_estado,
         'fecha_confirmacion': datos_visita.get('fecha_inicio', datetime.now().strftime('%d/%m/%Y')),
         'medio_confirmacion': 'correo electrónico',
         'inspectores': inspectores,
         'observaciones': datos_visita.get('observaciones', 'Sin observaciones'),
-        'num_solicitudes': datos_visita.get('num_solicitudes', 'Sin especificar')
+        'num_solicitudes': datos_visita.get('num_solicitudes', 'Sin especificar'),
++        'NUMERO_DE_CONTRATO': numero_contrato,
++        'RFC': rfc
     }
     
     return datos_oficio
