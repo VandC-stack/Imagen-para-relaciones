@@ -752,7 +752,11 @@ def generar_dictamenes_completos(directorio_destino, cliente_manual=None, rfc_ma
     print("📄 RESUMEN DE ARCHIVOS JSON")
     print("="*60)
     print(f"✅ JSON generados: {json_generados}/{dictamenes_generados}")
-    print(f"📂 Ubicación: data/dictamenes/ (carpeta interna del proyecto)")
+    try:
+        ruta_relativa = os.path.relpath(directorio_json)
+    except:
+        ruta_relativa = "data/dictamenes/"
+    print(f"📂 Ubicación: {ruta_relativa} (carpeta interna del proyecto)")
     if json_errores > 0:
         print(f"❌ Errores JSON: {json_errores}")
     
