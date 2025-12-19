@@ -32,6 +32,8 @@ class ControlFoliosAnual:
         self.clientes = []
         self.firmas = []
         self.tabla_relacion = []
+        self.historial_visitas = []
+        self.folio_to_cliente = {}  # Mapeo de folio a cliente
         
     def cargar_datos(self) -> Tuple[bool, str]:
         """
@@ -68,6 +70,17 @@ class ControlFoliosAnual:
             else:
                 return False, f"No se encontró {tabla_path}"
             
+            # Cargar historial_visitas.json (opcional, para mapeo de clientes)
+            historial_path = os.path.join(self.data_dir, "historial_visitas.json")
+            if os.path.exists(historial_path):
+                with open(historial_path, 'r', encoding='utf-8') as f:
+                    hist_data = json.load(f)
+                    if isinstance(hist_data, dict) and 'visitas' in hist_data:
+                        self.historial_visitas = hist_data['visitas']
+                        # Crear mapeo de folio a cliente
+                        self._crear_mapeo_folio_cliente()
+                        print(f"✅ Historial de visitas cargado: {len(self.historial_visitas)} registros")
+            
             return True, "Datos cargados correctamente"
             
         except json.JSONDecodeError as e:
@@ -75,21 +88,67 @@ class ControlFoliosAnual:
         except Exception as e:
             return False, f"Error al cargar datos: {e}"
     
-    def buscar_cliente_por_solicitud(self, solicitud: str) -> Optional[Dict]:
+    def _crear_mapeo_folio_cliente(self):
         """
-        Buscar información del cliente basándose en el número de solicitud
+        Crear un mapeo entre folios y clientes desde el historial de visitas
+        """
+        for visita in self.historial_visitas:
+            cliente_nombre = visita.get('cliente', '')
+            folios_str = visita.get('folios_utilizados', '')
+            
+            if not cliente_nombre or not folios_str:
+                continue
+            
+            # Parse folio range (e.g., "075339 - 075552")
+            if ' - ' in folios_str:
+                parts = folios_str.split(' - ')
+                if len(parts) == 2:
+                    try:
+                        inicio = int(parts[0].strip())
+                        fin = int(parts[1].strip())
+                        
+                        # Map all folios in range to this client
+                        for folio_num in range(inicio, fin + 1):
+                            self.folio_to_cliente[folio_num] = cliente_nombre
+                    except ValueError:
+                        pass
+    
+    def buscar_cliente_por_solicitud(self, solicitud: str, folio: int) -> Optional[Dict]:
+        """
+        Buscar información del cliente basándose en el folio
         
         Args:
-            solicitud: Número de solicitud (ej: "006916/25")
+            solicitud: Número de solicitud (ej: "006916/25") - no usado directamente
+            folio: Número de folio para buscar el cliente
             
         Returns:
             Diccionario con información del cliente o None
         """
-        # En un caso real, necesitaríamos un mapping entre solicitud y cliente
-        # Por ahora, retornamos el primer cliente si existe
-        if self.clientes:
-            return self.clientes[0]
-        return None
+        # Primero intentar buscar por folio en el historial
+        cliente_nombre = self.folio_to_cliente.get(folio)
+        
+        if cliente_nombre:
+            # Buscar información completa del cliente por nombre
+            for cliente in self.clientes:
+                if cliente.get('CLIENTE', '').strip().upper() == cliente_nombre.strip().upper():
+                    return cliente
+        
+        # Si no se encontró, retornar información genérica con el nombre del historial
+        if cliente_nombre:
+            return {
+                'CLIENTE': cliente_nombre,
+                'NÚMERO_DE_CONTRATO': 'N/A',
+                'RFC': 'N/A',
+                'CURP': 'N/A'
+            }
+        
+        # Como último recurso, retornar N/A
+        return {
+            'CLIENTE': 'N/A',
+            'NÚMERO_DE_CONTRATO': 'N/A',
+            'RFC': 'N/A',
+            'CURP': 'N/A'
+        }
     
     def buscar_inspector_por_firma(self, firma: str) -> str:
         """
@@ -183,8 +242,13 @@ class ControlFoliosAnual:
         solicitud = dictamen["solicitud"]
         folio = dictamen["folio"]
         
-        # Buscar cliente (por ahora usamos el primero disponible)
-        cliente = self.buscar_cliente_por_solicitud(solicitud)
+        # Buscar cliente usando el folio
+        try:
+            folio_num = int(folio) if folio else 0
+        except (ValueError, TypeError):
+            folio_num = 0
+        
+        cliente = self.buscar_cliente_por_solicitud(solicitud, folio_num)
         
         # Obtener información del inspector
         firma = primer_registro.get("FIRMA", "")
