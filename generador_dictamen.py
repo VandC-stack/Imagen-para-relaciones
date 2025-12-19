@@ -495,6 +495,85 @@ def limpiar_nombre_archivo(nombre):
         nombre = nombre.replace(p, "_")
     return nombre
 
+def convertir_dictamen_a_json(datos):
+    """
+    Convierte los datos del dictamen a formato JSON serializable.
+    Extrae solo los datos relevantes, excluyendo objetos binarios como imágenes.
+    """
+    json_data = {
+        "identificacion": {
+            "cadena_identificacion": datos.get("cadena_identificacion", ""),
+            "year": datos.get("year", ""),
+            "folio": datos.get("folio", ""),
+            "solicitud": datos.get("solicitud", ""),
+            "lista": datos.get("lista", "")
+        },
+        "norma": {
+            "codigo": datos.get("norma", ""),
+            "descripcion": datos.get("normades", ""),
+            "capitulo": datos.get("capitulo", "")
+        },
+        "fechas": {
+            "verificacion": datos.get("fverificacion", ""),
+            "verificacion_larga": datos.get("fverificacionlarga", ""),
+            "emision": datos.get("femision", "")
+        },
+        "cliente": {
+            "nombre": datos.get("cliente", ""),
+            "rfc": datos.get("rfc", "")
+        },
+        "producto": {
+            "descripcion": datos.get("producto", ""),
+            "pedimento": datos.get("pedimento", "")
+        },
+        "tabla_productos": datos.get("tabla_productos", []),
+        "cantidad_total": {
+            "valor": datos.get("total_cantidad", 0),
+            "texto": datos.get("TCantidad", "")
+        },
+        "observaciones": datos.get("obs", ""),
+        "firmas": {
+            "firma1": {
+                "nombre": datos.get("nfirma1", ""),
+                "valida": datos.get("firma_valida", False),
+                "codigo_solicitado": datos.get("codigo_firma_solicitado", ""),
+                "razon_sin_firma": datos.get("razon_sin_firma", "")
+            },
+            "firma2": {
+                "nombre": datos.get("nfirma2", "")
+            }
+        },
+        "modo_insertado": datos.get("modo_insertado", "etiqueta"),
+        "etiquetas": {
+            "cantidad": len(datos.get("etiquetas_lista", []))
+        }
+    }
+    return json_data
+
+def guardar_dictamen_json(datos, lista, directorio_json):
+    """
+    Guarda los datos del dictamen en formato JSON.
+    Retorna (exito, mensaje_error)
+    """
+    try:
+        # Crear directorio si no existe
+        os.makedirs(directorio_json, exist_ok=True)
+        
+        # Convertir datos a JSON
+        json_data = convertir_dictamen_a_json(datos)
+        
+        # Nombre del archivo JSON (limpiar caracteres no válidos)
+        nombre_archivo = limpiar_nombre_archivo(f"Dictamen_Lista_{lista}.json")
+        ruta_json = os.path.join(directorio_json, nombre_archivo)
+        
+        # Guardar archivo JSON
+        with open(ruta_json, 'w', encoding='utf-8') as f:
+            json.dump(json_data, f, ensure_ascii=False, indent=2)
+        
+        return True, None
+    except Exception as e:
+        return False, str(e)
+
 def detectar_flujo_cliente(cliente_nombre, norma_nombre=""):
     """
     Detecta automáticamente qué flujo debe usar el cliente.
@@ -566,10 +645,18 @@ def generar_dictamenes_completos(directorio_destino, cliente_manual=None, rfc_ma
 
     os.makedirs(directorio_destino, exist_ok=True)
     
+    # Crear directorio para JSON en la carpeta interna del proyecto
+    directorio_json = obtener_ruta_recurso(os.path.join("data", "dictamenes"))
+    os.makedirs(directorio_json, exist_ok=True)
+    
     dictamenes_generados = 0
     dictamenes_con_firma = 0
     dictamenes_sin_firma = 0
     dictamenes_error = 0
+    
+    json_generados = 0
+    json_errores = 0
+    json_errores_detalle = []
     
     archivos_creados = []
     sin_firma_detalle = []
@@ -615,6 +702,19 @@ def generar_dictamenes_completos(directorio_destino, cliente_manual=None, rfc_ma
                 dictamenes_generados += 1
                 archivos_creados.append(ruta_completa)
                 
+                # Guardar JSON del dictamen
+                exito_json, error_json = guardar_dictamen_json(datos, lista, directorio_json)
+                if exito_json:
+                    json_generados += 1
+                    print(f"   💾 JSON guardado: Dictamen_Lista_{lista}.json")
+                else:
+                    json_errores += 1
+                    json_errores_detalle.append({
+                        "lista": lista,
+                        "error": error_json
+                    })
+                    print(f"   ⚠️ Error guardando JSON: {error_json}")
+                
                 if tiene_firma:
                     dictamenes_con_firma += 1
                     print(f"   ✅ Creado CON FIRMA: {nombre_archivo}")
@@ -648,6 +748,26 @@ def generar_dictamenes_completos(directorio_destino, cliente_manual=None, rfc_ma
     if dictamenes_error > 0:
         print(f"❌ Con errores: {dictamenes_error}")
     
+    print("\n" + "="*60)
+    print("📄 RESUMEN DE ARCHIVOS JSON")
+    print("="*60)
+    print(f"✅ JSON generados: {json_generados}/{dictamenes_generados}")
+    try:
+        ruta_relativa = os.path.relpath(directorio_json)
+    except:
+        ruta_relativa = "data/dictamenes/"
+    print(f"📂 Ubicación: {ruta_relativa} (carpeta interna del proyecto)")
+    if json_errores > 0:
+        print(f"❌ Errores JSON: {json_errores}")
+    
+    if json_errores_detalle:
+        print("\n" + "="*60)
+        print("⚠️  ERRORES AL GUARDAR JSON - DETALLE")
+        print("="*60)
+        for item in json_errores_detalle:
+            print(f"\n📄 Lista: {item['lista']}")
+            print(f"   Error: {item['error']}")
+    
     if sin_firma_detalle:
         print("\n" + "="*60)
         print("⚠️  DICTÁMENES SIN FIRMA - DETALLE")
@@ -668,10 +788,14 @@ def generar_dictamenes_completos(directorio_destino, cliente_manual=None, rfc_ma
         'con_error': dictamenes_error,
         'total_familias': len(familias),
         'archivos': archivos_creados,
-        'sin_firma_detalle': sin_firma_detalle
+        'sin_firma_detalle': sin_firma_detalle,
+        'json_generados': json_generados,
+        'json_errores': json_errores,
+        'json_errores_detalle': json_errores_detalle,
+        'directorio_json': directorio_json
     }
     
-    mensaje = f"Se generaron {dictamenes_generados} dictámenes ({dictamenes_con_firma} con firma, {dictamenes_sin_firma} sin firma)"
+    mensaje = f"Se generaron {dictamenes_generados} dictámenes ({dictamenes_con_firma} con firma, {dictamenes_sin_firma} sin firma) y {json_generados} archivos JSON"
     success = dictamenes_generados > 0
     return success, mensaje if success else "No se pudo generar ningún dictamen", resultado
 
