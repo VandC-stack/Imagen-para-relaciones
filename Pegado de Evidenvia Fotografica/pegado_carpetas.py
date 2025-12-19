@@ -1,8 +1,3 @@
-# -----------------------------
-# UNILEVER
-# -----------------------------
-
-
 import os
 from docx import Document
 from main import (
@@ -13,12 +8,17 @@ from main import (
     extraer_codigos_pdf,
     insertar_imagenes_en_pdf_placeholder,
 )
-from registro_fallos import registrar_fallo, limpiar_registro, mostrar_registro, LOG_FILE, set_base_docs_path
+from registro_fallos import registrar_fallo, limpiar_registro, mostrar_registro, LOG_FILE
 
 IMG_EXTS = {".png", ".jpg", ".jpeg", ".bmp", ".tif", ".tiff", ".webp"}
 
 
 def construir_indice_carpetas(ruta_imgs):
+    """
+    Crea un índice de carpetas:
+        clave normalizada (solo letras/números, mayúsculas) -> [rutas de carpeta]
+    Esto permite que códigos como 'KI1545138' encuentren carpetas llamadas 'KI154-5138'.
+    """
     indice = {}
 
     for nombre in os.listdir(ruta_imgs):
@@ -45,9 +45,6 @@ def procesar_carpetas():
     if not ruta_docs or not ruta_imgs:
         return
 
-    # ← NECESARIO para convertir rutas al log
-    set_base_docs_path(ruta_docs)
-
     carpetas_index = construir_indice_carpetas(ruta_imgs)
 
     archivos = [
@@ -59,9 +56,6 @@ def procesar_carpetas():
         ruta_doc = os.path.join(ruta_docs, archivo)
         ext = os.path.splitext(archivo)[1].lower()
 
-        # ===============================
-        # DOCX
-        # ===============================
         if ext == ".docx":
             print(f"Procesando documento (modo carpetas DOCX): {ruta_doc}")
             doc = Document(ruta_doc)
@@ -71,7 +65,7 @@ def procesar_carpetas():
 
             if not codigos:
                 print("  No se encontraron códigos en el documento.")
-                registrar_fallo(ruta_doc)
+                registrar_fallo(archivo)
                 continue
 
             for p in doc.paragraphs:
@@ -101,14 +95,11 @@ def procesar_carpetas():
                     break
 
             if not imagen_insertada:
-                registrar_fallo(ruta_doc)
+                registrar_fallo(archivo)
 
             doc.save(ruta_doc)
             print(f"Documento actualizado: {ruta_doc}")
 
-        # ===============================
-        # PDF
-        # ===============================
         elif ext == ".pdf":
             print(f"Procesando documento (modo carpetas PDF): {ruta_doc}")
 
@@ -117,7 +108,7 @@ def procesar_carpetas():
 
             if not codigos:
                 print("  No se encontraron códigos en el PDF.")
-                registrar_fallo(ruta_doc)
+                registrar_fallo(archivo)
                 continue
 
             rutas_imagenes = []
@@ -142,12 +133,12 @@ def procesar_carpetas():
                             print(f"  Imagen detectada para PDF: {img_path}")
 
             if not rutas_imagenes:
-                registrar_fallo(ruta_doc)
+                registrar_fallo(archivo)
                 continue
 
             exito = insertar_imagenes_en_pdf_placeholder(ruta_doc, rutas_imagenes)
             if not exito:
-                registrar_fallo(ruta_doc)
+                registrar_fallo(archivo)
 
     mostrar_registro()
     if os.path.exists(LOG_FILE):

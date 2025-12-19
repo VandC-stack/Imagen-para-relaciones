@@ -1,14 +1,9 @@
-# -----------------------------
-# AXO
-# -----------------------------
-
-
 import os
 import json
 import pandas as pd
 from tkinter import filedialog, Tk
 from docx import Document
-from registro_fallos import registrar_fallo, limpiar_registro, mostrar_registro, LOG_FILE, set_base_docs_path
+from registro_fallos import registrar_fallo, limpiar_registro, mostrar_registro, LOG_FILE
 from main import (
     obtener_rutas,
     insertar_imagen_con_transparencia,
@@ -57,9 +52,6 @@ def construir_indice_desde_excel(ruta_excel):
     return indice
 
 
-# -----------------------------
-# EXTRAER CÓDIGOS DE TABLA DOCX
-# -----------------------------
 def extraer_codigos_tabla(doc):
     codigos = []
     for tabla in doc.tables:
@@ -80,31 +72,25 @@ def extraer_codigos_tabla(doc):
                 if not texto:
                     continue
 
-                # Normalizamos: solo caracteres alfanuméricos
                 canon = "".join(ch for ch in texto if ch.isalnum())
                 if not canon:
                     continue
 
-                # Aceptar códigos numéricos o alfanuméricos,
-                # pero exigir cierta longitud mínima y al menos un dígito
-                if len(canon) < 5:
-                    continue
-                if not any(c.isdigit() for c in canon):
+                tiene_letras = any(c.isalpha() for c in canon)
+                tiene_digitos = any(c.isdigit() for c in canon)
+
+                if not (tiene_letras and tiene_digitos):
                     continue
 
-                # Guardamos el código normalizado, para que
-                # coincida con las claves del índice
-                codigos.append(canon)
+                codigos.append(texto)
 
             break
     return codigos
 
 
-# -----------------------------
-# BUSCAR DESTINO
-# -----------------------------
 def buscar_destino(ruta_base, destino):
     destino = destino.strip()
+
     base, ext = os.path.splitext(destino)
 
     if ext.lower() in IMG_EXTS:
@@ -118,27 +104,26 @@ def buscar_destino(ruta_base, destino):
         if archivo_base.lower() == nombre_base.lower() and archivo_ext.lower() in IMG_EXTS:
             return "imagen", os.path.join(ruta_base, archivo)
 
+    carpeta_buscada = nombre_base
     for item in os.listdir(ruta_base):
-        if os.path.isdir(os.path.join(ruta_base, item)) and item.lower() == nombre_base.lower():
+        if os.path.isdir(os.path.join(ruta_base, item)) and item.lower() == carpeta_buscada.lower():
             return "carpeta", os.path.join(ruta_base, item)
 
     return None, None
 
 
-# -----------------------------
-# PROCESAR DOCX
-# -----------------------------
 def procesar_doc_con_indice_docx(ruta_doc, ruta_imagenes, indice):
     doc = Document(ruta_doc)
     codigos = extraer_codigos_tabla(doc)
 
+    fallo_registrado = False
     imagenes_insertadas = 0
 
     if not codigos:
-        registrar_fallo(ruta_doc)
+        if not fallo_registrado:
+            registrar_fallo(os.path.basename(ruta_doc))
+            fallo_registrado = True
         return
-
-    destinos_usados = set()   # <--- NUEVO
 
     for p in doc.paragraphs:
         if "${etiqueta1}" in (p.text or ""):
@@ -150,12 +135,6 @@ def procesar_doc_con_indice_docx(ruta_doc, ruta_imagenes, indice):
                     continue
 
                 destino = indice[codigo]
-
-                # Evitar repetir el mismo destino
-                if destino in destinos_usados:
-                    continue
-                destinos_usados.add(destino)
-
                 tipo, ruta = buscar_destino(ruta_imagenes, destino)
 
                 if tipo == "imagen":
@@ -168,72 +147,75 @@ def procesar_doc_con_indice_docx(ruta_doc, ruta_imagenes, indice):
                             insertar_imagen_con_transparencia(run, os.path.join(ruta, archivo))
                             imagenes_insertadas += 1
 
+                else:
+                    if not fallo_registrado:
+                        registrar_fallo(os.path.basename(ruta_doc))
+                        fallo_registrado = True
+
             break
 
-    if imagenes_insertadas == 0:
-        registrar_fallo(ruta_doc)
+    if imagenes_insertadas == 0 and not fallo_registrado:
+        registrar_fallo(os.path.basename(ruta_doc))
+        fallo_registrado = True
 
     doc.save(ruta_doc)
-    print(f"Documento DOCX actualizado: {ruta_doc}")
+    print(f"Documento actualizado: {ruta_doc}")
 
-# -----------------------------
-# PROCESAR PDF
-# -----------------------------
+
 def procesar_doc_con_indice_pdf(ruta_doc, ruta_imagenes, indice):
     codigos = extraer_codigos_pdf(ruta_doc)
-    rutas_imagenes = []
+
+    fallo_registrado = False
+    imagenes_insertadas = 0
 
     if not codigos:
-        registrar_fallo(ruta_doc)
+        if not fallo_registrado:
+            registrar_fallo(os.path.basename(ruta_doc))
+            fallo_registrado = True
         return
 
-    destinos_usados = set()  # <--- NUEVO
+    rutas_imagenes = []
 
     for codigo in codigos:
         if codigo not in indice:
             continue
 
         destino = indice[codigo]
-
-        # Si ya usamos este destino, ignorarlo
-        if destino in destinos_usados:
-            continue
-        destinos_usados.add(destino)
-
         tipo, ruta = buscar_destino(ruta_imagenes, destino)
 
         if tipo == "imagen":
             rutas_imagenes.append(ruta)
+            imagenes_insertadas += 1
 
         elif tipo == "carpeta":
             for archivo in os.listdir(ruta):
                 if os.path.splitext(archivo)[1].lower() in IMG_EXTS:
                     rutas_imagenes.append(os.path.join(ruta, archivo))
+                    imagenes_insertadas += 1
 
-    if not rutas_imagenes:
-        registrar_fallo(ruta_doc)
+        else:
+            if not fallo_registrado:
+                registrar_fallo(os.path.basename(ruta_doc))
+                fallo_registrado = True
+
+    if imagenes_insertadas == 0 and not fallo_registrado:
+        registrar_fallo(os.path.basename(ruta_doc))
+        fallo_registrado = True
         return
 
     exito = insertar_imagenes_en_pdf_placeholder(ruta_doc, rutas_imagenes)
-    if not exito:
-        registrar_fallo(ruta_doc)
+    if not exito and not fallo_registrado:
+        registrar_fallo(os.path.basename(ruta_doc))
 
-# -----------------------------
-# WRAPPER PRINCIPAL
-# -----------------------------
+
 def procesar_doc_con_indice(ruta_doc, ruta_imagenes, indice):
     ext = os.path.splitext(ruta_doc)[1].lower()
-
     if ext == ".docx":
         procesar_doc_con_indice_docx(ruta_doc, ruta_imagenes, indice)
-
     elif ext == ".pdf":
         procesar_doc_con_indice_pdf(ruta_doc, ruta_imagenes, indice)
 
 
-# -----------------------------
-# FUNCIÓN PRINCIPAL DEL MODO
-# -----------------------------
 def procesar_indice():
     limpiar_registro()
 
@@ -241,11 +223,9 @@ def procesar_indice():
     if not ruta_docs or not ruta_imgs:
         return
 
-    set_base_docs_path(ruta_docs)
-
     excel = seleccionar_excel()
     if not excel:
-        raise Exception("No se seleccionó archivo Excel.")
+        raise Exception("No se seleccionó un archivo Excel para el modo Pegado por Índice.")
 
     print("Construyendo índice desde Excel...")
     indice = construir_indice_desde_excel(excel)
@@ -257,8 +237,7 @@ def procesar_indice():
     ]
 
     for archivo in archivos:
-        ruta_doc = os.path.join(ruta_docs, archivo)
-        procesar_doc_con_indice(ruta_doc, ruta_imgs, indice)
+        procesar_doc_con_indice(os.path.join(ruta_docs, archivo), ruta_imgs, indice)
 
     mostrar_registro()
 
