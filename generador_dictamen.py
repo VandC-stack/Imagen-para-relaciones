@@ -645,8 +645,8 @@ def generar_dictamenes_completos(directorio_destino, cliente_manual=None, rfc_ma
 
     os.makedirs(directorio_destino, exist_ok=True)
     
-    # Crear directorio para JSON
-    directorio_json = os.path.join(directorio_destino, "data", "dictamenes")
+    # Crear directorio para JSON en la carpeta interna del proyecto
+    directorio_json = obtener_ruta_recurso(os.path.join("data", "dictamenes"))
     os.makedirs(directorio_json, exist_ok=True)
     
     dictamenes_generados = 0
@@ -752,6 +752,7 @@ def generar_dictamenes_completos(directorio_destino, cliente_manual=None, rfc_ma
     print("📄 RESUMEN DE ARCHIVOS JSON")
     print("="*60)
     print(f"✅ JSON generados: {json_generados}/{dictamenes_generados}")
+    print(f"📂 Ubicación: data/dictamenes/ (carpeta interna del proyecto)")
     if json_errores > 0:
         print(f"❌ Errores JSON: {json_errores}")
     
