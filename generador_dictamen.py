@@ -562,8 +562,8 @@ def guardar_dictamen_json(datos, lista, directorio_json):
         # Convertir datos a JSON
         json_data = convertir_dictamen_a_json(datos)
         
-        # Nombre del archivo JSON
-        nombre_archivo = f"Dictamen_Lista_{lista}.json"
+        # Nombre del archivo JSON (limpiar caracteres no válidos)
+        nombre_archivo = limpiar_nombre_archivo(f"Dictamen_Lista_{lista}.json")
         ruta_json = os.path.join(directorio_json, nombre_archivo)
         
         # Guardar archivo JSON
