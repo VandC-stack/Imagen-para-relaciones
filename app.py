@@ -30,7 +30,12 @@ FONT_SUBTITLE = ("Inter", 17, "bold")
 FONT_LABEL = ("Inter", 13)
 FONT_SMALL = ("Inter", 12)
 
+
 class SistemaDictamenesVC(ctk.CTk):
+    # --- PAGINACIÓN HISTORIAL ---
+    HISTORIAL_PAGINA_ACTUAL = 1
+    HISTORIAL_REGS_POR_PAGINA = 100
+
     def __init__(self):
         super().__init__()
 
@@ -275,6 +280,29 @@ class SistemaDictamenesVC(ctk.CTk):
         )
         scroll_form.pack(fill="both", expand=True)
 
+        # === Tipo de Documento (Dictamen, Negación de dictamen, Constancia, Negación de Constancia) ===
+        tipo_doc_frame = ctk.CTkFrame(scroll_form, fg_color="transparent")
+        tipo_doc_frame.pack(fill="x", pady=(0, 10))
+
+        ctk.CTkLabel(
+            tipo_doc_frame,
+            text="Tipo de documento:",
+            font=FONT_SMALL,
+            text_color=STYLE["texto_oscuro"]
+        ).pack(anchor="w", pady=(0, 5))
+
+        self.combo_tipo_documento = ctk.CTkComboBox(
+            tipo_doc_frame,
+            values=["Dictamen", "Negación de Dictamen", "Constancia", "Negación de Constancia"],
+            font=FONT_SMALL,
+            dropdown_font=FONT_SMALL,
+            state="readonly",
+            height=35,
+            corner_radius=8
+        )
+        self.combo_tipo_documento.pack(fill="x", pady=(0, 5))
+        self.combo_tipo_documento.set("Dictamen")
+
         # Folio de visita (automático)
         folio_frame = ctk.CTkFrame(scroll_form, fg_color="transparent")
         folio_frame.pack(fill="x", pady=(0, 10))
@@ -405,6 +433,7 @@ class SistemaDictamenesVC(ctk.CTk):
         self.entry_hora_termino.insert(0, "18:00")
         self.entry_hora_termino.configure(state="readonly")
 
+        
         # Supervisor field removed from UI: supervisor is derived from the loaded tabla de relación
 
         # ===== TARJETA GENERADOR (DERECHA) - 70% =====
@@ -674,6 +703,7 @@ class SistemaDictamenesVC(ctk.CTk):
         barra_superior.pack(fill="x", pady=(0, 10))
         barra_superior.pack_propagate(False)
 
+
         # --- FOLIO Y BÚSQUEDA EN MISMA LÍNEA ---
         linea_busqueda = ctk.CTkFrame(barra_superior, fg_color="transparent")
         linea_busqueda.pack(fill="x", pady=5)
@@ -695,7 +725,25 @@ class SistemaDictamenesVC(ctk.CTk):
             command=self.hist_buscar_por_folio,
             width=40, height=25, corner_radius=6,
             fg_color=STYLE["secundario"], text_color=STYLE["surface"]
-        ).pack(side="left", padx=(0, 30))
+        ).pack(side="left", padx=(0, 8))
+
+        # Botón Limpiar búsqueda
+        ctk.CTkButton(
+            linea_busqueda, text="Limpiar",
+            command=self.hist_limpiar_busqueda,
+            width=60, height=25, corner_radius=6,
+            fg_color=STYLE["secundario"], text_color=STYLE["surface"]
+        ).pack(side="left", padx=(0, 8))
+
+        # Botón Borrar por folio (usa el valor en `self.entry_buscar_folio`)
+        ctk.CTkButton(
+            linea_busqueda, text="Borrar",
+            command=self.hist_borrar_por_folio,
+            width=60, height=25, corner_radius=6,
+            fg_color=STYLE["peligro"], text_color=STYLE["surface"]
+        ).pack(side="left", padx=(0, 8))
+
+       
 
         # Búsqueda general (derecha)
         ctk.CTkLabel(
@@ -741,6 +789,7 @@ class SistemaDictamenesVC(ctk.CTk):
                 75,    # Hora Fin
                 180,   # Cliente (más ancho)
                 100,   # Supervisor (reducido)
+                120,   # Tipo de documento (nuevo)
                 80,    # Estatus
                 100,   # Folios (para mostrar rango)
                 160    # Acciones (más ancho para botones)
@@ -749,8 +798,8 @@ class SistemaDictamenesVC(ctk.CTk):
         # Encabezados exactamente como en la imagen
         headers = [
             "Folio", "Acta", "Inicio", "Término", 
-            "Hora Irii", "Hora Pin", "Cliente", 
-            "Supervisor", "Estebat", "Folios", "Acciones"
+            "Hora Inicio", "Hora Fin", "Cliente", 
+            "Supervisor", "Tipo de documento", "Estatus", "Folios", "Acciones"
         ]
 
         # Crear encabezados
@@ -789,6 +838,31 @@ class SistemaDictamenesVC(ctk.CTk):
             font=("Inter", 9), text_color=STYLE["texto_claro"]
         )
         self.hist_info_label.pack(side="left", padx=12)
+
+        # --- Botones de paginación ---
+        self.btn_hist_prev = ctk.CTkButton(
+            footer, text="⏪ Anterior",
+            command=self.hist_pagina_anterior,
+            height=28, width=90, corner_radius=6,
+            fg_color=STYLE["secundario"], text_color=STYLE["surface"],
+            hover_color="#1a1a1a"
+        )
+        self.btn_hist_prev.pack(side="right", padx=6)
+
+        self.hist_pagina_label = ctk.CTkLabel(
+            footer, text="Página 1",
+            font=("Inter", 10), text_color=STYLE["texto_oscuro"]
+        )
+        self.hist_pagina_label.pack(side="right", padx=6)
+
+        self.btn_hist_next = ctk.CTkButton(
+            footer, text="Siguiente ⏩",
+            command=self.hist_pagina_siguiente,
+            height=28, width=90, corner_radius=6,
+            fg_color=STYLE["secundario"], text_color=STYLE["surface"],
+            hover_color="#1a1a1a"
+        )
+        self.btn_hist_next.pack(side="right", padx=6)
 
         ctk.CTkButton(
             footer, text="💾 Backup",
@@ -1189,6 +1263,9 @@ class SistemaDictamenesVC(ctk.CTk):
             self.entry_hora_termino.delete(0, "end")
             # Supervisor input removed from UI; nothing to clear here
             
+            # Reset tipo de documento
+            if hasattr(self, 'combo_tipo_documento'):
+                self.combo_tipo_documento.set("Dictamen")
             messagebox.showinfo("Nueva Visita", "Formulario listo para nueva visita")
             
         except Exception as e:
@@ -1215,9 +1292,36 @@ class SistemaDictamenesVC(ctk.CTk):
             except Exception:
                 supervisor = ""
 
+            # Leer tipo de documento (conservar la selección tal cual: título / mayúsculas según opciones)
+            tipo_documento = (self.combo_tipo_documento.get().strip()
+                               if hasattr(self, 'combo_tipo_documento') else "Dictamen")
+
+            # Permitir guardar aunque no haya folio_acta si hay tipo_documento
             if not folio_acta:
-                messagebox.showwarning("Datos incompletos", "Por favor ingrese el folio de acta.")
-                return
+                if tipo_documento:
+                    # Guardar registro incompleto solo con tipo de documento
+                    payload = {
+                        "folio_visita": folio_visita,
+                        "folio_acta": folio_acta,
+                        "fecha_inicio": fecha_inicio,
+                        "fecha_termino": fecha_termino,
+                        "hora_inicio": hora_inicio,
+                        "hora_termino": hora_termino,
+                        "norma": "",
+                        "cliente": self.cliente_seleccionado['CLIENTE'],
+                        "nfirma1": supervisor,
+                        "nfirma2": "",
+                        "estatus": "En proceso",
+                            "tipo_documento": tipo_documento,
+                        "folios_utilizados": f"{folio_visita} - {folio_visita}"  # Guardar el folio como rango único
+                    }
+                    self.hist_create_visita(payload)
+                    self.crear_nueva_visita()
+                    messagebox.showinfo("Registro guardado", "El folio se guardó como registro incompleto. Podrá completarlo más adelante.")
+                    return
+                else:
+                    messagebox.showwarning("Datos incompletos", "Por favor ingrese el folio de acta o seleccione un tipo de documento.")
+                    return
 
             # Validar que el folio acta tenga formato correcto
             if not folio_acta.startswith("AC") or len(folio_acta) != 6:
@@ -1236,17 +1340,17 @@ class SistemaDictamenesVC(ctk.CTk):
                 "cliente": self.cliente_seleccionado['CLIENTE'],
                 "nfirma1": supervisor,  # Usamos supervisor como única firma
                 "nfirma2": "",
-                "estatus": "En proceso"
+                "estatus": "En proceso",
+                "tipo_documento": tipo_documento
             }
 
             # Guardar visita
             self.hist_create_visita(payload)
-            
             # Limpiar formulario después de guardar
             self.crear_nueva_visita()
-            
         except Exception as e:
             messagebox.showerror("Error", f"No se pudo guardar la visita:\n{e}")
+    
 
     # -----------------------------------------------------------
     # MÉTODOS PARA CARGA Y GENERACIÓN DE ARCHIVOS
@@ -1824,6 +1928,39 @@ class SistemaDictamenesVC(ctk.CTk):
                 
             # Inicializar también historial_data_original
             self.historial_data_original = self.historial_data.copy()
+            # Normalizar campo 'tipo_documento' en los registros existentes
+            try:
+                cambios = False
+                for reg in self.historial_data:
+                    if not isinstance(reg, dict):
+                        continue
+                    td = reg.get('tipo_documento')
+                    # Normalizar a las formas amigables: Dictamen, Negación de Dictamen, Constancia, Negación de Constancia
+                    def _normalizar_td(raw):
+                        if not raw:
+                            return 'Dictamen'
+                        s = str(raw).strip().lower()
+                        if 'dictamen' in s and ('neg' in s or 'negación' in s or 'negacion' in s):
+                            return 'Negación de Dictamen'
+                        if 'dictamen' in s:
+                            return 'Dictamen'
+                        if 'constancia' in s and ('neg' in s or 'negación' in s or 'negacion' in s):
+                            return 'Negación de Constancia'
+                        if 'constancia' in s:
+                            return 'Constancia'
+                        # Default: capitalize first letter
+                        return str(raw).strip()
+
+                    nuevo_td = _normalizar_td(td)
+                    if nuevo_td != td:
+                        reg['tipo_documento'] = nuevo_td
+                        cambios = True
+                if cambios:
+                    # Actualizar estructura y persistir cambios
+                    self.historial['visitas'] = self.historial_data
+                    self._guardar_historial()
+            except Exception:
+                pass
                 
         except json.JSONDecodeError as e:
             print(f"❌ Error decodificando JSON: {e}")
@@ -1969,185 +2106,194 @@ class SistemaDictamenesVC(ctk.CTk):
 
     def _limpiar_scroll_hist(self):
         # Recreate the scrollable frame to avoid TclError from pending CTk redraws
-        try:
-            old = getattr(self, 'hist_scroll', None)
-            parent = old.master if old is not None else None
-            if parent is None:
-                return
+        old = getattr(self, 'hist_scroll', None)
+        parent = old.master if old is not None else None
+        if parent is None:
+            return
 
-            # Create a fresh scrollable frame and pack it in the same parent
-            new_scroll = ctk.CTkScrollableFrame(
-                parent,
-                fg_color=STYLE["fondo"],
-                scrollbar_button_color=STYLE["primario"],
-                scrollbar_button_hover_color=STYLE["primario"]
-            )
-            new_scroll.pack(fill="both", expand=True, padx=0, pady=0)
+        # Create a fresh scrollable frame and pack it in the same parent
+        new_scroll = ctk.CTkScrollableFrame(
+            parent,
+            fg_color=STYLE["fondo"],
+            scrollbar_button_color=STYLE["primario"],
+            scrollbar_button_hover_color=STYLE["primario"]
+        )
+        new_scroll.pack(fill="both", expand=True, padx=0, pady=0)
 
-            # Replace reference immediately so callers use new frame
-            self.hist_scroll = new_scroll
+        # Replace reference immediately so callers use new frame
+        self.hist_scroll = new_scroll
 
-            # Destroy the old widget after a short delay to let pending redraws finish
-            if old is not None and isinstance(old, ctk.CTkScrollableFrame):
+        # Destroy the old widget after a short delay to let pending redraws finish
+        if old is not None and isinstance(old, ctk.CTkScrollableFrame):
+            try:
+                self.after(250, old.destroy)
+            except Exception:
                 try:
-                    self.after(250, old.destroy)
+                    old.destroy()
                 except Exception:
-                    try:
-                        old.destroy()
-                    except Exception:
-                        pass
-
-        except Exception as e:
-            print(f"❌ Error limpiando scroll historial: {e}")
+                    pass
 
     # -- BOTONES DE ACCION PARA CADA VISITA -- #
     def _poblar_historial_ui(self):
         """Poblar la interfaz de historial con método optimizado"""
-        try:
-            # Limpiar contenido actual SIN destruir el scroll frame
-            for widget in self.hist_scroll.winfo_children():
-                widget.destroy()
-            
-            # Si no hay datos
-            if not hasattr(self, 'historial_data') or not self.historial_data:
-                no_data_frame = ctk.CTkFrame(self.hist_scroll, fg_color=STYLE["surface"], height=40)
-                no_data_frame.pack(fill="x", pady=2)
-                no_data_frame.pack_propagate(False)
-                
-                ctk.CTkLabel(
-                    no_data_frame,
-                    text="No hay registros en el historial",
-                    font=("Inter", 11),
-                    text_color=STYLE["texto_claro"]
-                ).pack(expand=True, fill="both")
-                return
-            
-            # ANCHOS DE COLUMNA - AJUSTADOS PARA MEJOR VISIBILIDAD
-            column_widths = [
-                70,    # Folio (reducido)
-                70,    # Acta (reducido)
-                70,    # Inicio (reducido)
-                70,    # Término (reducido)
-                75,    # Hora Ini
-                75,    # Hora Fin
-                180,   # Cliente (más ancho)
-                100,   # Supervisor (reducido)
-                80,    # Estatus
-                100,   # Folios (para mostrar rango)
-                300    # Acciones (más ancho para botones)
+        # Siempre recargar historial antes de poblar la UI
+        self._cargar_historial()
+        # Limpiar contenido actual SIN destruir el scroll frame
+        for widget in self.hist_scroll.winfo_children():
+            widget.destroy()
+        
+        # Si no hay datos
+        if not hasattr(self, 'historial_data') or not self.historial_data:
+            no_data_frame = ctk.CTkFrame(self.hist_scroll, fg_color=STYLE["surface"], height=40)
+            no_data_frame.pack(fill="x", pady=2)
+            no_data_frame.pack_propagate(False)
+            ctk.CTkLabel(
+                no_data_frame,
+                text="No hay registros en el historial",
+                font=("Inter", 11),
+                text_color=STYLE["texto_claro"]
+            ).pack(expand=True, fill="both")
+            return
+        # ANCHOS DE COLUMNA - AJUSTADOS PARA MEJOR VISIBILIDAD
+        column_widths = [
+            70,    # Folio (reducido)
+            70,    # Acta (reducido)
+            70,    # Inicio (reducido)
+            70,    # Término (reducido)
+            75,    # Hora Ini
+            75,    # Hora Fin
+            180,   # Cliente (más ancho)
+            100,   # Supervisor (reducido)
+            120,   # Tipo de documento (nuevo)
+            80,    # Estatus
+            100,   # Folios (para mostrar rango)
+            300    # Acciones (más ancho para botones)
+        ]
+
+        # --- PAGINACIÓN ---
+        total_registros = len(self.historial_data)
+        regs_pagina = self.HISTORIAL_REGS_POR_PAGINA
+        pagina_actual = getattr(self, 'HISTORIAL_PAGINA_ACTUAL', 1)
+        total_paginas = max(1, (total_registros + regs_pagina - 1) // regs_pagina)
+        inicio = (pagina_actual - 1) * regs_pagina
+        fin = min(inicio + regs_pagina, total_registros)
+        self.hist_pagina_label.configure(text=f"Página {pagina_actual} de {total_paginas}")
+        self.btn_hist_prev.configure(state="normal" if pagina_actual > 1 else "disabled")
+        self.btn_hist_next.configure(state="normal" if pagina_actual < total_paginas else "disabled")
+
+        # Crear filas de datos SOLO para la página actual
+        for i, registro in enumerate(self.historial_data[inicio:fin]):
+            # Color de fondo alternado
+            row_color = STYLE["surface"] if i % 2 == 0 else "#f5f5f5"
+
+            # Crear frame de fila
+            row_frame = ctk.CTkFrame(self.hist_scroll, fg_color=row_color, height=40)
+            row_frame.pack(fill="x", pady=1)
+            row_frame.pack_propagate(False)
+
+            # Obtener datos formateados
+            hora_inicio = self._formatear_hora_12h(registro.get('hora_inicio', ''))
+            hora_termino = self._formatear_hora_12h(registro.get('hora_termino', ''))
+
+            # Procesar información de folios para mostrar solo rango
+            folios_str = registro.get('folios_utilizados', '')
+            # Si no hay folios, mostrar el folio de visita como rango único
+            if not folios_str or folios_str == '0' or folios_str == '-':
+                folios_str = f"{registro.get('folio_visita', '-')}"
+            folios_display = self._formatear_folios_rango(folios_str)
+
+            # Datos de la fila (mismo orden que encabezados)
+            datos = [
+                registro.get('folio_visita', '-'),
+                registro.get('folio_acta', '-'),
+                registro.get('fecha_inicio', '-'),
+                registro.get('fecha_termino', '-'),
+                hora_inicio if hora_inicio else '-',
+                hora_termino if hora_termino else '-',
+                self._acortar_texto(registro.get('cliente', '-'), 20),
+                self._acortar_texto(registro.get('nfirma1', 'N/A'), 12),
+                registro.get('tipo_documento', '-'),
+                registro.get('estatus', 'Completado'),
+                folios_display,  # Folios formateados solo rango
+                ""  # Placeholder para acciones
             ]
-            
-            # Crear filas de datos
-            for i, registro in enumerate(self.historial_data):
-                # Color de fondo alternado
-                row_color = STYLE["surface"] if i % 2 == 0 else "#f5f5f5"
-                
-                # Crear frame de fila
-                row_frame = ctk.CTkFrame(self.hist_scroll, fg_color=row_color, height=40)
-                row_frame.pack(fill="x", pady=1)
-                row_frame.pack_propagate(False)
-                
-                # Obtener datos formateados
-                hora_inicio = self._formatear_hora_12h(registro.get('hora_inicio', ''))
-                hora_termino = self._formatear_hora_12h(registro.get('hora_termino', ''))
-                
-                # Procesar información de folios para mostrar solo rango
-                folios_str = registro.get('folios_utilizados', '0')
-                folios_display = self._formatear_folios_rango(folios_str)
-                
-                # Datos de la fila (mismo orden que encabezados)
-                datos = [
-                    registro.get('folio_visita', '-'),
-                    registro.get('folio_acta', '-'),
-                    registro.get('fecha_inicio', '-'),
-                    registro.get('fecha_termino', '-'),
-                    hora_inicio if hora_inicio else '-',
-                    hora_termino if hora_termino else '-',
-                    self._acortar_texto(registro.get('cliente', '-'), 20),
-                    self._acortar_texto(registro.get('nfirma1', 'N/A'), 12),
-                    registro.get('estatus', 'Completado'),
-                    folios_display,  # Folios formateados solo rango
-                    ""  # Placeholder para acciones
-                ]
-                
-                # Crear celdas para cada columna
-                for j, dato in enumerate(datos):
-                    if j == 10:  # Columna de acciones
-                        acciones_frame = ctk.CTkFrame(row_frame, fg_color="transparent", width=column_widths[j])
-                        acciones_frame.pack(side="left", padx=1)
-                        acciones_frame.pack_propagate(False)
-                        
-                        # Contenedor para botones (fila única por registro)
-                        btn_container = ctk.CTkFrame(acciones_frame, fg_color="transparent")
-                        btn_container.pack(expand=True, fill="both")
-                        btn_container.pack_propagate(False)
 
-                        # Botones de acción más compactos
-                        btn_config = {
-                            "width": 32,  # Ancho fijo
-                            "height": 28,
-                            "corner_radius": 4,
-                            "font": ("Segoe UI Symbol", 10)
-                        }
+            for j, dato in enumerate(datos):
+                if j == 11:  # Columna de acciones
+                    acciones_frame = ctk.CTkFrame(row_frame, fg_color="transparent", width=column_widths[j])
+                    acciones_frame.pack(side="left", padx=1)
+                    acciones_frame.pack_propagate(False)
 
-                        ctk.CTkButton(
-                            btn_container,
-                            text="⏬Folios",
-                            command=lambda r=registro: self.descargar_folios_visita(r),
-                            fg_color=STYLE["exito"],
-                            text_color=STYLE["surface"],
-                            **btn_config
-                        ).pack(side="left", padx=1)
+                    # Contenedor para botones (fila única por registro)
+                    btn_container = ctk.CTkFrame(acciones_frame, fg_color="transparent")
+                    btn_container.pack(expand=True, fill="both")
+                    btn_container.pack_propagate(False)
 
-                        ctk.CTkButton(
-                            btn_container,
-                            text="📄 Archivos",
-                            command=lambda r=registro: self.mostrar_opciones_documentos(r),
-                            fg_color=STYLE["secundario"],
-                            text_color=STYLE["surface"],
-                            **btn_config
-                        ).pack(side="left", padx=1)
+                    # Botones de acción más compactos
+                    btn_config = {
+                        "width": 32,  # Ancho fijo
+                        "height": 28,
+                        "corner_radius": 4,
+                        "font": ("Segoe UI Symbol", 10)
+                    }
 
-                        ctk.CTkButton(
-                            btn_container,
-                            text="✏️ Editar",
-                            command=lambda r=registro: self.hist_editar_registro(r),
-                            fg_color=STYLE["primario"],
-                            text_color=STYLE["surface"],
-                            **btn_config
-                        ).pack(side="left", padx=1)
+                    ctk.CTkButton(
+                        btn_container,
+                        text="⏬Folios",
+                        command=lambda r=registro: self.descargar_folios_visita(r),
+                        fg_color=STYLE["exito"],
+                        text_color=STYLE["surface"],
+                        **btn_config
+                    ).pack(side="left", padx=1)
 
-                        ctk.CTkButton(
-                            btn_container,
-                            text="🗑️ Borrar",
-                            command=lambda r=registro: self.hist_eliminar_registro(r),
-                            fg_color=STYLE["advertencia"],
-                            text_color=STYLE["surface"],
-                            **btn_config
-                        ).pack(side="left", padx=1)
-                        
-                    else:
-                        # Para celdas de datos normales
-                        lbl = ctk.CTkLabel(
-                            row_frame,
-                            text=str(dato),
-                            font=("Inter", 9),
-                            text_color=STYLE["texto_oscuro"],
-                            width=column_widths[j],
-                            anchor="center"
-                        )
-                        lbl.pack(side="left", padx=1)
-            
+                    ctk.CTkButton(
+                        btn_container,
+                        text="📄 Archivos",
+                        command=lambda r=registro: self.mostrar_opciones_documentos(r),
+                        fg_color=STYLE["secundario"],
+                        text_color=STYLE["surface"],
+                        **btn_config
+                    ).pack(side="left", padx=1)
+
+                    ctk.CTkButton(
+                        btn_container,
+                        text="✏️ Editar",
+                        command=lambda r=registro: self.hist_editar_registro(r),
+                        fg_color=STYLE["primario"],
+                        text_color=STYLE["secundario"],
+                        **btn_config
+                    ).pack(side="left", padx=1)
+
+                    
+                else:
+                    # Para celdas de datos normales
+                    lbl = ctk.CTkLabel(
+                        row_frame,
+                        text=str(dato),
+                        font=("Inter", 9),
+                        text_color=STYLE["texto_oscuro"],
+                        width=column_widths[j],
+                        anchor="center"
+                    )
+                    lbl.pack(side="left", padx=1)
+
             # Actualizar información del pie
             total_registros = len(self.historial_data)
             self.hist_info_label.configure(
                 text=f"Registros: {total_registros} | Sistema V&C - Generador de Dictámenes de Comprimiento"
             )
-            
-        except Exception as e:
-            print(f"❌ Error en _poblar_historial_ui: {e}")
-            import traceback
-            traceback.print_exc()
+
+    def hist_pagina_anterior(self):
+        if self.HISTORIAL_PAGINA_ACTUAL > 1:
+            self.HISTORIAL_PAGINA_ACTUAL -= 1
+            self._poblar_historial_ui()
+
+    def hist_pagina_siguiente(self):
+        total_registros = len(self.historial_data)
+        total_paginas = max(1, (total_registros + self.HISTORIAL_REGS_POR_PAGINA - 1) // self.HISTORIAL_REGS_POR_PAGINA)
+        if self.HISTORIAL_PAGINA_ACTUAL < total_paginas:
+            self.HISTORIAL_PAGINA_ACTUAL += 1
+            self._poblar_historial_ui()
 
     def _formatear_folios_rango(self, folios_str):
         """Formatea los folios para mostrar solo el rango (inicio-fin)"""
@@ -3038,19 +3184,22 @@ class SistemaDictamenesVC(ctk.CTk):
             print(f"Error generando datos exportable: {e}")
             return {}
     
+
+
+
     def descargar_excel_ema(self, registro=None):
         """Descarga el reporte EMA en Excel"""
         try:
-            # Cargar el módulo Excel_generadores dinámicamente
+            # Cargar el módulo control_folios_anual dinámicamente
             import importlib.util
             
-            excel_gen_file = os.path.join(self.documentos_dir, 'Excel_generadores.py')
+            excel_gen_file = os.path.join(self.documentos_dir, 'Documentos Inspeccion/control_folios_anual.py')
             
             if not os.path.exists(excel_gen_file):
                 messagebox.showerror("Error", f"No se encontró el archivo generador de Excel: {excel_gen_file}")
                 return
             
-            spec = importlib.util.spec_from_file_location('Excel_generadores', excel_gen_file)
+            spec = importlib.util.spec_from_file_location('control_folios_anual', excel_gen_file)
             excel_mod = importlib.util.module_from_spec(spec)
             spec.loader.exec_module(excel_mod)
             
@@ -3113,16 +3262,16 @@ class SistemaDictamenesVC(ctk.CTk):
     def descargar_excel_anual(self, registro=None):
         """Descarga el reporte de control de folios anual en Excel"""
         try:
-            # Cargar el módulo Excel_generadores dinámicamente
+            # Cargar el módulo control_folios_anual dinámicamente
             import importlib.util
             
-            excel_gen_file = os.path.join(self.documentos_dir, 'Excel_generadores.py')
+            excel_gen_file = os.path.join(self.documentos_dir, 'Documentos Inspeccion/control_folios_anual.py')
             
             if not os.path.exists(excel_gen_file):
                 messagebox.showerror("Error", f"No se encontró el archivo generador de Excel: {excel_gen_file}")
                 return
             
-            spec = importlib.util.spec_from_file_location('Excel_generadores', excel_gen_file)
+            spec = importlib.util.spec_from_file_location('control_folios_anual', excel_gen_file)
             excel_mod = importlib.util.module_from_spec(spec)
             spec.loader.exec_module(excel_mod)
             
@@ -3236,7 +3385,17 @@ class SistemaDictamenesVC(ctk.CTk):
                 
         except Exception as e:
             messagebox.showerror("Error", f"No se pudo generar el control de folios anual:\n{str(e)}")
-    
+
+
+
+
+
+
+
+
+
+
+
     def hist_editar_registro(self, registro):
         """Abre el formulario para editar un registro del historial"""
         self._crear_formulario_visita(registro)
@@ -3675,6 +3834,46 @@ class SistemaDictamenesVC(ctk.CTk):
         except Exception as e:
             print(f"Error en búsqueda por folio: {e}")
 
+    def hist_borrar_por_folio(self):
+        """Borrar una visita usando el folio ingresado en la barra de búsqueda.
+        Busca el registro por folio (coincidencia exacta primero, luego parcial)
+        y delega en `hist_eliminar_registro` para la eliminación con confirmación.
+        """
+        try:
+            folio = self.entry_buscar_folio.get().strip()
+            if not folio:
+                messagebox.showwarning("Advertencia", "Ingrese el folio en la barra de búsqueda para eliminar una visita.")
+                return
+
+            fuente = self.historial_data_original if hasattr(self, 'historial_data_original') else self.historial_data
+
+            # Buscar coincidencia exacta (case-insensitive)
+            matches = [r for r in fuente if str(r.get('folio_visita', '')).strip().lower() == folio.lower()]
+
+            # Si no hay exactas, buscar por contains
+            if not matches:
+                matches = [r for r in fuente if folio.lower() in str(r.get('folio_visita', '')).lower()]
+
+            if not matches:
+                messagebox.showinfo("No encontrado", f"No se encontró ningún registro con folio '{folio}'.")
+                return
+
+            if len(matches) > 1:
+                # Informar que se encontró más de una coincidencia y proceder con la primera
+                confirmar = messagebox.askyesno(
+                    "Confirmar eliminación",
+                    f"Se encontraron {len(matches)} registros que coinciden con '{folio}'.\n\nSe eliminará el primer registro encontrado: {matches[0].get('folio_visita')}\n\n¿Desea continuar?"
+                )
+                if not confirmar:
+                    return
+
+            # Delegar en la función existente para eliminar (esta función pedirá su propia confirmación también)
+            # Llamamos a hist_eliminar_registro con el primer match
+            self.hist_eliminar_registro(matches[0])
+
+        except Exception as e:
+            messagebox.showerror("Error", f"Error al intentar eliminar por folio:\n{e}")
+
     def hist_update_visita(self, id_, nuevos):
         """Actualiza una visita existente"""
         try:
@@ -3919,6 +4118,10 @@ class SistemaDictamenesVC(ctk.CTk):
             # Prioridad: 1. Supervisores de la tabla, 2. Supervisor del formulario
             supervisor_mostrar = supervisores_str if supervisores_str else supervisor
 
+            # Determinar tipo de documento para visitas automáticas (usar selección si existe)
+            tipo_documento = (self.combo_tipo_documento.get().strip()
+                               if hasattr(self, 'combo_tipo_documento') else "Dictamen")
+
             # Crear payload para visita automática con información de folios
             payload = {
                 "folio_visita": folio_visita,
@@ -3934,6 +4137,7 @@ class SistemaDictamenesVC(ctk.CTk):
                 "nfirma1": supervisor_mostrar or " ",  # Supervisor principal (prioridad a los de la tabla)
                 "nfirma2": "",
                 "estatus": "Completada",
+                "tipo_documento": tipo_documento,
                 "folios_utilizados": folios_str,  # Información formateada de folios
                 "total_folios": folios_totales,
                 "total_folios_numericos": len(folios_numericos),
@@ -4063,10 +4267,11 @@ class SistemaDictamenesVC(ctk.CTk):
         # Definir campos organizados por columnas
         campos_por_columna = [
             [  # Columna 1: Información básica
+                ("tipo_documento", "Tipo de documento"),
                 ("folio_visita", "Folio Visita"),
                 ("folio_acta", "Folio Acta"),
-                ("nfirma1", "Nombre Supervisor"),
-                ("norma", "Norma"),
+                ("nfirma1", "Nombre Supervisor"),      
+                
             ],
             [  # Columna 2: Fechas y horas
                 ("folios_utilizados", "Folios Utilizados"),
@@ -4078,8 +4283,7 @@ class SistemaDictamenesVC(ctk.CTk):
             [  # Columna 3: Cliente y estatus
                 ("cliente", "Cliente"),
                 ("estatus", "Estatus"),
-                
-                
+                ("norma", "Norma"),
             ]
         ]
         
@@ -4100,6 +4304,14 @@ class SistemaDictamenesVC(ctk.CTk):
                     text_color=STYLE["texto_oscuro"]
                 ).pack(anchor="w", pady=(0, 5))
                 
+                if key == "tipo_documento":
+                    # ComboBox para tipo de documento
+                    opciones_tipo = ["Dictamen", "Negación de dictamen", "Constancia", "Negación de constancia"]
+                    ent = ctk.CTkComboBox(field_frame, values=opciones_tipo, font=FONT_SMALL, state="readonly", height=35, corner_radius=8)
+                    ent.pack(fill="x")
+                    ent.set(datos.get("tipo_documento", "Dictamen"))
+                    entries[key] = ent
+                    continue
                 if key == "cliente":
                     # Obtener lista de clientes
                     clientes_lista = ["Seleccione un cliente..."]
@@ -4190,6 +4402,14 @@ class SistemaDictamenesVC(ctk.CTk):
             if not payload.get("estatus"):
                 payload["estatus"] = "En proceso"
             
+            # Conservar horas originales si el formulario no las incluye
+            try:
+                for h in ("hora_inicio", "hora_termino", "hora_inicio_24h", "hora_termino_24h"):
+                    if (h not in payload or payload.get(h) in (None, "", " ")) and datos.get(h):
+                        payload[h] = datos.get(h)
+            except Exception:
+                pass
+
             # Actualizar la visita
             self.hist_update_visita(datos["_id"], payload)
             modal.destroy()
@@ -4361,4 +4581,3 @@ class SistemaDictamenesVC(ctk.CTk):
 if __name__ == "__main__":
     app = SistemaDictamenesVC()
     app.mainloop()
-
