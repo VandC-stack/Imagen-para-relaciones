@@ -4,9 +4,12 @@ import json
 import pandas as pd
 import customtkinter as ctk
 from tkinter import filedialog, messagebox
+from tkinter import ttk
+import tkinter as tk
 import threading
 import subprocess
 from datetime import datetime
+import unicodedata
 import time
 import platform
 from datetime import datetime
@@ -34,7 +37,7 @@ FONT_SMALL = ("Inter", 12)
 class SistemaDictamenesVC(ctk.CTk):
     # --- PAGINACIÓN HISTORIAL ---
     HISTORIAL_PAGINA_ACTUAL = 1
-    HISTORIAL_REGS_POR_PAGINA = 100
+    HISTORIAL_REGS_POR_PAGINA = 50
 
     def __init__(self):
         super().__init__()
@@ -73,6 +76,12 @@ class SistemaDictamenesVC(ctk.CTk):
         
         self.folios_visita_path = os.path.join(data_dir, "folios_visitas")
         os.makedirs(self.folios_visita_path, exist_ok=True)
+        # Cargar reservas persistentes
+        self.pending_folios = []
+        try:
+            self._load_pending_folios()
+        except Exception:
+            self.pending_folios = []
         # Directorio donde están los generadores/documentos (ReportLab, tablas, etc.)
         self.documentos_dir = os.path.join(os.path.dirname(__file__), "Documentos Inspeccion")
 
@@ -91,6 +100,116 @@ class SistemaDictamenesVC(ctk.CTk):
         self.cargar_ultimo_folio()
         try:
             self._generar_datos_exportable()
+        except Exception:
+            pass
+
+    # ----------------- Overlay de Acciones (botones interactivos) -----------------
+    def _create_actions_overlay(self, parent, actions_col=None):
+        """Crea un frame flotante con botones que se posiciona sobre la columna 'Acciones'."""
+        try:
+            overlay = tk.Frame(parent, bg=STYLE.get('fondo', '#fff'))
+            overlay.place_forget()
+            self._actions_overlay = overlay
+
+            # Botones: Folios, Archivos, Editar, Borrar
+            try:
+                self._btn_folios = ctk.CTkButton(overlay, text="Folios", width=80, height=26, corner_radius=6, command=lambda: self._overlay_action('folios'))
+                self._btn_archivos = ctk.CTkButton(overlay, text="Archivos", width=80, height=26, corner_radius=6, command=lambda: self._overlay_action('archivos'))
+                self._btn_editar = ctk.CTkButton(overlay, text="Editar", width=60, height=26, corner_radius=6, command=lambda: self._overlay_action('editar'))
+                self._btn_borrar = ctk.CTkButton(overlay, text="Borrar", width=60, height=26, corner_radius=6, fg_color=STYLE['peligro'], command=lambda: self._overlay_action('borrar'))
+            except Exception:
+                self._btn_folios = tk.Button(overlay, text="Folios", width=8, command=lambda: self._overlay_action('folios'))
+                self._btn_archivos = tk.Button(overlay, text="Archivos", width=8, command=lambda: self._overlay_action('archivos'))
+                self._btn_editar = tk.Button(overlay, text="Editar", width=6, command=lambda: self._overlay_action('editar'))
+                self._btn_borrar = tk.Button(overlay, text="Borrar", width=6, command=lambda: self._overlay_action('borrar'))
+
+            # Empacar botones para ocupar el ancho del overlay equitativamente
+            for w in (self._btn_folios, self._btn_archivos, self._btn_editar, self._btn_borrar):
+                try:
+                    w.pack(side='left', fill='both', expand=True, padx=(2, 2), pady=2)
+                except Exception:
+                    w.pack(side='left', padx=(2, 2), pady=2)
+
+            # Bindings para mostrar/ocultar y reposicionar el overlay
+            self.hist_tree.bind('<Motion>', self._on_tree_motion)
+            self.hist_tree.bind('<Leave>', lambda e: self._hide_actions_overlay())
+            self.hist_tree.bind('<Button-1>', self._on_tree_click)
+            self.hist_tree.bind('<MouseWheel>', lambda e: self._hide_actions_overlay())
+        except Exception:
+            pass
+
+    def _on_tree_motion(self, event):
+        try:
+            iid = self.hist_tree.identify_row(event.y)
+            if not iid:
+                self._hide_actions_overlay()
+                return
+            bbox = self.hist_tree.bbox(iid, column=self.hist_tree['columns'][-1])
+            if not bbox:
+                self._hide_actions_overlay()
+                return
+            x, y, w, h = bbox
+            tree_x = self.hist_tree.winfo_x()
+            tree_y = self.hist_tree.winfo_y()
+            abs_x = tree_x + x
+            abs_y = tree_y + y
+            try:
+                self._actions_overlay.place(x=abs_x, y=abs_y, width=w, height=h)
+                self._actions_overlay.lift()
+                self._overlay_iid = iid
+            except Exception:
+                pass
+        except Exception:
+            pass
+
+    def _hide_actions_overlay(self):
+        try:
+            if hasattr(self, '_actions_overlay'):
+                self._actions_overlay.place_forget()
+                self._overlay_iid = None
+        except Exception:
+            pass
+
+    def _on_tree_click(self, event):
+        try:
+            col = self.hist_tree.identify_column(event.x)
+            iid = self.hist_tree.identify_row(event.y)
+            if not iid:
+                self._hide_actions_overlay()
+                return
+            last_col = f"#{len(self.hist_tree['columns'])}"
+            if col == last_col:
+                bbox = self.hist_tree.bbox(iid, column=self.hist_tree['columns'][-1])
+                if bbox:
+                    x, y, w, h = bbox
+                    tree_x = self.hist_tree.winfo_x()
+                    tree_y = self.hist_tree.winfo_y()
+                    abs_x = tree_x + x
+                    abs_y = tree_y + y
+                    self._actions_overlay.place(x=abs_x, y=abs_y, width=w, height=h)
+                    self._actions_overlay.lift()
+                    self._overlay_iid = iid
+            else:
+                self._hide_actions_overlay()
+        except Exception:
+            pass
+
+    def _overlay_action(self, action):
+        iid = getattr(self, '_overlay_iid', None)
+        if not iid:
+            return
+        reg = self._hist_map.get(iid)
+        if not reg:
+            return
+        try:
+            if action == 'folios':
+                self.descargar_folios_visita(reg)
+            elif action == 'archivos':
+                self.mostrar_opciones_documentos(reg)
+            elif action == 'editar':
+                self.hist_editar_registro(reg)
+            elif action == 'borrar':
+                self.hist_eliminar_registro(reg)
         except Exception:
             pass
 
@@ -297,6 +416,7 @@ class SistemaDictamenesVC(ctk.CTk):
             font=FONT_SMALL,
             dropdown_font=FONT_SMALL,
             state="readonly",
+            command=self.actualizar_tipo_documento,
             height=35,
             corner_radius=8
         )
@@ -440,12 +560,13 @@ class SistemaDictamenesVC(ctk.CTk):
         card_generacion = ctk.CTkFrame(main_frame, fg_color=STYLE["surface"], corner_radius=12)
         card_generacion.grid(row=0, column=1, padx=(10, 0), pady=0, sticky="nsew")
 
-        ctk.CTkLabel(
+        self.generacion_title = ctk.CTkLabel(
             card_generacion,
             text="🚀 Generador de Dictámenes",
             font=FONT_SUBTITLE,
             text_color=STYLE["texto_oscuro"]
-        ).pack(anchor="w", padx=20, pady=(20, 15))
+        )
+        self.generacion_title.pack(anchor="w", padx=20, pady=(20, 15))
 
         generacion_frame = ctk.CTkFrame(card_generacion, fg_color="transparent")
         generacion_frame.pack(fill="both", expand=True, padx=20, pady=(0, 20))
@@ -508,6 +629,55 @@ class SistemaDictamenesVC(ctk.CTk):
             wraplength=350
         )
         self.info_cliente.pack(anchor="w", fill="x")
+
+        # --- FOLIOS RESERVADOS (Debajo del selector de cliente) ---
+        cliente_folios_frame = ctk.CTkFrame(cliente_section, fg_color="transparent")
+        cliente_folios_frame.pack(fill="x", pady=(8, 10))
+
+        self.lbl_folios_pendientes = ctk.CTkLabel(
+            cliente_folios_frame,
+            text="Folios reservados (seleccione para usar / desmarcar):",
+            font=("Inter", 10),
+            text_color=STYLE["texto_oscuro"]
+        )
+        self.lbl_folios_pendientes.pack(side="left", padx=(0,8))
+
+        self.combo_folios_pendientes = ctk.CTkComboBox(
+            cliente_folios_frame,
+            values=[],
+            font=FONT_SMALL,
+            dropdown_font=FONT_SMALL,
+            state="normal",
+            height=30,
+            corner_radius=8,
+            command=self._seleccionar_folio_pendiente
+        )
+        self.combo_folios_pendientes.pack(side="left", fill="x", expand=True, padx=(0, 8))
+
+        # Botones compactos: desmarcar y eliminar
+        self.btn_desmarcar_folio = ctk.CTkButton(
+            cliente_folios_frame,
+            text="Desmarcar",
+            width=32,
+            height=30,
+            corner_radius=6,
+            fg_color=STYLE["secundario"],
+            text_color=STYLE["surface"],
+            command=self._desmarcar_folio_seleccionado
+        )
+        self.btn_desmarcar_folio.pack(side="left", padx=(0, 6))
+
+        self.btn_eliminar_folio_pendiente = ctk.CTkButton(
+            cliente_folios_frame,
+            text="Eliminar Folio Seleccionado",
+            width=32,
+            height=30,
+            corner_radius=6,
+            fg_color=STYLE["peligro"],
+            text_color=STYLE["surface"],
+            command=self._eliminar_folio_pendiente
+        )
+        self.btn_eliminar_folio_pendiente.pack(side="left")
 
         # Botón para configurar carpetas de evidencias (abre modal para elegir grupo y carpeta)
         self.boton_configurar_evidencias = ctk.CTkButton(
@@ -595,6 +765,9 @@ class SistemaDictamenesVC(ctk.CTk):
         )
         self.boton_limpiar.pack(side="left", padx=(0, 8))
 
+        # Dropdown de folios pendientes reubicado debajo del selector de cliente
+        # (se crea más abajo en la sección de cliente para mejor flujo UX)
+
         # Botón de etiquetado DECATHLON (inicialmente oculto)
         self.boton_subir_etiquetado = ctk.CTkButton(
             botones_fila1,
@@ -677,6 +850,30 @@ class SistemaDictamenesVC(ctk.CTk):
         )
         self.etiqueta_progreso.pack(pady=(0, 8))
 
+        # Label para avisar si hay folio pendiente para el tipo seleccionado
+        self.info_folio_pendiente = ctk.CTkLabel(
+            generar_section,
+            text="",
+            font=("Inter", 11),
+            text_color=STYLE["advertencia"]
+        )
+        self.info_folio_pendiente.pack(pady=(0, 6))
+
+        # Botón para guardar un folio incompleto / reservado en el historial
+        self.boton_guardar_folio = ctk.CTkButton(
+            generar_section,
+            text="Guardar folio (reservar)",
+            command=self.guardar_folio_historial,
+            font=("Inter", 12, "bold"),
+            fg_color=STYLE["primario"],
+            hover_color="#D4BF22",
+            text_color=STYLE["secundario"],
+            height=34,
+            corner_radius=8,
+            state="disabled"
+        )
+        self.boton_guardar_folio.pack(pady=(0, 6))
+
         # Botón de generación
         self.boton_generar_dictamen = ctk.CTkButton(
             generar_section,
@@ -691,6 +888,11 @@ class SistemaDictamenesVC(ctk.CTk):
             state="disabled"
         )
         self.boton_generar_dictamen.pack(pady=(0, 5))
+        # Aplicar estado inicial de UI según tipo de documento seleccionado
+        try:
+            self.actualizar_tipo_documento()
+        except Exception:
+            pass
 
     def _construir_tab_historial(self, parent):
         cont = ctk.CTkFrame(parent, fg_color=STYLE["surface"], corner_radius=8)
@@ -735,13 +937,7 @@ class SistemaDictamenesVC(ctk.CTk):
             fg_color=STYLE["secundario"], text_color=STYLE["surface"]
         ).pack(side="left", padx=(0, 8))
 
-        # Botón Borrar por folio (usa el valor en `self.entry_buscar_folio`)
-        ctk.CTkButton(
-            linea_busqueda, text="Borrar",
-            command=self.hist_borrar_por_folio,
-            width=60, height=25, corner_radius=6,
-            fg_color=STYLE["peligro"], text_color=STYLE["surface"]
-        ).pack(side="left", padx=(0, 8))
+        # (Se eliminó el botón global 'Borrar' aquí; el borrado ahora está disponible por fila)
 
        
 
@@ -774,25 +970,22 @@ class SistemaDictamenesVC(ctk.CTk):
         tabla_container = ctk.CTkFrame(cont, fg_color="transparent", corner_radius=8)
         tabla_container.pack(fill="both", expand=True)
 
-        # ---------- ENCABEZADOS (TEXTOS COMO EN LA IMAGEN) ----------
-        header = ctk.CTkFrame(tabla_container, fg_color=STYLE["secundario"], height=40)
-        header.pack(fill="x", pady=(0, 1))
-        header.pack_propagate(False)
+        # Encabezados: usamos los headings del Treeview directamente
 
         # ANCHOS MEJORADOS Y ENCABEZADOS COMO EN LA IMAGEN
         column_widths = [
-                70,    # Folio (reducido)
-                70,    # Acta (reducido)
-                70,    # Inicio (reducido)
-                70,    # Término (reducido)
-                75,    # Hora Ini
-                75,    # Hora Fin
-                180,   # Cliente (más ancho)
-                100,   # Supervisor (reducido)
-                120,   # Tipo de documento (nuevo)
-                80,    # Estatus
-                100,   # Folios (para mostrar rango)
-                160    # Acciones (más ancho para botones)
+                40,    # Folio (más pequeño)
+                40,    # Acta (más pequeño)
+                40,    # Inicio (más pequeño)
+                40,    # Término (más pequeño)
+                40,    # Hora Ini
+                40,    # Hora Fin
+                150,   # Cliente (más ancho)
+                80,    # Supervisor (ligeramente más pequeño)
+                90,   # Tipo de documento
+                50,    # Estatus
+                60,    # Folios (más compacto)
+                400    # Acciones (ajustado: más ancho para mostrar todas las acciones)
             ]
 
         # Encabezados exactamente como en la imagen
@@ -802,28 +995,86 @@ class SistemaDictamenesVC(ctk.CTk):
             "Supervisor", "Tipo de documento", "Estatus", "Folios", "Acciones"
         ]
 
-        # Crear encabezados
-        for i, text in enumerate(headers):
-            frame_celda = ctk.CTkFrame(header, fg_color="transparent", width=column_widths[i])
-            frame_celda.pack(side="left", padx=1)
-            frame_celda.pack_propagate(False)
-            
-            lbl = ctk.CTkLabel(
-                frame_celda, text=text, 
-                anchor="center", font=("Inter", 10, "bold"),
-                text_color=STYLE["surface"]
-            )
-            lbl.pack(expand=True, fill="both")
+        # Reemplazar cabecera y scroll por un Treeview virtualizado (más eficiente)
+        # Configurar estilo del Treeview para que combine con tema
+        style = ttk.Style()
+        try:
+            # Usar tema 'clam' para permitir colorear encabezados en la mayoría de plataformas
+            try:
+                style.theme_use('clam')
+            except Exception:
+                pass
 
-        # ---------- CUERPO SCROLLABLE ----------
-        self.hist_scroll = ctk.CTkScrollableFrame(
-            tabla_container,
-            fg_color=STYLE["fondo"],
-            scrollbar_button_color=STYLE["primario"],
-            scrollbar_button_hover_color=STYLE["primario"],
-            height=300
-        )
-        self.hist_scroll.pack(fill="both", expand=True)
+            style.configure("mystyle.Treeview", font=("Inter", 10), rowheight=28,
+                            background=STYLE["surface"], fieldbackground=STYLE["surface"], foreground=STYLE["texto_oscuro"]) 
+            style.configure("mystyle.Treeview.Heading", font=("Inter", 10, "bold"), background=STYLE["secundario"], foreground=STYLE["surface"], relief='flat')
+            # Ajustes del mapa para que el heading mantenga color al interactuar
+            style.map('mystyle.Treeview.Heading', background=[('active', STYLE['secundario'])], foreground=[('active', STYLE['surface'])])
+        except Exception:
+            pass
+
+        # Contenedor para el Treeview
+        tree_container = ctk.CTkFrame(tabla_container, fg_color=STYLE["fondo"])
+        tree_container.pack(fill="both", expand=True)
+
+        cols = [f"c{i}" for i in range(len(column_widths))]
+        self.hist_tree = ttk.Treeview(tree_container, columns=cols, show='headings', style='mystyle.Treeview')
+        # Configurar encabezados y anchos (permitir estirar columnas excepto la de Acciones)
+        last_idx = len(headers) - 1
+        for i, h in enumerate(headers):
+            self.hist_tree.heading(cols[i], text=h)
+            try:
+                stretch = False if i == last_idx else True
+                anchor = 'w' if i == last_idx else 'center'
+                self.hist_tree.column(cols[i], width=column_widths[i], anchor=anchor, stretch=stretch)
+            except Exception:
+                self.hist_tree.column(cols[i], width=100, anchor='center')
+
+        # Asegurar que la columna 'Acciones' sea siempre visible y no se reduzca
+        try:
+            # Aumentar el ancho por defecto y el ancho mínimo de la columna 'Acciones'
+            # para que siempre muestre las cuatro opciones sin recortarse.
+            self.hist_tree.column(cols[-1], width=360, minwidth=300, stretch=False, anchor='w')
+        except Exception:
+            try:
+                # Fallback seguro
+                self.hist_tree.column(cols[-1], width=300, anchor='w')
+            except Exception:
+                pass
+
+        # Scrollbars: vertical y horizontal — usar grid para posicionar correctamente
+        vsb = ttk.Scrollbar(tree_container, orient="vertical", command=self.hist_tree.yview)
+        hsb = ttk.Scrollbar(tree_container, orient="horizontal", command=self.hist_tree.xview)
+        self.hist_tree.configure(yscrollcommand=vsb.set, xscrollcommand=hsb.set)
+
+        # Layout con grid: tree en (0,0), vsb en (0,1), hsb en (1,0) colspan 2
+        tree_container.grid_rowconfigure(0, weight=1)
+        tree_container.grid_columnconfigure(0, weight=1)
+        self.hist_tree.grid(row=0, column=0, sticky='nsew')
+        vsb.grid(row=0, column=1, sticky='ns')
+        hsb.grid(row=1, column=0, sticky='ew', columnspan=2)
+
+        # Crear overlay de acciones (botones) y enlazarlo al Treeview
+        try:
+            self._create_actions_overlay(tree_container, cols[-1])
+        except Exception:
+            pass
+
+        # Map para acceder al registro original por iid
+        self._hist_map = {}
+
+        # Menú contextual para acciones por fila
+        self.hist_context_menu = tk.Menu(self, tearoff=0)
+        self.hist_context_menu.add_command(label="Folios", command=lambda: self._hist_menu_action('folios'))
+        self.hist_context_menu.add_command(label="Archivos", command=lambda: self._hist_menu_action('archivos'))
+        self.hist_context_menu.add_command(label="Editar", command=lambda: self._hist_menu_action('editar'))
+        self.hist_context_menu.add_command(label="Borrar", command=lambda: self._hist_menu_action('borrar'))
+
+        # Bind derecho y doble-click
+        self.hist_tree.bind("<Button-3>", self._hist_show_context_menu)
+        self.hist_tree.bind("<Double-1>", self._hist_on_double_click)
+        # Click izquierdo en columna de acciones abrirá el menú contextual
+        self.hist_tree.bind("<Button-1>", self._hist_on_left_click)
 
         # ===========================================================
         # PIE DE PÁGINA (COMO EN LA IMAGEN)
@@ -890,6 +1141,12 @@ class SistemaDictamenesVC(ctk.CTk):
         # Cargar data
         self._cargar_historial()
         self._poblar_historial_ui()
+        # Asegurar que el dropdown de folios pendientes se rellene al iniciar
+        try:
+            if hasattr(self, '_refresh_pending_folios_dropdown'):
+                self._refresh_pending_folios_dropdown()
+        except Exception:
+            pass
 
     def _formatear_hora_12h(self, hora_str):
         """Convierte hora de formato 24h a formato 12h con AM/PM de forma consistente"""
@@ -974,25 +1231,7 @@ class SistemaDictamenesVC(ctk.CTk):
             
             if not archivo_encontrado:
                 print("⚠️  No se encontró el archivo Clientes.json")
-                return
-            
-            with open(archivo_encontrado, 'r', encoding='utf-8') as f:
-                self.clientes_data = json.load(f)
-            
-            self.clientes_data.sort(key=lambda x: x['CLIENTE'])
-            nombres_clientes = [cliente['CLIENTE'] for cliente in self.clientes_data]
-            self.combo_cliente.configure(values=nombres_clientes)
-            print(f"✅ Clientes cargados: {len(nombres_clientes)} clientes")
-            
-        except Exception as e:
-            print(f"❌ Error al cargar clientes: {e}")
-            messagebox.showerror("Error", f"No se pudieron cargar los clientes:\n{e}")
-
-    def safe_pack(self, widget, **kwargs):
-        """Evita errores de Tkinter al volver a empacar widgets."""
-        try:
-            if widget and not widget.winfo_ismapped():
-                widget.pack(**kwargs)
+                # archivo no encontrado; seguir con flujo normal
         except Exception:
             pass
 
@@ -1001,6 +1240,14 @@ class SistemaDictamenesVC(ctk.CTk):
         try:
             if widget and widget.winfo_ismapped():
                 widget.pack_forget()
+        except Exception:
+            pass
+
+    def safe_pack(self, widget, **kwargs):
+        """Evita errores de Tkinter al volver a empacar widgets."""
+        try:
+            if widget and not widget.winfo_ismapped():
+                widget.pack(**kwargs)
         except Exception:
             pass
 
@@ -1263,9 +1510,46 @@ class SistemaDictamenesVC(ctk.CTk):
             self.entry_hora_termino.delete(0, "end")
             # Supervisor input removed from UI; nothing to clear here
             
-            # Reset tipo de documento
-            if hasattr(self, 'combo_tipo_documento'):
-                self.combo_tipo_documento.set("Dictamen")
+            # No forzamos el tipo de documento: respetar la selección actual
+            try:
+                seleccionado = self.combo_tipo_documento.get().strip() if hasattr(self, 'combo_tipo_documento') else None
+            except Exception:
+                seleccionado = None
+
+            # Si existe un folio pendiente para este tipo, ofrecer reutilizarlo
+            try:
+                if seleccionado:
+                    pendientes = [r for r in getattr(self, 'historial_data', []) if (r.get('tipo_documento') or '').strip() == seleccionado and (r.get('estatus','').lower() == 'pendiente')]
+                    if pendientes:
+                        primero = pendientes[0]
+                        usar = messagebox.askyesno("Folio pendiente encontrado", f"Se encontró un folio pendiente: {primero.get('folio_visita','-')} / {primero.get('folio_acta','-')}\n¿Desea usarlo para esta visita?")
+                        if usar:
+                            # Cargar folios pendientes en el formulario
+                            try:
+                                self.entry_folio_visita.configure(state='normal')
+                                self.entry_folio_visita.delete(0, 'end')
+                                self.entry_folio_visita.insert(0, primero.get('folio_visita',''))
+                                self.entry_folio_visita.configure(state='readonly')
+
+                                self.entry_folio_acta.configure(state='normal')
+                                self.entry_folio_acta.delete(0, 'end')
+                                self.entry_folio_acta.insert(0, primero.get('folio_acta',''))
+                                self.entry_folio_acta.configure(state='readonly')
+                            except Exception:
+                                pass
+
+                            # Marcar el registro como en proceso para no sugerirlo de nuevo
+                            try:
+                                rid = primero.get('_id') or primero.get('id')
+                                if rid:
+                                    self.hist_update_visita(rid, {'estatus': 'En proceso'})
+                            except Exception:
+                                pass
+                            return
+
+            except Exception:
+                pass
+
             messagebox.showinfo("Nueva Visita", "Formulario listo para nueva visita")
             
         except Exception as e:
@@ -1443,30 +1727,10 @@ class SistemaDictamenesVC(ctk.CTk):
                     pass
                 self.guardar_folios_visita(self.current_folio, records)
 
-                # Generar Acta de inspección automáticamente para la visita cargada
-                try:
-                    import importlib.util
-                    acta_path = os.path.join(data_folder, f"Acta_CP{self.current_folio}.pdf")
-                    acta_file = os.path.join(os.path.dirname(__file__), "Documentos Inspeccion", "Acta_inspeccion.py")
-                    if os.path.exists(acta_file):
-                        spec = importlib.util.spec_from_file_location("Acta_inspeccion", acta_file)
-                        acta_mod = importlib.util.module_from_spec(spec)
-                        spec.loader.exec_module(acta_mod)
-                        try:
-                            # Llamar al helper que genera el acta a partir de los JSON
-                            ruta_generada = acta_mod.generar_acta_desde_visita(folio_visita=f"CP{self.current_folio}", ruta_salida=acta_path)
-                            print(f"✅ Acta generada: {ruta_generada}")
-                            # Mostrar notificación en hilo principal
-                            try:
-                                self.after(0, lambda: messagebox.showinfo("Acta generada", f"Acta de inspección generada:\n{ruta_generada}"))
-                            except Exception:
-                                pass
-                        except Exception as e:
-                            print(f"⚠️ Error generando acta desde Acta_inspeccion: {e}")
-                    else:
-                        print(f"⚠️ No se encontró Acta_inspeccion.py en Documentos Inspeccion: {acta_file}")
-                except Exception as e:
-                    print(f"⚠️ Error importando módulo de acta: {e}")
+                # Nota: la generación del Acta NO se realiza automáticamente aquí.
+                # El acta se generará únicamente cuando el usuario pulse "Descargar" desde
+                # el menú de Archivos de la visita correspondiente. Esto evita confusión
+                # y generación de archivos no solicitados.
 
             self.after(0, self._actualizar_ui_conversion_exitosa, output_path, len(records))
 
@@ -1744,6 +2008,13 @@ class SistemaDictamenesVC(ctk.CTk):
             self.folios_utilizados_actual = folios_ordenados
 
             # Continuar con la generación...
+            # Si hay un folio reservado seleccionado, advertir al usuario
+            if getattr(self, 'usando_folio_reservado', False) and getattr(self, 'selected_pending_id', None):
+                sel_msg = f"Hay un folio reservado seleccionado (ID: {self.selected_pending_id}). Si confirma, se usará ese folio para la visita.\n\n"
+                sel_msg += "¿Desea continuar y usar el folio reservado?"
+                if not messagebox.askyesno("Folio reservado seleccionado", sel_msg):
+                    return
+
             confirmacion = messagebox.askyesno(
                 "Generar Dictámenes",
                 f"¿Está seguro de que desea generar los dictámenes PDF?\n\n"
@@ -1842,6 +2113,47 @@ class SistemaDictamenesVC(ctk.CTk):
                         
                         resultado['folios_utilizados_info'] = folios_utilizados
                         self.registrar_visita_automatica(resultado)
+
+                        # Si se generó usando un folio reservado seleccionado, marcarlo como completado
+                        try:
+                            sel_id = getattr(self, 'selected_pending_id', None)
+                            if sel_id:
+                                try:
+                                    self.hist_update_visita(sel_id, {'estatus': 'Completada'})
+                                except Exception:
+                                    # fallback: buscar y modificar manualmente
+                                    for v in self.historial.get('visitas', []):
+                                        if v.get('_id') == sel_id or v.get('id') == sel_id:
+                                            v['estatus'] = 'Completada'
+                                    try:
+                                        self._guardar_historial()
+                                    except Exception:
+                                        pass
+
+                                # Eliminar de archivo de reservas
+                                try:
+                                    pf = os.path.join(os.path.dirname(__file__), 'data', 'pending_folios.json')
+                                    if os.path.exists(pf):
+                                        with open(pf, 'r', encoding='utf-8') as f:
+                                            arr = json.load(f) or []
+                                        # Eliminar por _id / id si coincide con sel_id
+                                        try:
+                                            arr = [p for p in arr if ((p.get('_id') or p.get('id')) != sel_id)]
+                                        except Exception:
+                                            arr = [p for p in arr if p.get('folio_visita') != (getattr(self, 'entry_folio_visita', None).get() if hasattr(self, 'entry_folio_visita') else None)]
+                                        with open(pf, 'w', encoding='utf-8') as f:
+                                            json.dump(arr, f, ensure_ascii=False, indent=2)
+                                        self.pending_folios = arr
+                                except Exception:
+                                    pass
+                                # limpiar selección
+                                try:
+                                    self.selected_pending_id = None
+                                    self.usando_folio_reservado = False
+                                except Exception:
+                                    pass
+                        except Exception:
+                            pass
                         
                         if archivos_existentes and self.winfo_exists():
                             self.after(1000, lambda: self._abrir_carpeta(directorio) if self.winfo_exists() else None)
@@ -1879,11 +2191,215 @@ class SistemaDictamenesVC(ctk.CTk):
     def actualizar_progreso(self, porcentaje, mensaje):
         def _actualizar():
             if self.winfo_exists():  # Verificar si la ventana aún existe
-                self.barra_progreso.set(porcentaje / 100.0)
-                self.etiqueta_progreso.configure(text=f"⏳ {mensaje}")
+                # Asegurar porcentaje entre 0 y 100
+                try:
+                    pct = float(porcentaje)
+                except Exception:
+                    pct = 0.0
+                pct = max(0.0, min(100.0, pct))
+                self.barra_progreso.set(pct / 100.0)
+                # Mostrar porcentaje y mensaje breve
+                if mensaje:
+                    self.etiqueta_progreso.configure(text=f"{int(pct)}% - {mensaje}")
+                else:
+                    self.etiqueta_progreso.configure(text=f"{int(pct)}%")
                 self.update_idletasks()
         
         self.after(0, _actualizar)
+
+    def actualizar_tipo_documento(self, valor=None):
+        """Actualiza la UI del panel Generador según el tipo de documento seleccionado."""
+        try:
+            # Obtener selección (si valor pasado por callback, usarlo)
+            seleccionado = valor if valor else (self.combo_tipo_documento.get() if hasattr(self, 'combo_tipo_documento') else 'Dictamen')
+            seleccionado = seleccionado.strip()
+
+            # Actualizar título del panel de generación
+            title_map = {
+                'Dictamen': 'Generar Dictámenes',
+                'Negación de Dictamen': 'Generar Negación de Dictamen',
+                'Constancia': 'Generar Constancias',
+                'Negación de Constancia': 'Generar Negación de Constancia'
+            }
+            nuevo_titulo = title_map.get(seleccionado, 'Generador')
+            if hasattr(self, 'generacion_title'):
+                self.generacion_title.configure(text=f"🚀 {nuevo_titulo}")
+
+            # Cambiar texto del botón principal de generación
+            if hasattr(self, 'boton_generar_dictamen'):
+                self.boton_generar_dictamen.configure(text=f"{nuevo_titulo}")
+
+            # Mostrar/ocultar controles de carga según requerimiento (siempre mostrar cliente + subir/limpiar/verificar)
+            # Habilitar el botón de guardar folio para permitir reservar folio incompleto
+            if hasattr(self, 'boton_guardar_folio'):
+                self.boton_guardar_folio.configure(state='normal')
+
+            # Buscar en historial si hay folio pendiente para este tipo
+            pendiente_msg = ''
+            try:
+                pendientes = [r for r in getattr(self, 'historial_data', []) if (r.get('tipo_documento') or '').strip() == seleccionado and r.get('estatus','').lower() in ('en proceso','pendiente')]
+                if pendientes:
+                    first = pendientes[0]
+                    pendiente_msg = f"Folio pendiente: {first.get('folio_visita','-')} / {first.get('folio_acta','-')} (puede usarlo al iniciar una {seleccionado})"
+            except Exception:
+                pendiente_msg = ''
+
+            if hasattr(self, 'info_folio_pendiente'):
+                self.info_folio_pendiente.configure(text=pendiente_msg)
+
+            # Ajustes visuales adicionales: si no hay cliente seleccionado, deshabilitar generación
+            if not getattr(self, 'cliente_seleccionado', None):
+                if hasattr(self, 'boton_generar_dictamen'):
+                    self.boton_generar_dictamen.configure(state='disabled')
+            else:
+                if hasattr(self, 'boton_generar_dictamen'):
+                    self.boton_generar_dictamen.configure(state='normal')
+
+        except Exception as e:
+            # No bloquear la aplicación por errores en esta actualización
+            print(f"Error actualizando tipo de documento UI: {e}")
+
+        # Refrescar lista de folios pendientes en el combobox (si existe)
+        try:
+            if hasattr(self, '_refresh_pending_folios_dropdown'):
+                self._refresh_pending_folios_dropdown()
+            elif hasattr(self, 'combo_folios_pendientes'):
+                self._refresh_pending_folios_dropdown()
+        except Exception:
+            pass
+
+    def guardar_folio_historial(self):
+        """Guarda el folio actual en el historial como registro incompleto para retomarlo después."""
+        try:
+            tipo_documento = (self.combo_tipo_documento.get().strip() if hasattr(self, 'combo_tipo_documento') else 'Dictamen')
+            folio_visita = (self.entry_folio_visita.get().strip() if hasattr(self, 'entry_folio_visita') else '')
+            folio_acta = (self.entry_folio_acta.get().strip() if hasattr(self, 'entry_folio_acta') else '')
+
+            if not folio_visita:
+                messagebox.showwarning("Folio requerido", "No hay folio de visita disponible para guardar.")
+                return
+
+            # Garantizar que si no hay fecha/hora/cliente en el formulario, se registre la marca temporal y el cliente actual
+            fecha_inicio_val = (self.entry_fecha_inicio.get().strip() if hasattr(self, 'entry_fecha_inicio') else '')
+            hora_inicio_val = (self.entry_hora_inicio.get().strip() if hasattr(self, 'entry_hora_inicio') else '')
+            if not fecha_inicio_val:
+                fecha_inicio_val = datetime.now().strftime("%d/%m/%Y")
+            if not hora_inicio_val:
+                hora_inicio_val = datetime.now().strftime("%H:%M")
+
+            cliente_val = ""
+            try:
+                # soportar dict con clave 'CLIENTE' o 'cliente'
+                if getattr(self, 'cliente_seleccionado', None):
+                    cliente_val = self.cliente_seleccionado.get('CLIENTE') or self.cliente_seleccionado.get('cliente') or str(self.cliente_seleccionado)
+            except Exception:
+                cliente_val = ""
+            # Determinar los folios reales usados para generación (tomados de la tabla cargada)
+            folios_utilizados_val = ""
+            try:
+                info = getattr(self, 'info_folios_actual', None)
+                if info:
+                    if info.get('rango_folios'):
+                        folios_utilizados_val = info.get('rango_folios')
+                    elif info.get('lista_folios'):
+                        # unir una lista corta para mostrar
+                        lf = info.get('lista_folios')
+                        if isinstance(lf, (list, tuple)) and lf:
+                            folios_utilizados_val = ','.join(lf[:20])
+                        else:
+                            folios_utilizados_val = str(lf)
+            except Exception:
+                folios_utilizados_val = ""
+
+            # Normalizar tipo de documento a valores esperados
+            def _normalizar_td(raw):
+                if not raw:
+                    return 'Dictamen'
+                s = str(raw).strip()
+                low = s.lower()
+                if 'dictamen' in low and ('neg' in low or 'negación' in low or 'negacion' in low):
+                    return 'Negación de Dictamen'
+                if 'dictamen' in low:
+                    return 'Dictamen'
+                if 'constancia' in low and ('neg' in low or 'negación' in low or 'negacion' in low):
+                    return 'Negación de Constancia'
+                if 'constancia' in low:
+                    return 'Constancia'
+                return s
+
+            tipo_documento_norm = _normalizar_td(tipo_documento)
+
+            payload = {
+                "folio_visita": folio_visita,
+                "folio_acta": folio_acta,
+                "fecha_inicio": fecha_inicio_val,
+                "fecha_termino": self.entry_fecha_termino.get().strip() if hasattr(self, 'entry_fecha_termino') and self.entry_fecha_termino.get().strip() else "",
+                "hora_inicio": hora_inicio_val,
+                "hora_termino": self.entry_hora_termino.get().strip() if hasattr(self, 'entry_hora_termino') and self.entry_hora_termino.get().strip() else "",
+                "norma": "",
+                "cliente": cliente_val,
+                "nfirma1": "",
+                "nfirma2": "",
+                "estatus": "Pendiente",
+                "tipo_documento": tipo_documento_norm,
+                "folios_utilizados": folios_utilizados_val
+            }
+
+            # DEBUG: imprimir payload que vamos a guardar
+            try:
+                print(f"[DEBUG] guardar_folio_historial payload: {json.dumps(payload, ensure_ascii=False)}")
+            except Exception:
+                print(f"[DEBUG] guardar_folio_historial payload: {payload}")
+
+            # Guardar usando la función existente
+            self.hist_create_visita(payload)
+            # Persistir también en archivo de reservas (pending_folios.json)
+            try:
+                pf_path = os.path.join(os.path.dirname(__file__), 'data', 'pending_folios.json')
+                arr = []
+                if os.path.exists(pf_path):
+                    try:
+                        with open(pf_path, 'r', encoding='utf-8') as f:
+                            arr = json.load(f) or []
+                    except Exception:
+                        arr = []
+                # evitar duplicados por folio_visita
+                if not any(p.get('folio_visita') == payload.get('folio_visita') for p in arr):
+                    arr.append(payload)
+                    with open(pf_path, 'w', encoding='utf-8') as f:
+                        json.dump(arr, f, ensure_ascii=False, indent=2)
+                    self.pending_folios = arr
+            except Exception as e:
+                print(f"[WARN] No se pudo persistir reserva en pending_folios.json: {e}")
+            # DEBUG: leer historial inmediatamente y confirmar último registro
+            try:
+                self._cargar_historial()
+                print(f"[DEBUG] after guardar_folio_historial -> total historial: {len(self.historial_data)}")
+                if self.historial_data:
+                    print(f"[DEBUG] ultimo registro: {self.historial_data[-1]}")
+            except Exception:
+                pass
+            messagebox.showinfo("Folio guardado", f"El folio {folio_visita} ha sido guardado como {tipo_documento} pendiente.")
+            # Preparar siguiente folio
+            try:
+                self.crear_nueva_visita()
+            except Exception:
+                pass
+
+        except Exception as e:
+            messagebox.showerror("Error", f"No se pudo guardar el folio: {e}")
+        finally:
+            # Refrescar lista de folios pendientes
+            try:
+                # Programar el refresco para que ocurra después de que `hist_create_visita`
+                # haya tenido oportunidad de aplicar la visita en el hilo principal.
+                try:
+                    self.after(250, self._refresh_pending_folios_dropdown)
+                except Exception:
+                    # Fallback síncrono si after no está disponible
+                    self._refresh_pending_folios_dropdown()
+            except Exception:
+                pass
 
     def _finalizar_generacion(self):
         if self.winfo_exists():  # Verificar si la ventana aún existe
@@ -2105,13 +2621,23 @@ class SistemaDictamenesVC(ctk.CTk):
             messagebox.showerror("Backup error", str(e))
 
     def _limpiar_scroll_hist(self):
-        # Recreate the scrollable frame to avoid TclError from pending CTk redraws
+        # Si el Treeview está presente, vaciarlo (operación rápida)
+        try:
+            if hasattr(self, 'hist_tree') and self.hist_tree is not None:
+                try:
+                    self.hist_tree.delete(*self.hist_tree.get_children())
+                except Exception:
+                    pass
+                return
+        except Exception:
+            pass
+
+        # Fallback: recrear el scrollable frame para versiones antiguas
         old = getattr(self, 'hist_scroll', None)
         parent = old.master if old is not None else None
         if parent is None:
             return
 
-        # Create a fresh scrollable frame and pack it in the same parent
         new_scroll = ctk.CTkScrollableFrame(
             parent,
             fg_color=STYLE["fondo"],
@@ -2119,11 +2645,8 @@ class SistemaDictamenesVC(ctk.CTk):
             scrollbar_button_hover_color=STYLE["primario"]
         )
         new_scroll.pack(fill="both", expand=True, padx=0, pady=0)
-
-        # Replace reference immediately so callers use new frame
         self.hist_scroll = new_scroll
 
-        # Destroy the old widget after a short delay to let pending redraws finish
         if old is not None and isinstance(old, ctk.CTkScrollableFrame):
             try:
                 self.after(250, old.destroy)
@@ -2135,153 +2658,155 @@ class SistemaDictamenesVC(ctk.CTk):
 
     # -- BOTONES DE ACCION PARA CADA VISITA -- #
     def _poblar_historial_ui(self):
-        """Poblar la interfaz de historial con método optimizado"""
-        # Siempre recargar historial antes de poblar la UI
-        self._cargar_historial()
-        # Limpiar contenido actual SIN destruir el scroll frame
-        for widget in self.hist_scroll.winfo_children():
-            widget.destroy()
-        
-        # Si no hay datos
-        if not hasattr(self, 'historial_data') or not self.historial_data:
-            no_data_frame = ctk.CTkFrame(self.hist_scroll, fg_color=STYLE["surface"], height=40)
-            no_data_frame.pack(fill="x", pady=2)
-            no_data_frame.pack_propagate(False)
-            ctk.CTkLabel(
-                no_data_frame,
-                text="No hay registros en el historial",
-                font=("Inter", 11),
-                text_color=STYLE["texto_claro"]
-            ).pack(expand=True, fill="both")
-            return
-        # ANCHOS DE COLUMNA - AJUSTADOS PARA MEJOR VISIBILIDAD
-        column_widths = [
-            70,    # Folio (reducido)
-            70,    # Acta (reducido)
-            70,    # Inicio (reducido)
-            70,    # Término (reducido)
-            75,    # Hora Ini
-            75,    # Hora Fin
-            180,   # Cliente (más ancho)
-            100,   # Supervisor (reducido)
-            120,   # Tipo de documento (nuevo)
-            80,    # Estatus
-            100,   # Folios (para mostrar rango)
-            300    # Acciones (más ancho para botones)
-        ]
+        """Poblar historial usando Treeview virtualizado (más eficiente)."""
+        # Cargar datos solo si no existen o si se solicita recarga (permite que búsquedas filtradas persistan)
+        if (not hasattr(self, 'historial_data') or not self.historial_data) or getattr(self, '_force_reload_hist', False):
+            self._cargar_historial()
+            self._force_reload_hist = False
+        regs = getattr(self, 'historial_data', []) or []
 
-        # --- PAGINACIÓN ---
-        total_registros = len(self.historial_data)
+        total_registros = len(regs)
         regs_pagina = self.HISTORIAL_REGS_POR_PAGINA
         pagina_actual = getattr(self, 'HISTORIAL_PAGINA_ACTUAL', 1)
         total_paginas = max(1, (total_registros + regs_pagina - 1) // regs_pagina)
         inicio = (pagina_actual - 1) * regs_pagina
         fin = min(inicio + regs_pagina, total_registros)
-        self.hist_pagina_label.configure(text=f"Página {pagina_actual} de {total_paginas}")
-        self.btn_hist_prev.configure(state="normal" if pagina_actual > 1 else "disabled")
-        self.btn_hist_next.configure(state="normal" if pagina_actual < total_paginas else "disabled")
 
-        # Crear filas de datos SOLO para la página actual
-        for i, registro in enumerate(self.historial_data[inicio:fin]):
-            # Color de fondo alternado
-            row_color = STYLE["surface"] if i % 2 == 0 else "#f5f5f5"
+        # actualizar controles de paginación si existen
+        try:
+            if hasattr(self, 'hist_pagina_label'):
+                self.hist_pagina_label.configure(text=f"Página {pagina_actual} de {total_paginas}")
+            if hasattr(self, 'btn_hist_prev'):
+                self.btn_hist_prev.configure(state="normal" if pagina_actual > 1 else "disabled")
+            if hasattr(self, 'btn_hist_next'):
+                self.btn_hist_next.configure(state="normal" if pagina_actual < total_paginas else "disabled")
+        except Exception:
+            pass
 
-            # Crear frame de fila
-            row_frame = ctk.CTkFrame(self.hist_scroll, fg_color=row_color, height=40)
-            row_frame.pack(fill="x", pady=1)
-            row_frame.pack_propagate(False)
+        # Vaciar Treeview actual
+        try:
+            self.hist_tree.delete(*self.hist_tree.get_children())
+        except Exception:
+            pass
 
-            # Obtener datos formateados
+        # Insertar registros de la página actual
+        for idx in range(inicio, fin):
+            registro = regs[idx]
             hora_inicio = self._formatear_hora_12h(registro.get('hora_inicio', ''))
             hora_termino = self._formatear_hora_12h(registro.get('hora_termino', ''))
 
-            # Procesar información de folios para mostrar solo rango
-            folios_str = registro.get('folios_utilizados', '')
-            # Si no hay folios, mostrar el folio de visita como rango único
-            if not folios_str or folios_str == '0' or folios_str == '-':
-                folios_str = f"{registro.get('folio_visita', '-')}"
-            folios_display = self._formatear_folios_rango(folios_str)
+            folios_str = registro.get('folios_utilizados', '') or ''
+            if not folios_str or folios_str in ('0', '-'):
+                folios_display = ''
+            else:
+                folios_display = self._formatear_folios_rango(folios_str)
 
-            # Datos de la fila (mismo orden que encabezados)
+            cliente_short = self._acortar_texto(registro.get('cliente', '-'), 20)
+            nfirma1_short = self._acortar_texto(registro.get('nfirma1', 'N/A'), 12)
+
             datos = [
-                registro.get('folio_visita', '-'),
-                registro.get('folio_acta', '-'),
-                registro.get('fecha_inicio', '-'),
-                registro.get('fecha_termino', '-'),
-                hora_inicio if hora_inicio else '-',
-                hora_termino if hora_termino else '-',
-                self._acortar_texto(registro.get('cliente', '-'), 20),
-                self._acortar_texto(registro.get('nfirma1', 'N/A'), 12),
-                registro.get('tipo_documento', '-'),
-                registro.get('estatus', 'Completado'),
-                folios_display,  # Folios formateados solo rango
-                ""  # Placeholder para acciones
+                registro.get('folio_visita', '-') or '-',
+                registro.get('folio_acta', '-') or '-',
+                registro.get('fecha_inicio', '-') or '-',
+                registro.get('fecha_termino', '-') or '-',
+                hora_inicio or '-',
+                hora_termino or '-',
+                cliente_short,
+                nfirma1_short,
+                registro.get('tipo_documento', '-') or '-',
+                registro.get('estatus', 'Completado') or 'Completado',
+                folios_display,
+                "📁 Folios  •  📎 Archivos  •  ✏️ Editar  •  🗑️ Borrar"
             ]
 
-            for j, dato in enumerate(datos):
-                if j == 11:  # Columna de acciones
-                    acciones_frame = ctk.CTkFrame(row_frame, fg_color="transparent", width=column_widths[j])
-                    acciones_frame.pack(side="left", padx=1)
-                    acciones_frame.pack_propagate(False)
+            # Insertar en tree
+            iid = f"h_{idx}"
+            try:
+                self.hist_tree.insert('', 'end', iid=iid, values=datos)
+                self._hist_map[iid] = registro
+            except Exception:
+                pass
 
-                    # Contenedor para botones (fila única por registro)
-                    btn_container = ctk.CTkFrame(acciones_frame, fg_color="transparent")
-                    btn_container.pack(expand=True, fill="both")
-                    btn_container.pack_propagate(False)
+        # actualizar info pie
+        try:
+            if hasattr(self, 'hist_info_label'):
+                self.hist_info_label.configure(
+                    text=f"Registros: {total_registros} | Sistema V&C - Generador de Dictámenes de Comprimiento"
+                )
+        except Exception:
+            pass
 
-                    # Botones de acción más compactos
-                    btn_config = {
-                        "width": 32,  # Ancho fijo
-                        "height": 28,
-                        "corner_radius": 4,
-                        "font": ("Segoe UI Symbol", 10)
-                    }
+    def _hist_show_context_menu(self, event):
+        try:
+            iid = self.hist_tree.identify_row(event.y)
+            if not iid:
+                return
+            self.hist_tree.selection_set(iid)
+            self._hist_context_selected = iid
+            self.hist_context_menu.tk_popup(event.x_root, event.y_root)
+        finally:
+            try:
+                self.hist_context_menu.grab_release()
+            except Exception:
+                pass
 
-                    ctk.CTkButton(
-                        btn_container,
-                        text="⏬Folios",
-                        command=lambda r=registro: self.descargar_folios_visita(r),
-                        fg_color=STYLE["exito"],
-                        text_color=STYLE["surface"],
-                        **btn_config
-                    ).pack(side="left", padx=1)
+    def _hist_on_double_click(self, event):
+        iid = self.hist_tree.identify_row(event.y)
+        if not iid:
+            return
+        reg = self._hist_map.get(iid)
+        if reg:
+            try:
+                self.mostrar_opciones_documentos(reg)
+            except Exception:
+                pass
 
-                    ctk.CTkButton(
-                        btn_container,
-                        text="📄 Archivos",
-                        command=lambda r=registro: self.mostrar_opciones_documentos(r),
-                        fg_color=STYLE["secundario"],
-                        text_color=STYLE["surface"],
-                        **btn_config
-                    ).pack(side="left", padx=1)
+    def _hist_on_left_click(self, event):
+        # Si el usuario hizo click en la columna de Acciones, abrir menú contextual
+        try:
+            col = self.hist_tree.identify_column(event.x)
+            # columnas vienen como '#1', '#2', ...
+            cols = list(self.hist_tree['columns'])
+            if not cols:
+                return
+            last_index = len(cols)
+            if col == f"#{last_index}":
+                iid = self.hist_tree.identify_row(event.y)
+                if not iid:
+                    return
+                self.hist_tree.selection_set(iid)
+                self._hist_context_selected = iid
+                try:
+                    self.hist_context_menu.tk_popup(event.x_root, event.y_root)
+                finally:
+                    try:
+                        self.hist_context_menu.grab_release()
+                    except Exception:
+                        pass
+        except Exception:
+            pass
 
-                    ctk.CTkButton(
-                        btn_container,
-                        text="✏️ Editar",
-                        command=lambda r=registro: self.hist_editar_registro(r),
-                        fg_color=STYLE["primario"],
-                        text_color=STYLE["secundario"],
-                        **btn_config
-                    ).pack(side="left", padx=1)
-
-                    
-                else:
-                    # Para celdas de datos normales
-                    lbl = ctk.CTkLabel(
-                        row_frame,
-                        text=str(dato),
-                        font=("Inter", 9),
-                        text_color=STYLE["texto_oscuro"],
-                        width=column_widths[j],
-                        anchor="center"
-                    )
-                    lbl.pack(side="left", padx=1)
-
-            # Actualizar información del pie
-            total_registros = len(self.historial_data)
-            self.hist_info_label.configure(
-                text=f"Registros: {total_registros} | Sistema V&C - Generador de Dictámenes de Comprimiento"
-            )
+    def _hist_menu_action(self, action):
+        iid = getattr(self, '_hist_context_selected', None)
+        if not iid:
+            sel = self.hist_tree.selection()
+            iid = sel[0] if sel else None
+        if not iid:
+            return
+        reg = self._hist_map.get(iid)
+        if not reg:
+            return
+        try:
+            if action == 'folios':
+                self.descargar_folios_visita(reg)
+            elif action == 'archivos':
+                self.mostrar_opciones_documentos(reg)
+            elif action == 'editar':
+                self.hist_editar_registro(reg)
+            elif action == 'borrar':
+                self.hist_eliminar_registro(reg)
+        except Exception:
+            pass
 
     def hist_pagina_anterior(self):
         if self.HISTORIAL_PAGINA_ACTUAL > 1:
@@ -2995,21 +3520,21 @@ class SistemaDictamenesVC(ctk.CTk):
             
             # Mostrar información detallada
             info_mensaje = f"""
-✅ Folios descargados exitosamente:
+                                ✅ Folios descargados exitosamente:
 
-📁 Archivo: {os.path.basename(file_path)}
-📋 Total de folios: {len(folios_data)}
-📅 Fecha de generación: {datetime.now().strftime('%d/%m/%Y %H:%M:%S')}
-📍 Ubicación: {file_path}
+                                📁 Archivo: {os.path.basename(file_path)}
+                                📋 Total de folios: {len(folios_data)}
+                                📅 Fecha de generación: {datetime.now().strftime('%d/%m/%Y %H:%M:%S')}
+                                📍 Ubicación: {file_path}
 
-📊 Columnas incluidas:
-   • FOLIOS (formato 6 dígitos: 000001)
-   • MARCA
-   • SOLICITUDES
-   • FECHA DE IMPRESION
-   • FECHA DE VERIFICACION
-   • TIPO DE DOCUMENTO
-"""
+                                📊 Columnas incluidas:
+                                • FOLIOS (formato 6 dígitos: 000001)
+                                • MARCA
+                                • SOLICITUDES
+                                • FECHA DE IMPRESION
+                                • FECHA DE VERIFICACION
+                                • TIPO DE DOCUMENTO
+                            """
             
             messagebox.showinfo("Descarga completada", info_mensaje)
             
@@ -3020,6 +3545,355 @@ class SistemaDictamenesVC(ctk.CTk):
                 
         except Exception as e:
             messagebox.showerror("Error", f"No se pudieron descargar los folios:\n{str(e)}")
+    # ----------------- FOLIOS PENDIENTES (UI helpers) -----------------
+    def _get_folios_pendientes(self):
+        """Retorna lista de registros pendientes.
+
+        Los pendientes se cargan preferentemente desde `data/pending_folios.json` si existe
+        (persistencia explícita de reservas). Si no existe, se hace fallback a `historial_data`.
+        """
+        try:
+            # Si cargamos reservas persistentes, trabajar con esa lista
+            if hasattr(self, 'pending_folios') and isinstance(self.pending_folios, list):
+                return list(self.pending_folios)
+
+            pendientes = []
+            fuente = getattr(self, 'historial_data', []) or []
+            for r in fuente:
+                est = (r.get('estatus','') or '').strip().lower()
+                if est != 'pendiente':
+                    continue
+                pendientes.append(r)
+            return pendientes
+        except Exception:
+            return []
+
+    def _refresh_pending_folios_dropdown(self):
+        """Actualiza los valores del combobox de folios pendientes."""
+        try:
+            # Intentar filtrar por el tipo de documento actualmente seleccionado
+            tipo_sel = None
+            try:
+                tipo_sel = self.combo_tipo_documento.get().strip() if hasattr(self, 'combo_tipo_documento') else None
+            except Exception:
+                tipo_sel = None
+
+            # Cargar pendientes persistentes si existen
+            pendientes_source = []
+            try:
+                # cargar desde memoria si ya leido
+                if hasattr(self, 'pending_folios') and isinstance(self.pending_folios, list):
+                    pendientes_source = list(self.pending_folios)
+                else:
+                    # intentar leer archivo
+                    pf = os.path.join(os.path.dirname(__file__), 'data', 'pending_folios.json')
+                    if os.path.exists(pf):
+                        with open(pf, 'r', encoding='utf-8') as f:
+                            pendientes_source = json.load(f) or []
+                    else:
+                        pendientes_source = list(getattr(self, 'historial_data', []) or [])
+            except Exception:
+                pendientes_source = list(getattr(self, 'historial_data', []) or [])
+
+            pendientes = []
+            for r in pendientes_source:
+                try:
+                    est = (r.get('estatus','') or '').strip().lower()
+                    td = (r.get('tipo_documento','') or '').strip()
+                    if est != 'pendiente':
+                        # keep persisted pending even if estatus diferente? skip
+                        continue
+                    if tipo_sel and td:
+                        if td.strip().lower() != tipo_sel.strip().lower():
+                            continue
+                    pendientes.append(r)
+                except Exception:
+                    continue
+            vals = []
+            pendientes_map = {}
+            # Construir valores legibles e índices alternativos por folio/acta
+            for i, r in enumerate(pendientes):
+                fol = r.get('folio_visita','')
+                act = r.get('folio_acta','')
+                cliente = r.get('cliente','')
+                fecha = r.get('fecha_inicio','')
+                tipo = r.get('tipo_documento','') or ''
+                display = f"{fol} — {tipo} — {cliente} ({fecha})"
+                vals.append(display)
+                # mapear la etiqueta completa
+                pendientes_map[display] = r
+                # mapear por folio exacto (con y sin prefijo)
+                try:
+                    if fol:
+                        pendientes_map[fol] = r
+                        # sin prefijo CP/AC
+                        no_pref = fol
+                        if fol.upper().startswith('CP') or fol.upper().startswith('AC'):
+                            no_pref = fol[2:]
+                        pendientes_map[no_pref] = r
+                except Exception:
+                    pass
+                # mapear por folio de acta
+                try:
+                    if act:
+                        pendientes_map[act] = r
+                except Exception:
+                    pass
+
+            self._pendientes_map = pendientes_map
+
+            if hasattr(self, 'combo_folios_pendientes'):
+                try:
+                    self.combo_folios_pendientes.configure(values=vals)
+                    # Mostrar placeholder claro cuando no hay valores
+                    if vals:
+                        # Dejar sin seleccionar para evitar consumir automáticamente
+                        try:
+                            # Si hay una selección pendiente activa, mantenerla visible
+                            sel_id = getattr(self, 'selected_pending_id', None)
+                            if sel_id:
+                                # encontrar display asociado
+                                display_to_set = None
+                                for d in vals:
+                                    r = pendientes_map.get(d)
+                                    try:
+                                        if r and (r.get('_id') == sel_id or r.get('id') == sel_id):
+                                            display_to_set = d
+                                            break
+                                    except Exception:
+                                        continue
+                                if display_to_set:
+                                    self.combo_folios_pendientes.set(display_to_set)
+                                else:
+                                    self.combo_folios_pendientes.set("")
+                            else:
+                                self.combo_folios_pendientes.set("")
+                        except Exception:
+                            self.combo_folios_pendientes.set(vals[0])
+                    else:
+                        self.combo_folios_pendientes.set("")
+                except Exception:
+                    pass
+        except Exception as e:
+            print(f"Error refrescando folios pendientes: {e}")
+
+    def _seleccionar_folio_pendiente(self, seleccionado_text):
+        """Al seleccionar un folio pendiente, cargar sus datos en el formulario y marcar como En proceso."""
+        try:
+            if not seleccionado_text:
+                return
+            registro = getattr(self, '_pendientes_map', {}).get(seleccionado_text)
+
+            # DEBUG
+            try:
+                print(f"[DEBUG] _seleccionar_folio_pendiente seleccionado_text='{seleccionado_text}' registro_found={bool(registro)}")
+            except Exception:
+                pass
+
+            # Si el usuario escribió solo el folio (p. ej. "CP0001") o el texto no coincide
+            # intentar hacer una búsqueda por folio_visita, folio_acta o substring en los valores
+            if not registro:
+                try:
+                    pendientes = self._get_folios_pendientes()
+                    # búsqueda exacta por folio
+                    for r in pendientes:
+                        if seleccionado_text == r.get('folio_visita') or seleccionado_text == r.get('folio_acta'):
+                            registro = r
+                            break
+                    # búsqueda por substring en la representación mostrada
+                    if not registro:
+                        for k, r in getattr(self, '_pendientes_map', {}).items():
+                            try:
+                                if seleccionado_text.strip() and seleccionado_text.strip().lower() in str(k).lower():
+                                    registro = r
+                                    break
+                            except Exception:
+                                continue
+                except Exception:
+                    registro = None
+
+            if not registro:
+                messagebox.showwarning("No encontrado", "No se encontró el folio pendiente seleccionado.")
+                return
+
+            # Cargar datos en la sección Información de Visita
+            try:
+                self.entry_folio_visita.configure(state='normal')
+                self.entry_folio_visita.delete(0, 'end')
+                folio_to_set = registro.get('folio_visita','')
+                # Asegurar formato CP/AC si viene sin prefijo
+                if folio_to_set and not (folio_to_set.upper().startswith('CP') or folio_to_set.upper().startswith('AC')):
+                    # intentar deducir si corresponde a CP
+                    if folio_to_set.isdigit():
+                        folio_to_set = f"CP{folio_to_set.zfill(6)[-6:]}"
+                self.entry_folio_visita.insert(0, folio_to_set)
+                self.entry_folio_visita.configure(state='readonly')
+
+                self.entry_folio_acta.configure(state='normal')
+                self.entry_folio_acta.delete(0, 'end')
+                self.entry_folio_acta.insert(0, registro.get('folio_acta',''))
+                self.entry_folio_acta.configure(state='readonly')
+
+                self.entry_fecha_inicio.delete(0, 'end')
+                self.entry_fecha_inicio.insert(0, registro.get('fecha_inicio',''))
+                self.entry_fecha_termino.delete(0, 'end')
+                self.entry_fecha_termino.insert(0, registro.get('fecha_termino',''))
+
+                try:
+                    self.entry_hora_inicio.configure(state='normal')
+                    self.entry_hora_inicio.delete(0, 'end')
+                    self.entry_hora_inicio.insert(0, registro.get('hora_inicio',''))
+                    self.entry_hora_inicio.configure(state='readonly')
+                except Exception:
+                    pass
+
+                try:
+                    self.entry_hora_termino.configure(state='normal')
+                    self.entry_hora_termino.delete(0, 'end')
+                    self.entry_hora_termino.insert(0, registro.get('hora_termino',''))
+                    self.entry_hora_termino.configure(state='readonly')
+                except Exception:
+                    pass
+
+                cliente = registro.get('cliente')
+                if cliente and hasattr(self, 'combo_cliente'):
+                    try:
+                        self.combo_cliente.set(cliente)
+                        try:
+                            self.actualizar_cliente_seleccionado(cliente)
+                        except Exception:
+                            pass
+                    except Exception:
+                        pass
+
+            except Exception as e:
+                print(f"Error cargando registro pendiente en formulario: {e}")
+
+            # No cambiar estatus en disco todavía: solo marcar en memoria que el usuario
+            # seleccionó este folio pendiente. La visita permanecerá como 'Pendiente'
+            # hasta que el usuario genere los documentos (o confirme su uso).
+            try:
+                rid = registro.get('_id') or registro.get('id')
+                # Marcar folio como seleccionado para uso posterior (no persistir estatus)
+                try:
+                    fv = registro.get('folio_visita','') or ''
+                    num = fv
+                    if fv.upper().startswith('CP') or fv.upper().startswith('AC'):
+                        num = fv[2:]
+                    # Mantener formato de `current_folio` como 6 dígitos sin prefijo
+                    num_only = ''.join([c for c in str(num) if c.isdigit()]) or ''
+                    if num_only:
+                        self.current_folio = num_only.zfill(6)
+                    else:
+                        # si no contiene dígitos, mantener el valor existente
+                        pass
+                    self.selected_pending_id = rid
+                    self.usando_folio_reservado = True
+                    try:
+                        print(f"[DEBUG] seleccionado pending id={rid} folio={fv} current_folio set to {self.current_folio}")
+                    except Exception:
+                        pass
+                except Exception:
+                    pass
+            except Exception as e:
+                print(f"Error preparando registro seleccionado: {e}")
+
+            try:
+                self._refresh_pending_folios_dropdown()
+            except Exception:
+                pass
+
+        except Exception as e:
+            print(f"Error al seleccionar folio pendiente: {e}")
+
+    def _desmarcar_folio_seleccionado(self):
+        """Desmarca la selección actual sin eliminar la reserva persistente."""
+        try:
+            self.selected_pending_id = None
+            self.usando_folio_reservado = False
+            # Restaurar current_folio al cálculo normal (recalcular)
+            try:
+                self.cargar_ultimo_folio()
+            except Exception:
+                pass
+            # refrescar UI
+            try:
+                self._refresh_pending_folios_dropdown()
+            except Exception:
+                pass
+            messagebox.showinfo("Desmarcado", "La selección del folio reservado ha sido desactivada. La reserva se mantiene hasta que se utilice o se elimine.")
+        except Exception as e:
+            messagebox.showerror("Error", f"No se pudo desmarcar la selección: {e}")
+
+        except Exception as e:
+            print(f"Error al seleccionar folio pendiente: {e}")
+
+    def _eliminar_folio_pendiente(self):
+        """Eliminar el folio pendiente seleccionado (con confirmación)."""
+        try:
+            seleccionado_text = None
+            try:
+                seleccionado_text = self.combo_folios_pendientes.get()
+            except Exception:
+                pass
+            if not seleccionado_text:
+                messagebox.showwarning("Seleccionar folio", "Seleccione un folio pendiente para eliminar.")
+                return
+
+            registro = getattr(self, '_pendientes_map', {}).get(seleccionado_text)
+            # Intento fallback si el usuario solo escribió el folio
+            if not registro:
+                try:
+                    pendientes = self._get_folios_pendientes()
+                    for r in pendientes:
+                        if seleccionado_text == r.get('folio_visita') or seleccionado_text == r.get('folio_acta'):
+                            registro = r
+                            break
+                    if not registro:
+                        for k, r in getattr(self, '_pendientes_map', {}).items():
+                            if seleccionado_text.strip() and seleccionado_text.strip() in k:
+                                registro = r
+                                break
+                except Exception:
+                    registro = None
+
+            if not registro:
+                messagebox.showwarning("No encontrado", "No se encontró el folio seleccionado.")
+                return
+
+            if not messagebox.askyesno("Confirmar eliminación", f"¿Eliminar el folio pendiente {registro.get('folio_visita')}? Esta acción no se puede deshacer."):
+                return
+
+            try:
+                self.hist_eliminar_registro(registro)
+            except Exception:
+                try:
+                    self.historial['visitas'] = [v for v in self.historial.get('visitas', []) if v.get('folio_visita') != registro.get('folio_visita')]
+                    self._guardar_historial()
+                except Exception as e:
+                    print(f"Error eliminando folio pendiente manualmente: {e}")
+
+            # También eliminar de archivo de reservas si existe
+            try:
+                pf_path = os.path.join(os.path.dirname(__file__), 'data', 'pending_folios.json')
+                if os.path.exists(pf_path):
+                    with open(pf_path, 'r', encoding='utf-8') as f:
+                        arr = json.load(f) or []
+                    arr = [p for p in arr if p.get('folio_visita') != registro.get('folio_visita')]
+                    with open(pf_path, 'w', encoding='utf-8') as f:
+                        json.dump(arr, f, ensure_ascii=False, indent=2)
+                    # actualizar memoria
+                    self.pending_folios = arr
+            except Exception:
+                pass
+
+            try:
+                self._refresh_pending_folios_dropdown()
+            except Exception:
+                pass
+
+        except Exception as e:
+            messagebox.showerror("Error", f"No se pudo eliminar el folio pendiente: {e}")
 
     # Agregar este método para buscar la columna correcta de solicitud
     def _obtener_columna_solicitud(self, df):
@@ -3050,6 +3924,30 @@ class SistemaDictamenesVC(ctk.CTk):
                         subprocess.Popen(['xdg-open', file_path])
         except Exception as e:
             print(f"Error abriendo archivo: {e}")
+
+    # ----------------- PERSISTENCIA DE RESERVAS -----------------
+    def _load_pending_folios(self):
+        """Carga las reservas desde data/pending_folios.json en `self.pending_folios`."""
+        try:
+            pf = os.path.join(os.path.dirname(__file__), 'data', 'pending_folios.json')
+            if os.path.exists(pf):
+                with open(pf, 'r', encoding='utf-8') as f:
+                    arr = json.load(f) or []
+                    self.pending_folios = [r for r in arr if isinstance(r, dict)]
+            else:
+                self.pending_folios = []
+        except Exception as e:
+            print(f"[WARN] Error cargando pending_folios.json: {e}")
+            self.pending_folios = []
+
+    def _save_pending_folios(self):
+        """Guarda `self.pending_folios` en data/pending_folios.json."""
+        try:
+            pf = os.path.join(os.path.dirname(__file__), 'data', 'pending_folios.json')
+            with open(pf, 'w', encoding='utf-8') as f:
+                json.dump(self.pending_folios or [], f, ensure_ascii=False, indent=2)
+        except Exception as e:
+            print(f"[WARN] Error guardando pending_folios.json: {e}")
 
     # ----------------- Config y export persistente -----------------
     def _cargar_config_exportacion(self):
@@ -3403,6 +4301,8 @@ class SistemaDictamenesVC(ctk.CTk):
     def hist_buscar_general(self, event=None):
         """Buscar en el historial por cualquier campo"""
         try:
+            # resetear paginado al buscar
+            self.HISTORIAL_PAGINA_ACTUAL = 1
             # Asegurarse de que los datos estén cargados
             if not hasattr(self, 'historial_data') or not self.historial_data:
                 self._cargar_historial()
@@ -3411,28 +4311,61 @@ class SistemaDictamenesVC(ctk.CTk):
             if not hasattr(self, 'historial_data_original') or not self.historial_data_original:
                 self.historial_data_original = self.historial_data.copy()
             
-            busqueda = self.entry_buscar_general.get().lower().strip()
-            
-            if not busqueda:
+            busqueda_raw = self.entry_buscar_general.get().strip()
+            # Normalizar (quitar acentos) y bajar a minúsculas para comparaciones
+            def _norm(s):
+                try:
+                    s2 = str(s)
+                    s2 = unicodedata.normalize('NFKD', s2).encode('ASCII', 'ignore').decode('ASCII')
+                    return s2.lower()
+                except Exception:
+                    return str(s).lower()
+
+            busqueda = _norm(busqueda_raw)
+
+            if not busqueda_raw:
                 # Si no hay búsqueda, mostrar todos los datos
                 self.historial_data = self.historial_data_original.copy()
             else:
                 # Filtrar datos
                 resultados = []
                 for registro in self.historial_data_original:
-                    # Buscar en todos los campos relevantes
+                    # Buscar en todos los campos relevantes (añadir supervisor y tipo de documento)
                     campos_busqueda = [
-                        str(registro.get('folio_visita', '')),
-                        str(registro.get('folio_acta', '')),
-                        str(registro.get('fecha_inicio', '')),
-                        str(registro.get('fecha_termino', '')),
-                        str(registro.get('cliente', '')),
-                        str(registro.get('estatus', '')),
-                        str(registro.get('folios_utilizados', ''))  # Cambiado de 'folios_usados' a 'folios_utilizados'
+                        registro.get('folio_visita', ''),
+                        registro.get('folio_acta', ''),
+                        registro.get('fecha_inicio', ''),
+                        registro.get('fecha_termino', ''),
+                        registro.get('cliente', ''),
+                        registro.get('estatus', ''),
+                        registro.get('folios_utilizados', ''),
+                        registro.get('nfirma1', ''),
+                        registro.get('nfirma2', ''),
+                        registro.get('supervisor', ''),
+                        registro.get('tipo_documento', '')
                     ]
-                    
-                    # Verificar si la búsqueda coincide con algún campo
-                    if any(busqueda in campo.lower() for campo in campos_busqueda):
+
+                    matched = False
+                    # búsqueda tradicional (substring en texto)
+                    for campo in campos_busqueda:
+                        try:
+                            if busqueda in _norm(campo):
+                                matched = True
+                                break
+                        except Exception:
+                            continue
+
+                    # Si no coincidió, intentar comparar solo dígitos (útil para folios con padding)
+                    if not matched:
+                        digits_search = ''.join([c for c in busqueda_raw if c.isdigit()])
+                        if digits_search:
+                            for campo in campos_busqueda:
+                                campo_digits = ''.join([c for c in str(campo) if c.isdigit()])
+                                if campo_digits and digits_search in campo_digits:
+                                    matched = True
+                                    break
+
+                    if matched:
                         resultados.append(registro)
                 
                 self.historial_data = resultados
@@ -3447,7 +4380,8 @@ class SistemaDictamenesVC(ctk.CTk):
         self.entry_buscar_general.delete(0, 'end')
         self.entry_buscar_folio.delete(0, 'end')
         
-        # Recargar datos originales
+        # Recargar datos originales y resetear paginado
+        self.HISTORIAL_PAGINA_ACTUAL = 1
         if hasattr(self, 'historial_data_original'):
             self.historial_data = self.historial_data_original.copy()
         else:
@@ -3770,7 +4704,7 @@ class SistemaDictamenesVC(ctk.CTk):
             payload.setdefault("estatus", "Completada" if es_automatica else "En proceso")
             
             # Asegurar que las fechas y horas estén presentes
-            payload.setdefault("fecha_inicio", "")
+            payload.sedefault("fecha_inicio", "")
             payload.setdefault("fecha_termino", "")
             payload.setdefault("hora_inicio", "")
             payload.setdefault("hora_termino", "")
@@ -3782,7 +4716,28 @@ class SistemaDictamenesVC(ctk.CTk):
                 try:
                     if "visitas" not in self.historial:
                         self.historial["visitas"] = []
-                    self.historial["visitas"].append(payload)
+
+                    # Buscar registro existente por folio_visita
+                    existing_idx = None
+                    try:
+                        for idx, v in enumerate(self.historial.get('visitas', [])):
+                            if str(v.get('folio_visita', '')).strip().lower() == str(payload.get('folio_visita', '')).strip().lower():
+                                existing_idx = idx
+                                break
+                    except Exception:
+                        existing_idx = None
+
+                    if existing_idx is not None:
+                        # Mergear campos (no sobrescribir metadatos existentes innecesariamente)
+                        existing = self.historial['visitas'][existing_idx]
+                        for k, val in payload.items():
+                            if k == '_id':
+                                continue
+                            if val is not None and val != '':
+                                existing[k] = val
+                        existing.setdefault('estatus', payload.get('estatus', 'En proceso'))
+                    else:
+                        self.historial["visitas"].append(payload)
 
                     # Actualizar datos en memoria
                     self.historial_data = self.historial.get("visitas", [])
@@ -3790,16 +4745,36 @@ class SistemaDictamenesVC(ctk.CTk):
                     # Guardar y refrescar UI
                     self._guardar_historial()
                     self._poblar_historial_ui()
+
                     # Recalcular folio actual inmediatamente
                     try:
                         self.cargar_ultimo_folio()
                     except Exception:
                         pass
 
+                    # Refrescar dropdown de folios pendientes al añadir una visita
+                    try:
+                        if hasattr(self, '_refresh_pending_folios_dropdown'):
+                            self._refresh_pending_folios_dropdown()
+                    except Exception:
+                        pass
+
                     if not es_automatica:
                         messagebox.showinfo("OK", f"Visita {payload.get('folio_visita','-')} guardada correctamente")
+
+                    # DEBUG: mostrar resumen mínimo del historial después de añadir
+                    try:
+                        print(f"[DEBUG] hist_create_visita: total registros = {len(self.historial.get('visitas', []))}")
+                    except Exception:
+                        pass
                 except Exception as e:
                     print(f"❌ Error aplicando visita en hilo principal: {e}")
+                    # Refrescar dropdown de folios pendientes cuando se aplica una modificación
+                    try:
+                        if hasattr(self, '_refresh_pending_folios_dropdown'):
+                            self._refresh_pending_folios_dropdown()
+                    except Exception:
+                        pass
 
             # Programar la aplicación en el hilo principal
             try:
@@ -3814,19 +4789,32 @@ class SistemaDictamenesVC(ctk.CTk):
     def hist_buscar_por_folio(self):
         """Buscar en el historial por folio de visita"""
         try:
-            folio_busqueda = self.entry_buscar_folio.get().strip()
-            
-            if not folio_busqueda:
+            # resetear paginado al buscar
+            self.HISTORIAL_PAGINA_ACTUAL = 1
+            folio_busqueda_raw = self.entry_buscar_folio.get().strip()
+            folio_busqueda = folio_busqueda_raw.lower()
+
+            if not folio_busqueda_raw:
                 # Si no hay búsqueda, mostrar todos los datos
                 self.historial_data = self.historial_data_original.copy() if hasattr(self, 'historial_data_original') else self.historial_data
             else:
-                # Filtrar datos por folio
+                # Filtrar datos por folio con normalización de dígitos
                 resultados = []
-                for registro in (self.historial_data_original if hasattr(self, 'historial_data_original') else self.historial_data):
-                    folio_actual = str(registro.get('folio_visita', ''))
-                    if folio_busqueda.lower() in folio_actual.lower():
+                fuente = (self.historial_data_original if hasattr(self, 'historial_data_original') else self.historial_data)
+                digits_search = ''.join([c for c in folio_busqueda_raw if c.isdigit()])
+                for registro in fuente:
+                    folio_actual = str(registro.get('folio_visita', '') or '')
+                    # coincidencia directa (substring)
+                    if folio_busqueda in folio_actual.lower():
                         resultados.append(registro)
-                
+                        continue
+                    # coincidencia por dígitos (ignora padding)
+                    if digits_search:
+                        folio_digits = ''.join([c for c in folio_actual if c.isdigit()])
+                        if folio_digits and digits_search in folio_digits:
+                            resultados.append(registro)
+                            continue
+
                 self.historial_data = resultados
             
             self._poblar_historial_ui()
@@ -3877,31 +4865,37 @@ class SistemaDictamenesVC(ctk.CTk):
     def hist_update_visita(self, id_, nuevos):
         """Actualiza una visita existente"""
         try:
-            # Buscar la visita a actualizar
-            for i, v in enumerate(self.historial.get("visitas", [])):
-                if v["_id"] == id_:
-                    # Mantener el ID y folio original
-                    nuevos["_id"] = id_
-                    nuevos["folio_visita"] = v.get("folio_visita", nuevos.get("folio_visita"))
-                    
-                    # Actualizar en el historial
-                    self.historial["visitas"][i] = nuevos
-                    
-                    # Actualizar datos
-                    self.historial_data = self.historial["visitas"]
-                    
+            # Buscar la visita a actualizar y mezclar (merge) los campos nuevos
+            visitas = self.historial.get("visitas", [])
+            for i, v in enumerate(visitas):
+                if v.get("_id") == id_:
+                    actualizado = v.copy()
+                    # Mezclar claves de 'nuevos' sobre el registro existente
+                    for k, val in (nuevos or {}).items():
+                        if k == "_id":
+                            continue
+                        actualizado[k] = val
+
+                    # Reemplazar sólo el registro actualizado
+                        # Reemplazar cabecera y scroll por un Treeview virtualizado (más eficiente)
+                    # Actualizar vistas en memoria y persistir
+                    self.historial_data = self.historial.get("visitas", [])
                     self._guardar_historial()
                     self._poblar_historial_ui()
-                    # Recalcular folio actual tras la actualización
                     try:
                         self.cargar_ultimo_folio()
                     except Exception:
                         pass
-                    messagebox.showinfo("OK", f"Visita {nuevos['folio_visita']} actualizada")
+                    messagebox.showinfo("OK", f"Visita {actualizado.get('folio_visita','-')} actualizada")
+                    # Refrescar dropdown de pendientes por si cambió estatus/tipo
+                    try:
+                        if hasattr(self, '_refresh_pending_folios_dropdown'):
+                            self._refresh_pending_folios_dropdown()
+                    except Exception:
+                        pass
                     return
-                    
+
             messagebox.showerror("Error", "No se encontró la visita para actualizar")
-            
         except Exception as e:
             messagebox.showerror("Error actualizando", str(e))
 

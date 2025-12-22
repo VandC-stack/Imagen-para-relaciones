@@ -789,13 +789,11 @@ def generar_dictamenes_completos(directorio_destino, cliente_manual=None, rfc_ma
         'total_familias': len(familias),
         'archivos': archivos_creados,
         'sin_firma_detalle': sin_firma_detalle,
-        'json_generados': json_generados,
         'json_errores': json_errores,
-        'json_errores_detalle': json_errores_detalle,
-        'directorio_json': directorio_json
+        'json_errores_detalle': json_errores_detalle
     }
-    
-    mensaje = f"Se generaron {dictamenes_generados} dictámenes ({dictamenes_con_firma} con firma, {dictamenes_sin_firma} sin firma) y {json_generados} archivos JSON"
+
+    mensaje = f"Se generaron {dictamenes_generados} dictámenes ({dictamenes_con_firma} con firma, {dictamenes_sin_firma} sin firma)"
     success = dictamenes_generados > 0
     return success, mensaje if success else "No se pudo generar ningún dictamen", resultado
 
