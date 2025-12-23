@@ -8,27 +8,31 @@ Sistema completo para generar dictámenes en PDF con etiquetas visuales automát
 - **Integración en PDF**: Inserta las etiquetas como imágenes en la segunda página del dictamen
 - **Datos dinámicos**: Extrae información de múltiples fuentes JSON
 - **Multi-familia**: Procesa múltiples dictámenes en lote
+- **Control de Folios Anual**: Genera reportes en Excel con el control anual de folios
 
 ## 🗂️ Estructura del Proyecto
 
 \`\`\`
 proyecto/
 ├── data/                          # Carpeta con datos de entrada
-│   ├── TABLA_DE_RELACION.json    # Códigos y productos
+│   ├── tabla_de_relacion.json    # Códigos y productos
 │   ├── BASE_ETIQUETADO.json      # Información de etiquetas por EAN
 │   ├── config_etiquetas.json     # Configuración de tamaños y campos
 │   ├── Normas.json               # Catálogo de normas oficiales
-│   └── Clientes.json             # Información de clientes y RFC
+│   ├── Clientes.json             # Información de clientes y RFC
+│   └── Firmas.json               # Información de inspectores
 ├── img/
 │   └── Fondo.jpeg                # Imagen de fondo para el PDF
 ├── etiquetas_generadas/          # Etiquetas PNG generadas (creada automáticamente)
 ├── dictamenes_generados/         # PDFs de salida (creada automáticamente)
 │
+├── app.py                        # Interfaz gráfica principal
 ├── etiqueta_dictamen.py          # Generador de imágenes de etiquetas
 ├── plantillaPDF.py               # Funciones de carga y preparación de datos
 ├── DictamenPDF.py                # Clase base para generación de PDF
-├── PDFGeneradorConDatos.py       # Generador principal con datos reales
-└── main.py                       # Script principal de ejecución
+├── generador_dictamen.py         # Generador principal de dictámenes
+├── control_folios_anual.py       # Generador de Excel con control de folios
+└── CONTROL_FOLIOS_README.md      # Documentación del generador de Excel
 \`\`\`
 
 ## 🚀 Instalación
@@ -50,7 +54,32 @@ mkdir -p data img etiquetas_generadas dictamenes_generados
 
 ## 📝 Uso
 
-### Ejecución Simple
+### Aplicación Principal
+
+Ejecutar la interfaz gráfica:
+
+\`\`\`bash
+python app.py
+\`\`\`
+
+### Generador de Control de Folios Anual
+
+Generar un archivo Excel con el control de folios:
+
+\`\`\`bash
+# Generar reporte completo
+python control_folios_anual.py
+
+# Generar reporte con filtro de fechas
+python control_folios_anual.py -fi 2025-11-01 -ff 2025-11-30
+
+# Especificar nombre del archivo de salida
+python control_folios_anual.py -o Control_2025.xlsx
+\`\`\`
+
+Ver la documentación completa en [CONTROL_FOLIOS_README.md](CONTROL_FOLIOS_README.md)
+
+### Ejecución Simple (Antiguo)
 
 \`\`\`bash
 python main.py
