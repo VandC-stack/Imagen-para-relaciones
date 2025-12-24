@@ -67,13 +67,15 @@ class ActaPDFGenerator:
 
         c.setFont("Helvetica-Bold", 12)
         c.drawCentredString(self.width / 2, self.cursor_y, titulo1)
-        self.cursor_y -= 70
+        # Reducir espacio después del encabezado para compactar el diseño
+        self.cursor_y -= 45
 
     def dibujar_tabla_superior(self, c):
         """Tabla superior de 4 columnas para ACTA DE INSPECCIÓN (sin bordes)"""
 
-        x_start = 25 * mm
-        row_height = 12
+        x_start = 20 * mm
+        # Usar filas más compactas
+        row_height = 9
 
         # Anchos de columna
         col_w1 = 40 * mm   # Fecha de inspección (inicio / termino / título)
@@ -139,27 +141,50 @@ class ActaPDFGenerator:
                             self.cursor_y, norma)
                 self.cursor_y -= row_height
 
-        # Espacio final
-        self.cursor_y -= 10
+        # Espacio final reducido
+        self.cursor_y -= 5
 
     def dibujar_datos_empresa(self, c):
         """Dibuja los datos de la empresa visitada sin bordes"""
-        x_start = 25 * mm
+        x_start = 20 * mm
         
         c.setFont("Helvetica-Bold", 10)
         c.drawString(x_start, self.cursor_y, "Datos del lugar donde se realiza la Inspección de Información Comercial:")
-        self.cursor_y -= 25
+        # Espacio reducido antes de la lista de datos
+        self.cursor_y -= 18
         
         # Preparar display de colonia + C.P. si existe
-        colonia_val = self.datos.get('colonia', '') or ''
-        cp_val = str(self.datos.get('cp', '') or '')
-        if cp_val:
-            if colonia_val:
-                colonia_display = f"{colonia_val}  C.P.: {cp_val}"
-            else:
-                colonia_display = f"C.P.: {cp_val}"
-        else:
-            colonia_display = colonia_val
+        colonia_val = (self.datos.get('colonia') or '')
+        cp_val = str(self.datos.get('cp') or '')
+
+        # Normalizar y formatear la colonia para mostrar siempre 'C.P.: <n>'
+        def _clean_colonia_and_format_cp(colonia_text, cp_text):
+            try:
+                import re
+                if not cp_text:
+                    return colonia_text or ''
+                digits = re.sub(r'\D', '', str(cp_text))
+                if not digits:
+                    return colonia_text or ''
+
+                # Si la colonia ya contiene la etiqueta C.P. (en cualquier variante), dejarla
+                if re.search(r'c\.?p\.?', colonia_text, flags=re.IGNORECASE):
+                    # Normalizar a 'C.P.: <cp>' si es necesario
+                    if digits and not re.search(re.escape(digits), colonia_text):
+                        return (colonia_text.strip() + '  C.P.: ' + cp_text).strip()
+                    return colonia_text
+
+                # Si la colonia termina con el número de CP, eliminarlo y agregar la etiqueta C.P.
+                pattern = r'[\s,;:\-]*' + re.escape(digits) + r'$'
+                nueva = re.sub(pattern, '', colonia_text).strip()
+                if nueva:
+                    return f"{nueva}  C.P.: {cp_text}"
+                else:
+                    return f"C.P.: {cp_text}"
+            except Exception:
+                return colonia_text or ''
+
+        colonia_display = _clean_colonia_and_format_cp(colonia_val, cp_val)
 
         # Títulos y valores en dos columnas
         campos = [
@@ -177,10 +202,12 @@ class ActaPDFGenerator:
 
             # Valor: usar tamaño de letra ligeramente más pequeño y mostrar exactamente
             c.setFont("Helvetica", 9)
-            c.drawString(x_start + 50 * mm, self.cursor_y, str(valor))
-            self.cursor_y -= 12
-        
-        self.cursor_y -= 20  # Espacio después de la sección
+            c.drawString(x_start + 48 * mm, self.cursor_y, str(valor))
+            # Espacio reducido entre líneas de datos
+            self.cursor_y -= 8
+
+        # Espacio reducido después de la sección
+        self.cursor_y -= 10
     
     def dibujar_tabla_firmas(self, c):
         """Dibuja la sección de firmas en el orden solicitado con mejor espaciado
@@ -193,16 +220,28 @@ class ActaPDFGenerator:
         Esta versión sólo ajusta el orden y la disposición de nombres/firma;
         no modifica el resto de campos del documento.
         """
-        x = 25 * mm
-        ancho_total = 165 * mm
+        x = 20 * mm
+        ancho_total = 155 * mm
 
         c.setFont("Helvetica", 9)
-        y = self.cursor_y - 15
+        # Posición inicial para firmas más compacta
+        y = self.cursor_y - 6
+
+        # Ajustar tamaño de las firmas para legibilidad y ajuste
+        firma_ancho = 55 * mm
+        firma_alto = 20 * mm
 
         # Helper para asegurarse de que hay espacio suficiente en la página;
         # si no, crea una nueva página, dibuja el fondo y la paginación,
-        # incrementando el contador de páginas.
-        def ensure_space(pos_y, min_space=80):
+        # incrementando el contador de páginas. Calcula espacio mínimo en
+        # base al alto de la firma y líneas de texto para evitar recortes.
+        def ensure_space(pos_y, min_space=None):
+            # Calcular un min_space razonable si no se pasó
+            default_needed = int(12 + firma_alto + (4 * mm) + 8)
+            if min_space is None:
+                min_space = default_needed
+
+            # Si no hay espacio suficiente, crear nueva página y volver a dibujar
             if pos_y < min_space:
                 try:
                     self.page_num = getattr(self, 'page_num', 1) + 1
@@ -217,13 +256,16 @@ class ActaPDFGenerator:
                     self.dibujar_paginacion(c)
                 except Exception:
                     pass
-                # resetear un cursor en la nueva página (margen superior)
-                return self.height - 60
+                # Redibujar encabezado y tabla superior para mantener formato
+                try:
+                    self.cursor_y = self.height - 40
+                    self.dibujar_encabezado(c)
+                    self.dibujar_tabla_superior(c)
+                except Exception:
+                    pass
+                # Devolver cursor justo debajo de la tabla superior
+                return self.cursor_y - 8
             return pos_y
-
-        # Aumentar tamaño de las firmas para mejor legibilidad
-        firma_ancho = 75 * mm
-        firma_alto = 30 * mm
 
         # Helper para dibujar nombre + firma (imagen o línea)
         def dibujar_nombre_y_firma(label, nombre, pos_y):
@@ -231,31 +273,35 @@ class ActaPDFGenerator:
             c.drawString(x, pos_y, label)
             pos_y -= 12
             c.setFont("Helvetica", 9)
-            nombre_text = nombre or ''
-            # mostrar nombre (truncado si muy largo)
-            if len(nombre_text) > 60:
-                nombre_text = nombre_text[:57] + '...'
-            c.drawString(x, pos_y, nombre_text)
+            # usar el nombre completo para búsqueda de firma, pero truncar
+            # solo la versión que mostramos en el PDF para evitar fallos
+            full_name = nombre or ''
+            display_name = full_name
+            if len(display_name) > 60:
+                display_name = display_name[:57] + '...'
+            c.drawString(x, pos_y, display_name)
 
-            # intentar firma (buscar en Firmas.json)
+            # intentar firma (buscar en Firmas.json) usando el nombre completo
             firma_path = None
-            if nombre_text:
-                firma_path = self.obtener_firma_inspector(nombre_text)
+            if full_name:
+                firma_path = self.obtener_firma_inspector(full_name)
 
             if firma_path and os.path.exists(firma_path):
                 try:
                     img = ImageReader(firma_path)
-                    c.drawImage(img, x + 90 * mm, pos_y - (firma_alto / 2), width=firma_ancho, height=firma_alto, preserveAspectRatio=True, mask='auto')
+                    c.drawImage(img, x + 85 * mm, pos_y - (firma_alto / 2), width=firma_ancho, height=firma_alto, preserveAspectRatio=True, mask='auto')
                 except Exception as e:
                     print(f"⚠️ Error cargando firma {firma_path}: {e}")
                     c.line(x + 90 * mm, pos_y, x + 90 * mm + firma_ancho, pos_y)
             else:
                 # línea de firma
-                c.line(x + 90 * mm, pos_y, x + 90 * mm + firma_ancho, pos_y)
+                c.line(x + 85 * mm, pos_y, x + 85 * mm + firma_ancho, pos_y)
 
-            return pos_y - 45  # Mayor espaciamiento para firmas más grandes
+            # Retornar nueva posición dejando espacio suficiente según el alto de la firma
+            separation = (firma_alto + 4 * mm)
+            return pos_y - separation
 
-        # 1) Cliente / responsable
+        # 1) Cliente / responsable  
         cliente_nombre = self.datos.get('empresa_visitada') or self.datos.get('cliente') or ''
         y = ensure_space(y)
         y = dibujar_nombre_y_firma('Nombre y Firma del cliente o responsable de atender la visita', cliente_nombre, y)
@@ -282,14 +328,14 @@ class ActaPDFGenerator:
             y = ensure_space(y)
             y = dibujar_nombre_y_firma('Nombre y Firma del Inspector', '', y)
 
-        # Espacio para siguiente sección
-        y -= 6
+        # Espacio para siguiente sección reducido
+        y -= 4
 
         # NOTAS Y OBSERVACIONES (mantener comportamiento previo)
         c.setFont("Helvetica-Bold", 10)
         c.drawCentredString(x + ancho_total / 2, y, "NOTAS Y OBSERVACIONES:")
 
-        y -= 20
+        y -= 14
 
         # Observaciones Cliente
         c.setFont("Helvetica", 9)
@@ -298,7 +344,7 @@ class ActaPDFGenerator:
 
         for _ in range(3):
             c.line(x, y, x + ancho_total - 10, y)
-            y -= 15
+            y -= 12
 
         y -= 10
 
@@ -314,9 +360,15 @@ class ActaPDFGenerator:
 
         # ACTA Y C.P. (mantener)
         acta = self.datos.get("acta", "C.P.12345")
-        cp = self.datos.get("cp", "CP07890")
+        # Mostrar C.P. del sistema (folio de la visita) en la parte inferior.
+        # Este valor es distinto al código postal que se muestra junto a la colonia.
+        folio_visita = self.datos.get('folio_visita') or self.datos.get('folio') or ''
+        sys_cp = ''.join(ch for ch in str(folio_visita) if ch.isdigit())
+        # Si no hay folio de visita, conservar el CP postal como fallback
+        if not sys_cp:
+            sys_cp = str(self.datos.get('cp', ''))
 
-        c.drawString(x, y, f"Acta: {acta}    C.P.: {cp}")
+        c.drawString(x, y, f"Acta: {acta}    C.P.: {sys_cp}")
 
         # Actualizar cursor general
         self.cursor_y = y - 25
@@ -332,7 +384,7 @@ class ActaPDFGenerator:
         # Columnas más compactas para que se vean más juntas
         col_widths = [40 * mm, 40 * mm, 40 * mm, 40 * mm, 20 * mm, 20 * mm]
 
-        headers = ["No. De Solicitud", "No. De Pedimento", "Factura", "Código", "Piezas", "Eval."]
+        headers = ["No. Solicitud", "No. De Pedimento", "Factura", "Código", "Piezas", "Eval."]
 
         # Dibujar encabezados
         c.setFont("Helvetica-Bold", 7)
@@ -343,6 +395,11 @@ class ActaPDFGenerator:
 
         y = top - row_h
         c.setFont("Helvetica", 7)
+
+        import re
+
+        def _norm_key(k):
+            return re.sub(r'[^0-9a-zA-Záéíóúüñ]', '', str(k).lower())
 
         # Iterar productos y pintar filas (paginar si necesario)
         for idx, prod in enumerate(productos):
@@ -373,13 +430,24 @@ class ActaPDFGenerator:
                 c.setFont("Helvetica", 7)
 
             x = left
-            # Obtener valores con fallback
-            solicitud = str(prod.get('SOLICITUD', prod.get('SOLICITUD', '')))
-            pedimento = str(prod.get('PEDIMENTO', prod.get('PEDIMENTO', '')))
-            factura = str(prod.get('FACTURA', prod.get('FACTURA', '')))
-            codigo = str(prod.get('CODIGO', prod.get('CODIGO', '')))
-            cantidad = str(prod.get('CANTIDAD', prod.get('CANTIDAD', '')))
-            evaluacion = prod.get('EVALUACION', prod.get('EVALUACIÓN', 'C') ) or 'C'
+            # Normalizar claves para búsqueda flexible (case-insensitive y sin signos)
+            norm = {}
+            for k, v in prod.items():
+                norm[_norm_key(k)] = v
+
+            def find_value(candidates, default=''):
+                for cand in candidates:
+                    nk = _norm_key(cand)
+                    if nk in norm:
+                        return norm[nk]
+                return default
+
+            solicitud = str(find_value(['SOLICITUD', 'no solicitud', 'no.solicitud', 'no. de solicitud', 'no_solicitud'], ''))
+            pedimento = str(find_value(['PEDIMENTO', 'no pedimento', 'no.pedimento', 'no. de pedimento'], ''))
+            factura = str(find_value(['FACTURA', 'factura', 'FACTURAS'], ''))
+            codigo = str(find_value(['CODIGO', 'CÓDIGO', 'codigo'], ''))
+            cantidad = str(find_value(['CANTIDAD', 'PIEZAS', 'piezas', 'cantidad'], ''))
+            evaluacion = str(find_value(['EVALUACION', 'EVALUACIÓN', 'Eval', 'EVAL'], '')) or 'C'
 
             values = [solicitud, pedimento, factura, codigo, cantidad, evaluacion]
             for i, val in enumerate(values):
@@ -783,6 +851,7 @@ def generar_acta_desde_visita(folio_visita=None, ruta_salida=None):
         'observaciones': visita.get('observaciones', ''),
         'acta': visita.get('folio_acta', ''),
         'cp': str(cp) if cp is not None else '',
+        'folio_visita': visita.get('folio_visita', ''),
         'tabla_productos': productos
     }
 

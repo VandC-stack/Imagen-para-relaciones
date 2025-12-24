@@ -1,0 +1,61 @@
+{
+  "identificacion": {
+    "cadena_identificacion": "25049UDCNOM-020-SCFI-199763 Solicitud de Servicio: 25049USDNOM-020-SCFI-1997006916-63",
+    "year": "25",
+    "folio": "63",
+    "solicitud": "006916",
+    "lista": "63"
+  },
+  "norma": {
+    "codigo": "NOM-020-SCFI-1997",
+    "descripcion": "Información Comercial- Etiquetado de cueros y pieles curtidas naturales y materiales sintéticos o artificiales \ncon esa apariencia, calzado, marroquinería, así como los productos elaborados con dichos materiales",
+    "capitulo": "4 (Información comercial)"
+  },
+  "fechas": {
+    "verificacion": "14/11/2025",
+    "verificacion_larga": "14 de noviembre de 2025",
+    "emision": "03/11/2025"
+  },
+  "cliente": {
+    "nombre": "ARTICULOS DEPORTIVOS DECATHLON SA DE CV",
+    "rfc": "ADD150727S34"
+  },
+  "producto": {
+    "descripcion": "CALZADO",
+    "pedimento": "25 43 3647 5000500"
+  },
+  "tabla_productos": [
+    {
+      "marca": "DECATHLON",
+      "codigo": "5083870",
+      "factura": "MX25000268",
+      "cantidad": 48
+    },
+    {
+      "marca": "DECATHLON",
+      "codigo": "4479813",
+      "factura": "MX25000268",
+      "cantidad": 40
+    }
+  ],
+  "cantidad_total": {
+    "valor": 88,
+    "texto": "88 unidades"
+  },
+  "observaciones": "nan",
+  "firmas": {
+    "firma1": {
+      "nombre": "Gabriel Ramirez Castillo",
+      "valida": true,
+      "codigo_solicitado": "GRAMIREZ",
+      "razon_sin_firma": ""
+    },
+    "firma2": {
+      "nombre": "Arturo Flores Gomez"
+    }
+  },
+  "modo_insertado": "etiqueta",
+  "etiquetas": {
+    "cantidad": 2
+  }
+}

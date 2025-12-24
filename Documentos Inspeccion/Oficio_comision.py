@@ -341,13 +341,15 @@ class OficioPDFGenerator:
             # Resetear cursor para nueva página
             self.cursor_y = self.height - 100  # Empezar más arriba en la nueva página (reducido de 120)
         
-        # Ahora dibujar la tabla de firmas
+        # Ahora dibujar la tabla de firmas (mejor disposición de columnas)
         x_start = 25 * mm
-        
-        col_izq = 50 * mm
-        col_der = 50 * mm
 
-        y_text = self.cursor_y - 8 * mm  # Reducido de 10mm
+        # Calcular anchos: distribuir el área disponible en dos columnas iguales
+        total_available = self.width - (x_start * 2)
+        col_responsable = total_available / 2
+        col_inspectores = total_available / 2
+
+        y_text = self.cursor_y - 8 * mm
         c.setFont("Helvetica", 8)
 
         # -------------------------------------------------
@@ -369,27 +371,33 @@ class OficioPDFGenerator:
                 y -= 3 * mm  # Reducido de 4mm
             return y
 
-        # Encabezados
-        y_i = write_wrapped(
-            "Nombre y Firma del responsable de atender la visita",
-            x_start + 5 * mm, y_text, col_izq
-        )
+        # Encabezados: izquierda = Usuario de Almacén, derecha = Inspectores
+        c.setFont("Helvetica-Bold", 9)
+        header_alm_x = x_start + col_responsable / 2
+        header_ins_x = x_start + col_responsable + (col_inspectores / 2)
+        c.drawCentredString(header_alm_x, y_text, "Nombre y Firma del responsable de atender la visita")
+        c.drawCentredString(header_ins_x, y_text, "Nombre y Firma del Inspector")
 
-        y_d = write_wrapped(
-            "Nombre y Firma del Inspector",
-            x_start + col_izq + 15 * mm, y_text, col_der
-        )
+        # Dibujar separador suave entre columnas (acortado para no empalmar texto)
+        sep_x = x_start + col_responsable
+        sep_top = y_text + 6 * mm
+        sep_bottom = y_text - 22 * mm
+        c.setLineWidth(0.20)
+        c.setStrokeColorRGB(0.9, 0.9, 0.9)
+        c.line(sep_x, sep_top, sep_x, sep_bottom)
+        c.setStrokeColorRGB(0, 0, 0)
 
-        # Cursor después del encabezado (reducido)
-        current_y = min(y_i, y_d) - 12 * mm  # Reducido de 20mm
+        # Cursor después del encabezado
+        current_y = y_text - 8 * mm
 
         # -------------------------------------------------
         # Datos de firmas
         # -------------------------------------------------
         firma_w = 50 * mm
         firma_h = 18 * mm
-        inspector_x = x_start + col_izq + 15 * mm
-        firma_x = inspector_x + 60 * mm
+        # Centrar firmas dentro de su columna
+        firma_x_alm = x_start + (col_responsable - firma_w) / 2
+        firma_x_insp = x_start + col_responsable + (col_inspectores - firma_w) / 2
 
         # -------------------------------------------------
         # Obtener firma
@@ -410,51 +418,164 @@ class OficioPDFGenerator:
             return ruta if os.path.exists(ruta) else None
 
         # -------------------------------------------------
-        # DIBUJAR INSPECTORES (con espaciado reducido)
+        # DIBUJAR INSPECTORES (derecha) primero para calcular bloque
         # -------------------------------------------------
+
+        # -------------------------------------------------
+        # DIBUJAR INSPECTORES en dos subcolumnas para evitar amontonamiento
+        # -------------------------------------------------
+        # Calculamos filas posibles en el espacio disponible
+        bottom_margin = 20 * mm
+        available_height = current_y - bottom_margin
+        row_height = firma_h + 6 * mm
+        max_rows = max(1, int(available_height // row_height))
+
+        # Si no caben todas las firmas en dos columnas, hacemos nueva página
+        rows_needed = (len(inspectores) + 1) // 2
+        if rows_needed > max_rows:
+            self.page_num = getattr(self, "page_num", 1) + 1
+            c.showPage()
+            self.dibujar_fondo(c)
+            self.dibujar_paginacion(c)
+            # Resetear posiciones
+            self.cursor_y = self.height - 100
+            # Recompute bases
+            current_y = self.cursor_y - 8 * mm
+
+        # Posiciones de subcolumnas dentro del área de inspectores
+        insp_area_x = x_start + col_responsable
+        subcol_w = col_inspectores / 2
+        left_center = insp_area_x + subcol_w / 2
+        right_center = insp_area_x + subcol_w + subcol_w / 2
+
+        # Helper: dividir texto en líneas que caben en max_width
+        def wrap_lines(text, fontname, fontsize, max_width):
+            palabras = text.split()
+            lines = []
+            cur = ""
+            for palabra in palabras:
+                test = (cur + " " + palabra).strip() if cur else palabra
+                if c.stringWidth(test, fontname, fontsize) <= max_width:
+                    cur = test
+                else:
+                    if cur:
+                        lines.append(cur)
+                    cur = palabra
+            if cur:
+                lines.append(cur)
+            return lines
+
+        # Agrupar inspectores en pares (izq, der)
+        pairs = []
+        temp = []
         for insp in inspectores:
-            if not insp:
-                continue
+            temp.append(insp)
+            if len(temp) == 2:
+                pairs.append((temp[0], temp[1]))
+                temp = []
+        if temp:
+            pairs.append((temp[0], None))
 
-            # Nombre (con fuente ligeramente más grande para mejor legibilidad)
-            c.setFont("Helvetica", 10)  # Aumentado de 9 a 10
-            c.drawString(inspector_x, current_y, insp)
+        # Precalcular info por fila para medir el bloque total de inspectores
+        line_font = "Helvetica"
+        line_size = 10
+        line_height = line_size * 1.2  # en puntos
 
-            # Firma debajo del nombre (espacio reducido)
-            firma_y = current_y - 5 * mm - firma_h  # Reducido de 6mm a 5mm
+        rows_info = []
+        for (left, right) in pairs:
+            left_lines = wrap_lines(left if left else "", line_font, line_size, subcol_w - 6 * mm) if left else []
+            right_lines = wrap_lines(right if right else "", line_font, line_size, subcol_w - 6 * mm) if right else []
+            max_lines = max(len(left_lines), len(right_lines), 1)
+            text_height = max_lines * line_height
+            row_h = text_height + 5 * mm + firma_h + 4 * mm
+            rows_info.append({'left': left, 'right': right, 'left_lines': left_lines, 'right_lines': right_lines, 'row_h': row_h, 'text_height': text_height})
 
-            ruta = obtener_firma(insp)
-            if ruta:
-                try:
-                    img = ImageReader(ruta)
-                    c.drawImage(
-                        img,
-                        firma_x,
-                        firma_y,
-                        width=firma_w,
-                        height=firma_h,
-                        preserveAspectRatio=True,
-                        mask="auto"
-                    )
-                except Exception:
-                    # Dibujar línea si no hay imagen
+        # Altura total del bloque de inspectores
+        inspector_block_height = sum(r['row_h'] for r in rows_info) if rows_info else 0
+
+        # Establecer inicio del bloque de inspectores justo debajo del encabezado (más arriba)
+        inspectors_row_top = y_text - 6 * mm
+
+        # Dibujar cada fila de inspectores
+        y_cursor = inspectors_row_top
+        c.setFont(line_font, line_size)
+        for rinfo in rows_info:
+            left = rinfo['left']
+            right = rinfo['right']
+            # posición superior de la fila
+            y_top = y_cursor
+
+            # izquierda
+            if left:
+                lx = left_center
+                y_line = y_top
+                for ln in rinfo['left_lines']:
+                    c.drawCentredString(lx, y_line, ln)
+                    y_line -= line_height
+                firma_y = y_line - 5 * mm - firma_h + line_height
+                firma_x = lx - (firma_w / 2)
+                ruta = obtener_firma(left)
+                if ruta:
+                    try:
+                        img = ImageReader(ruta)
+                        c.drawImage(img, firma_x, firma_y, width=firma_w, height=firma_h, preserveAspectRatio=True, mask="auto")
+                    except Exception:
+                        c.line(firma_x, firma_y + 2 * mm, firma_x + firma_w, firma_y + 2 * mm)
+                else:
                     c.line(firma_x, firma_y + 2 * mm, firma_x + firma_w, firma_y + 2 * mm)
-            else:
-                # Dibujar línea si no hay imagen
-                c.line(firma_x, firma_y + 2 * mm, firma_x + firma_w, firma_y + 2 * mm)
 
-            # Espacio entre inspectores (reducido significativamente)
-            current_y -= 25 * mm  # Reducido de 35mm a 25mm
+            # derecha
+            if right:
+                rx = right_center
+                y_line = y_top
+                for ln in rinfo['right_lines']:
+                    c.drawCentredString(rx, y_line, ln)
+                    y_line -= line_height
+                firma_y = y_line - 5 * mm - firma_h + line_height
+                firma_x = rx - (firma_w / 2)
+                ruta = obtener_firma(right)
+                if ruta:
+                    try:
+                        img = ImageReader(ruta)
+                        c.drawImage(img, firma_x, firma_y, width=firma_w, height=firma_h, preserveAspectRatio=True, mask="auto")
+                    except Exception:
+                        c.line(firma_x, firma_y + 2 * mm, firma_x + firma_w, firma_y + 2 * mm)
+                else:
+                    c.line(firma_x, firma_y + 2 * mm, firma_x + firma_w, firma_y + 2 * mm)
 
-        # Actualizar cursor global
-        self.cursor_y = current_y
-        
-        # Añadir pie de página si estamos en la página de firmas
-        if getattr(self, 'page_num', 1) > 1:
-            # Añadir texto de prohibición en la página de firmas
-            c.setFont("Helvetica", 7)
-            texto_prohibicion = "SE PROHIBE LA REPRODUCCIÓN TOTAL O PARCIAL DE ESTE DOCUMENTO SIN PREVIA AUTORIZACIÓN POR ESCRITO DE LA GERENCIA TÉCNICA DE VERIFICACIÓN & CONTROLIVA, S.C."
-            c.drawCentredString(self.width / 2, 15 * mm, texto_prohibicion)  # Reducido de 20mm a 15mm   
+            # avanzar cursor para la siguiente fila
+            y_cursor -= rinfo['row_h']
+
+        # Ahora dibujar Usuario de Almacén centrado verticalmente respecto al bloque de inspectores
+        almacen_nombre = (self.datos.get('usuario_almacen') or
+                          self.datos.get('responsable_almacen') or
+                          self.datos.get('empresa_visitada') or '')
+
+        if inspector_block_height > 0:
+            almacen_center_y = inspectors_row_top - (inspector_block_height / 2) + 6 * mm
+        else:
+            almacen_center_y = inspectors_row_top - 12 * mm
+
+        # Nombre y firma en la columna izquierda (centrados)
+        c.setFont("Helvetica", 9)
+        c.drawCentredString(x_start + col_responsable / 2, almacen_center_y, almacen_nombre)
+        firma_almacen_y = almacen_center_y - 5 * mm - firma_h
+        ruta_alm = obtener_firma(almacen_nombre) if almacen_nombre else None
+        if ruta_alm:
+            try:
+                img = ImageReader(ruta_alm)
+                c.drawImage(img, firma_x_alm, firma_almacen_y, width=firma_w, height=firma_h, preserveAspectRatio=True, mask="auto")
+            except Exception:
+                c.line(firma_x_alm, firma_almacen_y + 2 * mm, firma_x_alm + firma_w, firma_almacen_y + 2 * mm)
+        else:
+            c.line(firma_x_alm, firma_almacen_y + 2 * mm, firma_x_alm + firma_w, firma_almacen_y + 2 * mm)
+
+        # Ajustar cursor global debajo del bloque de inspectores o almacén
+        if inspector_block_height > 0:
+            self.cursor_y = inspectors_row_top - inspector_block_height - 6 * mm
+        else:
+            # si no hay inspectores, ajustar según almacén
+            self.cursor_y = firma_almacen_y - 12 * mm
 
     def _dividir_texto(self, c, texto, max_width):
         """Divide texto en líneas según el ancho máximo"""

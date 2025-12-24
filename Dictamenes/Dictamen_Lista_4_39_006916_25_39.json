@@ -1,0 +1,61 @@
+{
+  "identificacion": {
+    "cadena_identificacion": "25049UDCNOM-004-SE-202139 Solicitud de Servicio: 25049USDNOM-004-SE-2021006916-39",
+    "year": "25",
+    "folio": "39",
+    "solicitud": "006916",
+    "lista": "39"
+  },
+  "norma": {
+    "codigo": "NOM-004-SE-2021",
+    "descripcion": "Información Comercial- etiquetado de productos textiles, prendas de vestir, sus accesorios y ropa de casa",
+    "capitulo": "4 (Especificaciones de información comercial) y 5 (Instrumentación de la información comercial)"
+  },
+  "fechas": {
+    "verificacion": "14/11/2025",
+    "verificacion_larga": "14 de noviembre de 2025",
+    "emision": "03/11/2025"
+  },
+  "cliente": {
+    "nombre": "ARTICULOS DEPORTIVOS DECATHLON SA DE CV",
+    "rfc": "ADD150727S34"
+  },
+  "producto": {
+    "descripcion": "TRAJE DE BAÑO",
+    "pedimento": "25 43 3647 5000500"
+  },
+  "tabla_productos": [
+    {
+      "marca": "DECATHLON",
+      "codigo": "5063922",
+      "factura": "MX25000268",
+      "cantidad": 3
+    },
+    {
+      "marca": "DECATHLON",
+      "codigo": "5063920",
+      "factura": "MX25000268",
+      "cantidad": 6
+    }
+  ],
+  "cantidad_total": {
+    "valor": 9,
+    "texto": "9 unidades"
+  },
+  "observaciones": "nan",
+  "firmas": {
+    "firma1": {
+      "nombre": "Gabriel Ramirez Castillo",
+      "valida": true,
+      "codigo_solicitado": "GRAMIREZ",
+      "razon_sin_firma": ""
+    },
+    "firma2": {
+      "nombre": "Arturo Flores Gomez"
+    }
+  },
+  "modo_insertado": "etiqueta",
+  "etiquetas": {
+    "cantidad": 2
+  }
+}

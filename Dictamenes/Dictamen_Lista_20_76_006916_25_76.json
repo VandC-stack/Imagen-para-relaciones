@@ -1,0 +1,121 @@
+{
+  "identificacion": {
+    "cadena_identificacion": "25049UDCNOM-020-SCFI-199776 Solicitud de Servicio: 25049USDNOM-020-SCFI-1997006916-76",
+    "year": "25",
+    "folio": "76",
+    "solicitud": "006916",
+    "lista": "76"
+  },
+  "norma": {
+    "codigo": "NOM-020-SCFI-1997",
+    "descripcion": "Información Comercial- Etiquetado de cueros y pieles curtidas naturales y materiales sintéticos o artificiales \ncon esa apariencia, calzado, marroquinería, así como los productos elaborados con dichos materiales",
+    "capitulo": "4 (Información comercial)"
+  },
+  "fechas": {
+    "verificacion": "14/11/2025",
+    "verificacion_larga": "14 de noviembre de 2025",
+    "emision": "03/11/2025"
+  },
+  "cliente": {
+    "nombre": "ARTICULOS DEPORTIVOS DECATHLON SA DE CV",
+    "rfc": "ADD150727S34"
+  },
+  "producto": {
+    "descripcion": "CALZADO",
+    "pedimento": "25 43 3647 5000500"
+  },
+  "tabla_productos": [
+    {
+      "marca": "DECATHLON",
+      "codigo": "5155484",
+      "factura": "MX25000268",
+      "cantidad": 324
+    },
+    {
+      "marca": "DECATHLON",
+      "codigo": "5155483",
+      "factura": "MX25000268",
+      "cantidad": 260
+    },
+    {
+      "marca": "DECATHLON",
+      "codigo": "5155482",
+      "factura": "MX25000268",
+      "cantidad": 112
+    },
+    {
+      "marca": "DECATHLON",
+      "codigo": "5155560",
+      "factura": "MX25000268",
+      "cantidad": 13
+    },
+    {
+      "marca": "DECATHLON",
+      "codigo": "5155555",
+      "factura": "MX25000268",
+      "cantidad": 48
+    },
+    {
+      "marca": "DECATHLON",
+      "codigo": "4773151",
+      "factura": "MX25000268",
+      "cantidad": 48
+    },
+    {
+      "marca": "DECATHLON",
+      "codigo": "5144557",
+      "factura": "MX25000268",
+      "cantidad": 1
+    },
+    {
+      "marca": "DECATHLON",
+      "codigo": "5187035",
+      "factura": "MX25000268",
+      "cantidad": 12
+    },
+    {
+      "marca": "DECATHLON",
+      "codigo": "5187033",
+      "factura": "MX25000268",
+      "cantidad": 12
+    },
+    {
+      "marca": "DECATHLON",
+      "codigo": "5187030",
+      "factura": "MX25000268",
+      "cantidad": 15
+    },
+    {
+      "marca": "DECATHLON",
+      "codigo": "4985601",
+      "factura": "MX25000268",
+      "cantidad": 16
+    },
+    {
+      "marca": "DECATHLON",
+      "codigo": "4985602",
+      "factura": "MX25000268",
+      "cantidad": 32
+    }
+  ],
+  "cantidad_total": {
+    "valor": 893,
+    "texto": "893 unidades"
+  },
+  "observaciones": "nan",
+  "firmas": {
+    "firma1": {
+      "nombre": "Gabriel Ramirez Castillo",
+      "valida": true,
+      "codigo_solicitado": "GRAMIREZ",
+      "razon_sin_firma": ""
+    },
+    "firma2": {
+      "nombre": "Arturo Flores Gomez"
+    }
+  },
+  "modo_insertado": "etiqueta",
+  "etiquetas": {
+    "cantidad": 12
+  }
+}
