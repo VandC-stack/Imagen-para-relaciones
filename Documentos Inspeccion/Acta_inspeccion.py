@@ -150,27 +150,35 @@ class ActaPDFGenerator:
         c.drawString(x_start, self.cursor_y, "Datos del lugar donde se realiza la Inspección de Información Comercial:")
         self.cursor_y -= 25
         
+        # Preparar display de colonia + C.P. si existe
+        colonia_val = self.datos.get('colonia', '') or ''
+        cp_val = str(self.datos.get('cp', '') or '')
+        if cp_val:
+            if colonia_val:
+                colonia_display = f"{colonia_val}  C.P.: {cp_val}"
+            else:
+                colonia_display = f"C.P.: {cp_val}"
+        else:
+            colonia_display = colonia_val
+
         # Títulos y valores en dos columnas
         campos = [
             ("Empresa Visitada:", self.datos.get('empresa_visitada', '')),
             ("Calle y No.:", self.datos.get('calle_numero', '')),
-            ("Colonia o Población:", self.datos.get('colonia', '')),
+            ("Colonia o Población:", colonia_display),
             ("Municipio o Alcaldía:", self.datos.get('municipio', '')),
             ("Ciudad o Estado:", self.datos.get('ciudad_estado', ''))
         ]
         
         for titulo, valor in campos:
-            # Título en negrita
-            c.setFont("Helvetica-Bold", 10)
+            # Título en negrita (pequeño)
+            c.setFont("Helvetica-Bold", 9)
             c.drawString(x_start, self.cursor_y, titulo)
-            
-            # Valor
-            c.setFont("Helvetica", 10)
-            # Truncar valor si es muy largo
-            if len(valor) > 60:
-                valor = valor[:57] + "..."
-            c.drawString(x_start + 60*mm, self.cursor_y, valor)
-            self.cursor_y -= 15
+
+            # Valor: usar tamaño de letra ligeramente más pequeño y mostrar exactamente
+            c.setFont("Helvetica", 9)
+            c.drawString(x_start + 50 * mm, self.cursor_y, str(valor))
+            self.cursor_y -= 12
         
         self.cursor_y -= 20  # Espacio después de la sección
     
@@ -213,8 +221,9 @@ class ActaPDFGenerator:
                 return self.height - 60
             return pos_y
 
-        firma_ancho = 55 * mm  # Aumentar ancho
-        firma_alto = 20  # Aumentar alto
+        # Aumentar tamaño de las firmas para mejor legibilidad
+        firma_ancho = 75 * mm
+        firma_alto = 30 * mm
 
         # Helper para dibujar nombre + firma (imagen o línea)
         def dibujar_nombre_y_firma(label, nombre, pos_y):
@@ -236,7 +245,7 @@ class ActaPDFGenerator:
             if firma_path and os.path.exists(firma_path):
                 try:
                     img = ImageReader(firma_path)
-                    c.drawImage(img, x + 90 * mm, pos_y - 10, width=firma_ancho, height=firma_alto, preserveAspectRatio=True, mask='auto')
+                    c.drawImage(img, x + 90 * mm, pos_y - (firma_alto / 2), width=firma_ancho, height=firma_alto, preserveAspectRatio=True, mask='auto')
                 except Exception as e:
                     print(f"⚠️ Error cargando firma {firma_path}: {e}")
                     c.line(x + 90 * mm, pos_y, x + 90 * mm + firma_ancho, pos_y)
@@ -244,7 +253,7 @@ class ActaPDFGenerator:
                 # línea de firma
                 c.line(x + 90 * mm, pos_y, x + 90 * mm + firma_ancho, pos_y)
 
-            return pos_y - 30  # Aumentar espaciamiento
+            return pos_y - 45  # Mayor espaciamiento para firmas más grandes
 
         # 1) Cliente / responsable
         cliente_nombre = self.datos.get('empresa_visitada') or self.datos.get('cliente') or ''
@@ -548,8 +557,9 @@ def preparar_datos_desde_visita(datos_visita, firmas_json_path="data/Firmas.json
     elif 'nfirma1' in datos_visita and datos_visita['nfirma1']:
         inspectores = [datos_visita['nfirma1']]
     
-    # Intentar completar dirección y datos desde Clientes.json
-    calle = datos_visita.get('direccion', '')
+    # Intentar completar dirección y datos desde la visita o Clientes.json
+    direccion_compuesta = datos_visita.get('direccion', '')
+    calle_numero = datos_visita.get('calle_numero', '')
     colonia = datos_visita.get('colonia', '')
     municipio = datos_visita.get('municipio', '')
     ciudad_estado = datos_visita.get('ciudad_estado', '')
@@ -566,24 +576,49 @@ def preparar_datos_desde_visita(datos_visita, firmas_json_path="data/Firmas.json
                     for c in clientes:
                         # comparar por nombre de cliente (case-insensitive)
                         if str(c.get('CLIENTE','')).strip().upper() == str(datos_visita.get('cliente','')).strip().upper():
-                            calle = c.get('CALLE Y NO') or c.get('CALLE','') or calle
-                            colonia = c.get('COLONIA O POBLACION') or c.get('COLONIA','') or colonia
-                            municipio = c.get('MUNICIPIO O ALCADIA') or c.get('MUNICIPIO','') or municipio
-                            ciudad_estado = c.get('CIUDAD O ESTADO') or c.get('CIUDAD/ESTADO') or ciudad_estado
-                            numero_contrato = c.get('NÚMERO_DE_CONTRATO','')
-                            rfc = c.get('RFC','')
-                            curp = c.get('CURP','') or curp
+                            if not calle_numero:
+                                calle_numero = c.get('CALLE Y NO') or c.get('CALLE','') or calle_numero
+                            colonia = colonia or c.get('COLONIA O POBLACION') or c.get('COLONIA','') or colonia
+                            municipio = municipio or c.get('MUNICIPIO O ALCADIA') or c.get('MUNICIPIO','') or municipio
+                            ciudad_estado = ciudad_estado or c.get('CIUDAD O ESTADO') or c.get('CIUDAD/ESTADO') or ciudad_estado
+                            numero_contrato = numero_contrato or c.get('NÚMERO_DE_CONTRATO','')
+                            rfc = rfc or c.get('RFC','')
+                            curp = curp or c.get('CURP','')
                             break
     except Exception:
         pass
+
+    # Si no tenemos `calle_numero` pero sí `direccion_compuesta`, intentar separar
+    if not calle_numero and direccion_compuesta:
+        parts = [p.strip() for p in direccion_compuesta.split(',') if p.strip()]
+        if parts:
+            calle_numero = parts[0]
+            if not colonia and len(parts) > 1:
+                colonia = parts[1]
+            if not municipio and len(parts) > 2:
+                municipio = parts[2]
+            if not ciudad_estado and len(parts) > 3:
+                ciudad_estado = parts[3]
+
+    # CP: preferir valor en visita, si no, intentar extraer del final de la direccion compuesta
+    cp = datos_visita.get('cp') or datos_visita.get('CP') or datos_visita.get('codigo_postal','')
+    if not cp and direccion_compuesta:
+        last = direccion_compuesta.split(',')[-1].strip()
+        s = ''.join(ch for ch in last if ch.isdigit())
+        if s:
+            cp = s
+
+    colonia_mostrada = colonia
+    if cp:
+        colonia_mostrada = f"{colonia_mostrada} {cp}" if colonia_mostrada else cp
 
     # Preparar datos para el PDF
     datos_acta = {
         'fecha_inspeccion': datos_visita.get('fecha_termino', datetime.now().strftime('%d/%m/%Y')),
         'normas': datos_visita.get('norma', '').split(', ') if datos_visita.get('norma') else [],
         'empresa_visitada': datos_visita.get('cliente', ''),
-        'calle_numero': calle,
-        'colonia': colonia,
+        'calle_numero': calle_numero,
+        'colonia': colonia_mostrada,
         'municipio': municipio,
         'ciudad_estado': ciudad_estado,
         'fecha_confirmacion': datos_visita.get('fecha_inicio', datetime.now().strftime('%d/%m/%Y')),
@@ -593,7 +628,8 @@ def preparar_datos_desde_visita(datos_visita, firmas_json_path="data/Firmas.json
         'observaciones': datos_visita.get('observaciones', 'Sin observaciones'),
         'NUMERO_DE_CONTRATO': numero_contrato,
         'RFC': rfc,
-        'CURP': curp
+        'CURP': curp,
+        'cp': str(cp) if cp is not None else ''
         
     }
     
@@ -717,6 +753,18 @@ def generar_acta_desde_visita(folio_visita=None, ruta_salida=None):
         except Exception:
             fecha_formateada = fecha_verificacion
 
+    # CP: preferir valor en visita, si no, intentar extraer del final de la direccion
+    cp = visita.get('cp') or visita.get('CP') or visita.get('codigo_postal','')
+    if not cp and visita.get('direccion'):
+        last = visita.get('direccion','').split(',')[-1].strip()
+        s = ''.join(ch for ch in last if ch.isdigit())
+        if s:
+            cp = s
+
+    colonia_mostrada = visita.get('colonia','')
+    if cp:
+        colonia_mostrada = f"{colonia_mostrada} {cp}" if colonia_mostrada else str(cp)
+
     datos_acta = {
         # Fecha de inicio/termino extraída de tabla_de_relacion (FECHA DE VERIFICACION)
         'fecha_inicio': fecha_formateada or visita.get('fecha_inicio', datetime.now().strftime('%d/%m/%Y')),
@@ -725,15 +773,16 @@ def generar_acta_desde_visita(folio_visita=None, ruta_salida=None):
         'hora_termino': '18:00',
         'normas': normas_list,
         'empresa_visitada': visita.get('cliente', ''),
-        'calle_numero': visita.get('direccion', ''),
-        'colonia': visita.get('colonia', ''),
+        # Preferir campo `calle_numero` si existe, sino tratar de dividir `direccion`
+        'calle_numero': visita.get('calle_numero') or (visita.get('direccion','').split(',')[0].strip() if visita.get('direccion') else ''),
+        'colonia': colonia_mostrada,
         'municipio': visita.get('municipio', ''),
         'ciudad_estado': visita.get('ciudad_estado', ''),
         'inspectores': [s.strip() for s in (visita.get('supervisores_tabla') or visita.get('nfirma1') or '').split(',') if s.strip()],
         'NOMBRE_DE_INSPECTOR': (visita.get('supervisores_tabla') or visita.get('nfirma1') or '').strip(),
         'observaciones': visita.get('observaciones', ''),
         'acta': visita.get('folio_acta', ''),
-        'cp': visita.get('folio_visita', ''),
+        'cp': str(cp) if cp is not None else '',
         'tabla_productos': productos
     }
 
@@ -759,11 +808,12 @@ if __name__ == "__main__":
             "NOM-142-SSA1/SCFI-2014",
             "NOM-004-SE-2021"
             ],
-        'empresa_visitada': 'ARTICULOS DEPORTIVOS S.A. DE C.V.',
-        'calle_numero': 'AVENIDA PRINCIPAL 123',
-        'colonia': 'CENTRO',
-        'municipio': 'BENITO JUAREZ',
-        'ciudad_estado': 'CIUDAD DE MEXICO, CDMX',
+        'empresa_visitada': 'ARTICULOS DEPORTIVOS DECATHLON SA DE CV',
+        'calle_numero': 'Parque industrial advance II',
+        'colonia': 'Capula, 09876',
+        'municipio': 'Tepotzotlán',
+        'ciudad_estado': 'Estado de México',
+        'cp': '09876',
         'firma_inspector': 'Firmas/AFLORES.png',
         'NOMBRE_DE_INSPECTOR': 'Arturo Flores Gómez',
 
@@ -776,5 +826,22 @@ if __name__ == "__main__":
     
     # Generar PDF
     generar_acta_pdf(datos, "Plantillas PDF/Acta_inspeccion.pdf")
+
+
+"""
+Ejemplo de cómo debe aparecer la información en los formatos (no modificar nada más):
+
+CALLE Y NO: Parque industrial advance II,
+COLONIA O POBLACION: Capula, 54603
+MUNICIPIO O ALCADIA: Tepotzotlán,
+CIUDAD O ESTADO: Estado de México,
+
+Estos datos se guardan en `data/historial_visitas.json` como:
+"calle_numero": "Parque industrial advance II",
+"colonia": "Capula",
+"municipio": "Tepotzotlán",
+"ciudad_estado": "Estado de México",
+"cp": "54603",
+"""
 
 

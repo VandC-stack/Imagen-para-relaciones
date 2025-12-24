@@ -8,6 +8,7 @@ from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, PageBreak, Image as RLImage
 from reportlab.lib import colors
 import os
+from reportlab.pdfgen.canvas import Canvas
 
 # Tamaño carta en puntos
 LETTER_WIDTH = 8.5 * inch
@@ -86,6 +87,44 @@ class PDFGenerator:
     #Cuenta las hojas de forma automatica. 
     def _count_pages(self, canvas, doc):
         self.total_pages = canvas.getPageNumber()
+
+
+class NumberedCanvas(Canvas):
+    """Canvas que guarda los estados de página y permite escribir "Página X de Y" correctamente."""
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._saved_page_states = []
+
+    def showPage(self):
+        self._saved_page_states.append(dict(self.__dict__))
+        self._startPage()
+
+    def save(self):
+        # total pages
+        num_pages = len(self._saved_page_states)
+        for state in self._saved_page_states:
+            self.__dict__.update(state)
+            # draw the page number (the header/footer already drawn by callbacks)
+            try:
+                page = self.getPageNumber()
+            except Exception:
+                page = 0
+            # place page number at same position used previously
+            try:
+                self.setFont("Helvetica", 9)
+                self.drawRightString(LETTER_WIDTH - 72, LETTER_HEIGHT - 50, f"Página {page} de {num_pages}")
+            except Exception:
+                pass
+            super().showPage()
+        # If no saved states (single page), still draw
+        if not self._saved_page_states:
+            try:
+                page = self.getPageNumber()
+                self.setFont("Helvetica", 9)
+                self.drawRightString(LETTER_WIDTH - 72, LETTER_HEIGHT - 50, f"Página {page} de {page}")
+            except Exception:
+                pass
+        super().save()
 
     def agregar_primera_pagina(self):
         """Agrega el contenido de la primera página"""
@@ -232,13 +271,9 @@ class PDFGenerator:
         codigo_text = "${cadena_identificacion}"
         canvas.drawCentredString(LETTER_WIDTH/2, LETTER_HEIGHT-80, codigo_text)
         
-        # Numeración
-        pagina_actual = canvas.getPageNumber()
-        numeracion_total = self.doc.page  # total real generado
-        numeracion = f"Página {pagina_actual} de {numeracion_total}"
-
-        canvas.setFont("Helvetica", 9)
-        canvas.drawRightString(LETTER_WIDTH-72, LETTER_HEIGHT-50, numeracion)
+        # Numeración: el dibujo exacto "Página X de Y" lo realiza NumberedCanvas
+        # aquí dejamos solo la numeración por página actual (si se desea), pero
+        # para evitar duplicados se omite y NumberedCanvas hará el render final.
         
         # Pie de página
         footer_text = "Este Dictamen de Cumplimiento se emitió por medios electrónicos, conforme al oficio de autorización DGN.312.05.2012.106 de fecha 10 de enero de 2012 expedido por la DGN a esta Unidad de Inspección."

@@ -37,7 +37,7 @@ FONT_SMALL = ("Inter", 12)
 class SistemaDictamenesVC(ctk.CTk):
     # --- PAGINACIÓN HISTORIAL ---
     HISTORIAL_PAGINA_ACTUAL = 1
-    HISTORIAL_REGS_POR_PAGINA = 50
+    HISTORIAL_REGS_POR_PAGINA = 1000
 
     def __init__(self):
         super().__init__()
@@ -56,6 +56,7 @@ class SistemaDictamenesVC(ctk.CTk):
         self.generando_dictamenes = False
         self.clientes_data = []
         self.cliente_seleccionado = None
+        self.domicilio_seleccionado = None
         self.archivo_etiquetado_json = None
 
         # Variables para nueva visita
@@ -284,6 +285,23 @@ class SistemaDictamenesVC(ctk.CTk):
             border_color=STYLE["secundario"]
         )
         self.btn_historial.pack(side="left", padx=(0, 10))
+
+        # Botón Reportes
+        self.btn_reportes = ctk.CTkButton(
+            botones_frame,
+            text="📑 Reportes",
+            command=self.mostrar_reportes,
+            font=("Inter", 14, "bold"),
+            fg_color=STYLE["surface"],
+            hover_color=STYLE["primario"],
+            text_color=STYLE["secundario"],
+            height=38,
+            width=130,
+            corner_radius=10,
+            border_width=2,
+            border_color=STYLE["secundario"]
+        )
+        self.btn_reportes.pack(side="left", padx=(0, 10))
         
         # Espacio flexible
         ctk.CTkLabel(botones_frame, text="", fg_color="transparent").pack(side="left", expand=True)
@@ -295,6 +313,18 @@ class SistemaDictamenesVC(ctk.CTk):
             font=("Inter", 12),
             text_color=STYLE["texto_claro"]
         )
+        # Botón Backup en la barra de navegación (no mostrar por defecto)
+        try:
+            self.btn_backup = ctk.CTkButton(
+                botones_frame,
+                text="💾 Backup",
+                command=self.hist_hacer_backup,
+                height=34, width=110, corner_radius=8,
+                fg_color=STYLE["primario"], text_color=STYLE["secundario"], hover_color="#D4BF22"
+            )
+        except Exception:
+            self.btn_backup = None
+
         self.lbl_info_sistema.pack(side="right")
 
     def crear_area_contenido(self):
@@ -308,10 +338,14 @@ class SistemaDictamenesVC(ctk.CTk):
         
         # Frame para el historial
         self.frame_historial = ctk.CTkFrame(self.contenido_frame, fg_color="transparent")
+
+        # Frame para reportes
+        self.frame_reportes = ctk.CTkFrame(self.contenido_frame, fg_color="transparent")
         
         # Construir el contenido de cada sección
         self._construir_tab_principal(self.frame_principal)
         self._construir_tab_historial(self.frame_historial)
+        self._construir_tab_reportes(self.frame_reportes)
         
         # Mostrar la sección principal por defecto
         self.mostrar_principal()
@@ -321,6 +355,11 @@ class SistemaDictamenesVC(ctk.CTk):
         # Ocultar todos los frames primero
         self.frame_principal.pack_forget()
         self.frame_historial.pack_forget()
+        # Asegurarse de ocultar la pestaña Reportes también
+        try:
+            self.frame_reportes.pack_forget()
+        except Exception:
+            pass
         
         # Mostrar el frame principal
         self.frame_principal.pack(fill="both", expand=True)
@@ -336,12 +375,27 @@ class SistemaDictamenesVC(ctk.CTk):
             text_color=STYLE["secundario"],
             border_color=STYLE["secundario"]
         )
+        try:
+            self.btn_reportes.configure(fg_color=STYLE["surface"], text_color=STYLE["secundario"], border_color=STYLE["secundario"])
+        except Exception:
+            pass
+        # Ocultar backup nav cuando no estemos en Historial
+        try:
+            if getattr(self, 'btn_backup', None):
+                self.btn_backup.pack_forget()
+        except Exception:
+            pass
 
     def mostrar_historial(self):
             """Muestra la sección de historial y oculta las demás"""
             # Ocultar todos los frames primero
             self.frame_principal.pack_forget()
             self.frame_historial.pack_forget()
+            # Asegurarse de ocultar la pestaña Reportes también
+            try:
+                self.frame_reportes.pack_forget()
+            except Exception:
+                pass
             
             # Mostrar el frame de historial
             self.frame_historial.pack(fill="both", expand=True)
@@ -357,6 +411,10 @@ class SistemaDictamenesVC(ctk.CTk):
                 text_color=STYLE["secundario"],
                 border_color=STYLE["primario"]
             )
+            try:
+                self.btn_reportes.configure(fg_color=STYLE["surface"], text_color=STYLE["secundario"], border_color=STYLE["secundario"])
+            except Exception:
+                pass
             
             # Verificar y reparar datos existentes al mostrar historial
             self.verificar_datos_folios_existentes()
@@ -364,6 +422,34 @@ class SistemaDictamenesVC(ctk.CTk):
             # Refrescar el historial si es necesario
             self._cargar_historial()
             self._poblar_historial_ui()
+
+            # Mostrar backup nav cuando estemos en Historial
+            try:
+                if getattr(self, 'btn_backup', None):
+                    self.btn_backup.pack(side="right", padx=(0, 10))
+            except Exception:
+                pass
+
+    def mostrar_reportes(self):
+        """Muestra la sección de reportes y oculta las demás"""
+        # Ocultar todos los frames primero
+        self.frame_principal.pack_forget()
+        self.frame_historial.pack_forget()
+        self.frame_reportes.pack(fill="both", expand=True)
+        # Asegurarse de ocultar backup nav en la pestaña Reportes
+        try:
+            if getattr(self, 'btn_backup', None):
+                self.btn_backup.pack_forget()
+        except Exception:
+            pass
+
+        # Actualizar estado de los botones
+        try:
+            self.btn_principal.configure(fg_color=STYLE["surface"], text_color=STYLE["secundario"], border_color=STYLE["secundario"])
+            self.btn_historial.configure(fg_color=STYLE["surface"], text_color=STYLE["secundario"], border_color=STYLE["secundario"])
+            self.btn_reportes.configure(fg_color=STYLE["primario"], text_color=STYLE["secundario"], border_color=STYLE["primario"])
+        except Exception:
+            pass
 
     def _construir_tab_principal(self, parent):
         """Construye la interfaz principal con dos tarjetas en proporción 30%/70%"""
@@ -374,11 +460,17 @@ class SistemaDictamenesVC(ctk.CTk):
         # Configurar grid para 2 columnas con proporción 30%/70%
         main_frame.grid_columnconfigure(0, weight=3)  # 30%
         main_frame.grid_columnconfigure(1, weight=7)  # 70%
-        main_frame.grid_rowconfigure(0, weight=1)
+        # Mantener ambas tarjetas (izquierda/derecha) del mismo tamaño incluso
+        # cuando se muestran/ocultan widgets según el tipo de documento.
+        main_frame.grid_rowconfigure(0, weight=1, minsize=480)
 
         # ===== TARJETA INFORMACIÓN DE VISITA (IZQUIERDA) - 30% =====
         card_visita = ctk.CTkFrame(main_frame, fg_color=STYLE["surface"], corner_radius=12)
         card_visita.grid(row=0, column=0, padx=(0, 10), pady=0, sticky="nsew")
+        try:
+            card_visita.grid_propagate(False)
+        except Exception:
+            pass
 
         ctk.CTkLabel(
             card_visita,
@@ -559,6 +651,10 @@ class SistemaDictamenesVC(ctk.CTk):
         # ===== TARJETA GENERADOR (DERECHA) - 70% =====
         card_generacion = ctk.CTkFrame(main_frame, fg_color=STYLE["surface"], corner_radius=12)
         card_generacion.grid(row=0, column=1, padx=(10, 0), pady=0, sticky="nsew")
+        try:
+            card_generacion.grid_propagate(False)
+        except Exception:
+            pass
 
         self.generacion_title = ctk.CTkLabel(
             card_generacion,
@@ -605,6 +701,27 @@ class SistemaDictamenesVC(ctk.CTk):
             command=self.actualizar_cliente_seleccionado
         )
         self.combo_cliente.pack(side="left", fill="x", expand=True, padx=(0, 10))
+        # Encabezado para selector de domicilio
+        ctk.CTkLabel(
+            cliente_controls_frame,
+            text="Domicilio:",
+            font=FONT_SMALL,
+            text_color=STYLE["texto_oscuro"]
+        ).pack(side="left", padx=(8,4))
+
+        # --- DOMICILIOS DEL CLIENTE (se rellena al seleccionar cliente) ---
+        self.combo_domicilios = ctk.CTkComboBox(
+            cliente_controls_frame,
+            values=["Seleccione un domicilio..."],
+            font=FONT_SMALL,
+            dropdown_font=FONT_SMALL,
+            state="disabled",
+            height=35,
+            corner_radius=8,
+            command=self._seleccionar_domicilio
+        )
+        # lo colocamos a la derecha del combo de cliente pero no expandimos
+        self.combo_domicilios.pack(side="left", padx=(8, 0))
 
         self.boton_limpiar_cliente = ctk.CTkButton(
             cliente_controls_frame,
@@ -819,7 +936,7 @@ class SistemaDictamenesVC(ctk.CTk):
 
         ctk.CTkLabel(
             generar_section,
-            text="🧾 Generar Dictámenes PDF",
+            text="🧾 Generar Documentos PDF",
             font=FONT_LABEL,
             text_color=STYLE["texto_oscuro"]
         ).pack(anchor="w", pady=(0, 10))
@@ -1077,66 +1194,62 @@ class SistemaDictamenesVC(ctk.CTk):
         self.hist_tree.bind("<Button-1>", self._hist_on_left_click)
 
         # ===========================================================
-        # PIE DE PÁGINA (COMO EN LA IMAGEN)
+        # PIE DE PÁGINA (COMO EN LA IMAGEN) - Layout mejorado
         # ===========================================================
-        footer = ctk.CTkFrame(cont, fg_color="transparent", height=40)
+        footer = ctk.CTkFrame(cont, fg_color="transparent", height=60)
         footer.pack(fill="x", pady=(10, 0))
         footer.pack_propagate(False)
 
-        # Texto como en la imagen
-        self.hist_info_label = ctk.CTkLabel(
-            footer, text="Sistema V&C - Generador de Dictámenes de Comprimiento",
-            font=("Inter", 9), text_color=STYLE["texto_claro"]
-        )
-        self.hist_info_label.pack(side="left", padx=12)
+        footer_content = ctk.CTkFrame(footer, fg_color="transparent")
+        footer_content.pack(expand=True, fill="both", padx=12, pady=10)
 
-        # --- Botones de paginación ---
+        # --- Estructura de paginación: columnas izquierda/central/derecha ---
+        # Creamos subframes con ancho fijo a izquierda/derecha para asegurar
+        # que los botones queden pegados a los bordes, y el centro expande.
+        pag_left = ctk.CTkFrame(footer_content, fg_color="transparent")
+        pag_center = ctk.CTkFrame(footer_content, fg_color="transparent")
+        pag_right = ctk.CTkFrame(footer_content, fg_color="transparent")
+
+        # Fijar anchos laterales para que actúen como 'zonas' pegadas a bordes
+        pag_left.configure(width=130)
+        pag_right.configure(width=130)
+        pag_left.pack_propagate(False)
+        pag_right.pack_propagate(False)
+
+        pag_left.pack(side='left', fill='y')
+        pag_center.pack(side='left', expand=True, fill='both')
+        pag_right.pack(side='right', fill='y')
+
+        # Botón Anterior pegado al borde izquierdo dentro del subframe izquierdo
         self.btn_hist_prev = ctk.CTkButton(
-            footer, text="⏪ Anterior",
+            pag_left, text="⏪ Anterior",
             command=self.hist_pagina_anterior,
-            height=28, width=90, corner_radius=6,
+            height=28, width=100, corner_radius=6,
             fg_color=STYLE["secundario"], text_color=STYLE["surface"],
             hover_color="#1a1a1a"
         )
-        self.btn_hist_prev.pack(side="right", padx=6)
+        self.btn_hist_prev.pack(side='left', anchor='w', padx=(6,0))
 
+        # Contador centrado en el área central: asegurar centrado absoluto
+        # Quitamos widgets laterales que desalineen la etiqueta y la centramos
         self.hist_pagina_label = ctk.CTkLabel(
-            footer, text="Página 1",
+            pag_center, text="Página 1",
             font=("Inter", 10), text_color=STYLE["texto_oscuro"]
         )
-        self.hist_pagina_label.pack(side="right", padx=6)
+        # pack con expand=True y sin side para centrar horizontalmente
+        self.hist_pagina_label.pack(expand=True)
 
+        # Botón Siguiente pegado al borde derecho dentro del subframe derecho
         self.btn_hist_next = ctk.CTkButton(
-            footer, text="Siguiente ⏩",
+            pag_right, text="Siguiente ⏩",
             command=self.hist_pagina_siguiente,
-            height=28, width=90, corner_radius=6,
+            height=28, width=100, corner_radius=6,
             fg_color=STYLE["secundario"], text_color=STYLE["surface"],
             hover_color="#1a1a1a"
         )
-        self.btn_hist_next.pack(side="right", padx=6)
+        self.btn_hist_next.pack(side='right', anchor='e', padx=(0,6))
 
-        ctk.CTkButton(
-            footer, text="💾 Backup",
-            command=self.hist_hacer_backup,
-            height=28, width=90, corner_radius=6,
-            fg_color=STYLE["primario"], text_color=STYLE["secundario"],
-            hover_color="#D4BF22"
-        ).pack(side="right", padx=(0, 15))
-
-        # Botones globales para exportar Excel (EMA / Control Anual)
-        ctk.CTkButton(
-            footer, text="📈 Anual",
-            command=self.descargar_excel_anual,  # método existente (acepta registro opcional)
-            height=28, width=90, corner_radius=6,
-            fg_color=("#1976D2", "#0D47A1"), text_color=STYLE["secundario"]
-        ).pack(side="right", padx=6)
-
-        ctk.CTkButton(
-            footer, text="📊 EMA",
-            command=self.descargar_excel_ema,
-            height=28, width=90, corner_radius=6,
-            fg_color=("#2E7D32", "#1B5E20"), text_color=STYLE["secundario"]
-        ).pack(side="right", padx=6)
+        # Note: los botones de EMA/Anual y Backup se muestran en la pestaña "Reportes".
 
         # Cargar data
         self._cargar_historial()
@@ -1147,6 +1260,43 @@ class SistemaDictamenesVC(ctk.CTk):
                 self._refresh_pending_folios_dropdown()
         except Exception:
             pass
+
+
+    def _construir_tab_reportes(self, parent):
+        """Construye la pestaña 'Reportes' con botones EMA y Anual y Backup en la esquina superior derecha."""
+        cont = ctk.CTkFrame(parent, fg_color=STYLE["surface"], corner_radius=8)
+        cont.pack(fill="both", expand=True, padx=10, pady=10)
+
+        # Barra superior: título y backup a la derecha
+        barra = ctk.CTkFrame(cont, fg_color="transparent", height=50)
+        barra.pack(fill="x", pady=(0, 10))
+        barra.pack_propagate(False)
+
+        ctk.CTkLabel(barra, text="📑 Reportes", font=FONT_SUBTITLE, text_color=STYLE["texto_oscuro"]).pack(side="left", padx=12)
+
+        # Nota: el botón de Backup se gestiona desde la barra de navegación
+        # (evitar duplicarlo aquí para que solo exista una instancia).
+
+        # Contenido central con dos botones grandes: Anual y EMA
+        contenido = ctk.CTkFrame(cont, fg_color="transparent")
+        contenido.pack(fill="both", expand=True, pady=(10,0))
+
+        btn_frame = ctk.CTkFrame(contenido, fg_color="transparent")
+        btn_frame.pack(expand=True)
+
+        ctk.CTkButton(
+            btn_frame, text="📈 Generar Anual",
+            command=self.descargar_excel_anual,
+            height=60, width=220, corner_radius=10,
+            fg_color=("#1976D2", "#0D47A1"), text_color=STYLE["secundario"], font=("Inter", 14, "bold")
+        ).pack(side="left", padx=20, pady=40)
+
+        ctk.CTkButton(
+            btn_frame, text="📊 Generar EMA",
+            command=self.descargar_excel_ema,
+            height=60, width=220, corner_radius=10,
+            fg_color=("#2E7D32", "#1B5E20"), text_color=STYLE["secundario"], font=("Inter", 14, "bold")
+        ).pack(side="left", padx=20, pady=40)
 
     def _formatear_hora_12h(self, hora_str):
         """Convierte hora de formato 24h a formato 12h con AM/PM de forma consistente"""
@@ -1216,22 +1366,76 @@ class SistemaDictamenesVC(ctk.CTk):
     # MÉTODOS PARA GESTIÓN DE CLIENTES
     # -----------------------------------------------------------
     def cargar_clientes_desde_json(self):
-        try:
-            posibles_rutas = [
-                'data/Clientes.json',
-                'Clientes.json',
-                '../data/Clientes.json'
-            ]
-            
-            archivo_encontrado = None
-            for ruta in posibles_rutas:
+        """Carga `data/Clientes.json` y rellena el combo de clientes.
+
+        Esta implementación es tolerante a variaciones en la clave del nombre
+        (`CLIENTE` o `RAZÓN SOCIAL `) y no modifica el archivo en disco. Los
+        datos leídos se guardan en `self.clientes_data` (lista original de dicts)
+        y el combobox `self.combo_cliente` se rellena con los nombres detectados.
+        """
+        posibles_rutas = [
+            os.path.join(os.path.dirname(__file__), 'data', 'Clientes.json'),
+            os.path.join(os.path.dirname(__file__), 'Clientes.json'),
+            'data/Clientes.json',
+            'Clientes.json',
+            '../data/Clientes.json'
+        ]
+
+        archivo_encontrado = None
+        for ruta in posibles_rutas:
+            try:
                 if os.path.exists(ruta):
                     archivo_encontrado = ruta
                     break
-            
-            if not archivo_encontrado:
-                print("⚠️  No se encontró el archivo Clientes.json")
-                # archivo no encontrado; seguir con flujo normal
+            except Exception:
+                continue
+
+        if not archivo_encontrado:
+            # No hay archivo; dejar combo con valor por defecto
+            try:
+                self.combo_cliente.configure(values=['Seleccione un cliente...'])
+                self.combo_cliente.set('Seleccione un cliente...')
+            except Exception:
+                pass
+            self.clientes_data = []
+            return
+
+        try:
+            with open(archivo_encontrado, 'r', encoding='utf-8') as f:
+                datos = json.load(f)
+        except Exception:
+            datos = []
+
+        # Guardar lista original en memoria
+        self.clientes_data = datos if isinstance(datos, list) else []
+
+        # Construir lista de nombres para mostrar en el combobox
+        nombres = []
+        for cliente in self.clientes_data:
+            # Priorizar claves: 'CLIENTE' > 'RAZÓN SOCIAL ' > 'RAZON SOCIAL' > RFC/CONTRATO
+            nombre = None
+            if isinstance(cliente, dict):
+                nombre = cliente.get('CLIENTE') or cliente.get('RAZÓN SOCIAL ') or cliente.get('RAZON SOCIAL') or cliente.get('RAZON_SOCIAL')
+                if not nombre:
+                    # Fallbacks
+                    nombre = cliente.get('RFC') or cliente.get('NÚMERO_DE_CONTRATO') or cliente.get('NOMBRE')
+            if nombre and isinstance(nombre, str) and nombre.strip() != '':
+                nombres.append(nombre.strip())
+
+        # Remover duplicados manteniendo orden
+        seen = set()
+        nombres_unicos = []
+        for n in nombres:
+            if n not in seen:
+                seen.add(n)
+                nombres_unicos.append(n)
+
+        # Preparar valores para el combo
+        valores = ['Seleccione un cliente...'] + sorted(nombres_unicos, key=lambda s: s.lower())
+
+        try:
+            self.combo_cliente.configure(values=valores)
+            self.combo_cliente.set('Seleccione un cliente...')
         except Exception:
             pass
 
@@ -1302,57 +1506,185 @@ class SistemaDictamenesVC(ctk.CTk):
             "ULTA BEAUTY SAPI DE CV",  # Regla especial
         }
 
-        # Buscar cliente
+        # Buscar cliente en la lista; aceptar varias claves de nombre
+        encontrado = None
         for cliente in self.clientes_data:
-            if cliente["CLIENTE"] == cliente_nombre:
-
-                self.cliente_seleccionado = cliente
-                rfc = cliente.get("RFC", "No disponible")
-
-                self.info_cliente.configure(
-                    text=f"✅ {cliente_nombre}\n📋 RFC: {rfc}",
-                    text_color=STYLE["exito"]
-                )
-                self.boton_limpiar_cliente.configure(state="normal")
-
-                # ─────────────────────────────────────────────
-                # CASO 1: SOLO EVIDENCIA
-                # ─────────────────────────────────────────────
-                if cliente_nombre in CLIENTES_EVIDENCIA:
-                    self.tipo_operacion = "EVIDENCIA"
-                    self.safe_forget(self.boton_subir_etiquetado)
-                    self.safe_forget(self.info_etiquetado)
-                    # Mostrar botón para configurar carpeta de evidencias
-                    try:
-                        self.safe_pack(self.boton_configurar_evidencias, anchor="w", pady=(8, 0))
-                    except Exception:
-                        pass
-                    break
-
-                # ─────────────────────────────────────────────
-                # CASO 2: PEGADO DE ETIQUETAS
-                # ─────────────────────────────────────────────
-                if cliente_nombre in CLIENTES_ETIQUETA:
-                    self.tipo_operacion = "ETIQUETA"
-
-                    # ULTA BEAUTY — flujo mixto dependiendo de la NOM
-                    if cliente_nombre == "ULTA BEAUTY SAPI DE CV":
-                        self.tipo_operacion = "ULTA"
-
-                    # Mostrar botón de carga de etiquetado
-                    self.safe_pack(self.boton_subir_etiquetado, side="left", padx=(0, 8))
-
-                    if self.archivo_etiquetado_json:
-                        self.safe_pack(self.info_etiquetado, anchor="w", fill="x", pady=(5, 0))
-
-                    # Asegurarse de ocultar el botón de evidencias en flujos de etiquetas
-                    try:
-                        self.safe_forget(self.boton_configurar_evidencias)
-                    except Exception:
-                        pass
-                    break
-
+            if not isinstance(cliente, dict):
+                continue
+            nombre_cliente = cliente.get('CLIENTE') or cliente.get('RAZÓN SOCIAL ') or cliente.get('RAZON SOCIAL') or cliente.get('RAZON_SOCIAL') or cliente.get('NOMBRE')
+            if nombre_cliente and isinstance(nombre_cliente, str) and nombre_cliente.strip() == cliente_nombre:
+                encontrado = cliente
                 break
+
+        if encontrado is None:
+            # No se encontró por claves comunes; intentar por RFC o contrato si el nombre coincide
+            for cliente in self.clientes_data:
+                if not isinstance(cliente, dict):
+                    continue
+                # construir un nombre de fallback mostrado en el combo (tal como se poblaron los valores)
+                fallback = cliente.get('CLIENTE') or cliente.get('RAZÓN SOCIAL ') or cliente.get('RAZON SOCIAL') or cliente.get('RAZON_SOCIAL') or cliente.get('RFC') or cliente.get('NÚMERO_DE_CONTRATO')
+                if fallback and isinstance(fallback, str) and fallback.strip() == cliente_nombre:
+                    encontrado = cliente
+                    break
+
+        if not encontrado:
+            # No encontrado; mostrar mensaje y salir
+            try:
+                self.info_cliente.configure(text="Cliente no encontrado", text_color=STYLE["advertencia"])
+            except Exception:
+                pass
+            return
+
+        cliente = encontrado
+        self.cliente_seleccionado = cliente
+        rfc = cliente.get("RFC", "No disponible")
+
+        display_name = cliente.get('CLIENTE') or cliente.get('RAZÓN SOCIAL ') or cliente.get('RAZON SOCIAL') or cliente.get('RAZON_SOCIAL') or cliente.get('RFC') or cliente.get('NÚMERO_DE_CONTRATO')
+
+        self.info_cliente.configure(
+            text=f"✅ {display_name}\n📋 RFC: {rfc}",
+            text_color=STYLE["exito"]
+        )
+        self.boton_limpiar_cliente.configure(state="normal")
+
+        # Rellenar lista de domicilios para este cliente (si existen)
+        domicilios = []
+        try:
+            direcciones = cliente.get('DIRECCIONES')
+            if isinstance(direcciones, list) and direcciones:
+                for d in direcciones:
+                    if not isinstance(d, dict):
+                        continue
+                    parts = []
+                    for k in ('CALLE Y NO', 'CALLE', 'CALLE_Y_NO', 'CALLE_Y_NRO', 'NUMERO'):
+                        v = d.get(k) or d.get(k.upper()) if isinstance(d, dict) else None
+                        if v:
+                            parts.append(str(v))
+                    for k in ('COLONIA O POBLACION', 'COLONIA'):
+                        v = d.get(k)
+                        if v:
+                            parts.append(str(v))
+                    for k in ('MUNICIPIO O ALCADIA', 'MUNICIPIO'):
+                        v = d.get(k)
+                        if v:
+                            parts.append(str(v))
+                    if d.get('CIUDAD O ESTADO'):
+                        parts.append(str(d.get('CIUDAD O ESTADO')))
+                    if d.get('CP'):
+                        parts.append(str(d.get('CP')))
+                    addr = ", ".join(parts).strip()
+                    if addr:
+                        domicilios.append(addr)
+
+            # si no hay lista de direcciones, intentar con campos a nivel superior
+            if not domicilios:
+                parts = []
+                for k in ('CALLE Y NO', 'CALLE', 'CALLE_Y_NO'):
+                    v = cliente.get(k) or cliente.get(k.upper())
+                    if v:
+                        parts.append(str(v))
+                for k in ('COLONIA O POBLACION', 'COLONIA'):
+                    v = cliente.get(k)
+                    if v:
+                        parts.append(str(v))
+                for k in ('MUNICIPIO O ALCADIA', 'MUNICIPIO'):
+                    v = cliente.get(k)
+                    if v:
+                        parts.append(str(v))
+                if cliente.get('CIUDAD O ESTADO'):
+                    parts.append(str(cliente.get('CIUDAD O ESTADO')))
+                if cliente.get('CP') is not None:
+                    parts.append(str(cliente.get('CP')))
+                addr = ", ".join(parts).strip()
+                if addr:
+                    domicilios.append(addr)
+        except Exception:
+            domicilios = []
+
+        if not domicilios:
+            domicilios = ["Domicilio no disponible"]
+
+        # Configurar combo de domicilios
+        try:
+            vals = ['Seleccione un domicilio...'] + domicilios
+            self.combo_domicilios.configure(values=vals, state='readonly')
+            self.combo_domicilios.set('Seleccione un domicilio...')
+            # almacenar lista para referencia y raw dicts alineados
+            self._domicilios_list = domicilios
+            # construir _domicilios_raw: si DIRECCIONES existían usamos dicts, else build one
+            raw = []
+            try:
+                direcciones = cliente.get('DIRECCIONES')
+                if isinstance(direcciones, list) and direcciones:
+                    for d in direcciones:
+                        if isinstance(d, dict):
+                            raw.append(d)
+                else:
+                    # fallback: construir dict a partir de campos de cliente
+                    d = {
+                        'CALLE Y NO': cliente.get('CALLE Y NO') or cliente.get('CALLE') or cliente.get('CALLE_Y_NO') or '',
+                        'COLONIA O POBLACION': cliente.get('COLONIA O POBLACION') or cliente.get('COLONIA') or '',
+                        'MUNICIPIO O ALCADIA': cliente.get('MUNICIPIO O ALCADIA') or cliente.get('MUNICIPIO') or '',
+                        'CIUDAD O ESTADO': cliente.get('CIUDAD O ESTADO') or cliente.get('CIUDAD') or '',
+                        'CP': cliente.get('CP')
+                    }
+                    raw.append(d)
+            except Exception:
+                raw = []
+
+            # Ensure lengths match: if not, pad with minimal dicts
+            if len(raw) != len(self._domicilios_list):
+                # try to align by creating dicts from the display strings
+                aligned = []
+                for s in self._domicilios_list:
+                    aligned.append({'_display': s})
+                raw = aligned
+
+            self._domicilios_raw = raw
+            self.domicilio_seleccionado = None
+            # limpiar campos individuales
+            self.direccion_seleccionada = None
+            self.colonia_seleccionada = None
+            self.municipio_seleccionado = None
+            self.ciudad_seleccionada = None
+            self.cp_seleccionado = None
+        except Exception:
+            pass
+
+        # ─────────────────────────────────────────────
+        # CASO 1: SOLO EVIDENCIA
+        # ─────────────────────────────────────────────
+        if cliente_nombre in CLIENTES_EVIDENCIA:
+            self.tipo_operacion = "EVIDENCIA"
+            self.safe_forget(self.boton_subir_etiquetado)
+            self.safe_forget(self.info_etiquetado)
+            # Mostrar botón para configurar carpeta de evidencias
+            try:
+                self.safe_pack(self.boton_configurar_evidencias, anchor="w", pady=(8, 0))
+            except Exception:
+                pass
+
+        # ─────────────────────────────────────────────
+        # CASO 2: PEGADO DE ETIQUETAS
+        # ─────────────────────────────────────────────
+        if cliente_nombre in CLIENTES_ETIQUETA:
+            self.tipo_operacion = "ETIQUETA"
+
+            # ULTA BEAUTY — flujo mixto dependiendo de la NOM
+            if cliente_nombre == "ULTA BEAUTY SAPI DE CV":
+                self.tipo_operacion = "ULTA"
+
+            # Mostrar botón de carga de etiquetado
+            self.safe_pack(self.boton_subir_etiquetado, side="left", padx=(0, 8))
+
+            if self.archivo_etiquetado_json:
+                self.safe_pack(self.info_etiquetado, anchor="w", fill="x", pady=(5, 0))
+
+            # Asegurarse de ocultar el botón de evidencias en flujos de etiquetas
+            try:
+                self.safe_forget(self.boton_configurar_evidencias)
+            except Exception:
+                pass
 
         # ─────────────────────────────────────────────
         # SI YA SE CARGÓ EL JSON → habilitar dictamen
@@ -1427,6 +1759,66 @@ class SistemaDictamenesVC(ctk.CTk):
         self.boton_subir_etiquetado.pack_forget()
         self.boton_configurar_evidencias.pack_forget()
         self.info_etiquetado.pack_forget()
+        try:
+            self.combo_domicilios.configure(values=["Seleccione un domicilio..."], state='disabled')
+            self.combo_domicilios.set('Seleccione un domicilio...')
+            self.domicilio_seleccionado = None
+        except Exception:
+            pass
+
+    def _seleccionar_domicilio(self, domicilio_text):
+        """Handler para seleccionar domicilio del cliente."""
+        try:
+            if domicilio_text == 'Seleccione un domicilio...' or not domicilio_text:
+                self.domicilio_seleccionado = None
+                # reset component fields
+                self.direccion_seleccionada = None
+                self.colonia_seleccionada = None
+                self.municipio_seleccionado = None
+                self.ciudad_seleccionada = None
+                self.cp_seleccionado = None
+            else:
+                # almacenar texto seleccionado y mapear a raw dict si existe
+                self.domicilio_seleccionado = domicilio_text
+                try:
+                    idx = self._domicilios_list.index(domicilio_text)
+                except Exception:
+                    idx = None
+                raw = None
+                try:
+                    if idx is not None and hasattr(self, '_domicilios_raw') and idx < len(self._domicilios_raw):
+                        raw = self._domicilios_raw[idx]
+                except Exception:
+                    raw = None
+
+                if raw and isinstance(raw, dict):
+                    # prefer explicit keys
+                    self.direccion_seleccionada = raw.get('CALLE Y NO') or raw.get('CALLE') or raw.get('calle_numero') or raw.get('CALLE_Y_NO') or raw.get('_display')
+                    self.colonia_seleccionada = raw.get('COLONIA O POBLACION') or raw.get('COLONIA') or raw.get('colonia')
+                    self.municipio_seleccionado = raw.get('MUNICIPIO O ALCADIA') or raw.get('MUNICIPIO') or raw.get('municipio')
+                    self.ciudad_seleccionada = raw.get('CIUDAD O ESTADO') or raw.get('CIUDAD') or raw.get('ciudad_estado')
+                    self.cp_seleccionado = raw.get('CP')
+                else:
+                    # fallback: store full text in direccion_seleccionada
+                    self.direccion_seleccionada = domicilio_text
+                    self.colonia_seleccionada = None
+                    self.municipio_seleccionado = None
+                    self.ciudad_seleccionada = None
+                    self.cp_seleccionado = None
+
+            # Actualizar la vista de info_cliente para mostrar domicilio elegido
+            try:
+                if self.cliente_seleccionado:
+                    display_name = self.cliente_seleccionado.get('CLIENTE') or self.cliente_seleccionado.get('RAZÓN SOCIAL ') or self.cliente_seleccionado.get('RAZON SOCIAL') or self.cliente_seleccionado.get('RFC') or ''
+                    rfc = self.cliente_seleccionado.get('RFC', 'No disponible')
+                    if self.domicilio_seleccionado:
+                        self.info_cliente.configure(text=f"✅ {display_name}\n📋 RFC: {rfc}\n🏠 {self.direccion_seleccionada}", text_color=STYLE['exito'])
+                    else:
+                        self.info_cliente.configure(text=f"✅ {display_name}\n📋 RFC: {rfc}", text_color=STYLE['exito'])
+            except Exception:
+                pass
+        except Exception:
+            pass
 
     # -----------------------------------------------------------
     # MÉTODOS MEJORADOS PARA GESTIÓN DE FOLIOS
@@ -1562,6 +1954,10 @@ class SistemaDictamenesVC(ctk.CTk):
                 messagebox.showwarning("Cliente requerido", "Por favor seleccione un cliente primero.")
                 return
 
+            if not getattr(self, 'domicilio_seleccionado', None):
+                messagebox.showwarning("Domicilio requerido", "Por favor seleccione un domicilio para el cliente antes de guardar la visita.")
+                return
+
             # Recoger datos del formulario
             folio_visita = self.entry_folio_visita.get().strip()
             folio_acta = self.entry_folio_acta.get().strip()
@@ -1627,6 +2023,18 @@ class SistemaDictamenesVC(ctk.CTk):
                 "estatus": "En proceso",
                 "tipo_documento": tipo_documento
             }
+
+            # Añadir datos de dirección seleccionada si existen
+            try:
+                payload['direccion'] = getattr(self, 'direccion_seleccionada', '') or getattr(self, 'domicilio_seleccionado', '')
+                # también guardar alias `calle_numero` para compatibilidad con generadores
+                payload['calle_numero'] = payload.get('direccion') or getattr(self, 'direccion_seleccionada', '')
+                payload['colonia'] = getattr(self, 'colonia_seleccionada', '')
+                payload['municipio'] = getattr(self, 'municipio_seleccionado', '')
+                payload['ciudad_estado'] = getattr(self, 'ciudad_seleccionada', '')
+                payload['cp'] = getattr(self, 'cp_seleccionado', '')
+            except Exception:
+                pass
 
             # Guardar visita
             self.hist_create_visita(payload)
@@ -1987,6 +2395,10 @@ class SistemaDictamenesVC(ctk.CTk):
             messagebox.showwarning("Cliente no seleccionado", "Por favor seleccione un cliente antes de generar los dictámenes.")
             return
 
+        if not getattr(self, 'domicilio_seleccionado', None):
+            messagebox.showwarning("Domicilio no seleccionado", "Por favor seleccione un domicilio para el cliente antes de generar los dictámenes.")
+            return
+
         try:
             # Leer el archivo JSON y extraer los folios
             with open(self.archivo_json_generado, 'r', encoding='utf-8') as f:
@@ -2279,6 +2691,14 @@ class SistemaDictamenesVC(ctk.CTk):
                 messagebox.showwarning("Folio requerido", "No hay folio de visita disponible para guardar.")
                 return
 
+            # Requerir cliente y domicilio para guardar/registrar visita
+            if not getattr(self, 'cliente_seleccionado', None):
+                messagebox.showwarning("Cliente requerido", "Por favor seleccione un cliente antes de guardar la visita.")
+                return
+            if not getattr(self, 'domicilio_seleccionado', None):
+                messagebox.showwarning("Domicilio requerido", "Por favor seleccione un domicilio para el cliente antes de guardar la visita.")
+                return
+
             # Garantizar que si no hay fecha/hora/cliente en el formulario, se registre la marca temporal y el cliente actual
             fecha_inicio_val = (self.entry_fecha_inicio.get().strip() if hasattr(self, 'entry_fecha_inicio') else '')
             hora_inicio_val = (self.entry_hora_inicio.get().strip() if hasattr(self, 'entry_hora_inicio') else '')
@@ -2342,7 +2762,13 @@ class SistemaDictamenesVC(ctk.CTk):
                 "nfirma2": "",
                 "estatus": "Pendiente",
                 "tipo_documento": tipo_documento_norm,
-                "folios_utilizados": folios_utilizados_val
+                "folios_utilizados": folios_utilizados_val,
+                # Dirección seleccionada (si existe)
+                "direccion": getattr(self, 'direccion_seleccionada', '') or getattr(self, 'domicilio_seleccionado', ''),
+                "colonia": getattr(self, 'colonia_seleccionada', ''),
+                "municipio": getattr(self, 'municipio_seleccionado', ''),
+                "ciudad_estado": getattr(self, 'ciudad_seleccionada', ''),
+                "cp": getattr(self, 'cp_seleccionado', '')
             }
 
             # DEBUG: imprimir payload que vamos a guardar
@@ -2593,15 +3019,24 @@ class SistemaDictamenesVC(ctk.CTk):
                 with open(target_path, 'r', encoding='utf-8') as f:
                     verificacion = json.load(f)
                     if verificacion.get('visitas'):
-                        if self.hist_info_label and self.hist_info_label.winfo_exists():
-                            self.hist_info_label.configure(text=f"✅ Guardado — {len(self.historial_data)} registros")
+                        lbl = getattr(self, 'hist_info_label', None)
+                        if lbl and hasattr(lbl, 'winfo_exists') and lbl.winfo_exists():
+                            try:
+                                lbl.configure(text=f"✅ Guardado — {len(self.historial_data)} registros")
+                            except Exception:
+                                pass
             else:
                 print("⚠️ Error: No se pudo verificar el archivo guardado")
             print(f"✅ Historial guardado: {len(self.historial_data)} registros (ruta: {target_path})")
             
         except Exception as e:
             print(f"❌ Error guardando historial: {e}")
-            self.hist_info_label.configure(text=f"Error guardando: {e}")
+            lbl = getattr(self, 'hist_info_label', None)
+            if lbl and hasattr(lbl, 'configure'):
+                try:
+                    lbl.configure(text=f"Error guardando: {e}")
+                except Exception:
+                    pass
     
     def hist_hacer_backup(self):
         """Crea un respaldo manual del historial"""
@@ -2999,7 +3434,13 @@ class SistemaDictamenesVC(ctk.CTk):
                             return
 
                         spec = importlib.util.spec_from_file_location("Acta_inspeccion", acta_file)
+                        if spec is None or getattr(spec, 'loader', None) is None:
+                            messagebox.showerror("Error", f"No se pudo cargar el módulo Acta_inspeccion (spec inválido): {acta_file}")
+                            return
                         acta_mod = importlib.util.module_from_spec(spec)
+                        import sys
+                        # Registrar el módulo temporalmente para permitir reload() desde el código
+                        sys.modules["Acta_inspeccion"] = acta_mod
                         spec.loader.exec_module(acta_mod)
 
                         # Generar acta para el folio y guardarla en la ruta indicada
@@ -3136,7 +3577,12 @@ class SistemaDictamenesVC(ctk.CTk):
                             messagebox.showerror('Error', f'No se encontró el módulo: {formato_file}')
                             return
                         spec = importlib.util.spec_from_file_location('Formato_supervision', formato_file)
+                        if spec is None or getattr(spec, 'loader', None) is None:
+                            messagebox.showerror('Error', f'No se pudo cargar el módulo Formato_supervision (spec inválido): {formato_file}')
+                            return
                         mod = importlib.util.module_from_spec(spec)
+                        import sys
+                        sys.modules['Formato_supervision'] = mod
                         spec.loader.exec_module(mod)
 
                         datos = {
@@ -3173,32 +3619,78 @@ class SistemaDictamenesVC(ctk.CTk):
                             return
 
                     elif tipo == 'oficio':
+                        # Prefer a fixed fallback module if present to avoid importing a corrupted original
                         oficio_file = os.path.join(os.path.dirname(__file__), 'Documentos Inspeccion', 'Oficio_comision.py')
+                        oficio_fixed = os.path.join(os.path.dirname(__file__), 'Documentos Inspeccion', 'Oficio_comision_fixed.py')
+                        if os.path.exists(oficio_fixed):
+                            oficio_file = oficio_fixed
                         if not os.path.exists(oficio_file):
                             messagebox.showerror('Error', f'No se encontró el módulo: {oficio_file}')
                             return
                         spec = importlib.util.spec_from_file_location('Oficio_comision', oficio_file)
+                        if spec is None or getattr(spec, 'loader', None) is None:
+                            messagebox.showerror('Error', f'No se pudo cargar el módulo Oficio_comision (spec inválido): {oficio_file}')
+                            return
                         mod = importlib.util.module_from_spec(spec)
+                        import sys
+                        sys.modules['Oficio_comision'] = mod
                         spec.loader.exec_module(mod)
 
-                        datos_oficio = {
-                            'no_oficio': registro.get('folio_visita',''),
-                            'fecha_inspeccion': fecha_formateada or registro.get('fecha_termino') or datetime.now().strftime('%d/%m/%Y'),
-                            'normas': registro.get('norma','').split(', ') if registro.get('norma') else [],
-                            'empresa_visitada': registro.get('cliente',''),
-                            'calle_numero': registro.get('direccion',''),
-                            'colonia': registro.get('colonia',''),
-                            'municipio': registro.get('municipio',''),
-                            'ciudad_estado': registro.get('ciudad_estado',''),
-                            'fecha_confirmacion': registro.get('fecha_inicio') or datetime.now().strftime('%d/%m/%Y'),
-                            'medio_confirmacion': 'correo electrónico',
-                            'inspectores': [s.strip() for s in (registro.get('supervisores_tabla') or registro.get('nfirma1') or '').split(',') if s.strip()],
-                            'observaciones': registro.get('observaciones',''),
-                            'num_solicitudes': ', '.join(sorted(list(solicitudes))) if solicitudes else ''
-                        }
+                        # Preferir usar la función de preparación del propio módulo si existe
+                        datos_oficio = None
+                        try:
+                            if hasattr(mod, 'preparar_datos_desde_visita'):
+                                datos_oficio = mod.preparar_datos_desde_visita(registro)
+                            else:
+                                # Heurística local: priorizar 'calle_numero' y anexar CP a colonia
+                                calle = registro.get('calle_numero') or registro.get('direccion','') or ''
+                                colonia = registro.get('colonia','') or ''
+                                cp = registro.get('cp') or registro.get('CP') or ''
+                                if cp and colonia:
+                                    colonia = f"{colonia}, {cp}"
+                                datos_oficio = {
+                                    'no_oficio': registro.get('folio_visita',''),
+                                    'fecha_inspeccion': fecha_formateada or registro.get('fecha_termino') or datetime.now().strftime('%d/%m/%Y'),
+                                    'normas': registro.get('norma','').split(', ') if registro.get('norma') else [],
+                                    'empresa_visitada': registro.get('cliente',''),
+                                    'calle_numero': calle,
+                                    'colonia': colonia,
+                                    'municipio': registro.get('municipio',''),
+                                    'ciudad_estado': registro.get('ciudad_estado',''),
+                                    'fecha_confirmacion': registro.get('fecha_inicio') or datetime.now().strftime('%d/%m/%Y'),
+                                    'medio_confirmacion': 'correo electrónico',
+                                    'inspectores': [s.strip() for s in (registro.get('supervisores_tabla') or registro.get('nfirma1') or '').split(',') if s.strip()],
+                                    'observaciones': registro.get('observaciones',''),
+                                    'num_solicitudes': ', '.join(sorted(list(solicitudes))) if solicitudes else ''
+                                }
+                        except Exception:
+                            datos_oficio = {
+                                'no_oficio': registro.get('folio_visita',''),
+                                'fecha_inspeccion': fecha_formateada or registro.get('fecha_termino') or datetime.now().strftime('%d/%m/%Y'),
+                                'normas': registro.get('norma','').split(', ') if registro.get('norma') else [],
+                                'empresa_visitada': registro.get('cliente',''),
+                                'calle_numero': registro.get('calle_numero') or registro.get('direccion',''),
+                                'colonia': registro.get('colonia',''),
+                                'municipio': registro.get('municipio',''),
+                                'ciudad_estado': registro.get('ciudad_estado',''),
+                                'fecha_confirmacion': registro.get('fecha_inicio') or datetime.now().strftime('%d/%m/%Y'),
+                                'medio_confirmacion': 'correo electrónico',
+                                'inspectores': [s.strip() for s in (registro.get('supervisores_tabla') or registro.get('nfirma1') or '').split(',') if s.strip()],
+                                'observaciones': registro.get('observaciones',''),
+                                'num_solicitudes': ', '.join(sorted(list(solicitudes))) if solicitudes else ''
+                            }
 
                         try:
                             mod.generar_oficio_pdf(datos_oficio, save_path)
+                        except TypeError as e:
+                            # Intentar recargar el módulo y reintentar: puede ocurrir si el archivo fue editado
+                            try:
+                                import importlib
+                                importlib.reload(mod)
+                                mod.generar_oficio_pdf(datos_oficio, save_path)
+                            except Exception as e2:
+                                messagebox.showerror('Error', f'Error generando Oficio de Comisión:\n{e2}')
+                                return
                         except Exception as e:
                             messagebox.showerror('Error', f'Error generando Oficio de Comisión:\n{e}')
                             return
@@ -3600,12 +4092,9 @@ class SistemaDictamenesVC(ctk.CTk):
                 try:
                     est = (r.get('estatus','') or '').strip().lower()
                     td = (r.get('tipo_documento','') or '').strip()
+                    # Mostrar todas las reservas pendientes independientemente del tipo
                     if est != 'pendiente':
-                        # keep persisted pending even if estatus diferente? skip
                         continue
-                    if tipo_sel and td:
-                        if td.strip().lower() != tipo_sel.strip().lower():
-                            continue
                     pendientes.append(r)
                 except Exception:
                     continue
@@ -4704,7 +5193,7 @@ class SistemaDictamenesVC(ctk.CTk):
             payload.setdefault("estatus", "Completada" if es_automatica else "En proceso")
             
             # Asegurar que las fechas y horas estén presentes
-            payload.sedefault("fecha_inicio", "")
+            payload.setdefault("fecha_inicio", "")
             payload.setdefault("fecha_termino", "")
             payload.setdefault("hora_inicio", "")
             payload.setdefault("hora_termino", "")
@@ -4727,6 +5216,17 @@ class SistemaDictamenesVC(ctk.CTk):
                     except Exception:
                         existing_idx = None
 
+                    # Normalizar campos de dirección en el payload antes de mezclar/añadir
+                    for k in ('direccion','calle_numero','colonia','municipio','ciudad_estado','cp'):
+                        if k not in payload:
+                            payload[k] = ''
+                    # Asegurar que cp sea string (preservar ceros a la izquierda si los hay)
+                    try:
+                        if payload.get('cp') is not None and payload.get('cp') != '':
+                            payload['cp'] = str(payload.get('cp'))
+                    except Exception:
+                        payload['cp'] = str(payload.get('cp') or '')
+
                     if existing_idx is not None:
                         # Mergear campos (no sobrescribir metadatos existentes innecesariamente)
                         existing = self.historial['visitas'][existing_idx]
@@ -4737,6 +5237,7 @@ class SistemaDictamenesVC(ctk.CTk):
                                 existing[k] = val
                         existing.setdefault('estatus', payload.get('estatus', 'En proceso'))
                     else:
+                        # Append payload ensuring address fields exist
                         self.historial["visitas"].append(payload)
 
                     # Actualizar datos en memoria
@@ -4867,8 +5368,20 @@ class SistemaDictamenesVC(ctk.CTk):
         try:
             # Buscar la visita a actualizar y mezclar (merge) los campos nuevos
             visitas = self.historial.get("visitas", [])
+            encontrado = False
             for i, v in enumerate(visitas):
-                if v.get("_id") == id_:
+                try:
+                    if v.get("_id") == id_ or v.get("id") == id_:
+                        encontrado = True
+                    else:
+                        # permitir búsquedas por folio_visita o folio_acta si se pasó un folio
+                        if id_ and isinstance(id_, str):
+                            if id_.strip() and (id_.strip() == (v.get('folio_visita','') or '').strip() or id_.strip() == (v.get('folio_acta','') or '').strip()):
+                                encontrado = True
+                except Exception:
+                    continue
+
+                if encontrado:
                     actualizado = v.copy()
                     # Mezclar claves de 'nuevos' sobre el registro existente
                     for k, val in (nuevos or {}).items():
@@ -4876,14 +5389,84 @@ class SistemaDictamenesVC(ctk.CTk):
                             continue
                         actualizado[k] = val
 
-                    # Reemplazar sólo el registro actualizado
-                        # Reemplazar cabecera y scroll por un Treeview virtualizado (más eficiente)
+                    # Normalizar y asegurar campos de dirección persisten
+                    for k in ('direccion','calle_numero','colonia','municipio','ciudad_estado','cp'):
+                        if k not in actualizado:
+                            actualizado[k] = ''
+                    # Si 'calle_numero' no existe pero 'direccion' sí, sincronizar
+                    if not actualizado.get('calle_numero') and actualizado.get('direccion'):
+                        actualizado['calle_numero'] = actualizado.get('direccion')
+                    # Forzar cp como string
+                    try:
+                        if actualizado.get('cp') is not None and actualizado.get('cp') != '':
+                            actualizado['cp'] = str(actualizado.get('cp'))
+                    except Exception:
+                        actualizado['cp'] = str(actualizado.get('cp') or '')
+
+                    # Si faltan campos de dirección, intentar poblar desde data/Clientes.json
+                    try:
+                        need_addr = not actualizado.get('direccion') or not actualizado.get('calle_numero')
+                        cliente_nombre = actualizado.get('cliente') or ''
+                        if need_addr and cliente_nombre:
+                            clientes_path = os.path.join(os.path.dirname(__file__), 'data', 'Clientes.json')
+                            if os.path.exists(clientes_path):
+                                try:
+                                    with open(clientes_path, 'r', encoding='utf-8') as cf:
+                                        clientes = json.load(cf)
+                                    needle = str(cliente_nombre).strip().upper()
+                                    for c in (clientes or []):
+                                        try:
+                                            name = (c.get('CLIENTE') or c.get('RAZÓN SOCIAL ') or c.get('RAZON SOCIAL') or c.get('RAZON_SOCIAL') or '')
+                                            if not name:
+                                                continue
+                                            if str(name).strip().upper() == needle or needle in str(name).strip().upper() or str(name).strip().upper() in needle:
+                                                # try DIRECCIONES first
+                                                direcciones = c.get('DIRECCIONES') or []
+                                                first = None
+                                                if isinstance(direcciones, list) and direcciones:
+                                                    first = direcciones[0]
+                                                if first and isinstance(first, dict):
+                                                    actualizado['calle_numero'] = actualizado.get('calle_numero') or (first.get('CALLE Y NO') or first.get('CALLE') or '')
+                                                    actualizado['colonia'] = actualizado.get('colonia') or (first.get('COLONIA O POBLACION') or first.get('COLONIA') or '')
+                                                    actualizado['municipio'] = actualizado.get('municipio') or (first.get('MUNICIPIO O ALCADIA') or first.get('MUNICIPIO') or '')
+                                                    actualizado['ciudad_estado'] = actualizado.get('ciudad_estado') or (first.get('CIUDAD O ESTADO') or first.get('CIUDAD') or '')
+                                                    cpval = first.get('CP') or first.get('cp')
+                                                    if cpval is not None and cpval != '':
+                                                        actualizado['cp'] = str(cpval)
+                                                else:
+                                                    # try top-level keys
+                                                    actualizado['calle_numero'] = actualizado.get('calle_numero') or (c.get('CALLE Y NO') or c.get('CALLE') or '')
+                                                    actualizado['colonia'] = actualizado.get('colonia') or (c.get('COLONIA O POBLACION') or c.get('COLONIA') or '')
+                                                    actualizado['municipio'] = actualizado.get('municipio') or (c.get('MUNICIPIO O ALCADIA') or c.get('MUNICIPIO') or '')
+                                                    actualizado['ciudad_estado'] = actualizado.get('ciudad_estado') or (c.get('CIUDAD O ESTADO') or c.get('CIUDAD') or '')
+                                                    cpval = c.get('CP') or c.get('cp')
+                                                    if cpval is not None and cpval != '':
+                                                        actualizado['cp'] = str(cpval)
+                                                break
+                                        except Exception:
+                                            continue
+                                except Exception:
+                                    pass
+                    except Exception:
+                        pass
+
+                    # Reemplazar el registro en la lista
+                    try:
+                        self.historial['visitas'][i] = actualizado
+                    except Exception:
+                        pass
+
                     # Actualizar vistas en memoria y persistir
                     self.historial_data = self.historial.get("visitas", [])
                     self._guardar_historial()
                     self._poblar_historial_ui()
                     try:
                         self.cargar_ultimo_folio()
+                    except Exception:
+                        pass
+                    # Debug: confirmar en consola los campos de dirección guardados
+                    try:
+                        print(f"[DEBUG] visita actualizada _id={actualizado.get('_id')} folio={actualizado.get('folio_visita')} direccion={actualizado.get('direccion')} calle_numero={actualizado.get('calle_numero')} colonia={actualizado.get('colonia')} municipio={actualizado.get('municipio')} cp={actualizado.get('cp')}")
                     except Exception:
                         pass
                     messagebox.showinfo("OK", f"Visita {actualizado.get('folio_visita','-')} actualizada")
@@ -4893,8 +5476,28 @@ class SistemaDictamenesVC(ctk.CTk):
                             self._refresh_pending_folios_dropdown()
                     except Exception:
                         pass
+
+                    # También actualizar en memoria/pending_folios si existe
+                    try:
+                        if hasattr(self, 'pending_folios') and isinstance(self.pending_folios, list):
+                            for j, p in enumerate(self.pending_folios):
+                                try:
+                                    pid = p.get('_id') or p.get('id')
+                                    if pid == id_ or p.get('folio_visita') == id_ or p.get('folio_acta') == id_:
+                                        self.pending_folios[j].update(nuevos or {})
+                                except Exception:
+                                    continue
+                            # persistir cambios
+                            try:
+                                self._save_pending_folios()
+                            except Exception:
+                                pass
+                    except Exception:
+                        pass
+
                     return
 
+            # Si no encontramos coincidencias, mostrar advertencia (no lanzar excepción)
             messagebox.showerror("Error", "No se encontró la visita para actualizar")
         except Exception as e:
             messagebox.showerror("Error actualizando", str(e))
@@ -5204,7 +5807,10 @@ class SistemaDictamenesVC(ctk.CTk):
         messagebox.showinfo("Limpieza completa", "Los datos del archivo y el etiquetado han sido limpiados.\n\nNota: Los archivos de folios por visita se conservan en la carpeta 'folios_visitas'.")
 
     def _crear_formulario_visita(self, datos=None):
-        """Crea un formulario modal para editar visitas con disposición organizada"""
+        """Crea un formulario modal para editar visitas con disposición organizada
+        Añade un combobox de domicilios dependiente del cliente para permitir
+        seleccionar la dirección registrada y guardarla en la visita.
+        """
         datos = datos or {}
         modal = ctk.CTkToplevel(self)
         modal.title("Editar Visita")
@@ -5257,6 +5863,8 @@ class SistemaDictamenesVC(ctk.CTk):
         content_frame.grid_columnconfigure(2, weight=1)
         
         entries = {}
+        # Variable closure para almacenar la dirección raw seleccionada
+        selected_address_raw = {}
         
         # Definir campos organizados por columnas
         campos_por_columna = [
@@ -5278,6 +5886,7 @@ class SistemaDictamenesVC(ctk.CTk):
                 ("cliente", "Cliente"),
                 ("estatus", "Estatus"),
                 ("norma", "Norma"),
+                ("direccion", "Domicilio registrado"),
             ]
         ]
         
@@ -5310,7 +5919,12 @@ class SistemaDictamenesVC(ctk.CTk):
                     # Obtener lista de clientes
                     clientes_lista = ["Seleccione un cliente..."]
                     if hasattr(self, 'clientes_data') and self.clientes_data:
-                        clientes_lista.extend([cliente['CLIENTE'] for cliente in self.clientes_data])
+                        for cliente in self.clientes_data:
+                            if not isinstance(cliente, dict):
+                                continue
+                            name = cliente.get('CLIENTE') or cliente.get('RAZÓN SOCIAL ') or cliente.get('RAZON SOCIAL') or cliente.get('RAZON_SOCIAL') or cliente.get('RFC') or cliente.get('NÚMERO_DE_CONTRATO')
+                            if name:
+                                clientes_lista.append(name)
                     
                     # Crear combobox para clientes
                     ent = ctk.CTkComboBox(
@@ -5324,14 +5938,298 @@ class SistemaDictamenesVC(ctk.CTk):
                         width=250
                     )
                     ent.pack(fill="x")
-                    
+                    # Callback cuando se seleccione un cliente en el modal
+                    def _on_cliente_modal_select(val):
+                        nombre = val
+                        # buscar dict del cliente
+                        encontrado = None
+                        try:
+                            for c in (self.clientes_data or []):
+                                if not isinstance(c, dict):
+                                    continue
+                                name = c.get('CLIENTE') or c.get('RAZÓN SOCIAL ') or c.get('RAZON SOCIAL') or c.get('RAZON_SOCIAL') or c.get('RFC') or c.get('NÚMERO_DE_CONTRATO')
+                                if name and name == nombre:
+                                    encontrado = c
+                                    break
+                        except Exception:
+                            encontrado = None
+
+                        # Construir lista de domicilios (mismo heurístico usado en actualizar_cliente_seleccionado)
+                        domicilios = []
+                        raw = []
+                        if encontrado:
+                            try:
+                                direcciones = encontrado.get('DIRECCIONES')
+                                if isinstance(direcciones, list) and direcciones:
+                                    for d in direcciones:
+                                        if not isinstance(d, dict):
+                                            continue
+                                        parts = []
+                                        for k in ('CALLE Y NO', 'CALLE', 'CALLE_Y_NO', 'CALLE_Y_NRO', 'NUMERO'):
+                                            v = d.get(k) or d.get(k.upper()) if isinstance(d, dict) else None
+                                            if v:
+                                                parts.append(str(v))
+                                        for k in ('COLONIA O POBLACION', 'COLONIA'):
+                                            v = d.get(k)
+                                            if v:
+                                                parts.append(str(v))
+                                        for k in ('MUNICIPIO O ALCADIA', 'MUNICIPIO'):
+                                            v = d.get(k)
+                                            if v:
+                                                parts.append(str(v))
+                                        if d.get('CIUDAD O ESTADO'):
+                                            parts.append(str(d.get('CIUDAD O ESTADO')))
+                                        if d.get('CP'):
+                                            parts.append(str(d.get('CP')))
+                                        addr = ", ".join(parts).strip()
+                                        if addr:
+                                            domicilios.append(addr)
+                                            raw.append(d)
+
+                                # fallback: intentar con campos a nivel superior
+                                if not domicilios:
+                                    parts = []
+                                    for k in ('CALLE Y NO', 'CALLE', 'CALLE_Y_NO'):
+                                        v = encontrado.get(k) or encontrado.get(k.upper())
+                                        if v:
+                                            parts.append(str(v))
+                                    for k in ('COLONIA O POBLACION', 'COLONIA'):
+                                        v = encontrado.get(k)
+                                        if v:
+                                            parts.append(str(v))
+                                    for k in ('MUNICIPIO O ALCADIA', 'MUNICIPIO'):
+                                        v = encontrado.get(k)
+                                        if v:
+                                            parts.append(str(v))
+                                    if encontrado.get('CIUDAD O ESTADO'):
+                                        parts.append(str(encontrado.get('CIUDAD O ESTADO')))
+                                    if encontrado.get('CP') is not None:
+                                        parts.append(str(encontrado.get('CP')))
+                                    addr = ", ".join(parts).strip()
+                                    if addr:
+                                        domicilios.append(addr)
+                                        raw.append({
+                                            'CALLE Y NO': encontrado.get('CALLE Y NO') or encontrado.get('CALLE') or encontrado.get('CALLE_Y_NO') or '',
+                                            'COLONIA O POBLACION': encontrado.get('COLONIA O POBLACION') or encontrado.get('COLONIA') or '',
+                                            'MUNICIPIO O ALCADIA': encontrado.get('MUNICIPIO O ALCADIA') or encontrado.get('MUNICIPIO') or '',
+                                            'CIUDAD O ESTADO': encontrado.get('CIUDAD O ESTADO') or encontrado.get('CIUDAD') or '',
+                                            'CP': encontrado.get('CP')
+                                        })
+                            except Exception:
+                                domicilios = []
+
+                        if not domicilios:
+                            domicilios = ["Domicilio no disponible"]
+                            raw = [{'CALLE Y NO': '', 'COLONIA O POBLACION': '', 'MUNICIPIO O ALCADIA': '', 'CIUDAD O ESTADO': '', 'CP': ''}]
+
+                        # configurar combobox de domicilios del modal
+                        try:
+                            vals = ['Seleccione un domicilio...'] + domicilios
+                            if 'direccion' in entries and isinstance(entries['direccion'], ctk.CTkComboBox):
+                                entries['direccion'].configure(values=vals, state='readonly')
+                                entries['direccion'].set('Seleccione un domicilio...')
+                                # almacenar raw list alineada y display list para referencias
+                                entries['_domicilios_modal_raw'] = raw
+                                entries['_domicilios_modal_display'] = domicilios
+
+                                # handler cuando se selecciona un domicilio en el combobox
+                                def _on_domicilio_select(val):
+                                    try:
+                                        display = entries.get('_domicilios_modal_display', []) or []
+                                        rawlist = entries.get('_domicilios_modal_raw', []) or []
+                                        if not display or not rawlist:
+                                            selected_address_raw.clear()
+                                            return
+                                        if val == 'Seleccione un domicilio...':
+                                            selected_address_raw.clear()
+                                            return
+                                        if val in display:
+                                            idx = display.index(val)
+                                            if idx < len(rawlist):
+                                                selected_address_raw.clear()
+                                                selected_address_raw.update(rawlist[idx])
+                                    except Exception:
+                                        pass
+
+                                entries['direccion'].configure(command=_on_domicilio_select)
+
+                                # si la visita ya tiene una dirección guardada, intentar seleccionarla
+                                # considerar tanto 'direccion' como 'calle_numero' como posibles fuentes
+                                saved_vals = []
+                                if datos:
+                                    if datos.get('direccion'):
+                                        saved_vals.append(str(datos.get('direccion')))
+                                    if datos.get('calle_numero'):
+                                        saved_vals.append(str(datos.get('calle_numero')))
+
+                                matched = False
+                                for saved in saved_vals:
+                                    if not saved:
+                                        continue
+                                    if saved in domicilios:
+                                        try:
+                                            entries['direccion'].set(saved)
+                                            idx = domicilios.index(saved)
+                                            selected_address_raw.clear()
+                                            selected_address_raw.update(raw[idx])
+                                            matched = True
+                                            break
+                                        except Exception:
+                                            pass
+
+                                # si no hubo match exacto, intentar empatar por componentes
+                                if not matched and datos:
+                                    parts = []
+                                    # preferir campos disponibles en datos (soporta varias claves)
+                                    for k in ('direccion', 'calle_numero', 'CALLE Y NO', 'CALLE'):
+                                        v = datos.get(k)
+                                        if v:
+                                            parts.append(str(v))
+                                            break
+                                    if datos.get('colonia'):
+                                        parts.append(str(datos.get('colonia')))
+                                    if datos.get('municipio'):
+                                        parts.append(str(datos.get('municipio')))
+                                    if datos.get('ciudad_estado'):
+                                        parts.append(str(datos.get('ciudad_estado')))
+                                    if datos.get('cp'):
+                                        parts.append(str(datos.get('cp')))
+                                    built = ", ".join(parts).strip()
+                                    if built and built in domicilios:
+                                        try:
+                                            entries['direccion'].set(built)
+                                            idx = domicilios.index(built)
+                                            selected_address_raw.clear()
+                                            selected_address_raw.update(raw[idx])
+                                        except Exception:
+                                            pass
+                                # Si sigue sin empatar exactamente, intentar empatar por fragmento de 'calle y no' o 'calle_numero'
+                                if not matched and datos:
+                                    fragment = None
+                                    for k in ('calle_numero', 'CALLE Y NO', 'CALLE', 'direccion'):
+                                        v = datos.get(k)
+                                        if v:
+                                            fragment = str(v).strip()
+                                            break
+                                    if fragment:
+                                        for i, disp in enumerate(domicilios):
+                                            try:
+                                                if fragment and fragment.lower() in disp.lower():
+                                                    entries['direccion'].set(disp)
+                                                    selected_address_raw.clear()
+                                                    if i < len(raw):
+                                                        selected_address_raw.update(raw[i])
+                                                    break
+                                            except Exception:
+                                                continue
+                        except Exception:
+                            pass
+
+                    # enlazar callback
+                    ent.configure(command=_on_cliente_modal_select)
+
                     # Establecer cliente si existe en datos
                     if datos and "cliente" in datos:
                         cliente_actual = datos.get("cliente", "")
                         if cliente_actual in clientes_lista:
                             ent.set(cliente_actual)
+                            # forzar población de domicilios al abrir modal
+                            try:
+                                _on_cliente_modal_select(cliente_actual)
+                            except Exception:
+                                pass
                         else:
-                            ent.set("Seleccione un cliente...")
+                            # intentar encontrar coincidencia en self.clientes_data por nombre
+                            encontrado_cliente = None
+                            try:
+                                needle = cliente_actual.strip().lower()
+                                for c in (self.clientes_data or []):
+                                    try:
+                                        name = c.get('CLIENTE') or c.get('RAZÓN SOCIAL ') or c.get('RAZON SOCIAL') or c.get('RAZON_SOCIAL') or c.get('RFC') or c.get('NÚMERO_DE_CONTRATO')
+                                        if not name:
+                                            continue
+                                        name_s = str(name).strip().lower()
+                                        if name_s == needle or needle in name_s or name_s in needle:
+                                            encontrado_cliente = c
+                                            break
+                                    except Exception:
+                                        continue
+                            except Exception:
+                                encontrado_cliente = None
+
+                            if encontrado_cliente:
+                                # poblar domicilios directamente desde el dict encontrado
+                                try:
+                                    parts_list = []
+                                    domicilios = []
+                                    raw = []
+                                    direcciones = encontrado_cliente.get('DIRECCIONES')
+                                    if isinstance(direcciones, list) and direcciones:
+                                        for d in direcciones:
+                                            if not isinstance(d, dict):
+                                                continue
+                                            parts = []
+                                            for k in ('CALLE Y NO', 'CALLE', 'CALLE_Y_NO', 'CALLE_Y_NRO', 'NUMERO'):
+                                                v = d.get(k) or d.get(k.upper()) if isinstance(d, dict) else None
+                                                if v:
+                                                    parts.append(str(v))
+                                            for k in ('COLONIA O POBLACION', 'COLONIA'):
+                                                v = d.get(k)
+                                                if v:
+                                                    parts.append(str(v))
+                                            for k in ('MUNICIPIO O ALCADIA', 'MUNICIPIO'):
+                                                v = d.get(k)
+                                                if v:
+                                                    parts.append(str(v))
+                                            if d.get('CIUDAD O ESTADO'):
+                                                parts.append(str(d.get('CIUDAD O ESTADO')))
+                                            if d.get('CP') is not None:
+                                                parts.append(str(d.get('CP')))
+                                            addr = ", ".join(parts).strip()
+                                            if addr:
+                                                domicilios.append(addr)
+                                                raw.append(d)
+
+                                    if not domicilios:
+                                        # fallback a nivel cliente
+                                        parts = []
+                                        for k in ('CALLE Y NO', 'CALLE', 'CALLE_Y_NO'):
+                                            v = encontrado_cliente.get(k) or encontrado_cliente.get(k.upper())
+                                            if v:
+                                                parts.append(str(v))
+                                        for k in ('COLONIA O POBLACION', 'COLONIA'):
+                                            v = encontrado_cliente.get(k)
+                                            if v:
+                                                parts.append(str(v))
+                                        for k in ('MUNICIPIO O ALCADIA', 'MUNICIPIO'):
+                                            v = encontrado_cliente.get(k)
+                                            if v:
+                                                parts.append(str(v))
+                                        if encontrado_cliente.get('CIUDAD O ESTADO'):
+                                            parts.append(str(encontrado_cliente.get('CIUDAD O ESTADO')))
+                                        if encontrado_cliente.get('CP') is not None:
+                                            parts.append(str(encontrado_cliente.get('CP')))
+                                        addr = ", ".join(parts).strip()
+                                        if addr:
+                                            domicilios.append(addr)
+                                            raw.append({
+                                                'CALLE Y NO': encontrado_cliente.get('CALLE Y NO') or encontrado_cliente.get('CALLE') or encontrado_cliente.get('CALLE_Y_NO') or '',
+                                                'COLONIA O POBLACION': encontrado_cliente.get('COLONIA O POBLACION') or encontrado_cliente.get('COLONIA') or '',
+                                                'MUNICIPIO O ALCADIA': encontrado_cliente.get('MUNICIPIO O ALCADIA') or encontrado_cliente.get('MUNICIPIO') or '',
+                                                'CIUDAD O ESTADO': encontrado_cliente.get('CIUDAD O ESTADO') or encontrado_cliente.get('CIUDAD') or '',
+                                                'CP': encontrado_cliente.get('CP')
+                                            })
+
+                                    vals = ['Seleccione un domicilio...'] + (domicilios or ['Domicilio no disponible'])
+                                    if 'direccion' in entries and isinstance(entries['direccion'], ctk.CTkComboBox):
+                                        entries['direccion'].configure(values=vals, state='readonly')
+                                        entries['direccion'].set('Seleccione un domicilio...')
+                                        entries['_domicilios_modal_raw'] = raw
+                                        entries['_domicilios_modal_display'] = domicilios
+                                except Exception:
+                                    pass
+                            else:
+                                ent.set("Seleccione un cliente...")
                     else:
                         ent.set("Seleccione un cliente...")
                         
@@ -5355,19 +6253,55 @@ class SistemaDictamenesVC(ctk.CTk):
                         ent.set("En proceso")
                         
                 else:
-                    # Campo de texto normal
-                    ent = ctk.CTkEntry(
-                        field_frame, 
-                        height=35,
-                        corner_radius=8,
-                        font=FONT_SMALL,
-                        placeholder_text=f"Ingrese {label.lower()}" if key not in ["hora_inicio", "hora_termino"] else "HH:MM"
-                    )
-                    ent.pack(fill="x")
-                    
-                    # Insertar datos si existen
-                    if datos and key in datos:
-                        ent.insert(0, str(datos.get(key, "")))
+                    # Campo de texto normal, excepto el caso de domicilio que será combobox
+                    if key == 'direccion':
+                        # combobox que se rellenará según cliente seleccionado
+                        ent = ctk.CTkComboBox(
+                            field_frame,
+                            values=['Seleccione un domicilio...'],
+                            font=FONT_SMALL,
+                            dropdown_font=FONT_SMALL,
+                            state='disabled',
+                            height=35,
+                            corner_radius=8
+                        )
+                        ent.pack(fill='x')
+                        # si ya hay direccion en datos, mostrarla inmediatamente y crear mapping raw
+                        if datos and datos.get('direccion'):
+                            try:
+                                v = str(datos.get('direccion'))
+                                # preparar raw mapping a partir de campos en 'datos' cuando estén disponibles
+                                raw_item = {
+                                    'CALLE Y NO': datos.get('calle_numero') or (v.split(',')[0].strip() if v else ''),
+                                    'COLONIA O POBLACION': datos.get('colonia') or (v.split(',')[1].strip() if len(v.split(','))>1 else ''),
+                                    'MUNICIPIO O ALCADIA': datos.get('municipio') or (v.split(',')[2].strip() if len(v.split(','))>2 else ''),
+                                    'CIUDAD O ESTADO': datos.get('ciudad_estado') or (v.split(',')[3].strip() if len(v.split(','))>3 else ''),
+                                    'CP': datos.get('cp') or datos.get('CP') or (v.split(',')[-1].strip() if len(v.split(','))>0 else '')
+                                }
+                                entries['_domicilios_modal_raw'] = [raw_item]
+                                entries['_domicilios_modal_display'] = [v]
+                                ent.configure(values=[v], state='readonly')
+                                ent.set(v)
+                                # also set selected_address_raw so save picks it up
+                                try:
+                                    selected_address_raw.clear()
+                                    selected_address_raw.update(raw_item)
+                                except Exception:
+                                    pass
+                            except Exception:
+                                pass
+                    else:
+                        ent = ctk.CTkEntry(
+                            field_frame, 
+                            height=35,
+                            corner_radius=8,
+                            font=FONT_SMALL,
+                            placeholder_text=f"Ingrese {label.lower()}" if key not in ["hora_inicio", "hora_termino"] else "HH:MM"
+                        )
+                        ent.pack(fill="x")
+                        # Insertar datos si existen
+                        if datos and key in datos:
+                            ent.insert(0, str(datos.get(key, "")))
                 
                 entries[key] = ent
         
@@ -5379,13 +6313,21 @@ class SistemaDictamenesVC(ctk.CTk):
             # Recoger datos de todos los campos
             payload = {}
             for key, entry in entries.items():
+                # Ignorar helpers internos (prefijo _ ) o valores que no sean widgets
+                if str(key).startswith('_'):
+                    continue
+                # Si el objeto no tiene método get(), omitimos
+                if not hasattr(entry, 'get'):
+                    continue
                 if key in ["cliente", "estatus"]:
                     # Para combobox, obtener el valor seleccionado
-                    value = entry.get()
-                    if key == "cliente" and value == "Seleccione un cliente...":
-                        value = ""
+                    raw_value = entry.get()
+                    if key == "cliente" and raw_value == "Seleccione un cliente...":
+                        raw_value = ""
+                    value = raw_value
                 else:
-                    value = entry.get().strip()
+                    raw_value = entry.get()
+                    value = raw_value.strip() if isinstance(raw_value, str) else raw_value
                 payload[key] = value
             
             # Validaciones
@@ -5404,8 +6346,93 @@ class SistemaDictamenesVC(ctk.CTk):
             except Exception:
                 pass
 
-            # Actualizar la visita
-            self.hist_update_visita(datos["_id"], payload)
+            # Añadir componentes de dirección desde la selección modal si existen
+            try:
+                # Determinar valor desplegado del domicilio (si existe)
+                dir_widget = entries.get('direccion') if isinstance(entries.get('direccion', None), ctk.CTkComboBox) else None
+                dir_display = None
+                if dir_widget:
+                    try:
+                        dir_display = dir_widget.get()
+                    except Exception:
+                        dir_display = None
+
+                # Si existe la lista raw en entries, intentar mapear por índice
+                raw_mapped = None
+                try:
+                    display_list = entries.get('_domicilios_modal_display') or []
+                    raw_list = entries.get('_domicilios_modal_raw') or []
+                    if dir_display and display_list and raw_list and dir_display in display_list:
+                        idx = display_list.index(dir_display)
+                        if idx < len(raw_list):
+                            raw_mapped = raw_list[idx]
+                except Exception:
+                    raw_mapped = None
+
+                # Priorizar raw_mapped, luego selected_address_raw (si fue seteado por el handler),
+                # luego intentar parsear dir_display como respaldo
+                source_raw = raw_mapped or (selected_address_raw if selected_address_raw else None)
+
+                if source_raw:
+                    # Guardar display completo en 'direccion' pero asegurar que 'calle_numero'
+                    # almacene únicamente la 'CALLE Y NO' (o la mejor alternativa)
+                    payload['direccion'] = dir_display or payload.get('direccion') or source_raw.get('CALLE Y NO') or source_raw.get('CALLE')
+                    payload['calle_numero'] = source_raw.get('CALLE Y NO') or source_raw.get('CALLE') or payload.get('direccion') or payload.get('calle_numero')
+                    payload['colonia'] = source_raw.get('COLONIA O POBLACION') or source_raw.get('COLONIA') or source_raw.get('colonia') or payload.get('colonia')
+                    payload['municipio'] = source_raw.get('MUNICIPIO O ALCADIA') or source_raw.get('MUNICIPIO') or source_raw.get('municipio') or payload.get('municipio')
+                    payload['ciudad_estado'] = source_raw.get('CIUDAD O ESTADO') or source_raw.get('CIUDAD') or source_raw.get('ciudad_estado') or payload.get('ciudad_estado')
+                    payload['cp'] = str(source_raw.get('CP') or source_raw.get('cp') or payload.get('cp') or '')
+                else:
+                    # Si no hay raw, pero hay texto desplegado, intentar descomponerlo por comas
+                    if dir_display and dir_display not in (None, '', 'Seleccione un domicilio...'):
+                        payload['direccion'] = dir_display
+                        parts = [p.strip() for p in dir_display.split(',') if p.strip()]
+                        # heurística: último token suele ser CP o ciudad; asignar por posición
+                        if parts:
+                            payload['colonia'] = parts[1] if len(parts) > 1 else payload.get('colonia')
+                            payload['municipio'] = parts[2] if len(parts) > 2 else payload.get('municipio')
+                            payload['ciudad_estado'] = parts[3] if len(parts) > 3 else payload.get('ciudad_estado')
+                            # intentar extraer CP numérico
+                            for p in parts[::-1]:
+                                s = ''.join(ch for ch in p if ch.isdigit())
+                                if s:
+                                    payload['cp'] = s
+                                    break
+            except Exception:
+                pass
+            # Antes de actualizar, sincronizar también atributos de instancia para UI principal
+            try:
+                if payload.get('direccion'):
+                    self.direccion_seleccionada = payload.get('direccion')
+                # sincronizar alias
+                if payload.get('calle_numero') and not getattr(self, 'direccion_seleccionada', None):
+                    self.direccion_seleccionada = payload.get('calle_numero')
+                if payload.get('colonia'):
+                    self.colonia_seleccionada = payload.get('colonia')
+                if payload.get('municipio'):
+                    self.municipio_seleccionado = payload.get('municipio')
+                if payload.get('ciudad_estado'):
+                    self.ciudad_seleccionada = payload.get('ciudad_estado')
+                if payload.get('cp'):
+                    self.cp_seleccionado = payload.get('cp')
+                # mantener domicilio_seleccionado como display
+                if payload.get('direccion'):
+                    self.domicilio_seleccionado = payload.get('direccion')
+            except Exception:
+                pass
+
+            # DEBUG: mostrar payload recogido del modal
+            try:
+                print(f"[DEBUG] modal _guardar payload: {json.dumps(payload, ensure_ascii=False)}")
+            except Exception:
+                print(f"[DEBUG] modal _guardar payload: {payload}")
+
+            # usar id seguro (soporta _id, id o folio) para actualizar
+            target_id = datos.get('_id') or datos.get('id') or datos.get('folio_visita') or datos.get('folio_acta')
+            if not target_id:
+                messagebox.showerror("Error", "No se pudo determinar el identificador de la visita para actualizar")
+                return
+            self.hist_update_visita(target_id, payload)
             modal.destroy()
         
         # Botones mejorados

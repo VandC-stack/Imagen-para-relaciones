@@ -132,11 +132,22 @@ class OficioPDFGenerator:
         c.drawString(x_start, self.cursor_y, "Datos del lugar donde se realiza la Inspección de Información Comercial:")
         self.cursor_y -= 25
         
+        # Preparar display de colonia + C.P. si existe
+        colonia_val = self.datos.get('colonia', '') or ''
+        cp_val = str(self.datos.get('cp', '') or '')
+        if cp_val:
+            if colonia_val:
+                colonia_display = f"{colonia_val}  C.P.: {cp_val}"
+            else:
+                colonia_display = f"C.P.: {cp_val}"
+        else:
+            colonia_display = colonia_val
+
         # Títulos y valores en dos columnas
         campos = [
             ("Empresa Visitada:", self.datos.get('empresa_visitada', '')),
             ("Calle y No.:", self.datos.get('calle_numero', '')),
-            ("Colonia o Población:", self.datos.get('colonia', '')),
+            ("Colonia o Población:", colonia_display),
             ("Municipio o Alcaldía:", self.datos.get('municipio', '')),
             ("Ciudad o Estado:", self.datos.get('ciudad_estado', ''))
         ]
@@ -445,10 +456,6 @@ class OficioPDFGenerator:
             texto_prohibicion = "SE PROHIBE LA REPRODUCCIÓN TOTAL O PARCIAL DE ESTE DOCUMENTO SIN PREVIA AUTORIZACIÓN POR ESCRITO DE LA GERENCIA TÉCNICA DE VERIFICACIÓN & CONTROLIVA, S.C."
             c.drawCentredString(self.width / 2, 15 * mm, texto_prohibicion)  # Reducido de 20mm a 15mm   
 
-
-
-
-
     def _dividir_texto(self, c, texto, max_width):
         """Divide texto en líneas según el ancho máximo"""
         palabras = texto.split()
@@ -584,6 +591,18 @@ def preparar_datos_desde_visita(datos_visita, firmas_json_path="data/Firmas.json
     except Exception:
         pass
 
+    # CP: preferir valor en visita, si no, intentar extraer del final de la direccion
+    cp = datos_visita.get('cp') or datos_visita.get('CP') or datos_visita.get('codigo_postal','')
+    if not cp and calle:
+        last = str(calle).split(',')[-1].strip()
+        s = ''.join(ch for ch in last if ch.isdigit())
+        if s:
+            cp = s
+
+    colonia_mostrada = colonia
+    if cp:
+        colonia_mostrada = f"{colonia_mostrada} {cp}" if colonia_mostrada else str(cp)
+
     # Preparar datos para el PDF
     datos_oficio = {
         'no_oficio': datos_visita.get('folio_acta', 'AC' + datos_visita.get('folio_visita', '0000')),
@@ -591,7 +610,7 @@ def preparar_datos_desde_visita(datos_visita, firmas_json_path="data/Firmas.json
         'normas': datos_visita.get('norma', '').split(', ') if datos_visita.get('norma') else [],
         'empresa_visitada': datos_visita.get('cliente', ''),
         'calle_numero': calle,
-        'colonia': colonia,
+        'colonia': colonia_mostrada,
         'municipio': municipio,
         'ciudad_estado': ciudad_estado,
         'fecha_confirmacion': datos_visita.get('fecha_inicio', datetime.now().strftime('%d/%m/%Y')),
@@ -599,10 +618,11 @@ def preparar_datos_desde_visita(datos_visita, firmas_json_path="data/Firmas.json
         'inspectores': inspectores,
         'observaciones': datos_visita.get('observaciones', 'Sin observaciones'),
         'num_solicitudes': datos_visita.get('num_solicitudes', 'Sin especificar'),
-+        'NUMERO_DE_CONTRATO': numero_contrato,
-+        'RFC': rfc
+        'NUMERO_DE_CONTRATO': numero_contrato,
+        'RFC': rfc,
+        'cp': str(cp) if cp is not None else ''
     }
-    
+
     return datos_oficio
 
 # Ejemplo de uso
@@ -612,11 +632,12 @@ if __name__ == "__main__":
         'no_oficio': '2025-001',
         'fecha_inspeccion': '02/12/2025',
         'normas': ['NOM-004-SE-2021'],
-        'empresa_visitada': 'ARTICULOS DEPORTIVOS S.A. DE C.V.',
-        'calle_numero': 'AVENIDA PRINCIPAL 123',
-        'colonia': 'CENTRO',
-        'municipio': 'BENITO JUAREZ',
-        'ciudad_estado': 'CIUDAD DE MEXICO, CDMX',
+        'empresa_visitada': 'ARTICULOS DEPORTIVOS DECATHLON SA DE CV',
+        'calle_numero': 'Parque industrial advance II',
+        'colonia': 'Capula, 09876',
+        'municipio': 'Tepotzotlán',
+        'ciudad_estado': 'Estado de México',
+        'cp': '09876',
         'fecha_confirmacion': '02/12/2025',
         'medio_confirmacion': 'correo electrónico',
         'inspectores': ['GABRIEL RAMIREZ CASTILLO','MARCOS URIEL FLORES GÓMEZ','DAVID ALCANTARA'],

@@ -198,9 +198,12 @@ class PDFGeneratorConDatos(PDFGenerator):
                 self.agregar_segunda_pagina_con_etiquetas()
 
 
+            # Use NumberedCanvas to ensure accurate "Página X de Y" numeration
+            from DictamenPDF import NumberedCanvas
             self.doc.build(self.elements,
                            onFirstPage=self.agregar_encabezado_pie_pagina,
-                           onLaterPages=self.agregar_encabezado_pie_pagina)
+                           onLaterPages=self.agregar_encabezado_pie_pagina,
+                           canvasmaker=NumberedCanvas)
 
             if os.path.exists(output_path) and os.path.getsize(output_path) > 0:
                 print("   ✅ PDF creado exitosamente")
@@ -562,10 +565,16 @@ def guardar_dictamen_json(datos, lista, directorio_json):
         # Convertir datos a JSON
         json_data = convertir_dictamen_a_json(datos)
         
-        # Nombre del archivo JSON (limpiar caracteres no válidos)
-        nombre_archivo = limpiar_nombre_archivo(f"Dictamen_Lista_{lista}.json")
-        ruta_json = os.path.join(directorio_json, nombre_archivo)
-        
+        # Nombre base del archivo JSON (limpiar caracteres no válidos)
+        base_nombre = limpiar_nombre_archivo(f"Dictamen_Lista_{lista}.json")
+        ruta_json = os.path.join(directorio_json, base_nombre)
+
+        # Si ya existe, añadir timestamp para preservar archivos anteriores
+        if os.path.exists(ruta_json):
+            ts = datetime.now().strftime('%Y%m%d_%H%M%S')
+            nombre_archivo = limpiar_nombre_archivo(f"Dictamen_Lista_{lista}_{ts}.json")
+            ruta_json = os.path.join(directorio_json, nombre_archivo)
+
         # Guardar archivo JSON
         with open(ruta_json, 'w', encoding='utf-8') as f:
             json.dump(json_data, f, ensure_ascii=False, indent=2)
@@ -645,8 +654,8 @@ def generar_dictamenes_completos(directorio_destino, cliente_manual=None, rfc_ma
 
     os.makedirs(directorio_destino, exist_ok=True)
     
-    # Crear directorio para JSON en la carpeta interna del proyecto
-    directorio_json = obtener_ruta_recurso(os.path.join("data", "dictamenes"))
+    # Crear directorio para JSON en la carpeta raíz 'Dictamenes' para preservar todos los archivos
+    directorio_json = os.path.join(os.path.dirname(__file__), 'Dictamenes')
     os.makedirs(directorio_json, exist_ok=True)
     
     dictamenes_generados = 0

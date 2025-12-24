@@ -1,1 +1,18 @@
-[]
+[
+  {
+    "folio_visita": "CP000010",
+    "folio_acta": "AC000010",
+    "fecha_inicio": "23/12/2025",
+    "fecha_termino": "",
+    "hora_inicio": "10:58",
+    "hora_termino": "18:00",
+    "norma": "",
+    "cliente": "ARTICULOS DEPORTIVOS DECATHLON SA DE CV",
+    "nfirma1": "",
+    "nfirma2": "",
+    "estatus": "Pendiente",
+    "tipo_documento": "Negación de Constancia",
+    "folios_utilizados": "",
+    "_id": "4897f4c8-fb65-4892-ac26-fab8d8815b2e"
+  }
+]
