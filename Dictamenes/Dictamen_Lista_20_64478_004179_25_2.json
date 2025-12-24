@@ -1,0 +1,319 @@
+{
+  "identificacion": {
+    "cadena_identificacion": "25049UDCNOM-020-SCFI-199764478 Solicitud de Servicio: 25049USDNOM-020-SCFI-1997004179-2",
+    "year": "25",
+    "folio": "64478",
+    "solicitud": "004179",
+    "lista": "2"
+  },
+  "norma": {
+    "codigo": "NOM-020-SCFI-1997",
+    "descripcion": "Información Comercial- Etiquetado de cueros y pieles curtidas naturales y materiales sintéticos o artificiales \ncon esa apariencia, calzado, marroquinería, así como los productos elaborados con dichos materiales",
+    "capitulo": "4 (Información comercial)"
+  },
+  "fechas": {
+    "verificacion": "04/07/2025",
+    "verificacion_larga": "4 de julio de 2025",
+    "emision": "02/07/2025"
+  },
+  "cliente": {
+    "nombre": "ARTICULOS DEPORTIVOS DECATHLON SA DE CV",
+    "rfc": "ADD150727S34"
+  },
+  "producto": {
+    "descripcion": "CALZADO",
+    "pedimento": "25 47 3522 5001289"
+  },
+  "tabla_productos": [
+    {
+      "marca": "SALVATORE FERRAGAMO",
+      "codigo": "768735",
+      "factura": "12005926/1",
+      "cantidad": 11
+    },
+    {
+      "marca": "SALVATORE FERRAGAMO",
+      "codigo": "771421",
+      "factura": "12005924/1",
+      "cantidad": 93
+    },
+    {
+      "marca": "SALVATORE FERRAGAMO",
+      "codigo": "774193",
+      "factura": "12005931/1",
+      "cantidad": 1
+    },
+    {
+      "marca": "SALVATORE FERRAGAMO",
+      "codigo": "774270",
+      "factura": "12005931/1",
+      "cantidad": 1
+    },
+    {
+      "marca": "SALVATORE FERRAGAMO",
+      "codigo": "774655",
+      "factura": "12005934/1",
+      "cantidad": 25
+    },
+    {
+      "marca": "SALVATORE FERRAGAMO",
+      "codigo": "775110",
+      "factura": "12005934/1",
+      "cantidad": 122
+    },
+    {
+      "marca": "SALVATORE FERRAGAMO",
+      "codigo": "778859",
+      "factura": "12005934/1",
+      "cantidad": 127
+    },
+    {
+      "marca": "SALVATORE FERRAGAMO",
+      "codigo": "778860",
+      "factura": "12005934/1",
+      "cantidad": 11
+    },
+    {
+      "marca": "SALVATORE FERRAGAMO",
+      "codigo": "779044",
+      "factura": "12005932/1",
+      "cantidad": 17
+    },
+    {
+      "marca": "SALVATORE FERRAGAMO",
+      "codigo": "780808",
+      "factura": "12005924/1",
+      "cantidad": 68
+    },
+    {
+      "marca": "SALVATORE FERRAGAMO",
+      "codigo": "784274",
+      "factura": "12005934/1",
+      "cantidad": 5
+    },
+    {
+      "marca": "SALVATORE FERRAGAMO",
+      "codigo": "784282",
+      "factura": "12005934/1",
+      "cantidad": 50
+    },
+    {
+      "marca": "SALVATORE FERRAGAMO",
+      "codigo": "784319",
+      "factura": "12005934/1",
+      "cantidad": 13
+    },
+    {
+      "marca": "SALVATORE FERRAGAMO",
+      "codigo": "784405",
+      "factura": "12005934/1",
+      "cantidad": 3
+    },
+    {
+      "marca": "SALVATORE FERRAGAMO",
+      "codigo": "784445",
+      "factura": "12005934/1",
+      "cantidad": 8
+    },
+    {
+      "marca": "SALVATORE FERRAGAMO",
+      "codigo": "784446",
+      "factura": "12005934/1",
+      "cantidad": 3
+    },
+    {
+      "marca": "SALVATORE FERRAGAMO",
+      "codigo": "784451",
+      "factura": "12005934/1",
+      "cantidad": 50
+    },
+    {
+      "marca": "SALVATORE FERRAGAMO",
+      "codigo": "784452",
+      "factura": "12005934/1",
+      "cantidad": 1
+    },
+    {
+      "marca": "SALVATORE FERRAGAMO",
+      "codigo": "784465",
+      "factura": "12005934/1",
+      "cantidad": 119
+    },
+    {
+      "marca": "SALVATORE FERRAGAMO",
+      "codigo": "784474",
+      "factura": "12005934/1",
+      "cantidad": 17
+    },
+    {
+      "marca": "SALVATORE FERRAGAMO",
+      "codigo": "784517",
+      "factura": "12005934/1",
+      "cantidad": 12
+    },
+    {
+      "marca": "SALVATORE FERRAGAMO",
+      "codigo": "784518",
+      "factura": "12005934/1",
+      "cantidad": 1
+    },
+    {
+      "marca": "SALVATORE FERRAGAMO",
+      "codigo": "784537",
+      "factura": "12005934/1",
+      "cantidad": 2
+    },
+    {
+      "marca": "SALVATORE FERRAGAMO",
+      "codigo": "784551",
+      "factura": "12005934/1",
+      "cantidad": 1
+    },
+    {
+      "marca": "SALVATORE FERRAGAMO",
+      "codigo": "784798",
+      "factura": "12005934/1",
+      "cantidad": 19
+    },
+    {
+      "marca": "SALVATORE FERRAGAMO",
+      "codigo": "784888",
+      "factura": "12005934/1",
+      "cantidad": 20
+    },
+    {
+      "marca": "SALVATORE FERRAGAMO",
+      "codigo": "784899",
+      "factura": "12005934/1",
+      "cantidad": 38
+    },
+    {
+      "marca": "SALVATORE FERRAGAMO",
+      "codigo": "784935",
+      "factura": "12005934/1",
+      "cantidad": 17
+    },
+    {
+      "marca": "SALVATORE FERRAGAMO",
+      "codigo": "785041",
+      "factura": "12005934/1",
+      "cantidad": 2
+    },
+    {
+      "marca": "SALVATORE FERRAGAMO",
+      "codigo": "785042",
+      "factura": "12005934/1",
+      "cantidad": 18
+    },
+    {
+      "marca": "SALVATORE FERRAGAMO",
+      "codigo": "785232",
+      "factura": "12005934/1",
+      "cantidad": 32
+    },
+    {
+      "marca": "SALVATORE FERRAGAMO",
+      "codigo": "785542",
+      "factura": "12005934/1",
+      "cantidad": 1
+    },
+    {
+      "marca": "SALVATORE FERRAGAMO",
+      "codigo": "786870",
+      "factura": "12005934/1",
+      "cantidad": 34
+    },
+    {
+      "marca": "SALVATORE FERRAGAMO",
+      "codigo": "786875",
+      "factura": "12005934/1",
+      "cantidad": 1
+    },
+    {
+      "marca": "SALVATORE FERRAGAMO",
+      "codigo": "786878",
+      "factura": "12005934/1",
+      "cantidad": 1
+    },
+    {
+      "marca": "SALVATORE FERRAGAMO",
+      "codigo": "786903",
+      "factura": "12005925/1",
+      "cantidad": 1
+    },
+    {
+      "marca": "SALVATORE FERRAGAMO",
+      "codigo": "787146",
+      "factura": "12005924/1",
+      "cantidad": 53
+    },
+    {
+      "marca": "SALVATORE FERRAGAMO",
+      "codigo": "787266",
+      "factura": "12005924/1",
+      "cantidad": 118
+    },
+    {
+      "marca": "SALVATORE FERRAGAMO",
+      "codigo": "787289",
+      "factura": "12005924/1",
+      "cantidad": 153
+    },
+    {
+      "marca": "SALVATORE FERRAGAMO",
+      "codigo": "787349",
+      "factura": "12005924/1",
+      "cantidad": 70
+    },
+    {
+      "marca": "SALVATORE FERRAGAMO",
+      "codigo": "787350",
+      "factura": "12005924/1",
+      "cantidad": 155
+    },
+    {
+      "marca": "SALVATORE FERRAGAMO",
+      "codigo": "787571",
+      "factura": "12005930/1",
+      "cantidad": 1
+    },
+    {
+      "marca": "SALVATORE FERRAGAMO",
+      "codigo": "787607",
+      "factura": "12005926/1",
+      "cantidad": 71
+    },
+    {
+      "marca": "SALVATORE FERRAGAMO",
+      "codigo": "787644",
+      "factura": "12005930/1",
+      "cantidad": 1
+    },
+    {
+      "marca": "SALVATORE FERRAGAMO",
+      "codigo": "787797",
+      "factura": "12005930/1",
+      "cantidad": 1
+    }
+  ],
+  "cantidad_total": {
+    "valor": 1568,
+    "texto": "1568 unidades"
+  },
+  "observaciones": "",
+  "firmas": {
+    "firma1": {
+      "nombre": "Arturo Ivan Cortes Flores",
+      "valida": true,
+      "codigo_solicitado": "ICORTES",
+      "razon_sin_firma": ""
+    },
+    "firma2": {
+      "nombre": "Arturo Flores Gomez"
+    }
+  },
+  "modo_insertado": "etiqueta",
+  "etiquetas": {
+    "cantidad": 0
+  }
+}

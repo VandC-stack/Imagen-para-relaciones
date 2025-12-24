@@ -1,0 +1,79 @@
+{
+  "identificacion": {
+    "cadena_identificacion": "25049UDCNOM-020-SCFI-199764479 Solicitud de Servicio: 25049USDNOM-020-SCFI-1997004179-3",
+    "year": "25",
+    "folio": "64479",
+    "solicitud": "004179",
+    "lista": "3"
+  },
+  "norma": {
+    "codigo": "NOM-020-SCFI-1997",
+    "descripcion": "Información Comercial- Etiquetado de cueros y pieles curtidas naturales y materiales sintéticos o artificiales \ncon esa apariencia, calzado, marroquinería, así como los productos elaborados con dichos materiales",
+    "capitulo": "4 (Información comercial)"
+  },
+  "fechas": {
+    "verificacion": "04/07/2025",
+    "verificacion_larga": "4 de julio de 2025",
+    "emision": "02/07/2025"
+  },
+  "cliente": {
+    "nombre": "ARTICULOS DEPORTIVOS DECATHLON SA DE CV",
+    "rfc": "ADD150727S34"
+  },
+  "producto": {
+    "descripcion": "CINTURON",
+    "pedimento": "25 47 3522 5001289"
+  },
+  "tabla_productos": [
+    {
+      "marca": "SALVATORE FERRAGAMO",
+      "codigo": "781608",
+      "factura": "12005934/1",
+      "cantidad": 20
+    },
+    {
+      "marca": "SALVATORE FERRAGAMO",
+      "codigo": "785973",
+      "factura": "12005934/1",
+      "cantidad": 30
+    },
+    {
+      "marca": "SALVATORE FERRAGAMO",
+      "codigo": "786264",
+      "factura": "12005934/1",
+      "cantidad": 28
+    },
+    {
+      "marca": "SALVATORE FERRAGAMO",
+      "codigo": "786331",
+      "factura": "12005934/1",
+      "cantidad": 18
+    },
+    {
+      "marca": "SALVATORE FERRAGAMO",
+      "codigo": "786907",
+      "factura": "12005934/1",
+      "cantidad": 29
+    }
+  ],
+  "cantidad_total": {
+    "valor": 125,
+    "texto": "125 unidades"
+  },
+  "observaciones": "",
+  "firmas": {
+    "firma1": {
+      "nombre": "Arturo Ivan Cortes Flores",
+      "valida": true,
+      "codigo_solicitado": "ICORTES",
+      "razon_sin_firma": ""
+    },
+    "firma2": {
+      "nombre": "Arturo Flores Gomez"
+    }
+  },
+  "modo_insertado": "etiqueta",
+  "etiquetas": {
+    "cantidad": 0
+  }
+}

@@ -5227,6 +5227,67 @@ class SistemaDictamenesVC(ctk.CTk):
                     except Exception:
                         payload['cp'] = str(payload.get('cp') or '')
 
+                    # Si faltan datos de dirección, intentar poblar desde data/Clientes.json
+                    try:
+                        need_addr = not payload.get('direccion') or not payload.get('calle_numero')
+                        cliente_nombre = payload.get('cliente') or ''
+                        if need_addr and cliente_nombre:
+                            clientes_path = os.path.join(os.path.dirname(__file__), 'data', 'Clientes.json')
+                            if os.path.exists(clientes_path):
+                                try:
+                                    with open(clientes_path, 'r', encoding='utf-8') as cf:
+                                        clientes = json.load(cf)
+                                    needle = str(cliente_nombre).strip().upper()
+                                    for c in (clientes or []):
+                                        try:
+                                            name = (c.get('CLIENTE') or c.get('RAZÓN SOCIAL ') or c.get('RAZON SOCIAL') or c.get('RAZON_SOCIAL') or '')
+                                            if not name:
+                                                continue
+                                            if str(name).strip().upper() == needle or needle in str(name).strip().upper() or str(name).strip().upper() in needle:
+                                                direcciones = c.get('DIRECCIONES') or []
+                                                first = None
+                                                if isinstance(direcciones, list) and direcciones:
+                                                    first = direcciones[0]
+                                                if first and isinstance(first, dict):
+                                                    payload['calle_numero'] = payload.get('calle_numero') or (first.get('CALLE Y NO') or first.get('CALLE') or '')
+                                                    payload['colonia'] = payload.get('colonia') or (first.get('COLONIA O POBLACION') or first.get('COLONIA') or '')
+                                                    payload['municipio'] = payload.get('municipio') or (first.get('MUNICIPIO O ALCADIA') or first.get('MUNICIPIO') or '')
+                                                    payload['ciudad_estado'] = payload.get('ciudad_estado') or (first.get('CIUDAD O ESTADO') or first.get('CIUDAD') or '')
+                                                    cpval = first.get('CP') or first.get('cp')
+                                                    if cpval is not None and cpval != '':
+                                                        payload['cp'] = str(cpval)
+                                                else:
+                                                    payload['calle_numero'] = payload.get('calle_numero') or (c.get('CALLE Y NO') or c.get('CALLE') or '')
+                                                    payload['colonia'] = payload.get('colonia') or (c.get('COLONIA O POBLACION') or c.get('COLONIA') or '')
+                                                    payload['municipio'] = payload.get('municipio') or (c.get('MUNICIPIO O ALCADIA') or c.get('MUNICIPIO') or '')
+                                                    payload['ciudad_estado'] = payload.get('ciudad_estado') or (c.get('CIUDAD O ESTADO') or c.get('CIUDAD') or '')
+                                                    cpval = c.get('CP') or c.get('cp')
+                                                    if cpval is not None and cpval != '':
+                                                        payload['cp'] = str(cpval)
+                                                break
+                                        except Exception:
+                                            continue
+                                except Exception:
+                                    pass
+                    except Exception:
+                        pass
+
+                    # Construir campo 'direccion' canónico a partir de componentes de dirección
+                    try:
+                        calle_val = (payload.get('calle_numero') or '').strip()
+                        colonia_val = (payload.get('colonia') or '').strip()
+                        municipio_val = (payload.get('municipio') or '').strip()
+                        ciudad_estado_val = (payload.get('ciudad_estado') or '').strip()
+                        cp_val = (payload.get('cp') or '').strip()
+                        partes = [p for p in [calle_val, colonia_val, municipio_val, ciudad_estado_val] if p]
+                        direccion_comp = ', '.join(partes)
+                        if cp_val:
+                            direccion_comp = (f"{direccion_comp}, C.P. {cp_val}" if direccion_comp else f"C.P. {cp_val}")
+                        if direccion_comp:
+                            payload['direccion'] = direccion_comp
+                    except Exception:
+                        pass
+
                     if existing_idx is not None:
                         # Mergear campos (no sobrescribir metadatos existentes innecesariamente)
                         existing = self.historial['visitas'][existing_idx]
@@ -5403,6 +5464,21 @@ class SistemaDictamenesVC(ctk.CTk):
                     except Exception:
                         actualizado['cp'] = str(actualizado.get('cp') or '')
 
+                    # Construir campo 'direccion' canónico a partir de componentes de dirección
+                    try:
+                        calle_val = (actualizado.get('calle_numero') or '').strip()
+                        colonia_val = (actualizado.get('colonia') or '').strip()
+                        municipio_val = (actualizado.get('municipio') or '').strip()
+                        ciudad_estado_val = (actualizado.get('ciudad_estado') or '').strip()
+                        cp_val = (actualizado.get('cp') or '').strip()
+                        partes = [p for p in [calle_val, colonia_val, municipio_val, ciudad_estado_val] if p]
+                        direccion_comp = ', '.join(partes)
+                        if cp_val:
+                            direccion_comp = (f"{direccion_comp}, C.P. {cp_val}" if direccion_comp else f"C.P. {cp_val}")
+                        if direccion_comp:
+                            actualizado['direccion'] = direccion_comp
+                    except Exception:
+                        pass
                     # Si faltan campos de dirección, intentar poblar desde data/Clientes.json
                     try:
                         need_addr = not actualizado.get('direccion') or not actualizado.get('calle_numero')
