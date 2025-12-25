@@ -2042,12 +2042,12 @@ class SistemaDictamenesVC(ctk.CTk):
             self.crear_nueva_visita()
         except Exception as e:
             messagebox.showerror("Error", f"No se pudo guardar la visita:\n{e}")
-    
+            return
 
-    # -----------------------------------------------------------
-    # MÉTODOS PARA CARGA Y GENERACIÓN DE ARCHIVOS
-    # -----------------------------------------------------------
+        # Si algo falla al guardar, ya se manejó arriba
+
     def cargar_excel(self):
+        """Carga un archivo Excel y actualiza el UI con el nombre del archivo cargado."""
         file_path = filedialog.askopenfilename(
             title="Seleccionar archivo Excel",
             filetypes=[("Archivos Excel", "*.xlsx;*.xls")]
@@ -2058,13 +2058,18 @@ class SistemaDictamenesVC(ctk.CTk):
         self.archivo_excel_cargado = file_path
         nombre_archivo = os.path.basename(file_path)
         
-        self.info_archivo.configure(
-            text=f"📄 {nombre_archivo}",
-            text_color=STYLE["exito"]
-        )
-        
-        self.boton_cargar_excel.configure(state="disabled")
-        self.boton_limpiar.configure(state="normal")
+        try:
+            self.info_archivo.configure(
+                text=f"📄 {nombre_archivo}",
+                text_color=STYLE["exito"]
+            )
+        except Exception:
+            pass
+        try:
+            self.boton_cargar_excel.configure(state="disabled")
+            self.boton_limpiar.configure(state="normal")
+        except Exception:
+            pass
         
         self.etiqueta_estado.configure(
             text="⏳ Convirtiendo a JSON...", 
@@ -5890,7 +5895,7 @@ class SistemaDictamenesVC(ctk.CTk):
         datos = datos or {}
         modal = ctk.CTkToplevel(self)
         modal.title("Editar Visita")
-        modal.geometry("900x550")  # Aumentado altura para mejor visibilidad
+        modal.geometry("1200x600")  # Aumentado altura para mejor visibilidad
         modal.transient(self)
         modal.grab_set()
 
@@ -5933,43 +5938,79 @@ class SistemaDictamenesVC(ctk.CTk):
         content_frame = ctk.CTkFrame(content_scroll, fg_color="transparent")
         content_frame.pack(fill="both", expand=True)
         
-        # Configurar 3 columnas
+        # Configurar 4 columnas (última para inspectores)
         content_frame.grid_columnconfigure(0, weight=1)
         content_frame.grid_columnconfigure(1, weight=1)
         content_frame.grid_columnconfigure(2, weight=1)
+        content_frame.grid_columnconfigure(3, weight=3)
         
         entries = {}
         # Variable closure para almacenar la dirección raw seleccionada
         selected_address_raw = {}
+        # Cargar listas de normas e inspectores para helpers del modal
+        try:
+            normas_path = os.path.join(os.path.dirname(__file__), 'data', 'Normas.json')
+            if os.path.exists(normas_path):
+                with open(normas_path, 'r', encoding='utf-8') as nf:
+                    normas_data = json.load(nf)
+                    normas_list = [n.get('NOM') or n.get('NOMBRE') or str(n) for n in (normas_data or [])]
+            else:
+                normas_list = []
+        except Exception:
+            normas_list = []
+
+        try:
+            firmas_path = os.path.join(os.path.dirname(__file__), 'data', 'Firmas.json')
+            if os.path.exists(firmas_path):
+                with open(firmas_path, 'r', encoding='utf-8') as ff:
+                    firmas_data = json.load(ff)
+                    inspectores_list = [f.get('NOMBRE DE INSPECTOR') or f.get('NOMBRE') or '' for f in (firmas_data or [])]
+                    # Mapa rápido nombre -> normas acreditadas
+                    try:
+                        firmas_map = {}
+                        for f in (firmas_data or []):
+                            name = f.get('NOMBRE DE INSPECTOR') or f.get('NOMBRE') or ''
+                            normas_ac = f.get('Normas acreditadas') or f.get('Normas Acreditadas') or f.get('Normas') or []
+                            firmas_map[name] = normas_ac or []
+                    except Exception:
+                        firmas_map = {}
+            else:
+                inspectores_list = []
+        except Exception:
+            inspectores_list = []
+            firmas_map = {}
         
         # Definir campos organizados por columnas
         campos_por_columna = [
-            [  # Columna 1: Información básica
+            [  # Columna 0: Información básica
+                ("fecha_inicio", "Fecha Inicio"),
+                ("fecha_termino", "Fecha Termino"),
                 ("tipo_documento", "Tipo de documento"),
                 ("folio_visita", "Folio Visita"),
                 ("folio_acta", "Folio Acta"),
-                ("nfirma1", "Nombre Supervisor"),      
-                
-            ],
-            [  # Columna 2: Fechas y horas
                 ("folios_utilizados", "Folios Utilizados"),
-                ("fecha_inicio", "Fecha Inicio"),
-                ("fecha_termino", "Fecha Termino"),
-                # ("hora_inicio", "Hora Inicio"),
-                # ("hora_termino", "Hora Termino"),
             ],
-            [  # Columna 3: Cliente y estatus
+            [  # Columna 1: normas (normas se mostrará aquí)
+                
+                ("norma", ""),
+            ],
+            [  # Columna 2: Cliente y estatus
                 ("cliente", "Cliente"),
-                ("estatus", "Estatus"),
-                ("norma", "Norma"),
                 ("direccion", "Domicilio registrado"),
+                ("estatus", "Estatus"),
+            ],
+            [  # Columna 3: Inspectores (UI)
+                # esta columna se llenará con la lista de inspectores (checkboxes)
             ]
         ]
         
         # Crear campos para cada columna
+        col_frames = []
         for col_idx, campos in enumerate(campos_por_columna):
             col_frame = ctk.CTkFrame(content_frame, fg_color="transparent")
             col_frame.grid(row=0, column=col_idx, padx=10, pady=0, sticky="nsew")
+            content_frame.grid_columnconfigure(col_idx, weight=1)
+            col_frames.append(col_frame)
             
             for i, (key, label) in enumerate(campos):
                 field_frame = ctk.CTkFrame(col_frame, fg_color="transparent")
@@ -5989,6 +6030,49 @@ class SistemaDictamenesVC(ctk.CTk):
                     ent = ctk.CTkComboBox(field_frame, values=opciones_tipo, font=FONT_SMALL, state="readonly", height=35, corner_radius=8)
                     ent.pack(fill="x")
                     ent.set(datos.get("tipo_documento", "Dictamen"))
+                    entries[key] = ent
+                    continue
+                if key in ("fecha_inicio", "fecha_termino"):
+                    # intentar usar DateEntry de tkcalendar si está disponible
+                    DateEntry = None
+                    try:
+                        from tkcalendar import DateEntry as _DateEntry
+                        DateEntry = _DateEntry
+                    except Exception:
+                        DateEntry = None
+
+                    if DateEntry is not None:
+                        try:
+                            # crear un estilo ttk para que el DateEntry visualmente encaje con CTk
+                            try:
+                                style = ttk.Style()
+                                style_name = f"CTkDate.{key}.TEntry"
+                                style.configure(style_name, fieldbackground=STYLE.get('surface'), background=STYLE.get('surface'), foreground=STYLE.get('texto_oscuro'))
+                            except Exception:
+                                style_name = None
+                            kwargs = {'date_pattern': 'dd/MM/yyyy', 'width': 16}
+                            if style_name:
+                                kwargs['style'] = style_name
+                            ent = DateEntry(field_frame, **kwargs)
+                            ent.pack(fill='x')
+                            if datos and key in datos and datos.get(key):
+                                try:
+                                    ent.set_date(datos.get(key))
+                                except Exception:
+                                    try:
+                                        ent.set_date(datetime.strptime(datos.get(key), '%d/%m/%Y'))
+                                    except Exception:
+                                        pass
+                        except Exception:
+                            ent = ctk.CTkEntry(field_frame, height=35, corner_radius=8, font=FONT_SMALL)
+                            ent.pack(fill='x')
+                            if datos and key in datos:
+                                ent.insert(0, str(datos.get(key, '')))
+                    else:
+                        ent = ctk.CTkEntry(field_frame, height=35, corner_radius=8, font=FONT_SMALL)
+                        ent.pack(fill='x')
+                        if datos and key in datos:
+                            ent.insert(0, str(datos.get(key, '')))
                     entries[key] = ent
                     continue
                 if key == "cliente":
@@ -6329,7 +6413,7 @@ class SistemaDictamenesVC(ctk.CTk):
                         ent.set("En proceso")
                         
                 else:
-                    # Campo de texto normal, excepto el caso de domicilio que será combobox
+                    # Campo de texto normal, excepto casos especiales: 'direccion' y 'norma'
                     if key == 'direccion':
                         # combobox que se rellenará según cliente seleccionado
                         ent = ctk.CTkComboBox(
@@ -6366,11 +6450,21 @@ class SistemaDictamenesVC(ctk.CTk):
                                     pass
                             except Exception:
                                 pass
+                    elif key == 'norma':
+                        # Crear un contenedor aquí (justo debajo de Fecha Termino)
+                        # y usarlo más adelante como padre del listado de normas.
+                        try:
+                            norma_container = ctk.CTkFrame(field_frame, fg_color='transparent')
+                            norma_container.pack(fill='both', expand=True, pady=(-8, 0))
+                            entries['_norma_container'] = norma_container
+                        except Exception:
+                            entries['_norma_container'] = field_frame
+                        ent = None
                     else:
                         ent = ctk.CTkEntry(
                             field_frame, 
                             height=35,
-                            corner_radius=8,
+                            corner_radius=8, 
                             font=FONT_SMALL,
                             placeholder_text=f"Ingrese {label.lower()}" if key not in ["hora_inicio", "hora_termino"] else "HH:MM"
                         )
@@ -6381,6 +6475,119 @@ class SistemaDictamenesVC(ctk.CTk):
                 
                 entries[key] = ent
         
+        # Helper: inserción rápida de inspectores y selección múltiple de normas
+        try:
+            # Colocar inspectores en la columna 0, normas en la columna 1 para mejor visibilidad
+            # Inspectores: columna 3 con checkboxes; cada click muestra normas acreditadas
+            insp_frame = ctk.CTkFrame(col_frames[3], fg_color='transparent')
+            insp_frame.pack(fill='both', expand=True)
+            ctk.CTkLabel(insp_frame, text='Listado de Inspectores', font=FONT_SMALL, text_color=STYLE['texto_oscuro']).pack(anchor='w')
+            # Reducir la altura del listado de inspectores a la mitad
+            scroll_insp = ctk.CTkScrollableFrame(insp_frame, height=100, fg_color='transparent')
+            scroll_insp.pack(fill='both', expand=True, pady=(6,6), padx=(6,0))
+
+            insp_checks = []
+            last_insp_normas_label = ctk.CTkLabel(insp_frame, text='', font=("Inter", 11), text_color=STYLE['texto_oscuro'])
+            last_insp_normas_label.pack(anchor='w', pady=(6,4))
+
+            # mapping para labels de estado (marca verde)
+            inspector_status_labels = {}
+
+            def _on_insp_click(nombre, var):
+                try:
+                    normas = firmas_map.get(nombre, []) if 'firmas_map' in locals() or 'firmas_map' in globals() else []
+                    if normas:
+                        lines = [f"{i}. {n}" for i, n in enumerate(normas, start=1)]
+                        last_insp_normas_label.configure(text="\n".join(lines))
+                    else:
+                        last_insp_normas_label.configure(text='(Sin normas acreditadas)')
+                except Exception:
+                    try:
+                        last_insp_normas_label.configure(text='')
+                    except Exception:
+                        pass
+
+            def update_inspector_statuses():
+                try:
+                    norma_checks_local = entries.get('_norma_checks') or []
+                    selected_norms = [nm for nm, v in norma_checks_local if getattr(v, 'get', lambda: '0')() in ('1', 'True', 'true')]
+                    for nombre, lbl in inspector_status_labels.items():
+                        try:
+                            acc = set(firmas_map.get(nombre, []) or [])
+                            ok = False
+                            if selected_norms:
+                                ok = set(selected_norms).issubset(acc)
+                            else:
+                                ok = False
+                            if ok:
+                                lbl.configure(text='✓', text_color=STYLE['exito'])
+                            else:
+                                lbl.configure(text='', text_color=STYLE['texto_oscuro'])
+                        except Exception:
+                            try:
+                                lbl.configure(text='', text_color=STYLE['texto_oscuro'])
+                            except Exception:
+                                pass
+                except Exception:
+                    pass
+
+            for nombre in (inspectores_list or []):
+                try:
+                    var = ctk.StringVar(value='0')
+                    # fila contenedora para checkbox + estado
+                    row = ctk.CTkFrame(scroll_insp, fg_color='transparent')
+                    row.pack(fill='x', pady=(2,2), padx=(2,0))
+                    row.grid_columnconfigure(0, weight=1)
+                    chk = ctk.CTkCheckBox(row, text=nombre, variable=var, onvalue='1', offvalue='0', command=lambda n=nombre, v=var: _on_insp_click(n, v), font=("Inter", 11))
+                    chk.grid(row=0, column=0, sticky='w')
+                    status_lbl = ctk.CTkLabel(row, text='', font=("Inter", 11), text_color=STYLE['exito'])
+                    status_lbl.grid(row=0, column=1, sticky='w', padx=(6,0))
+                    inspector_status_labels[nombre] = status_lbl
+                    # trace para actualizar estado cuando cambien normas o el propio checkbox
+                    try:
+                        var.trace_add('write', lambda *a, _n=nombre: update_inspector_statuses())
+                    except Exception:
+                        pass
+                    insp_checks.append((nombre, var))
+                except Exception:
+                    continue
+            entries['_inspectores_checks'] = insp_checks
+
+            # Normas: lista de checkboxes para selección múltiple (columna central)
+            # Usar el contenedor creado en el lugar del campo 'norma' para
+            # que el listado quede justo debajo de Fecha Termino.
+            parent_container = entries.get('_norma_container') if entries.get('_norma_container') else col_frames[1]
+            normas_frame = ctk.CTkFrame(parent_container, fg_color='transparent')
+            normas_frame.pack(fill='both', expand=False, pady=(0, 0))
+            ctk.CTkLabel(normas_frame, text='Listado de Normas', font=FONT_SMALL, text_color=STYLE['texto_oscuro']).pack(anchor='w', pady=(0,4))
+            # Quitar el scroll del listado de normas para mostrarlas directamente
+            normas_list_frame = ctk.CTkFrame(normas_frame, fg_color='transparent')
+            normas_list_frame.pack(fill='both', expand=True, pady=(0,2))
+            # crear checkvariables
+            norma_checks = []
+            selected_normas = [n.strip() for n in (datos.get('norma') or '').split(',') if n.strip()] if datos else []
+            for nm in (normas_list or []):
+                try:
+                    var = ctk.StringVar(value='0')
+                    chk = ctk.CTkCheckBox(normas_list_frame, text=nm, variable=var, onvalue='1', offvalue='0')
+                    chk.pack(anchor='w', fill='x')
+                    # cuando cambie una norma, actualizar estados de inspectores
+                    try:
+                        var.trace_add('write', lambda *a: update_inspector_statuses())
+                    except Exception:
+                        pass
+                    if nm in selected_normas:
+                        try:
+                            var.set('1')
+                        except Exception:
+                            pass
+                    norma_checks.append((nm, var))
+                except Exception:
+                    continue
+            entries['_norma_checks'] = norma_checks
+        except Exception:
+            pass
+
         # Frame para botones
         btn_frame = ctk.CTkFrame(main_frame, fg_color="transparent")
         btn_frame.pack(fill="x", pady=(15, 20), padx=25)
@@ -6406,7 +6613,64 @@ class SistemaDictamenesVC(ctk.CTk):
                     value = raw_value.strip() if isinstance(raw_value, str) else raw_value
                 payload[key] = value
             
-            # Validaciones
+                # (normas) -- se recogen MÁS ABAJO fuera del bucle para evitar
+                # recolecciones múltiples/duplicadas mientras iteramos `entries`.
+
+                # Asegurar que la lista de supervisores se guarda a partir de los checkboxes de inspectores (si existen)
+                try:
+                    # Preferir checkboxes de inspectores si existen
+                    insp_checks = entries.get('_inspectores_checks') or []
+                    selected = [name for name, var in insp_checks if getattr(var, 'get', lambda: '0')() in ('1', 'True', 'true')]
+                    if selected:
+                        joined = ', '.join(selected)
+                        payload['supervisores_tabla'] = joined
+                        payload['nfirma1'] = joined
+                    else:
+                        # fallback: combinar inspectores previos con los del payload.nfirma1 (si el usuario escribió/insertó)
+                        existing = []
+                        try:
+                            existing_raw = (datos.get('supervisores_tabla') or datos.get('nfirma1') or '') if datos else ''
+                            existing = [s.strip() for s in str(existing_raw).split(',') if s.strip()]
+                        except Exception:
+                            existing = []
+                        new_list = []
+                        try:
+                            nf = (payload.get('nfirma1') or '')
+                            new_list = [s.strip() for s in str(nf).split(',') if s.strip()]
+                        except Exception:
+                            new_list = []
+                        merged = []
+                        for s in (existing + new_list):
+                            if s and s not in merged:
+                                merged.append(s)
+                        if merged:
+                            joined = ', '.join(merged)
+                            payload['supervisores_tabla'] = joined
+                            payload['nfirma1'] = joined
+                except Exception:
+                    pass
+
+                # Recolectar normas seleccionadas (fuera del bucle) y deduplicar
+            try:
+                norma_checks = entries.get('_norma_checks') or []
+                sel = []
+                for nm, var in norma_checks:
+                    try:
+                        v = getattr(var, 'get', lambda: '0')()
+                    except Exception:
+                        v = '0'
+                    if str(v).lower() in ('1', 'true', 'yes'):
+                        if nm not in sel:
+                            sel.append(nm)
+                if sel:
+                    payload['norma'] = ', '.join(sel)
+                else:
+                    # si no hay selección, dejar vacío (o mantener lo que ya exista)
+                    payload['norma'] = payload.get('norma', '') or ''
+            except Exception:
+                pass
+
+                # Validaciones
             if not payload.get("cliente"):
                 messagebox.showwarning("Validación", "Por favor seleccione un cliente")
                 return
