@@ -381,10 +381,10 @@ def insertar_imagen_con_transparencia(run, img_path):
 # ============================================================
 # INSERCIÓN EN PDF (PLACEHOLDER)
 # ============================================================
-def insertar_imagenes_en_pdf_placeholder(ruta_pdf, rutas_imagenes, placeholder="${etiqueta1}"):
+def insertar_imagenes_en_pdf_placeholder(ruta_pdf, rutas_imagenes, placeholder="${imagen}"):
     """
     Inserta una o varias imágenes en un PDF usando un marcador de texto
-    (por defecto ${etiqueta1}).
+    (por defecto ${imagen}).
 
     - Busca el placeholder en el texto.
     - Borra el texto del marcador (redacción blanca).

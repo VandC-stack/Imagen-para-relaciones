@@ -8,6 +8,8 @@ from tkinter import ttk
 import tkinter as tk
 import threading
 import subprocess
+import importlib
+import importlib.util
 from datetime import datetime
 import unicodedata
 import time
@@ -797,16 +799,43 @@ class SistemaDictamenesVC(ctk.CTk):
         self.btn_eliminar_folio_pendiente.pack(side="left")
 
         # Botón para configurar carpetas de evidencias (abre modal para elegir grupo y carpeta)
-        self.boton_configurar_evidencias = ctk.CTkButton(
+        # Tres botones para modos de pegado (no empacados hasta selección de cliente)
+        self.boton_pegado_simple = ctk.CTkButton(
             cliente_section,
-            text="🖼️ Configurar Carpeta Evidencias",
-            command=self.configurar_carpeta_evidencias,
+            text="🖼️ Pegado Simple",
+            command=self.handle_pegado_simple,
             font=("Inter", 11),
             fg_color=STYLE["primario"],
             hover_color="#D4BF22",
             text_color=STYLE["secundario"],
             height=32,
-            width=220,
+            width=150,
+            corner_radius=8
+        )
+
+        self.boton_pegado_carpetas = ctk.CTkButton(
+            cliente_section,
+            text="📁 Pegado Carpetas",
+            command=self.handle_pegado_carpetas,
+            font=("Inter", 11),
+            fg_color=STYLE["primario"],
+            hover_color="#D4BF22",
+            text_color=STYLE["secundario"],
+            height=32,
+            width=150,
+            corner_radius=8
+        )
+
+        self.boton_pegado_indice = ctk.CTkButton(
+            cliente_section,
+            text="📑 Pegado Índice",
+            command=self.handle_pegado_indice,
+            font=("Inter", 11),
+            fg_color=STYLE["primario"],
+            hover_color="#D4BF22",
+            text_color=STYLE["secundario"],
+            height=32,
+            width=150,
             corner_radius=8
         )
         # NOTA: no empacamos el botón aquí para que permanezca oculto hasta
@@ -1261,7 +1290,6 @@ class SistemaDictamenesVC(ctk.CTk):
         except Exception:
             pass
 
-
     def _construir_tab_reportes(self, parent):
         """Construye la pestaña 'Reportes' con botones EMA y Anual y Backup en la esquina superior derecha."""
         cont = ctk.CTkFrame(parent, fg_color=STYLE["surface"], corner_radius=8)
@@ -1467,9 +1495,11 @@ class SistemaDictamenesVC(ctk.CTk):
             self.boton_limpiar_cliente.configure(state="disabled")
             self.safe_forget(self.boton_subir_etiquetado)
             self.safe_forget(self.info_etiquetado)
-            # Ocultar botón de configuración de evidencias cuando no hay cliente
+            # Ocultar botones de pegado cuando no hay cliente seleccionado
             try:
-                self.safe_forget(self.boton_configurar_evidencias)
+                self.safe_forget(self.boton_pegado_simple)
+                self.safe_forget(self.boton_pegado_carpetas)
+                self.safe_forget(self.boton_pegado_indice)
             except Exception:
                 pass
             return
@@ -1658,9 +1688,11 @@ class SistemaDictamenesVC(ctk.CTk):
             self.tipo_operacion = "EVIDENCIA"
             self.safe_forget(self.boton_subir_etiquetado)
             self.safe_forget(self.info_etiquetado)
-            # Mostrar botón para configurar carpeta de evidencias
+            # Mostrar botones de pegado (no persisten rutas)
             try:
-                self.safe_pack(self.boton_configurar_evidencias, anchor="w", pady=(8, 0))
+                self.safe_pack(self.boton_pegado_simple, side="left", padx=(0, 8))
+                self.safe_pack(self.boton_pegado_carpetas, side="left", padx=(0, 8))
+                self.safe_pack(self.boton_pegado_indice, side="left", padx=(0, 8))
             except Exception:
                 pass
 
@@ -1680,9 +1712,11 @@ class SistemaDictamenesVC(ctk.CTk):
             if self.archivo_etiquetado_json:
                 self.safe_pack(self.info_etiquetado, anchor="w", fill="x", pady=(5, 0))
 
-            # Asegurarse de ocultar el botón de evidencias en flujos de etiquetas
+            # Asegurarse de ocultar los botones de evidencias en flujos de etiquetas
             try:
-                self.safe_forget(self.boton_configurar_evidencias)
+                self.safe_forget(self.boton_pegado_simple)
+                self.safe_forget(self.boton_pegado_carpetas)
+                self.safe_forget(self.boton_pegado_indice)
             except Exception:
                 pass
 
@@ -1692,9 +1726,13 @@ class SistemaDictamenesVC(ctk.CTk):
         # Mostrar/ocultar el botón de configuración según el cliente seleccionado
         try:
             if cliente_nombre in CLIENTES_EVIDENCIA:
-                self.safe_pack(self.boton_configurar_evidencias, anchor="w", pady=(8, 0))
+                self.safe_pack(self.boton_pegado_simple, anchor="w", pady=(8, 0))
+                self.safe_pack(self.boton_pegado_carpetas, anchor="w", pady=(8, 0))
+                self.safe_pack(self.boton_pegado_indice, anchor="w", pady=(8, 0))
             else:
-                self.safe_forget(self.boton_configurar_evidencias)
+                self.safe_forget(self.boton_pegado_simple)
+                self.safe_forget(self.boton_pegado_carpetas)
+                self.safe_forget(self.boton_pegado_indice)
         except Exception:
             pass
 
@@ -1757,7 +1795,12 @@ class SistemaDictamenesVC(ctk.CTk):
         self.boton_limpiar_cliente.configure(state="disabled")
         self.boton_generar_dictamen.configure(state="disabled")
         self.boton_subir_etiquetado.pack_forget()
-        self.boton_configurar_evidencias.pack_forget()
+        try:
+            self.boton_pegado_simple.pack_forget()
+            self.boton_pegado_carpetas.pack_forget()
+            self.boton_pegado_indice.pack_forget()
+        except Exception:
+            pass
         self.info_etiquetado.pack_forget()
         try:
             self.combo_domicilios.configure(values=["Seleccione un domicilio..."], state='disabled')
@@ -2431,6 +2474,232 @@ class SistemaDictamenesVC(ctk.CTk):
                 sel_msg += "¿Desea continuar y usar el folio reservado?"
                 if not messagebox.askyesno("Folio reservado seleccionado", sel_msg):
                     return
+
+            # Antes de confirmar, validar que los inspectores asignados estén acreditados
+            try:
+                # Determinar visit actual en el historial por folio
+                visit_folio_key = f"CP{self.current_folio}" if hasattr(self, 'current_folio') and self.current_folio else None
+                visit_actual = None
+                try:
+                    visitas_hist = self.historial.get('visitas', []) if isinstance(self.historial, dict) else []
+                    for v in (visitas_hist or []):
+                        try:
+                            if visit_folio_key and (v.get('folio_visita') or v.get('folio') ) == visit_folio_key:
+                                visit_actual = v
+                                break
+                        except Exception:
+                            continue
+                except Exception:
+                    visit_actual = None
+
+                # Extraer normas desde los datos (buscar claves comunes)
+                normas_en_datos = set()
+                for item in (datos or []):
+                    try:
+                        # buscar claves que contengan 'norm' o exactamente 'nom'
+                        for k, val in (item or {}).items():
+                            if not k or val is None:
+                                continue
+                            kn = str(k).lower()
+                            if 'norm' in kn or kn == 'nom':
+                                # soportar listas o strings
+                                if isinstance(val, (list, tuple)):
+                                    for s in val:
+                                        try:
+                                            normas_en_datos.add(str(s).strip())
+                                        except Exception:
+                                            continue
+                                else:
+                                    for s in str(val).split(','):
+                                        s2 = s.strip()
+                                        if s2:
+                                            normas_en_datos.add(s2)
+                    except Exception:
+                        continue
+
+                problemas = []
+                sugerencias = {}
+                if visit_actual and normas_en_datos:
+                    # cargar Firmas.json para mapa nombre->normas
+                    try:
+                        firmas_path = os.path.join(os.path.dirname(__file__), 'data', 'Firmas.json')
+                        with open(firmas_path, 'r', encoding='utf-8') as ff:
+                            firmas_data = json.load(ff)
+                    except Exception:
+                        firmas_data = []
+
+                    firma_map = {}
+                    for f in (firmas_data or []):
+                        try:
+                            name = f.get('NOMBRE DE INSPECTOR') or f.get('NOMBRE') or ''
+                            normas_ac = f.get('Normas acreditadas') or f.get('Normas') or []
+                            firma_map[name] = [str(n).strip() for n in (normas_ac or [])]
+                        except Exception:
+                            continue
+
+                    # inspectores asignados en la visita
+                    assigned_raw = (visit_actual.get('supervisores_tabla') or visit_actual.get('nfirma1') or '')
+                    assigned = [s.strip() for s in str(assigned_raw).split(',') if s.strip()]
+
+                    for norma in normas_en_datos:
+                        # verificar si al menos un assigned tiene la norma
+                        ok = False
+                        missing_inspectores = []
+                        for a in assigned:
+                            try:
+                                acc = firma_map.get(a, [])
+                                if any(str(n).strip() == str(norma).strip() for n in (acc or [])):
+                                    ok = True
+                                    break
+                                else:
+                                    missing_inspectores.append(a)
+                            except Exception:
+                                missing_inspectores.append(a)
+                        if not ok:
+                            problemas.append((norma, missing_inspectores))
+                            # sugerir inspectores que sí tienen la norma
+                            sugeridas = []
+                            for name, acc in firma_map.items():
+                                try:
+                                    if any(str(n).strip() == str(norma).strip() for n in (acc or [])):
+                                        sugeridas.append(name)
+                                except Exception:
+                                    continue
+                            sugerencias[norma] = sugeridas
+
+                if problemas:
+                    # Construir mensaje resumido
+                    msg_lines = ["Se detectaron posibles conflictos de acreditación para las siguientes normas:"]
+                    for norma, miss in problemas:
+                        msg_lines.append(f"- {norma}: inspectores asignados no acreditados -> {', '.join(miss) or 'N/A'}")
+                        sug = sugerencias.get(norma) or []
+                        if sug:
+                            msg_lines.append(f"  Sugeridos: {', '.join(sug[:5])}{'...' if len(sug)>5 else ''}")
+                        else:
+                            msg_lines.append(f"  Sugeridos: (ninguno encontrado)")
+
+                    msg_lines.append("")
+                    # Preparar lista única de sugerencias
+                    sugeridos_unicos = []
+                    try:
+                        for norma, lst in sugerencias.items():
+                            for s in (lst or []):
+                                if s and s not in sugeridos_unicos:
+                                    sugeridos_unicos.append(s)
+                    except Exception:
+                        sugeridos_unicos = []
+
+                    # Si no hay sugerencias, mantener comportamiento anterior
+                    if not sugeridos_unicos:
+                        msg_lines.append("¿Desea abrir el editor de la visita para corregir los inspectores antes de generar?")
+                        if messagebox.askyesno("Inspectores no acreditados", "\n".join(msg_lines)):
+                            try:
+                                if visit_actual:
+                                    self.hist_editar_registro(visit_actual)
+                                    return
+                            except Exception:
+                                pass
+                    else:
+                        # Construir modal para seleccionar inspectores sugeridos
+                        dlg = tk.Toplevel(self)
+                        dlg.title("Seleccionar inspectores sugeridos")
+                        dlg.geometry("600x420")
+                        dlg.transient(self)
+                        dlg.grab_set()
+
+                        tk.Label(dlg, text="Se detectaron conflictos de acreditación:", font=(None, 10, 'bold')).pack(anchor='w', padx=12, pady=(8,4))
+                        text = tk.Text(dlg, height=6, wrap='word')
+                        text.insert('1.0', "\n".join(msg_lines))
+                        text.configure(state='disabled')
+                        text.pack(fill='both', padx=12, pady=(0,8), expand=False)
+
+                        tk.Label(dlg, text="Seleccione uno o más inspectores sugeridos para aplicar a la visita:", anchor='w').pack(anchor='w', padx=12)
+                        frame_checks = tk.Frame(dlg)
+                        frame_checks.pack(fill='both', padx=12, pady=(6,6), expand=True)
+
+                        check_vars = []
+                        for name in sugeridos_unicos:
+                            var = tk.BooleanVar(value=False)
+                            cb = tk.Checkbutton(frame_checks, text=name, variable=var, anchor='w')
+                            cb.pack(anchor='w')
+                            check_vars.append((name, var))
+
+                        # Radio: modo aplicar
+                        modo_var = tk.StringVar(value='append')
+                        modo_frame = tk.Frame(dlg)
+                        modo_frame.pack(fill='x', padx=12, pady=(6,4))
+                        tk.Label(modo_frame, text='Modo:').pack(side='left')
+                        tk.Radiobutton(modo_frame, text='Añadir a inspectores asignados', variable=modo_var, value='append').pack(side='left', padx=6)
+                        tk.Radiobutton(modo_frame, text='Reemplazar inspectores asignados', variable=modo_var, value='replace').pack(side='left', padx=6)
+
+                        btn_frame = tk.Frame(dlg)
+                        btn_frame.pack(fill='x', padx=12, pady=10)
+
+                        result = {'action': None, 'selected': []}
+
+                        def _apply_and_continue():
+                            sel = [n for n, v in check_vars if v.get()]
+                            result['action'] = 'apply'
+                            result['selected'] = sel
+                            dlg.destroy()
+
+                        def _skip_and_continue():
+                            result['action'] = 'skip'
+                            dlg.destroy()
+
+                        def _cancel():
+                            result['action'] = 'cancel'
+                            dlg.destroy()
+
+                        tk.Button(btn_frame, text='Aplicar y continuar', command=_apply_and_continue).pack(side='left')
+                        tk.Button(btn_frame, text='Omitir y continuar', command=_skip_and_continue).pack(side='left', padx=8)
+                        tk.Button(btn_frame, text='Cancelar', command=_cancel).pack(side='right')
+
+                        # Esperar cierre modal
+                        self.wait_window(dlg)
+
+                        if result.get('action') == 'cancel':
+                            return
+
+                        if result.get('action') == 'apply' and result.get('selected'):
+                            chosen = result.get('selected')
+                            # Calcular nuevos supervisores según el modo
+                            try:
+                                existing_assigned = [s.strip() for s in str(assigned_raw).split(',') if s.strip()]
+                            except Exception:
+                                existing_assigned = []
+                            if modo_var.get() == 'replace':
+                                new_list = chosen
+                            else:
+                                new_list = existing_assigned.copy()
+                                for c in chosen:
+                                    if c and c not in new_list:
+                                        new_list.append(c)
+
+                            joined_new = ', '.join(new_list)
+                            # Actualizar visita en el historial (si existe)
+                            try:
+                                if visit_actual:
+                                    id_for_update = visit_actual.get('_id') or visit_actual.get('id') or visit_actual.get('folio_visita') or visit_actual.get('folio_acta')
+                                    nuevos = {'supervisores_tabla': joined_new, 'nfirma1': joined_new}
+                                    try:
+                                        self.hist_update_visita(id_for_update, nuevos)
+                                    except Exception:
+                                        # fallback: modificar en memoria y guardar
+                                        visit_actual['supervisores_tabla'] = joined_new
+                                        visit_actual['nfirma1'] = joined_new
+                                        try:
+                                            self._guardar_historial()
+                                        except Exception:
+                                            pass
+                            except Exception:
+                                pass
+                            # continuar a confirmación
+                        # si skip o no se eligieron, continuar normalmente
+
+            except Exception:
+                # en caso de errores en la validación, continuar con confirmación normal
+                pass
 
             confirmacion = messagebox.askyesno(
                 "Generar Dictámenes",
@@ -4576,9 +4845,6 @@ class SistemaDictamenesVC(ctk.CTk):
             print(f"Error generando datos exportable: {e}")
             return {}
     
-
-
-
     def descargar_excel_ema(self, registro=None):
         """Descarga el reporte EMA en Excel"""
         try:
@@ -4777,16 +5043,6 @@ class SistemaDictamenesVC(ctk.CTk):
                 
         except Exception as e:
             messagebox.showerror("Error", f"No se pudo generar el control de folios anual:\n{str(e)}")
-
-
-
-
-
-
-
-
-
-
 
     def hist_editar_registro(self, registro):
         """Abre el formulario para editar un registro del historial"""
@@ -6952,6 +7208,100 @@ class SistemaDictamenesVC(ctk.CTk):
         ctk.CTkButton(btn_frame, text="Seleccionar carpeta y guardar", command=elegir_carpeta,
                       fg_color=STYLE["primario"], text_color=STYLE["secundario"], height=36).pack(side="left", padx=12)
         ctk.CTkButton(btn_frame, text="Cerrar", command=modal.destroy, height=36).pack(side="right", padx=12)
+
+    # ------------------ PEGADO EVIDENCIAS (botones UI) ------------------
+    def _run_script_and_notify(self, fn):
+        try:
+            fn()
+            try:
+                messagebox.showinfo("Pegado", "Proceso de pegado finalizado. Revise el registro de fallos si corresponde.")
+            except Exception:
+                pass
+        except Exception as e:
+            try:
+                messagebox.showerror("Error pegado", f"Error al ejecutar el proceso de pegado:\n{e}")
+            except Exception:
+                pass
+
+    def _call_pegado_script(self, script_filename, func_name, ruta_docs=None, ruta_imgs=None):
+        """Carga dinámicamente los módulos de Pegado sin persistir rutas del usuario.
+        Si se proveen `ruta_docs` y `ruta_imgs`, inyecta una implementación de
+        `obtener_rutas()` que devuelve esas rutas y convierte `guardar_config` en no-op.
+        """
+        try:
+            base = os.path.join(os.path.dirname(__file__), "Pegado de Evidenvia Fotografica")
+            main_path = os.path.join(base, "main.py")
+
+            # Cargar module 'main' desde archivo y parchear
+            spec_main = importlib.util.spec_from_file_location("main_pegado", main_path)
+            mod_main = importlib.util.module_from_spec(spec_main)
+            spec_main.loader.exec_module(mod_main)
+
+            # Evitar persistir config
+            try:
+                mod_main.guardar_config = lambda x: None
+            except Exception:
+                pass
+
+            if ruta_docs and ruta_imgs:
+                mod_main.obtener_rutas = lambda: (ruta_docs, ruta_imgs)
+
+            # Hacer disponible como 'main' para que los scripts que hacen `from main import ...` funcionen
+            old_main = sys.modules.get('main')
+            sys.modules['main'] = mod_main
+
+            # Cargar y ejecutar el script solicitado
+            script_path = os.path.join(base, script_filename)
+            spec = importlib.util.spec_from_file_location("pegado_script", script_path)
+            mod_script = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(mod_script)
+
+            fn = getattr(mod_script, func_name, None)
+            if not callable(fn):
+                messagebox.showerror("Error", f"Función {func_name} no encontrada en {script_filename}")
+                return
+
+            # Ejecutar en hilo para no bloquear la UI
+            threading.Thread(target=lambda: self._run_script_and_notify(fn), daemon=True).start()
+
+        except Exception as e:
+            messagebox.showerror("Error", f"No se pudo ejecutar el pegado:\n{e}")
+        finally:
+            # Restaurar 'main' anterior si existía
+            try:
+                if old_main is not None:
+                    sys.modules['main'] = old_main
+                else:
+                    sys.modules.pop('main', None)
+            except Exception:
+                pass
+
+    def handle_pegado_simple(self):
+        ruta_docs = filedialog.askdirectory(title="Seleccionar carpeta de documentos (.docx/.pdf)")
+        if not ruta_docs:
+            return
+        ruta_imgs = filedialog.askdirectory(title="Seleccionar carpeta de imágenes")
+        if not ruta_imgs:
+            return
+        self._call_pegado_script('pegado_simple.py', 'procesar_simple', ruta_docs.replace('\\', '/'), ruta_imgs.replace('\\', '/'))
+
+    def handle_pegado_carpetas(self):
+        ruta_docs = filedialog.askdirectory(title="Seleccionar carpeta de documentos (.docx/.pdf)")
+        if not ruta_docs:
+            return
+        ruta_imgs = filedialog.askdirectory(title="Seleccionar carpeta raíz de carpetas por código")
+        if not ruta_imgs:
+            return
+        self._call_pegado_script('pegado_carpetas.py', 'procesar_carpetas', ruta_docs.replace('\\', '/'), ruta_imgs.replace('\\', '/'))
+
+    def handle_pegado_indice(self):
+        ruta_docs = filedialog.askdirectory(title="Seleccionar carpeta de documentos (.docx/.pdf)")
+        if not ruta_docs:
+            return
+        ruta_imgs = filedialog.askdirectory(title="Seleccionar carpeta de imágenes")
+        if not ruta_imgs:
+            return
+        self._call_pegado_script('pegado_indice.py', 'procesar_indice', ruta_docs.replace('\\', '/'), ruta_imgs.replace('\\', '/'))
 
 # ================== EJECUCIÓN ================== #
 if __name__ == "__main__":

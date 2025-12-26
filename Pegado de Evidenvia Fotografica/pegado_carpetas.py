@@ -69,7 +69,7 @@ def procesar_carpetas():
                 continue
 
             for p in doc.paragraphs:
-                if "${etiqueta1}" in (p.text or ""):
+                if "${imagen}" in (p.text or ""):
                     p.clear()
                     run = p.add_run()
 
