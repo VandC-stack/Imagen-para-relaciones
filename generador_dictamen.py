@@ -503,9 +503,30 @@ def convertir_dictamen_a_json(datos):
     Convierte los datos del dictamen a formato JSON serializable.
     Extrae solo los datos relevantes, excluyendo objetos binarios como imágenes.
     """
+    # Construir cadena_identificacion asegurando folio y solicitud a 6 dígitos
+    year = str(datos.get("year", "")).strip()
+    norma = str(datos.get("norma", "")).strip()
+    folio_raw = str(datos.get("folio", "")).strip()
+    solicitud_raw = str(datos.get("solicitud", "")).strip()
+    lista = str(datos.get("lista", "")).strip()
+
+    if folio_raw.isdigit():
+        folio_formateado = f"{int(folio_raw):06d}"
+    else:
+        folio_formateado = folio_raw
+
+    if solicitud_raw.isdigit():
+        solicitud_formateado = f"{int(solicitud_raw):06d}"
+    else:
+        solicitud_formateado = solicitud_raw
+
+    cadena_identificacion = (
+        f"{year}049UDC{norma}{folio_formateado} Solicitud de Servicio: {year}049USD{norma}{solicitud_formateado}-{lista}"
+    )
+
     json_data = {
         "identificacion": {
-            "cadena_identificacion": datos.get("cadena_identificacion", ""),
+            "cadena_identificacion": cadena_identificacion,
             "year": datos.get("year", ""),
             "folio": datos.get("folio", ""),
             "solicitud": datos.get("solicitud", ""),
@@ -654,8 +675,8 @@ def generar_dictamenes_completos(directorio_destino, cliente_manual=None, rfc_ma
 
     os.makedirs(directorio_destino, exist_ok=True)
     
-    # Crear directorio para JSON en la carpeta raíz 'Dictamenes' para preservar todos los archivos
-    directorio_json = os.path.join(os.path.dirname(__file__), 'Dictamenes')
+    # Crear directorio para JSON dentro de 'data/Dictamenes' para centralizar los dictámenes
+    directorio_json = os.path.join(os.path.dirname(__file__), 'data', 'Dictamenes')
     os.makedirs(directorio_json, exist_ok=True)
     
     dictamenes_generados = 0

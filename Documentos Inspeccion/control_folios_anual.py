@@ -1,5 +1,6 @@
 import json
 import os
+import re
 from datetime import datetime
 from typing import Dict, List, Optional, Tuple
 import openpyxl
@@ -22,6 +23,8 @@ class ControlFoliosAnual:
         self.tabla_relacion = []
         self.historial_visitas = []
         self.folio_to_cliente = {}  # Mapeo de folio a cliente
+        self.normas = []
+        self._dictamen_cache = {}
         
     def cargar_datos(self) -> Tuple[bool, str]:
         """
@@ -57,6 +60,16 @@ class ControlFoliosAnual:
                 print(f"✅ Tabla de relación cargada: {len(self.tabla_relacion)} registros")
             else:
                 return False, f"No se encontró {tabla_path}"
+
+            # Cargar Normas.json (opcional, para mostrar nombres completos de NOM)
+            normas_path = os.path.join(self.data_dir, "Normas.json")
+            if os.path.exists(normas_path):
+                with open(normas_path, 'r', encoding='utf-8') as f:
+                    try:
+                        self.normas = json.load(f)
+                        print(f"✅ Normas cargadas: {len(self.normas)}")
+                    except Exception:
+                        self.normas = []
             
             # Cargar historial_visitas.json (opcional, para mapeo de clientes)
             historial_path = os.path.join(self.data_dir, "historial_visitas.json")
@@ -94,7 +107,7 @@ class ControlFoliosAnual:
                     try:
                         inicio = int(parts[0].strip())
                         fin = int(parts[1].strip())
-                        
+
                         # Map all folios in range to this client
                         for folio_num in range(inicio, fin + 1):
                             self.folio_to_cliente[folio_num] = cliente_nombre
@@ -184,8 +197,70 @@ class ControlFoliosAnual:
         # Extraer los últimos componentes separados por '/'
         partes = numero_solicitud.split('/')
         if len(partes) >= 2:
-            return f"{partes[-2]}-{partes[-1]}"
+            # construir sol-xxx, pero quitar sufijo de año si el último componente es año corto (ej '25')
+            last = partes[-1]
+            penult = partes[-2]
+            if last.isdigit() and len(last) == 2:
+                return penult
+            return f"{penult}-{last}"
         return numero_solicitud
+
+    def _find_dictamen(self, solicitud: str, folio) -> Optional[Dict]:
+        """Buscar dictamen JSON en data/Dictamenes que coincida con solicitud y folio."""
+        try:
+            # Normalizar folio y solicitud para mejorar coincidencias
+            folio_s = str(folio)
+            sol_search = str(solicitud) if solicitud is not None else ''
+            # Si viene con formato 'XXXX/25', usar la parte antes de la barra
+            if '/' in sol_search:
+                sol_base = sol_search.split('/')[0]
+            else:
+                sol_base = sol_search
+            dicts_dir = os.path.join(self.data_dir, 'Dictamenes')
+            if dicts_dir in self._dictamen_cache:
+                files = self._dictamen_cache[dicts_dir]
+            else:
+                if not os.path.exists(dicts_dir):
+                    return None
+                files = [os.path.join(dicts_dir, f) for f in os.listdir(dicts_dir) if f.lower().endswith('.json')]
+                self._dictamen_cache[dicts_dir] = files
+
+            for fp in files:
+                try:
+                    with open(fp, 'r', encoding='utf-8') as f:
+                        d = json.load(f)
+                    ident = d.get('identificacion', {})
+                    sol = ident.get('solicitud') or ''
+                    fol = str(ident.get('folio', ''))
+                    cadena = ident.get('cadena_identificacion', '') or ''
+
+                    # Comparar por folio cuando esté presente y coincida
+                    if fol and folio and fol == folio_s:
+                        return d
+
+                    # Comparar por solicitud exacta o por base (sin /aa)
+                    try:
+                        if sol and sol_search and str(sol).endswith(sol_search):
+                            return d
+                    except Exception:
+                        pass
+
+                    try:
+                        if sol and sol_base and str(sol).endswith(sol_base):
+                            return d
+                    except Exception:
+                        pass
+
+                    # Buscar en cadena_identificacion la base o la solicitud completa
+                    if cadena and sol_search and sol_search in cadena:
+                        return d
+                    if cadena and sol_base and sol_base in cadena:
+                        return d
+                except Exception:
+                    continue
+        except Exception:
+            return None
+        return None
     
     def agrupar_por_dictamen(self) -> List[Dict]:
         """
@@ -237,6 +312,16 @@ class ControlFoliosAnual:
             folio_num = 0
         
         cliente = self.buscar_cliente_por_solicitud(solicitud, folio_num)
+
+        # Intentar localizar dictamen JSON para extraer cadena_identificacion y norma completa
+        dictamen_json = self._find_dictamen(solicitud, folio)
+        cadena_ident = None
+        norma_codigo = None
+        if dictamen_json:
+            ident = dictamen_json.get('identificacion', {})
+            cadena_ident = ident.get('cadena_identificacion')
+            norma = dictamen_json.get('norma', {})
+            norma_codigo = norma.get('codigo') or norma.get('NOM')
         
         # Obtener información del inspector
         firma = primer_registro.get("FIRMA", "")
@@ -258,18 +343,65 @@ class ControlFoliosAnual:
             if reg.get("CODIGO"):
                 modelos.append(str(reg.get("CODIGO")))
         
-        # Construir fila
+        # Preparar valores derivados
+        numero_solicitud_display = None
+        if cadena_ident:
+            # Intentar extraer token después de 'Solicitud de Servicio:'
+            m = re.search(r"Solicitud de Servicio:\s*([A-Za-z0-9\-]+)", cadena_ident)
+            if m:
+                numero_solicitud_display = m.group(1)
+            else:
+                m2 = re.search(r"([A-Za-z0-9\-]+-[0-9]+)$", cadena_ident)
+                if m2:
+                    numero_solicitud_display = m2.group(1)
+                else:
+                    numero_solicitud_display = cadena_ident
+
+        numero_solicitud_display = numero_solicitud_display or solicitud or "N/A"
+
+        # Tipo de documento (mapear letra a texto)
+        tipo_raw = primer_registro.get("TIPO DE DOCUMENTO") or primer_registro.get("TIPO DE DOCUMENTO OFICIAL EMITIDO", "D")
+        tipo_display = "Dictamen" if str(tipo_raw).strip().upper() == 'D' else str(tipo_raw)
+
+        # NOM: preferir norma del dictamen, si no mapear CLASIF UVA usando Normas.json
+        if norma_codigo:
+            nom_display = norma_codigo
+        else:
+            mapped = []
+            for c in noms:
+                mapped_nom = None
+                try:
+                    ci = int(c)
+                    padded = f"{ci:03d}"
+                except Exception:
+                    padded = str(c)
+                for n in self.normas:
+                    nom_field = n.get('NOM', '')
+                    if padded and padded in nom_field:
+                        mapped_nom = nom_field
+                        break
+                    if str(c) and str(c) in nom_field:
+                        mapped_nom = nom_field
+                        break
+                if mapped_nom:
+                    mapped.append(mapped_nom)
+                else:
+                    mapped.append(str(c))
+            nom_display = ", ".join(sorted(set(mapped))) if mapped else "N/A"
+
+        documento_emitido = numero_solicitud_display
+
         fila = {
-            "NÚMERO DE SOLICITUD": solicitud or "N/A",
+            "NÚMERO DE SOLICITUD": numero_solicitud_display,
             "CLIENTE": cliente.get("CLIENTE", "N/A") if cliente else "N/A",
             "NÚMERO DE CONTRATO": cliente.get("NÚMERO_DE_CONTRATO", "N/A") if cliente else "N/A",
             "RFC": cliente.get("RFC", "N/A") if cliente else "N/A",
             "CURP": "N/A",
             "PRODUCTO VERIFICADO": ", ".join(descripciones) if descripciones else "N/A",
             "MARCAS": ", ".join(marcas) if marcas else "N/A",
-            "NOM": ", ".join(noms) if noms else "N/A",
-            "TIPO DE DOCUMENTO OFICIAL EMITIDO": "D",
-            "DOCUMENTO EMITIDO": solicitud or "N/A",
+            "NOM": nom_display,
+            "TIPO DE DOCUMENTO OFICIAL EMITIDO": tipo_display,
+            "DOCUMENTO EMITIDO": documento_emitido or "N/A",
             "FECHA DE DOCUMENTO EMITIDO": primer_registro.get("FECHA DE EMISION DE SOLICITUD", "N/A"),
             "VERIFICADOR": nombre_inspector,
             "PEDIMENTO DE IMPORTACION": primer_registro.get("PEDIMENTO", "N/A"),
@@ -564,6 +696,184 @@ def generar_control_folios_anual(
 
     if not exito:
         raise Exception(mensaje)
+
+    return True
+
+
+def generar_reporte_ema(tabla_de_relacion_path, historial_path, output_path, export_cache=None):
+    """Genera el reporte EMA a partir de un archivo de tabla_de_relacion (o lista JSON).
+
+    Args:
+        tabla_de_relacion_path: Ruta al JSON de tabla_de_relacion o a un JSON temporal con registros.
+        historial_path: Ruta al historial (se usa para resolver data_dir y clientes si es necesario).
+        output_path: Ruta de salida .xlsx
+        export_cache: (opcional) ruta a cache de export
+    """
+    import os
+    from openpyxl import Workbook
+    from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
+    from openpyxl.utils import get_column_letter
+
+    # Resolver data_dir igual que en generar_control_folios_anual
+    base_dir = os.path.dirname(os.path.dirname(historial_path))
+    data_dir = os.path.join(base_dir, "data")
+
+    generador = ControlFoliosAnual(data_dir=data_dir)
+    exito, mensaje = generador.cargar_datos()
+    if not exito:
+        raise Exception(mensaje)
+
+    # Cargar tabla_de_relacion
+    if not os.path.exists(tabla_de_relacion_path):
+        raise Exception(f"No se encontró tabla_de_relacion: {tabla_de_relacion_path}")
+
+    try:
+        with open(tabla_de_relacion_path, 'r', encoding='utf-8') as f:
+            tabla_obj = json.load(f)
+    except Exception as e:
+        raise Exception(f"Error leyendo {tabla_de_relacion_path}: {e}")
+
+    # Normalizar a lista de registros
+    if isinstance(tabla_obj, dict):
+        # Si es dict y contiene una lista en alguna clave esperada
+        if 'tabla' in tabla_obj and isinstance(tabla_obj['tabla'], list):
+            registros = tabla_obj['tabla']
+        elif 'registros' in tabla_obj and isinstance(tabla_obj['registros'], list):
+            registros = tabla_obj['registros']
+        else:
+            # si es un dict que ya representa una lista envuelta
+            registros = []
+            for v in tabla_obj.values():
+                if isinstance(v, list):
+                    registros = v
+                    break
+    elif isinstance(tabla_obj, list):
+        registros = tabla_obj
+    else:
+        raise Exception("Formato de tabla_de_relacion no reconocido")
+
+    # Agrupar por SOLICITUD + FOLIO
+    grupos = {}
+    for reg in registros:
+        solicitud = reg.get('SOLICITUD', '')
+        folio = reg.get('FOLIO', '')
+        clave = f"{solicitud}_{folio}"
+        grupos.setdefault(clave, []).append(reg)
+
+    # Preparar workbook
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "EMA"
+
+    encabezados = [
+        "Número de solicitud",
+        "Fecha de inspección",
+        "Número de dictamen",
+        "Número de Contrato",
+        "Tipo de Documento Oficial Emitido",
+        "Fecha de Documento Emitido",
+        "Producto verificado",
+        "Fecha de Desaduanamiento",
+        "Fecha de visita",
+        "Observaciones",
+        "Inspector(es)",
+        "Persona(s) de apoyo",
+        "NOM"
+    ]
+
+    # Escribir encabezados con estilo
+    for col, h in enumerate(encabezados, 1):
+        c = ws.cell(row=1, column=col, value=h)
+        c.font = Font(bold=True, color="FFFFFF")
+        c.fill = PatternFill(start_color="366092", end_color="366092", fill_type="solid")
+        c.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+        c.border = Border(left=Side(style='thin'), right=Side(style='thin'), top=Side(style='thin'), bottom=Side(style='thin'))
+
+    fila = 2
+    filas_procesadas = 0
+
+    for clave, regs in grupos.items():
+        primer = regs[0]
+        solicitud = primer.get('SOLICITUD', '')
+        folio = primer.get('FOLIO', '')
+
+        # Formatos y búsquedas
+        try:
+            folio_num = int(folio) if folio not in (None, '') else 0
+        except Exception:
+            folio_num = 0
+
+        cliente_info = generador.buscar_cliente_por_solicitud(solicitud, folio_num)
+
+        # Construir campos
+        numero_solicitud = generador.extraer_sol_ema(solicitud)
+        fecha_inspeccion = primer.get('FECHA DE VERIFICACION', 'N/A')
+        numero_dictamen = generador.formatear_folio_ema(folio)
+        numero_contrato = cliente_info.get('NÚMERO_DE_CONTRATO', 'N/A') if cliente_info else 'N/A'
+        tipo_doc = primer.get('TIPO DE DOCUMENTO', primer.get('TIPO DE DOCUMENTO OFICIAL EMITIDO', 'D'))
+        fecha_doc_emitido = primer.get('FECHA DE EMISION DE SOLICITUD', 'N/A')
+
+        # Productos, noms
+        productos = set()
+        noms = set()
+        for r in regs:
+            if r.get('DESCRIPCION'):
+                productos.add(r.get('DESCRIPCION'))
+            if r.get('CLASIF UVA'):
+                noms.add(str(r.get('CLASIF UVA')))
+
+        producto_verificado = ", ".join(productos) if productos else 'N/A'
+        fecha_desaduanamiento = primer.get('FECHA DE ENTRADA', 'N/A')
+        fecha_visita = primer.get('FECHA DE VERIFICACION', 'N/A')
+        observaciones = 'N/A'
+
+        # Inspector(es)
+        firma = primer.get('FIRMA', '')
+        inspector_nombre = generador.buscar_inspector_por_firma(firma)
+
+        personas_apoyo = 'N/A'
+        nom_str = ", ".join(noms) if noms else 'N/A'
+
+        fila_vals = [
+            numero_solicitud,
+            fecha_inspeccion,
+            numero_dictamen,
+            numero_contrato,
+            tipo_doc,
+            fecha_doc_emitido,
+            producto_verificado,
+            fecha_desaduanamiento,
+            fecha_visita,
+            observaciones,
+            inspector_nombre,
+            personas_apoyo,
+            nom_str
+        ]
+
+        for col, val in enumerate(fila_vals, 1):
+            cel = ws.cell(row=fila, column=col, value=val)
+            cel.alignment = Alignment(horizontal='left', vertical='center', wrap_text=True)
+            cel.border = Border(left=Side(style='thin'), right=Side(style='thin'), top=Side(style='thin'), bottom=Side(style='thin'))
+
+        fila += 1
+        filas_procesadas += 1
+
+    # Ajustar anchos de columna
+    for col in range(1, len(encabezados) + 1):
+        col_letter = get_column_letter(col)
+        if col in (1, 3, 4):
+            ws.column_dimensions[col_letter].width = 18
+        elif col in (2, 7):
+            ws.column_dimensions[col_letter].width = 30
+        else:
+            ws.column_dimensions[col_letter].width = 20
+
+    ws.freeze_panes = 'A2'
+
+    try:
+        wb.save(output_path)
+    except Exception as e:
+        raise Exception(f"Error guardando Excel EMA: {e}")
 
     return True
 

@@ -4851,7 +4851,7 @@ class SistemaDictamenesVC(ctk.CTk):
             # Cargar el módulo control_folios_anual dinámicamente
             import importlib.util
             
-            excel_gen_file = os.path.join(self.documentos_dir, 'Documentos Inspeccion/control_folios_anual.py')
+            excel_gen_file = os.path.join(self.documentos_dir, 'control_folios_anual.py')
             
             if not os.path.exists(excel_gen_file):
                 messagebox.showerror("Error", f"No se encontró el archivo generador de Excel: {excel_gen_file}")
@@ -4923,7 +4923,7 @@ class SistemaDictamenesVC(ctk.CTk):
             # Cargar el módulo control_folios_anual dinámicamente
             import importlib.util
             
-            excel_gen_file = os.path.join(self.documentos_dir, 'Documentos Inspeccion/control_folios_anual.py')
+            excel_gen_file = os.path.join(self.documentos_dir, 'control_folios_anual.py')
             
             if not os.path.exists(excel_gen_file):
                 messagebox.showerror("Error", f"No se encontró el archivo generador de Excel: {excel_gen_file}")
