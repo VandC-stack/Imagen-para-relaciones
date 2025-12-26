@@ -458,8 +458,7 @@
       "colonia": "",
       "municipio": "",
       "ciudad_estado": "",
-      "cp": "",
-      "ruta_oficio_de_comisión": "C:/Users/bost2/OneDrive/Escritorio/Oficio_de_Comisión_CP000019.pdf"
+      "cp": ""
     },
     {
       "folio_visita": "CP000020",
@@ -472,14 +471,14 @@
       "hora_termino": "6:00 PM",
       "norma": "NOM-004-SE-2021, NOM-020-SCFI-1997, NOM-050-SCFI-2004",
       "cliente": "ARTICULOS DEPORTIVOS DECATHLON SA DE CV",
-      "nfirma1": "Aitana Yolitzin Sanchez Tenorio, Alberto Martinez Guzman",
+      "nfirma1": "Aitana Yolitzin Sanchez Tenorio, Alberto Martinez Guzman, Arturo Ivan Cortes Flores",
       "nfirma2": "",
       "estatus": "Completada",
       "tipo_documento": "Dictamen",
       "folios_utilizados": "064466 - 064483",
       "total_folios": 98,
       "total_folios_numericos": 98,
-      "supervisores_tabla": "Aitana Yolitzin Sanchez Tenorio, Alberto Martinez Guzman",
+      "supervisores_tabla": "Aitana Yolitzin Sanchez Tenorio, Alberto Martinez Guzman, Arturo Ivan Cortes Flores",
       "supervisor_formulario": "",
       "_id": "a45e486a-f6c0-4483-81b5-dc6eb24ad2d7",
       "direccion": "Parque industrial advance II, Capula, Tepotzotlán, Estado de México, C.P. 54603",

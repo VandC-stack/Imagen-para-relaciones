@@ -6487,6 +6487,12 @@ class SistemaDictamenesVC(ctk.CTk):
             scroll_insp.pack(fill='both', expand=True, pady=(6,6), padx=(6,0))
 
             insp_checks = []
+            # Determinar inspectores seleccionados a partir de los datos de la visita
+            try:
+                existing_raw_insp = (datos.get('supervisores_tabla') or datos.get('nfirma1') or '') if datos else ''
+                selected_inspectores = [s.strip() for s in str(existing_raw_insp).split(',') if s.strip()]
+            except Exception:
+                selected_inspectores = []
             last_insp_normas_label = ctk.CTkLabel(insp_frame, text='', font=("Inter", 11), text_color=STYLE['texto_oscuro'])
             last_insp_normas_label.pack(anchor='w', pady=(6,4))
 
@@ -6546,6 +6552,15 @@ class SistemaDictamenesVC(ctk.CTk):
                     # trace para actualizar estado cuando cambien normas o el propio checkbox
                     try:
                         var.trace_add('write', lambda *a, _n=nombre: update_inspector_statuses())
+                    except Exception:
+                        pass
+                    # Si en los datos de la visita ya viene este inspector, marcarlo
+                    try:
+                        if nombre in selected_inspectores:
+                            try:
+                                var.set('1')
+                            except Exception:
+                                pass
                     except Exception:
                         pass
                     insp_checks.append((nombre, var))
