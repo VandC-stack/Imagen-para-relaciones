@@ -3,6 +3,7 @@ import os
 import re
 from datetime import datetime
 from typing import Dict, List, Optional, Tuple
+import unicodedata
 import openpyxl
 from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
 from openpyxl.utils import get_column_letter
@@ -25,6 +26,8 @@ class ControlFoliosAnual:
         self.folio_to_cliente = {}  # Mapeo de folio a cliente
         self.normas = []
         self._dictamen_cache = {}
+        # Mapeo (SOLICITUD, FOLIO) -> FECHA DE ENTRADA extraída de backups
+        self.backup_fecha_entrada: Dict[Tuple[str, str], str] = {}
         
     def cargar_datos(self) -> Tuple[bool, str]:
         """
@@ -60,6 +63,57 @@ class ControlFoliosAnual:
                 print(f"✅ Tabla de relación cargada: {len(self.tabla_relacion)} registros")
             else:
                 return False, f"No se encontró {tabla_path}"
+
+            # Cargar backups de tabla_relacion (cada visita genera una copia aquí)
+            # y construir un mapeo (SOLICITUD, FOLIO) -> FECHA DE ENTRADA
+            try:
+                backups_dir = os.path.join(self.data_dir, "tabla_relacion_backups")
+                if os.path.exists(backups_dir):
+                    for bf in os.listdir(backups_dir):
+                        if not bf.lower().endswith('.json'):
+                            continue
+                        bfp = os.path.join(backups_dir, bf)
+                        try:
+                            with open(bfp, 'r', encoding='utf-8') as bf_f:
+                                bdata = json.load(bf_f)
+                        except Exception:
+                            continue
+
+                        # normalizar lista de registros si es dict o lista
+                        records = []
+                        if isinstance(bdata, dict):
+                            # buscar primer value que sea lista
+                            for v in bdata.values():
+                                if isinstance(v, list):
+                                    records = v
+                                    break
+                            if not records:
+                                # fallback: si el dict parece ya una lista por claves numéricas
+                                try:
+                                    # intentar interpretar como lista de diccionarios
+                                    possible = list(bdata.values())
+                                    if all(isinstance(x, dict) for x in possible):
+                                        records = possible
+                                except Exception:
+                                    records = []
+                        elif isinstance(bdata, list):
+                            records = bdata
+
+                        for r in records:
+                            sol = str(r.get('SOLICITUD', '')).strip()
+                            fol = str(r.get('FOLIO', '')).strip()
+                            fecha_ent = r.get('FECHA DE ENTRADA') or r.get('FECHA_DE_ENTRADA')
+                            if sol and fol and fecha_ent:
+                                key = (sol, fol)
+                                # preferir la primera encontrada (no sobrescribir)
+                                if key not in self.backup_fecha_entrada:
+                                    self.backup_fecha_entrada[key] = str(fecha_ent)
+                else:
+                    # si no existe carpeta de backups, seguir silenciosamente
+                    pass
+            except Exception:
+                # no bloquear la carga por errores en backups
+                pass
 
             # Cargar Normas.json (opcional, para mostrar nombres completos de NOM)
             normas_path = os.path.join(self.data_dir, "Normas.json")
@@ -163,8 +217,25 @@ class ControlFoliosAnual:
         """
         for inspector in self.firmas:
             if inspector.get("FIRMA") == firma:
-                return inspector.get("NOMBRE DE INSPECTOR", "N/A")
+                # Intentar extraer nombre por varias claves posibles
+                nombre = (
+                    inspector.get("NOMBRE") or inspector.get("NOMBRE_COMPLETO")
+                    or inspector.get("NOMBRE DE INSPECTOR") or inspector.get("nombre")
+                    or inspector.get("NOMBRE INSPECTOR") or inspector.get("NOMBRE_COMPLETO_INSPECTOR")
+                    or inspector.get("FIRMA")
+                )
+                return self._normalize_name(nombre)
         return "N/A"
+
+    def _normalize_name(self, name: Optional[str]) -> str:
+        """
+        Normalizar nombre: convertir a mayúsculas y quitar acentos.
+        """
+        if not name:
+            return "N/A"
+        nfkd = unicodedata.normalize('NFKD', str(name))
+        only_ascii = ''.join([c for c in nfkd if not unicodedata.combining(c)])
+        return only_ascii.upper()
     
     def formatear_folio_ema(self, folio) -> str:
         """
@@ -209,13 +280,11 @@ class ControlFoliosAnual:
         """Buscar dictamen JSON en data/Dictamenes que coincida con solicitud y folio."""
         try:
             # Normalizar folio y solicitud para mejorar coincidencias
-            folio_s = str(folio)
-            sol_search = str(solicitud) if solicitud is not None else ''
+            folio_s = str(folio).strip() if folio is not None else ''
+            sol_search = str(solicitud).strip() if solicitud is not None else ''
             # Si viene con formato 'XXXX/25', usar la parte antes de la barra
-            if '/' in sol_search:
-                sol_base = sol_search.split('/')[0]
-            else:
-                sol_base = sol_search
+            sol_base = sol_search.split('/')[0] if '/' in sol_search else sol_search
+
             dicts_dir = os.path.join(self.data_dir, 'Dictamenes')
             if dicts_dir in self._dictamen_cache:
                 files = self._dictamen_cache[dicts_dir]
@@ -225,39 +294,88 @@ class ControlFoliosAnual:
                 files = [os.path.join(dicts_dir, f) for f in os.listdir(dicts_dir) if f.lower().endswith('.json')]
                 self._dictamen_cache[dicts_dir] = files
 
+            # Buscamos coincidencias estrictas: preferir igualdad de folio+solicitud.
             for fp in files:
                 try:
                     with open(fp, 'r', encoding='utf-8') as f:
                         d = json.load(f)
-                    ident = d.get('identificacion', {})
-                    sol = ident.get('solicitud') or ''
-                    fol = str(ident.get('folio', ''))
-                    cadena = ident.get('cadena_identificacion', '') or ''
-
-                    # Comparar por folio cuando esté presente y coincida
-                    if fol and folio and fol == folio_s:
-                        return d
-
-                    # Comparar por solicitud exacta o por base (sin /aa)
-                    try:
-                        if sol and sol_search and str(sol).endswith(sol_search):
-                            return d
-                    except Exception:
-                        pass
-
-                    try:
-                        if sol and sol_base and str(sol).endswith(sol_base):
-                            return d
-                    except Exception:
-                        pass
-
-                    # Buscar en cadena_identificacion la base o la solicitud completa
-                    if cadena and sol_search and sol_search in cadena:
-                        return d
-                    if cadena and sol_base and sol_base in cadena:
-                        return d
                 except Exception:
                     continue
+
+                ident = d.get('identificacion', {})
+                sol_file = str(ident.get('solicitud', '')).strip()
+                fol_file = str(ident.get('folio', '')).strip()
+                cadena = (ident.get('cadena_identificacion') or '')
+                fname = os.path.basename(fp)
+
+                # 1) Coincidencia exacta en folio y solicitud (cuando ambos estén presentes)
+                if fol_file and folio_s and fol_file == folio_s:
+                    if sol_base:
+                        if sol_file and (sol_file == sol_base or sol_file.endswith(sol_base)):
+                            return d
+                        # También checar si la solicitud completa aparece en la cadena_identificacion
+                        if cadena and sol_base in cadena:
+                            return d
+                        # también intentar por filename
+                        if f"_{folio_s}_" in fname and sol_base and f"_{sol_base}_" in fname:
+                            return d
+                    else:
+                        return d
+
+                # 2) Coincidencia exacta en solicitud cuando folio no disponible
+                if sol_base and sol_file and (sol_file == sol_base or sol_file.endswith(sol_base)):
+                    return d
+
+                # 3) Intentar por filename patrones (folio y solicitud dentro del nombre)
+                try:
+                    if folio_s and f"_{folio_s}_" in fname:
+                        if sol_base:
+                            if f"_{sol_base}_" in fname:
+                                return d
+                            # si filename contiene folio pero no solicitud, aún puede ser válido
+                            return d
+                except Exception:
+                    pass
+
+                # 4) Por último, coincidencia en cadena_identificacion pero más restrictiva: buscar sol_base rodeada
+                if cadena and sol_base:
+                    if sol_base in cadena:
+                        return d
+            # Si no encontramos ninguna coincidencia estricta, devolvemos None
+        except Exception:
+            return None
+        return None
+
+    def _lookup_backup_fecha(self, solicitud: str, folio) -> Optional[str]:
+        """
+        Buscar una FECHA DE ENTRADA en el mapeo de backups usando varias heurísticas.
+        """
+        try:
+            sol = str(solicitud).strip() if solicitud is not None else ''
+            fol_s = str(folio).strip() if folio is not None else ''
+
+            # intento 1: búsqueda exacta
+            key = (sol, fol_s)
+            if key in self.backup_fecha_entrada:
+                return self.backup_fecha_entrada[key]
+
+            # intento 2: buscar con la parte antes de '/' en la solicitud
+            sol_base = sol.split('/')[0] if '/' in sol else sol
+            for (k_sol, k_fol), fecha in self.backup_fecha_entrada.items():
+                if k_sol == sol_base and (not fol_s or k_fol == fol_s):
+                    return fecha
+
+            # intento 3: buscar por folio solamente
+            if fol_s:
+                for (k_sol, k_fol), fecha in self.backup_fecha_entrada.items():
+                    if k_fol == fol_s:
+                        return fecha
+
+            # intento 4: buscar por coincidencia parcial en solicitud
+            for (k_sol, k_fol), fecha in self.backup_fecha_entrada.items():
+                if sol and sol in k_sol:
+                    return fecha
+
         except Exception:
             return None
         return None
@@ -314,14 +432,22 @@ class ControlFoliosAnual:
         cliente = self.buscar_cliente_por_solicitud(solicitud, folio_num)
 
         # Intentar localizar dictamen JSON para extraer cadena_identificacion y norma completa
-        dictamen_json = self._find_dictamen(solicitud, folio)
         cadena_ident = None
         norma_codigo = None
-        if dictamen_json:
+        # Si el dictamen ya lleva el JSON embebido (creado en crear_excel), úsalo
+        if dictamen.get('dictamen_json'):
+            dictamen_json = dictamen.get('dictamen_json')
             ident = dictamen_json.get('identificacion', {})
             cadena_ident = ident.get('cadena_identificacion')
             norma = dictamen_json.get('norma', {})
             norma_codigo = norma.get('codigo') or norma.get('NOM')
+        else:
+            dictamen_json = self._find_dictamen(solicitud, folio)
+            if dictamen_json:
+                ident = dictamen_json.get('identificacion', {})
+                cadena_ident = ident.get('cadena_identificacion')
+                norma = dictamen_json.get('norma', {})
+                norma_codigo = norma.get('codigo') or norma.get('NOM')
         
         # Obtener información del inspector
         firma = primer_registro.get("FIRMA", "")
@@ -331,8 +457,29 @@ class ControlFoliosAnual:
         descripciones = set()
         marcas = set()
         noms = set()
+
+        # Preferir los códigos que vienen en el JSON del dictamen (tabla_productos)
         modelos = []
-        
+        if dictamen.get('dictamen_json'):
+            try:
+                tp = dictamen['dictamen_json'].get('tabla_productos', [])
+                for p in tp:
+                    c = p.get('codigo')
+                    if c is not None:
+                        modelos.append(str(c))
+                # También extraer marcas y descripciones desde el JSON si no vienen en registros
+                prod = dictamen['dictamen_json'].get('producto', {})
+                if prod.get('descripcion'):
+                    descripciones.add(prod.get('descripcion'))
+                if tp and isinstance(tp, list):
+                    for p in tp:
+                        m = p.get('marca')
+                        if m:
+                            marcas.add(m)
+            except Exception:
+                modelos = []
+
+        # Si no hay dictamen_json, o además, recorrer registros (tabla_relacion) para completar datos
         for reg in registros:
             if reg.get("DESCRIPCION"):
                 descripciones.add(reg.get("DESCRIPCION"))
@@ -340,8 +487,25 @@ class ControlFoliosAnual:
                 marcas.add(reg.get("MARCA"))
             if reg.get("CLASIF UVA"):
                 noms.add(str(reg.get("CLASIF UVA")))
+
+            # Aceptar tanto 'CODIGO' simple como 'CODIGOS' lista en registros de tabla_relacion
             if reg.get("CODIGO"):
-                modelos.append(str(reg.get("CODIGO")))
+                val = reg.get("CODIGO")
+                if isinstance(val, (list, tuple)):
+                    for v in val:
+                        modelos.append(str(v))
+                else:
+                    if isinstance(val, str) and ',' in val:
+                        for v in [x.strip() for x in val.split(',') if x.strip()]:
+                            modelos.append(str(v))
+                    else:
+                        modelos.append(str(val))
+            if reg.get("CODIGOS"):
+                try:
+                    for c in reg.get("CODIGOS"):
+                        modelos.append(str(c))
+                except Exception:
+                    pass
         
         # Preparar valores derivados
         numero_solicitud_display = None
@@ -389,7 +553,38 @@ class ControlFoliosAnual:
                     mapped.append(str(c))
             nom_display = ", ".join(sorted(set(mapped))) if mapped else "N/A"
 
-        documento_emitido = numero_solicitud_display
+        # Para la columna DOCUMENTO EMITIDO preferimos el valor de cadena_identificacion
+        # pero solo el primer token (ej: "25049UDCNOM-004-SE-2021046296"). Si no existe,
+        # se usa el número de solicitud calculado.
+        if cadena_ident:
+            try:
+                documento_emitido = str(cadena_ident).strip().split()[0]
+            except Exception:
+                documento_emitido = numero_solicitud_display
+        else:
+            documento_emitido = numero_solicitud_display
+
+        # Normalizar modelos: mantener orden y eliminar duplicados vacíos
+        modelos_norm = []
+        for m in modelos:
+            if not m:
+                continue
+            if m not in modelos_norm:
+                modelos_norm.append(m)
+
+        # Preferir FECHA DE ENTRADA desde backups (tabla_relacion_backups) si existe
+        fecha_desaduanamiento = None
+        try:
+            fecha_desaduanamiento = self._lookup_backup_fecha(solicitud, folio)
+            if not fecha_desaduanamiento:
+                # buscar en registros cualquiera con FECHA DE ENTRADA válida
+                for r in registros:
+                    fe = r.get('FECHA DE ENTRADA') or r.get('FECHA_DE_ENTRADA')
+                    if fe:
+                        fecha_desaduanamiento = fe
+                        break
+        except Exception:
+            fecha_desaduanamiento = None
 
         fila = {
             "NÚMERO DE SOLICITUD": numero_solicitud_display,
@@ -403,14 +598,14 @@ class ControlFoliosAnual:
             "TIPO DE DOCUMENTO OFICIAL EMITIDO": tipo_display,
             "DOCUMENTO EMITIDO": documento_emitido or "N/A",
             "FECHA DE DOCUMENTO EMITIDO": primer_registro.get("FECHA DE EMISION DE SOLICITUD", "N/A"),
-            "VERIFICADOR": nombre_inspector,
+            "VERIFICADOR": self._normalize_name(nombre_inspector),
             "PEDIMENTO DE IMPORTACION": primer_registro.get("PEDIMENTO", "N/A"),
-            "FECHA DE DESADUANAMIENTO (CUANDO APLIQUE)": primer_registro.get("FECHA DE ENTRADA", "N/A"),
+            "FECHA DE DESADUANAMIENTO (CUANDO APLIQUE)": fecha_desaduanamiento or primer_registro.get("FECHA DE ENTRADA", "N/A"),
             "FECHA DE VISITA (CUANDO APLIQUE)": primer_registro.get("FECHA DE VERIFICACION", "N/A"),
-            "MODELOS": ", ".join(modelos) if modelos else "N/A",
+            "MODELOS": ", ".join(modelos_norm) if modelos_norm else "N/A",
             "SOL EMA": self.extraer_sol_ema(solicitud),
             "FOLIO EMA": self.formatear_folio_ema(folio),
-            "INSP EMA": nombre_inspector
+            "INSP EMA": self._normalize_name(nombre_inspector)
         }
         
         return fila
@@ -523,21 +718,180 @@ class ControlFoliosAnual:
                     bottom=Side(style='thin')
                 )
             
-            # Agrupar datos por dictamen
-            dictamenes = self.agrupar_por_dictamen()
-            print(f"📊 Dictámenes encontrados: {len(dictamenes)}")
-            
+            # Construir dictamenes a partir de los archivos JSON en data/Dictamenes
+            # Usamos como clave única el token de 'Solicitud de Servicio' extraído
+            # desde 'cadena_identificacion' (ej: 25049USDNOM-004-SE-2021006916-1).
+            dictamenes_map: Dict[str, Dict] = {}
+            try:
+                dicts_dir = os.path.join(self.data_dir, 'Dictamenes')
+                if os.path.exists(dicts_dir):
+                    for fname in os.listdir(dicts_dir):
+                        if not fname.lower().endswith('.json'):
+                            continue
+                        fp = os.path.join(dicts_dir, fname)
+                        try:
+                            with open(fp, 'r', encoding='utf-8') as f:
+                                d = json.load(f)
+                        except Exception:
+                            continue
+
+                        ident = d.get('identificacion', {})
+                        sol = str(ident.get('solicitud', '')).strip()
+                        fol = str(ident.get('folio', '')).strip()
+                        cadena = str(ident.get('cadena_identificacion') or '').strip()
+
+                        # Extraer token 'Solicitud de Servicio' preferido
+                        sol_token = None
+                        if cadena:
+                            m = re.search(r"Solicitud de Servicio:\s*([A-Za-z0-9\-]+)", cadena)
+                            if m:
+                                sol_token = m.group(1)
+                            else:
+                                m2 = re.search(r"([A-Za-z0-9\-]+-[0-9]+)$", cadena)
+                                if m2:
+                                    sol_token = m2.group(1)
+
+                        # Clave preferida: token extraído; si no, fallback a solicitud_folio
+                        key = sol_token if sol_token else f"{sol}_{fol}"
+
+                        # Crear registro mínimo basado en el JSON completo
+                        registro = {}
+                        fechas = d.get('fechas', {})
+                        producto = d.get('producto', {})
+                        tabla_prod = d.get('tabla_productos', [])
+                        firmas = d.get('firmas', {})
+
+                        registro['FECHA DE EMISION DE SOLICITUD'] = fechas.get('emision')
+                        registro['FECHA DE VERIFICACION'] = fechas.get('verificacion')
+                        registro['PEDIMENTO'] = producto.get('pedimento')
+                        firma1 = firmas.get('firma1') if isinstance(firmas, dict) else None
+                        if firma1:
+                            registro['FIRMA'] = firma1.get('codigo_solicitado') or firma1.get('codigo') or firma1.get('nombre')
+                        else:
+                            registro['FIRMA'] = None
+
+                        registro['DESCRIPCION'] = producto.get('descripcion')
+                        if tabla_prod and isinstance(tabla_prod, list):
+                            registro['MARCA'] = tabla_prod[0].get('marca')
+                            # Recopilar todos los códigos de tabla_productos
+                            codigos = []
+                            for p in tabla_prod:
+                                try:
+                                    c = p.get('codigo')
+                                except Exception:
+                                    c = None
+                                if c is not None:
+                                    codigos.append(str(c))
+                            # Guardar lista de códigos y también un primer código por compatibilidad
+                            registro['CODIGOS'] = codigos
+                            registro['CODIGO'] = codigos[0] if codigos else None
+
+                        if key in dictamenes_map:
+                            # Merge: evitar sobrescribir, agregar registros y no duplicar
+                            existing = dictamenes_map[key]
+                            # añadir registro si no está ya
+                            if registro not in existing.get('registros', []):
+                                existing.setdefault('registros', []).append(registro)
+                            # mantener dictamen_json existente, pero si falta, asignar
+                            if not existing.get('dictamen_json'):
+                                existing['dictamen_json'] = d
+                            # mantener cadena y sol_token si faltan
+                            existing.setdefault('cadena_identificacion', cadena)
+                            existing.setdefault('sol_token', sol_token)
+                        else:
+                            dictamenes_map[key] = {
+                                'solicitud': sol,
+                                'folio': fol,
+                                'registros': [registro],
+                                'dictamen_json': d,
+                                'cadena_identificacion': cadena,
+                                'sol_token': sol_token,
+                            }
+            except Exception:
+                pass
+
+            # Fusionar información proveniente de tabla_de_relacion (si existe), agregando registros
+            try:
+                for registro in self.tabla_relacion:
+                    solicitud_tr = str(registro.get('SOLICITUD', '')).strip()
+                    folio_tr = str(registro.get('FOLIO', '')).strip()
+                    key_tr = f"{solicitud_tr}_{folio_tr}"
+
+                    # Si existe un dictamen JSON que corresponda a este registro, lo omitimos
+                    # porque ya generaremos la fila desde el JSON (evita duplicados y firmas distintas).
+                    try:
+                        found = self._find_dictamen(solicitud_tr, folio_tr)
+                        if found:
+                            # hay un dictamen JSON para este registro -> omitir
+                            continue
+                    except Exception:
+                        pass
+
+                    # Si la clave ya existe en el mapa y no proviene de un JSON, anexar
+                    if key_tr in dictamenes_map:
+                        if not dictamenes_map[key_tr].get('dictamen_json'):
+                            if registro not in dictamenes_map[key_tr]['registros']:
+                                dictamenes_map[key_tr]['registros'].append(registro)
+                    else:
+                        # crear nuevo entry por solicitud_folio (registro sin JSON asociado)
+                        dictamenes_map[key_tr] = {
+                            'solicitud': solicitud_tr,
+                            'folio': folio_tr,
+                            'registros': [registro]
+                        }
+            except Exception:
+                pass
+
+            dictamenes = list(dictamenes_map.values())
+            # Ordenar dictámenes por folio numérico ascendente (usar 'folio' o extraer de 'sol_token')
+            def _folio_key(item: Dict) -> int:
+                try:
+                    return int(item.get('folio') or 0)
+                except Exception:
+                    # intentar extraer número al final de sol_token o cadena_identificacion
+                    try:
+                        s = str(item.get('sol_token') or item.get('cadena_identificacion') or '')
+                        m = re.search(r"-(\d+)$", s)
+                        if m:
+                            return int(m.group(1))
+                    except Exception:
+                        pass
+                return 0
+
+            dictamenes.sort(key=_folio_key)
+            print(f"📊 Dictámenes encontrados (antes de deduplicar por folio): {len(dictamenes)}")
+
+            # Consolidar para que cada FOLIO EMA sea único.
+            # Preferir dictámenes que tengan 'dictamen_json' cuando haya conflicto.
+            folio_map: Dict[str, Dict] = {}
+            for d in dictamenes:
+                fol_raw = d.get('folio')
+                fol_key = self.formatear_folio_ema(fol_raw)
+                if fol_key not in folio_map:
+                    folio_map[fol_key] = d
+                else:
+                    # si ya existe, preferimos el que tiene dictamen_json
+                    existing = folio_map[fol_key]
+                    if not existing.get('dictamen_json') and d.get('dictamen_json'):
+                        folio_map[fol_key] = d
+
+            # Crear lista ordenada por folio y escribir solo una fila por folio
+            consolidated = list(folio_map.values())
+            consolidated.sort(key=_folio_key)
+
+            print(f"📊 Dictámenes únicos por FOLIO EMA a exportar: {len(consolidated)}")
+
             # Generar filas
             fila_actual = 2
             filas_procesadas = 0
-            
-            for dictamen in dictamenes:
+
+            for dictamen in consolidated:
                 fila_datos = self.generar_fila_excel(dictamen)
-                
+
                 # Filtrar por fechas si se especificaron
                 if not self.filtrar_por_fechas(fila_datos, fecha_inicio, fecha_fin):
                     continue
-                
+
                 # Escribir datos
                 for col, encabezado in enumerate(encabezados, 1):
                     valor = fila_datos.get(encabezado, "N/A")
@@ -549,7 +903,7 @@ class ControlFoliosAnual:
                         top=Side(style='thin'),
                         bottom=Side(style='thin')
                     )
-                
+
                 fila_actual += 1
                 filas_procesadas += 1
             
@@ -662,7 +1016,9 @@ def generar_control_folios_anual(
     year,
     start_date=None,
     end_date=None,
-    export_cache=None
+    export_cache=None,
+    historial_list: Optional[List[Dict]] = None,
+    data_dir: Optional[str] = None
 ):
     from datetime import datetime
     import os
@@ -678,15 +1034,35 @@ def generar_control_folios_anual(
     fecha_inicio = normalizar(start_date)
     fecha_fin = normalizar(end_date)
 
-    # 👉 Corrección CLAVE
-    base_dir = os.path.dirname(os.path.dirname(historial_path))
-    data_dir = os.path.join(base_dir, "data")
+    # Resolver data_dir: si se pasó explícitamente lo usamos, si no
+    # lo calculamos desde el historial_path como antes.
+    if not data_dir:
+        base_dir = os.path.dirname(os.path.dirname(historial_path))
+        data_dir = os.path.join(base_dir, "data")
 
     generador = ControlFoliosAnual(data_dir=data_dir)
 
     exito, mensaje = generador.cargar_datos()
     if not exito:
         raise Exception(mensaje)
+
+    # Si recibimos una lista de historial (p.e. desde export_cache), usarla
+    # en lugar de leer el `historial_visitas.json` del data_dir. Luego
+    # regenerar el mapeo folio->cliente.
+    if historial_list is not None:
+        # historial_list puede venir como {'visitas': [...]} o directamente como lista
+        if isinstance(historial_list, dict) and 'visitas' in historial_list:
+            generador.historial_visitas = historial_list['visitas']
+        elif isinstance(historial_list, list):
+            generador.historial_visitas = historial_list
+        else:
+            # ignorar si no tiene formato esperado
+            pass
+        # recrear mapeo
+        try:
+            generador._crear_mapeo_folio_cliente()
+        except Exception:
+            pass
 
     exito, mensaje = generador.crear_excel(
         output_path,
@@ -830,6 +1206,7 @@ def generar_reporte_ema(tabla_de_relacion_path, historial_path, output_path, exp
         # Inspector(es)
         firma = primer.get('FIRMA', '')
         inspector_nombre = generador.buscar_inspector_por_firma(firma)
+        inspector_nombre = generador._normalize_name(inspector_nombre)
 
         personas_apoyo = 'N/A'
         nom_str = ", ".join(noms) if noms else 'N/A'
@@ -876,12 +1253,6 @@ def generar_reporte_ema(tabla_de_relacion_path, historial_path, output_path, exp
         raise Exception(f"Error guardando Excel EMA: {e}")
 
     return True
-
-
-
-
-
-
 
 if __name__ == "__main__":
     exit(main())

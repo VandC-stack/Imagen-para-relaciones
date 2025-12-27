@@ -5014,17 +5014,18 @@ class SistemaDictamenesVC(ctk.CTk):
                         ec = json.load(f)
                     anual_list = ec.get('anual') if isinstance(ec, dict) else None
                     if anual_list is not None:
-                        tmp_hist = os.path.join(os.path.dirname(export_cache), f"_tmp_hist_{int(datetime.now().timestamp())}.json")
-                        with open(tmp_hist, 'w', encoding='utf-8') as th:
-                            json.dump({'visitas': anual_list}, th, ensure_ascii=False, indent=2)
-                        historial_path_to_use = tmp_hist
+                        # No escribir archivo temporal: pasamos la lista directamente
+                        historial_path_to_use = self.historial_path
+                        historial_list_to_pass = anual_list
                     else:
                         historial_path_to_use = self.historial_path
+                        historial_list_to_pass = None
                 except Exception:
                     historial_path_to_use = self.historial_path
+                    historial_list_to_pass = None
             else:
                 historial_path_to_use = self.historial_path
-
+                historial_list_to_pass = None
             excel_mod.generar_control_folios_anual(
                 historial_path_to_use,
                 tabla_backups_dir,
@@ -5032,7 +5033,8 @@ class SistemaDictamenesVC(ctk.CTk):
                 year,
                 start_date=start_date,
                 end_date=end_date,
-                export_cache=export_cache
+                export_cache=export_cache,
+                historial_list=historial_list_to_pass
             )
             
             messagebox.showinfo("Éxito", f"Control de Folios Anual generado exitosamente:\n{file_path}")
