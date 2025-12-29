@@ -11,6 +11,8 @@ from main import (
     extraer_codigos_pdf,
     insertar_imagenes_en_pdf_placeholder,
 )
+from main import normalizar_cadena_alnum_mayus
+from plantillaPDF import cargar_tabla_relacion
 
 INDEX_FILE = os.path.join(APPDATA_DIR, "index_indice.json")
 IMG_EXTS = [".png", ".jpg", ".jpeg", ".webp", ".bmp", ".tif"]
@@ -31,6 +33,18 @@ def construir_indice_desde_excel(ruta_excel):
 
     indice = {}
 
+    # Cargar tabla de relación para filtrar códigos válidos
+    try:
+        df_rel = cargar_tabla_relacion()
+        valid_codes = set()
+        for col in ("CODIGO","CODIGOS","CODE","SKU","CLAVE"):
+            if col in df_rel.columns:
+                for v in df_rel[col].astype(str).fillna(""):
+                    valid_codes.add(normalizar_cadena_alnum_mayus(v))
+                break
+    except Exception:
+        valid_codes = None
+
     for _, row in df.iterrows():
         try:
             codigo = str(row.iloc[0]).strip()
@@ -44,7 +58,12 @@ def construir_indice_desde_excel(ruta_excel):
         if "código" in codigo.lower() or "sku" in codigo.lower():
             continue
 
-        indice[codigo] = destino
+        canon = normalizar_cadena_alnum_mayus(codigo)
+        # Si disponemos de la tabla de relación, solo añadimos códigos que estén en ella
+        if valid_codes is not None and canon not in valid_codes:
+            continue
+
+        indice[canon] = destino
 
     with open(INDEX_FILE, "w", encoding="utf-8") as f:
         json.dump(indice, f, ensure_ascii=False, indent=4)
@@ -131,10 +150,11 @@ def procesar_doc_con_indice_docx(ruta_doc, ruta_imagenes, indice):
             run = p.add_run()
 
             for codigo in codigos:
-                if codigo not in indice:
+                canon = normalizar_cadena_alnum_mayus(codigo)
+                if canon not in indice:
                     continue
 
-                destino = indice[codigo]
+                destino = indice[canon]
                 tipo, ruta = buscar_destino(ruta_imagenes, destino)
 
                 if tipo == "imagen":
@@ -177,10 +197,11 @@ def procesar_doc_con_indice_pdf(ruta_doc, ruta_imagenes, indice):
     rutas_imagenes = []
 
     for codigo in codigos:
-        if codigo not in indice:
+        canon = normalizar_cadena_alnum_mayus(codigo)
+        if canon not in indice:
             continue
 
-        destino = indice[codigo]
+        destino = indice[canon]
         tipo, ruta = buscar_destino(ruta_imagenes, destino)
 
         if tipo == "imagen":

@@ -11,6 +11,7 @@ from main import (
     norm_path_key,
     insertar_imagenes_en_pdf_placeholder,
 )
+from plantillaPDF import cargar_tabla_relacion
 from registro_fallos import registrar_fallo, limpiar_registro, mostrar_registro, LOG_FILE
 
 
@@ -42,6 +43,22 @@ def procesar_simple():
 
             doc = Document(ruta_doc)
             codigos = extraer_codigos(doc)
+
+            # Filtrar códigos contra la tabla de relación (si existe)
+            try:
+                df_rel = cargar_tabla_relacion()
+                valid_codes = set()
+                for col in ("CODIGO","CODIGOS","CODE","SKU","CLAVE"):
+                    if col in df_rel.columns:
+                        for v in df_rel[col].astype(str).fillna(""):
+                            valid_codes.add(normalizar_cadena_alnum_mayus(v))
+                        break
+            except Exception:
+                valid_codes = None
+
+            if codigos:
+                if valid_codes is not None:
+                    codigos = [c for c in codigos if normalizar_cadena_alnum_mayus(c) in valid_codes]
 
             if not codigos:
                 registrar_fallo(archivo)
@@ -81,6 +98,22 @@ def procesar_simple():
             print(f"Procesando documento (modo simple PDF): {ruta_doc}")
 
             codigos = extraer_codigos_pdf(ruta_doc)
+
+            # Filtrar códigos contra la tabla de relación (si existe)
+            try:
+                df_rel = cargar_tabla_relacion()
+                valid_codes = set()
+                for col in ("CODIGO","CODIGOS","CODE","SKU","CLAVE"):
+                    if col in df_rel.columns:
+                        for v in df_rel[col].astype(str).fillna(""):
+                            valid_codes.add(normalizar_cadena_alnum_mayus(v))
+                        break
+            except Exception:
+                valid_codes = None
+
+            if codigos:
+                if valid_codes is not None:
+                    codigos = [c for c in codigos if normalizar_cadena_alnum_mayus(c) in valid_codes]
 
             if not codigos:
                 registrar_fallo(archivo)

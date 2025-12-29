@@ -8,6 +8,7 @@ from main import (
     extraer_codigos_pdf,
     insertar_imagenes_en_pdf_placeholder,
 )
+from plantillaPDF import cargar_tabla_relacion
 from registro_fallos import registrar_fallo, limpiar_registro, mostrar_registro, LOG_FILE
 
 IMG_EXTS = {".png", ".jpg", ".jpeg", ".bmp", ".tif", ".tiff", ".webp"}
@@ -63,8 +64,24 @@ def procesar_carpetas():
             imagen_insertada = False
             codigos = extraer_codigos(doc)
 
+            # Filtrar contra tabla de relación
+            try:
+                df_rel = cargar_tabla_relacion()
+                valid_codes = set()
+                for col in ("CODIGO","CODIGOS","CODE","SKU","CLAVE"):
+                    if col in df_rel.columns:
+                        for v in df_rel[col].astype(str).fillna(""):
+                            valid_codes.add(normalizar_cadena_alnum_mayus(v))
+                        break
+            except Exception:
+                valid_codes = None
+
+            if codigos:
+                if valid_codes is not None:
+                    codigos = [c for c in codigos if normalizar_cadena_alnum_mayus(c) in valid_codes]
+
             if not codigos:
-                print("  No se encontraron códigos en el documento.")
+                print("  No se encontraron códigos en el documento (o ninguno coincide con la tabla de relación).")
                 registrar_fallo(archivo)
                 continue
 
@@ -106,8 +123,24 @@ def procesar_carpetas():
             imagen_insertada = False
             codigos = extraer_codigos_pdf(ruta_doc)
 
+            # Filtrar contra tabla de relación
+            try:
+                df_rel = cargar_tabla_relacion()
+                valid_codes = set()
+                for col in ("CODIGO","CODIGOS","CODE","SKU","CLAVE"):
+                    if col in df_rel.columns:
+                        for v in df_rel[col].astype(str).fillna(""):
+                            valid_codes.add(normalizar_cadena_alnum_mayus(v))
+                        break
+            except Exception:
+                valid_codes = None
+
+            if codigos:
+                if valid_codes is not None:
+                    codigos = [c for c in codigos if normalizar_cadena_alnum_mayus(c) in valid_codes]
+
             if not codigos:
-                print("  No se encontraron códigos en el PDF.")
+                print("  No se encontraron códigos en el PDF (o ninguno coincide con la tabla de relación).")
                 registrar_fallo(archivo)
                 continue
 

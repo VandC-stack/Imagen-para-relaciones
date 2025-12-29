@@ -347,11 +347,55 @@ class PDFGeneratorConDatos(PDFGenerator):
 
         # HOJA 2 – Evidencia
         self.elements.append(PageBreak())
-        self.elements.append(Spacer(1, 2 * inch))
-        self.elements.append(Paragraph(
-            "<b>IMAGEN</b>",
-            ParagraphStyle('Center', parent=self.normal_style, alignment=1, fontSize=12)
-        ))
+        self.elements.append(Spacer(1, 0.25 * inch))
+
+        evidencias = self.datos.get('evidencias_lista', []) or []
+
+        if not evidencias:
+            # Si no hay evidencias asignadas, mantener el placeholder informativo
+            self.elements.append(Paragraph(
+                "<b>${IMAGEN}</b>",
+                ParagraphStyle('Center', parent=self.normal_style, alignment=1, fontSize=12)
+            ))
+        else:
+            # Insertar cada evidencia. `evidencias` puede ser lista de rutas (str) o de BytesIO/dicts
+            from io import BytesIO
+            for ev in evidencias:
+                try:
+                    if isinstance(ev, str):
+                        if os.path.exists(ev):
+                            img = RLImage(ev, width=4.5*inch, height=4.5*inch)
+                            self.elements.append(img)
+                            self.elements.append(Spacer(1, 0.25 * inch))
+                        else:
+                            # ruta no existe -> intentar si es JSON-like dict con imagen_bytes
+                            continue
+                    elif isinstance(ev, dict):
+                        img_bytes = ev.get('imagen_bytes') or ev.get('imagen_path_bytes')
+                        if img_bytes:
+                            if hasattr(img_bytes, 'seek'):
+                                img_bytes.seek(0)
+                                img = RLImage(img_bytes, width=4.5*inch, height=4.5*inch)
+                                self.elements.append(img)
+                                self.elements.append(Spacer(1, 0.25 * inch))
+                        else:
+                            # maybe it's a path stored under 'imagen_path'
+                            p = ev.get('imagen_path')
+                            if p and os.path.exists(p):
+                                img = RLImage(p, width=4.5*inch, height=4.5*inch)
+                                self.elements.append(img)
+                                self.elements.append(Spacer(1, 0.25 * inch))
+                    else:
+                        # assume BytesIO-like
+                        try:
+                            ev.seek(0)
+                            img = RLImage(ev, width=4.5*inch, height=4.5*inch)
+                            self.elements.append(img)
+                            self.elements.append(Spacer(1, 0.25 * inch))
+                        except Exception:
+                            continue
+                except Exception:
+                    continue
 
         # HOJA 3 – Firmas
         self.agregar_hoja_firmas()
@@ -673,6 +717,52 @@ def generar_dictamenes_completos(directorio_destino, cliente_manual=None, rfc_ma
     if not familias:
         return False, "No se encontraron familias para procesar", None
 
+    # Construir índice global de evidencias a partir de rutas guardadas por la UI
+    evidencia_cfg = {}
+    try:
+        ruta_evidence_cfg = os.path.join(os.path.dirname(__file__), 'data', 'evidence_paths.json')
+        if os.path.exists(ruta_evidence_cfg):
+            with open(ruta_evidence_cfg, 'r', encoding='utf-8') as f:
+                evidencia_cfg = json.load(f) or {}
+    except Exception:
+        evidencia_cfg = {}
+
+    IMG_EXTS = {'.png', '.jpg', '.jpeg', '.bmp', '.tif', '.tiff', '.webp'}
+    import re
+    def _normalizar(s):
+        return re.sub(r"[^A-Za-z0-9]", "", str(s or "")).upper()
+
+    def _construir_indice_de_carpetas(cfg):
+        """Construye un índice dict: base_norm -> [paths]
+        Evita duplicados y captura errores de acceso a carpetas.
+        """
+        index = {}
+        total = 0
+        for grp, lst in (cfg or {}).items():
+            for carpeta in lst:
+                try:
+                    for root, _, files in os.walk(carpeta):
+                        for nombre in files:
+                            base, ext = os.path.splitext(nombre)
+                            if ext.lower() not in IMG_EXTS:
+                                continue
+                            path = os.path.join(root, nombre)
+                            key = _normalizar(base)
+                            if not key:
+                                continue
+                            index.setdefault(key, []).append(path)
+                            total += 1
+                except Exception:
+                    continue
+        return index, total
+
+    indice_evidencias_global, total_indexadas = _construir_indice_de_carpetas(evidencia_cfg)
+    try:
+        claves = list(indice_evidencias_global.keys())[:20]
+    except Exception:
+        claves = []
+    print(f"🔎 Índice global de evidencias construido: {total_indexadas} imágenes indexadas, {len(indice_evidencias_global)} claves únicas. Muestras: {claves}")
+
     os.makedirs(directorio_destino, exist_ok=True)
     
     # Crear directorio para JSON dentro de 'data/Dictamenes' para centralizar los dictámenes
@@ -710,6 +800,74 @@ def generar_dictamenes_completos(directorio_destino, cliente_manual=None, rfc_ma
                 continue
 
             # 🎯 DETECTAR Y ASIGNAR FLUJO AUTOMÁTICAMENTE
+            # --- Intentar asignar evidencias a partir del índice global ---
+            try:
+                # Construir lista de códigos a buscar a partir de los registros (campo CODIGO)
+                etiquetas = datos.get('etiquetas_lista', []) or []
+                codigos_a_buscar = []
+                try:
+                    for r in registros:
+                        c = r.get('CODIGO') or r.get('codigo') or r.get('EAN') or r.get('ean')
+                        if c and str(c).strip() not in ("", "None", "nan"):
+                            codigos_a_buscar.append(str(c).strip())
+                except Exception:
+                    codigos_a_buscar = []
+
+                def _buscar_imagen(code):
+                    key = _normalizar(code)
+                    if not key:
+                        return None
+                    # 1) coincidencia exacta en claves del índice
+                    if key in indice_evidencias_global:
+                        lst = indice_evidencias_global.get(key) or []
+                        if lst:
+                            return lst[0]
+
+                    # 2) coincidencias parciales en las claves (key dentro de clave o viceversa)
+                    candidatos = [k for k in indice_evidencias_global.keys() if key in k or k in key]
+                    if candidatos:
+                        # ordenar por diferencia de longitud (más cercano) y lexicográficamente
+                        candidatos.sort(key=lambda k: (abs(len(k) - len(key)), k))
+                        primera = candidatos[0]
+                        lst = indice_evidencias_global.get(primera) or []
+                        if lst:
+                            return lst[0]
+
+                    # 3) fallback: buscar claves que contienen la mayor secuencia numérica del código
+                    import re as _re
+                    dig = ''.join(_re.findall(r"\d+", key))
+                    if dig:
+                        candidatos2 = [k for k in indice_evidencias_global.keys() if dig in k]
+                        if candidatos2:
+                            candidatos2.sort(key=lambda k: (abs(len(k) - len(dig)), k))
+                            lst = indice_evidencias_global.get(candidatos2[0]) or []
+                            if lst:
+                                return lst[0]
+
+                    # No encontrado
+                    return None
+
+                rutas_encontradas = []
+                if codigos_a_buscar:
+                    print(f"   🔎 Buscando evidencias para códigos: {codigos_a_buscar}")
+                    for codigo in codigos_a_buscar:
+                        p = _buscar_imagen(codigo)
+                        print(f"      → {codigo} => {p}")
+                        if p:
+                            rutas_encontradas.append(p)
+                            # Si etiquetas son dicts, anexar la ruta a la etiqueta correspondiente
+                            if etiquetas and isinstance(etiquetas[0], dict):
+                                for e in etiquetas:
+                                    if str(e.get('codigo')) == str(codigo) or str(e.get('ean')) == str(codigo):
+                                        e['imagen_path'] = p
+
+                if rutas_encontradas:
+                    datos['evidencias_lista'] = rutas_encontradas
+                    print(f"   ✅ Evidencias asignadas: {rutas_encontradas}")
+            except Exception:
+                pass
+
+            cliente = datos.get('cliente', 'DESCONOCIDO')
             cliente = datos.get('cliente', 'DESCONOCIDO')
             norma = datos.get('norma', '')
             flujo_detectado = detectar_flujo_cliente(cliente, norma)

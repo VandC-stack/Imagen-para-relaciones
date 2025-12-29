@@ -7234,6 +7234,14 @@ class SistemaDictamenesVC(ctk.CTk):
             base = os.path.join(os.path.dirname(__file__), "Pegado de Evidenvia Fotografica")
             main_path = os.path.join(base, "main.py")
 
+            # Asegurar que la carpeta del pegado esté en sys.path para que
+            # los imports relativos como `from registro_fallos import ...`
+            # funcionen cuando el script se ejecute.
+            added_to_path = False
+            if base not in sys.path:
+                sys.path.insert(0, base)
+                added_to_path = True
+
             # Cargar module 'main' desde archivo y parchear
             spec_main = importlib.util.spec_from_file_location("main_pegado", main_path)
             mod_main = importlib.util.module_from_spec(spec_main)
@@ -7275,35 +7283,46 @@ class SistemaDictamenesVC(ctk.CTk):
                     sys.modules['main'] = old_main
                 else:
                     sys.modules.pop('main', None)
+                # Quitar la ruta añadida al sys.path
+                try:
+                    if added_to_path and base in sys.path:
+                        sys.path.remove(base)
+                except Exception:
+                    pass
             except Exception:
                 pass
 
     def handle_pegado_simple(self):
-        ruta_docs = filedialog.askdirectory(title="Seleccionar carpeta de documentos (.docx/.pdf)")
-        if not ruta_docs:
-            return
-        ruta_imgs = filedialog.askdirectory(title="Seleccionar carpeta de imágenes")
+        # Guardar únicamente la ruta de imágenes para usarla posteriormente
+        ruta_imgs = filedialog.askdirectory(title="Seleccionar carpeta de imágenes para evidencias (se guardará)")
         if not ruta_imgs:
             return
-        self._call_pegado_script('pegado_simple.py', 'procesar_simple', ruta_docs.replace('\\', '/'), ruta_imgs.replace('\\', '/'))
+        try:
+            # Guardar la ruta bajo un grupo genérico 'manual_pegado'
+            self._save_evidence_path('manual_pegado', ruta_imgs)
+            messagebox.showinfo("Pegado guardado", "Ruta de imágenes guardada. Cuando genere los dictámenes, se buscarán evidencias en esta carpeta.")
+        except Exception as e:
+            messagebox.showerror("Error", f"No se pudo guardar la ruta de evidencias:\n{e}")
 
     def handle_pegado_carpetas(self):
-        ruta_docs = filedialog.askdirectory(title="Seleccionar carpeta de documentos (.docx/.pdf)")
-        if not ruta_docs:
-            return
-        ruta_imgs = filedialog.askdirectory(title="Seleccionar carpeta raíz de carpetas por código")
+        ruta_imgs = filedialog.askdirectory(title="Seleccionar carpeta raíz de carpetas por código (se guardará)")
         if not ruta_imgs:
             return
-        self._call_pegado_script('pegado_carpetas.py', 'procesar_carpetas', ruta_docs.replace('\\', '/'), ruta_imgs.replace('\\', '/'))
+        try:
+            self._save_evidence_path('manual_pegado', ruta_imgs)
+            messagebox.showinfo("Pegado guardado", "Ruta de carpetas guardada. Cuando genere los dictámenes, se buscarán evidencias en estas carpetas.")
+        except Exception as e:
+            messagebox.showerror("Error", f"No se pudo guardar la ruta de evidencias:\n{e}")
 
     def handle_pegado_indice(self):
-        ruta_docs = filedialog.askdirectory(title="Seleccionar carpeta de documentos (.docx/.pdf)")
-        if not ruta_docs:
-            return
-        ruta_imgs = filedialog.askdirectory(title="Seleccionar carpeta de imágenes")
+        ruta_imgs = filedialog.askdirectory(title="Seleccionar carpeta de imágenes para índice (se guardará)")
         if not ruta_imgs:
             return
-        self._call_pegado_script('pegado_indice.py', 'procesar_indice', ruta_docs.replace('\\', '/'), ruta_imgs.replace('\\', '/'))
+        try:
+            self._save_evidence_path('manual_pegado', ruta_imgs)
+            messagebox.showinfo("Pegado guardado", "Ruta de imágenes guardada. Al generar dictámenes y subir el Excel de índice, se usarán estas imágenes.")
+        except Exception as e:
+            messagebox.showerror("Error", f"No se pudo guardar la ruta de evidencias:\n{e}")
 
 # ================== EJECUCIÓN ================== #
 if __name__ == "__main__":
