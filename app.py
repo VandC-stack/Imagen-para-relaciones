@@ -838,6 +838,19 @@ class SistemaDictamenesVC(ctk.CTk):
             width=150,
             corner_radius=8
         )
+        # Botón para limpiar rutas de evidencias guardadas
+        self.boton_limpiar_rutas_evidencias = ctk.CTkButton(
+            cliente_section,
+            text="🧹 Limpiar rutas evidencias",
+            command=self.handle_clear_evidence_paths,
+            font=("Inter", 11),
+            fg_color=STYLE["peligro"],
+            hover_color="#c84a3d",
+            text_color=STYLE["surface"],
+            height=32,
+            width=180,
+            corner_radius=8
+        )
         # NOTA: no empacamos el botón aquí para que permanezca oculto hasta
         # que el usuario seleccione un cliente que requiera configuración
         # (se mostrará desde `actualizar_cliente_seleccionado`).
@@ -1008,7 +1021,7 @@ class SistemaDictamenesVC(ctk.CTk):
         # Botón para guardar un folio incompleto / reservado en el historial
         self.boton_guardar_folio = ctk.CTkButton(
             generar_section,
-            text="Guardar folio (reservar)",
+            text="Reservar Folio",
             command=self.guardar_folio_historial,
             font=("Inter", 12, "bold"),
             fg_color=STYLE["primario"],
@@ -1693,6 +1706,7 @@ class SistemaDictamenesVC(ctk.CTk):
                 self.safe_pack(self.boton_pegado_simple, side="left", padx=(0, 8))
                 self.safe_pack(self.boton_pegado_carpetas, side="left", padx=(0, 8))
                 self.safe_pack(self.boton_pegado_indice, side="left", padx=(0, 8))
+                self.safe_pack(self.boton_limpiar_rutas_evidencias, side="left", padx=(8, 0))
             except Exception:
                 pass
 
@@ -1717,6 +1731,7 @@ class SistemaDictamenesVC(ctk.CTk):
                 self.safe_forget(self.boton_pegado_simple)
                 self.safe_forget(self.boton_pegado_carpetas)
                 self.safe_forget(self.boton_pegado_indice)
+                self.safe_forget(self.boton_limpiar_rutas_evidencias)
             except Exception:
                 pass
 
@@ -1729,10 +1744,12 @@ class SistemaDictamenesVC(ctk.CTk):
                 self.safe_pack(self.boton_pegado_simple, anchor="w", pady=(8, 0))
                 self.safe_pack(self.boton_pegado_carpetas, anchor="w", pady=(8, 0))
                 self.safe_pack(self.boton_pegado_indice, anchor="w", pady=(8, 0))
+                self.safe_pack(self.boton_limpiar_rutas_evidencias, anchor="w", pady=(8, 0))
             else:
                 self.safe_forget(self.boton_pegado_simple)
                 self.safe_forget(self.boton_pegado_carpetas)
                 self.safe_forget(self.boton_pegado_indice)
+                self.safe_forget(self.boton_limpiar_rutas_evidencias)
         except Exception:
             pass
 
@@ -1799,6 +1816,10 @@ class SistemaDictamenesVC(ctk.CTk):
             self.boton_pegado_simple.pack_forget()
             self.boton_pegado_carpetas.pack_forget()
             self.boton_pegado_indice.pack_forget()
+            try:
+                self.boton_limpiar_rutas_evidencias.pack_forget()
+            except Exception:
+                pass
         except Exception:
             pass
         self.info_etiquetado.pack_forget()
@@ -7323,6 +7344,35 @@ class SistemaDictamenesVC(ctk.CTk):
             messagebox.showinfo("Pegado guardado", "Ruta de imágenes guardada. Al generar dictámenes y subir el Excel de índice, se usarán estas imágenes.")
         except Exception as e:
             messagebox.showerror("Error", f"No se pudo guardar la ruta de evidencias:\n{e}")
+
+    def handle_clear_evidence_paths(self):
+        """Limpia las rutas de evidencias persistidas en `data/evidence_paths.json`.
+        Pide confirmación al usuario antes de eliminar/limpiar.
+        """
+        try:
+            data_file = os.path.join(os.path.dirname(__file__), "data", "evidence_paths.json")
+            if not os.path.exists(data_file):
+                messagebox.showinfo("Limpiar rutas", "No hay rutas guardadas para limpiar.")
+                return
+
+            ok = messagebox.askyesno("Confirmar limpieza", "¿Desea eliminar todas las rutas de evidencias guardadas? Esta acción no se puede deshacer.")
+            if not ok:
+                return
+
+            # Intentar eliminar el archivo; si falla, reescribir vacío
+            try:
+                os.remove(data_file)
+            except Exception:
+                try:
+                    with open(data_file, "w", encoding="utf-8") as f:
+                        json.dump({}, f, indent=2, ensure_ascii=False)
+                except Exception as e:
+                    messagebox.showerror("Error", f"No se pudo limpiar las rutas de evidencias:\n{e}")
+                    return
+
+            messagebox.showinfo("Rutas limpiadas", "Se han eliminado las rutas de evidencias guardadas.")
+        except Exception as e:
+            messagebox.showerror("Error", f"Error al limpiar rutas de evidencias:\n{e}")
 
 # ================== EJECUCIÓN ================== #
 if __name__ == "__main__":

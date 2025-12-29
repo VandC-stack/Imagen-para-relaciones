@@ -86,7 +86,8 @@ def procesar_carpetas():
                 continue
 
             for p in doc.paragraphs:
-                if "${imagen}" in (p.text or ""):
+                text_lower = (p.text or "").lower()
+                if "${imagen}" in text_lower or "${imagen}".upper() in (p.text or ""):
                     p.clear()
                     run = p.add_run()
 
@@ -169,7 +170,10 @@ def procesar_carpetas():
                 registrar_fallo(archivo)
                 continue
 
-            exito = insertar_imagenes_en_pdf_placeholder(ruta_doc, rutas_imagenes)
+            # Intentar insertar usando placeholder en minúsculas; si no funciona, intentar mayúsculas
+            exito = insertar_imagenes_en_pdf_placeholder(ruta_doc, rutas_imagenes, placeholder="${imagen}")
+            if not exito:
+                exito = insertar_imagenes_en_pdf_placeholder(ruta_doc, rutas_imagenes, placeholder="${IMAGEN}")
             if not exito:
                 registrar_fallo(archivo)
 
