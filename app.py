@@ -459,12 +459,12 @@ class SistemaDictamenesVC(ctk.CTk):
         main_frame = ctk.CTkFrame(parent, fg_color="transparent")
         main_frame.pack(fill="both", expand=True)
 
-        # Configurar grid para 2 columnas con proporción 30%/70%
-        main_frame.grid_columnconfigure(0, weight=3)  # 30%
-        main_frame.grid_columnconfigure(1, weight=7)  # 70%
-        # Mantener ambas tarjetas (izquierda/derecha) del mismo tamaño incluso
+        # Configurar grid para 2 columnas con proporción ~20%/80% (ligeramente más pequeña la izquierda)
+        main_frame.grid_columnconfigure(0, weight=2)  # ~20%
+        main_frame.grid_columnconfigure(1, weight=8)  # ~80%
+        # Mantener ambas tarjetas (izquierda/derecha) con una altura mínima reducida
         # cuando se muestran/ocultan widgets según el tipo de documento.
-        main_frame.grid_rowconfigure(0, weight=1, minsize=480)
+        main_frame.grid_rowconfigure(0, weight=1, minsize=420)
 
         # ===== TARJETA INFORMACIÓN DE VISITA (IZQUIERDA) - 30% =====
         card_visita = ctk.CTkFrame(main_frame, fg_color=STYLE["surface"], corner_radius=12)
@@ -664,10 +664,10 @@ class SistemaDictamenesVC(ctk.CTk):
             font=FONT_SUBTITLE,
             text_color=STYLE["texto_oscuro"]
         )
-        self.generacion_title.pack(anchor="w", padx=20, pady=(20, 15))
+        self.generacion_title.pack(anchor="w", padx=20, pady=(10, 8))
 
         generacion_frame = ctk.CTkFrame(card_generacion, fg_color="transparent")
-        generacion_frame.pack(fill="both", expand=True, padx=20, pady=(0, 20))
+        generacion_frame.pack(fill="both", expand=True, padx=20, pady=(0, 8))
 
         # Contenedor principal de generador con scrollbar
         scroll_generacion = ctk.CTkScrollableFrame(
@@ -680,7 +680,7 @@ class SistemaDictamenesVC(ctk.CTk):
 
         # --- SELECCIONAR CLIENTE ---
         cliente_section = ctk.CTkFrame(scroll_generacion, fg_color="transparent")
-        cliente_section.pack(fill="x", pady=(0, 20))
+        cliente_section.pack(fill="x", pady=(0, 6))
 
         ctk.CTkLabel(
             cliente_section,
@@ -692,6 +692,8 @@ class SistemaDictamenesVC(ctk.CTk):
         cliente_controls_frame = ctk.CTkFrame(cliente_section, fg_color="transparent")
         cliente_controls_frame.pack(fill="x", pady=(0, 10))
 
+        # Usamos grid dentro de cliente_controls_frame para que el combo de
+        # cliente y el combo de domicilios compartan el mismo ancho.
         self.combo_cliente = ctk.CTkComboBox(
             cliente_controls_frame,
             values=["Seleccione un cliente..."],
@@ -702,14 +704,16 @@ class SistemaDictamenesVC(ctk.CTk):
             corner_radius=8,
             command=self.actualizar_cliente_seleccionado
         )
-        self.combo_cliente.pack(side="left", fill="x", expand=True, padx=(0, 10))
-        # Encabezado para selector de domicilio
-        ctk.CTkLabel(
+        self.combo_cliente.grid(row=0, column=0, sticky="nsew", padx=(0, 10))
+
+        # Encabezado para selector de domicilio (columna central)
+        self.lbl_domicilio_header = ctk.CTkLabel(
             cliente_controls_frame,
             text="Domicilio:",
             font=FONT_SMALL,
             text_color=STYLE["texto_oscuro"]
-        ).pack(side="left", padx=(8,4))
+        )
+        self.lbl_domicilio_header.grid(row=0, column=1, padx=(8, 4), sticky="w")
 
         # --- DOMICILIOS DEL CLIENTE (se rellena al seleccionar cliente) ---
         self.combo_domicilios = ctk.CTkComboBox(
@@ -722,8 +726,7 @@ class SistemaDictamenesVC(ctk.CTk):
             corner_radius=8,
             command=self._seleccionar_domicilio
         )
-        # lo colocamos a la derecha del combo de cliente pero no expandimos
-        self.combo_domicilios.pack(side="left", padx=(8, 0))
+        self.combo_domicilios.grid(row=0, column=2, sticky="nsew", padx=(8, 0))
 
         self.boton_limpiar_cliente = ctk.CTkButton(
             cliente_controls_frame,
@@ -738,7 +741,14 @@ class SistemaDictamenesVC(ctk.CTk):
             corner_radius=8,
             state="disabled"
         )
-        self.boton_limpiar_cliente.pack(side="left")
+        self.boton_limpiar_cliente.grid(row=0, column=3, padx=(8, 0))
+
+        # Columnas 0 y 2 (combos) se expanden por igual; la columna 1 (label)
+        # y 3 (botón limpiar) mantienen su tamaño.
+        cliente_controls_frame.grid_columnconfigure(0, weight=1)
+        cliente_controls_frame.grid_columnconfigure(1, weight=0)
+        cliente_controls_frame.grid_columnconfigure(2, weight=1)
+        cliente_controls_frame.grid_columnconfigure(3, weight=0)
 
         self.info_cliente = ctk.CTkLabel(
             cliente_section,
@@ -750,19 +760,19 @@ class SistemaDictamenesVC(ctk.CTk):
         self.info_cliente.pack(anchor="w", fill="x")
 
         # --- FOLIOS RESERVADOS (Debajo del selector de cliente) ---
-        cliente_folios_frame = ctk.CTkFrame(cliente_section, fg_color="transparent")
-        cliente_folios_frame.pack(fill="x", pady=(8, 10))
+        self.cliente_folios_frame = ctk.CTkFrame(cliente_section, fg_color="transparent")
+        self.cliente_folios_frame.pack(fill="x", pady=(4, 4))
 
         self.lbl_folios_pendientes = ctk.CTkLabel(
-            cliente_folios_frame,
-            text="Folios reservados (seleccione para usar / desmarcar):",
+            self.cliente_folios_frame,
+            text="Folios reservados:",
             font=("Inter", 10),
             text_color=STYLE["texto_oscuro"]
         )
         self.lbl_folios_pendientes.pack(side="left", padx=(0,8))
 
         self.combo_folios_pendientes = ctk.CTkComboBox(
-            cliente_folios_frame,
+            self.cliente_folios_frame,
             values=[],
             font=FONT_SMALL,
             dropdown_font=FONT_SMALL,
@@ -775,7 +785,7 @@ class SistemaDictamenesVC(ctk.CTk):
 
         # Botones compactos: desmarcar y eliminar
         self.btn_desmarcar_folio = ctk.CTkButton(
-            cliente_folios_frame,
+            self.cliente_folios_frame,
             text="Desmarcar",
             width=32,
             height=30,
@@ -787,8 +797,8 @@ class SistemaDictamenesVC(ctk.CTk):
         self.btn_desmarcar_folio.pack(side="left", padx=(0, 6))
 
         self.btn_eliminar_folio_pendiente = ctk.CTkButton(
-            cliente_folios_frame,
-            text="Eliminar Folio Seleccionado",
+            self.cliente_folios_frame,
+            text="Eliminar Folio",
             width=32,
             height=30,
             corner_radius=6,
@@ -798,13 +808,23 @@ class SistemaDictamenesVC(ctk.CTk):
         )
         self.btn_eliminar_folio_pendiente.pack(side="left")
 
+        # Por defecto ocultar la sección de folios reservados hasta que haya al menos uno
+        try:
+            if not self._get_folios_pendientes():
+                try:
+                    self.cliente_folios_frame.pack_forget()
+                except Exception:
+                    pass
+        except Exception:
+            pass
+
         # Botón para configurar carpetas de evidencias (abre modal para elegir grupo y carpeta)
         # Tres botones para modos de pegado (no empacados hasta selección de cliente)
         self.boton_pegado_simple = ctk.CTkButton(
             cliente_section,
             text="🖼️ Pegado Simple",
             command=self.handle_pegado_simple,
-            font=("Inter", 11),
+            font=("Inter", 11, "bold"),
             fg_color=STYLE["primario"],
             hover_color="#D4BF22",
             text_color=STYLE["secundario"],
@@ -817,7 +837,7 @@ class SistemaDictamenesVC(ctk.CTk):
             cliente_section,
             text="📁 Pegado Carpetas",
             command=self.handle_pegado_carpetas,
-            font=("Inter", 11),
+            font=("Inter", 11, "bold"),
             fg_color=STYLE["primario"],
             hover_color="#D4BF22",
             text_color=STYLE["secundario"],
@@ -830,7 +850,7 @@ class SistemaDictamenesVC(ctk.CTk):
             cliente_section,
             text="📑 Pegado Índice",
             command=self.handle_pegado_indice,
-            font=("Inter", 11),
+            font=("Inter", 11, "bold"),
             fg_color=STYLE["primario"],
             hover_color="#D4BF22",
             text_color=STYLE["secundario"],
@@ -841,9 +861,9 @@ class SistemaDictamenesVC(ctk.CTk):
         # Botón para limpiar rutas de evidencias guardadas
         self.boton_limpiar_rutas_evidencias = ctk.CTkButton(
             cliente_section,
-            text="🧹 Limpiar rutas evidencias",
+            text="🧹 Limpiar",
             command=self.handle_clear_evidence_paths,
-            font=("Inter", 11),
+            font=("Inter", 11, "bold"),
             fg_color=STYLE["peligro"],
             hover_color="#c84a3d",
             text_color=STYLE["surface"],
@@ -857,7 +877,7 @@ class SistemaDictamenesVC(ctk.CTk):
 
         # --- CARGAR TABLA DE RELACIÓN ---
         carga_section = ctk.CTkFrame(scroll_generacion, fg_color="transparent")
-        carga_section.pack(fill="x", pady=(0, 20))
+        carga_section.pack(fill="x", pady=(0, 4))
 
         ctk.CTkLabel(
             carga_section,
@@ -879,7 +899,7 @@ class SistemaDictamenesVC(ctk.CTk):
         botones_carga_frame.pack(fill="x", pady=(0, 10))
 
         botones_fila1 = ctk.CTkFrame(botones_carga_frame, fg_color="transparent")
-        botones_fila1.pack(fill="x", pady=(0, 8))
+        botones_fila1.pack(fill="x", pady=(0, 4))
 
         self.boton_cargar_excel = ctk.CTkButton(
             botones_fila1,
@@ -900,7 +920,7 @@ class SistemaDictamenesVC(ctk.CTk):
             botones_fila1,
             text="🔍 Verificar Datos",
             command=self.verificar_integridad_datos,
-            font=("Inter", 11),
+            font=("Inter", 11, "bold"),
             fg_color=STYLE["advertencia"],
             hover_color="#b85a52",
             text_color=STYLE["surface"],
@@ -913,7 +933,7 @@ class SistemaDictamenesVC(ctk.CTk):
             botones_fila1,
             text="Limpiar",
             command=self.limpiar_archivo,
-            font=("Inter", 13),
+            font=("Inter", 13, "bold"),
             fg_color=STYLE["secundario"],
             hover_color="#1a1a1a",
             text_color=STYLE["surface"],
@@ -989,7 +1009,7 @@ class SistemaDictamenesVC(ctk.CTk):
             font=FONT_SMALL,
             text_color=STYLE["texto_claro"]
         )
-        self.info_generacion.pack(anchor="w", pady=(0, 10))
+        self.info_generacion.pack(anchor="w", pady=(0, 4))
 
         # Barra de progreso
         self.barra_progreso = ctk.CTkProgressBar(
@@ -1019,8 +1039,12 @@ class SistemaDictamenesVC(ctk.CTk):
         self.info_folio_pendiente.pack(pady=(0, 6))
 
         # Botón para guardar un folio incompleto / reservado en el historial
+        # Lo creamos en el frame de folios del cliente para mostrarlo junto
+        # al selector/acciones de folios y al botón Limpiar.
+        # Crear el botón de reservar folio dentro de la fila de botones de carga
+        # para que siempre esté visible junto a 'Subir archivo', 'Verificar Datos' y 'Limpiar'.
         self.boton_guardar_folio = ctk.CTkButton(
-            generar_section,
+            botones_fila1,
             text="Reservar Folio",
             command=self.guardar_folio_historial,
             font=("Inter", 12, "bold"),
@@ -1031,7 +1055,16 @@ class SistemaDictamenesVC(ctk.CTk):
             corner_radius=8,
             state="disabled"
         )
-        self.boton_guardar_folio.pack(pady=(0, 6))
+        try:
+            self.boton_guardar_folio.pack(side="left", padx=(8, 0))
+        except Exception:
+            try:
+                self.boton_guardar_folio.pack(pady=(0, 6))
+            except Exception:
+                pass
+        # NOTE: no empacamos el botón aquí. Se mostrará junto al botón
+        # de "Limpiar rutas evidencias" desde `actualizar_cliente_seleccionado`
+        # para garantizar que ambos estén en el mismo contenedor y orden.
 
         # Botón de generación
         self.boton_generar_dictamen = ctk.CTkButton(
@@ -1706,6 +1739,7 @@ class SistemaDictamenesVC(ctk.CTk):
                 self.safe_pack(self.boton_pegado_simple, side="left", padx=(0, 8))
                 self.safe_pack(self.boton_pegado_carpetas, side="left", padx=(0, 8))
                 self.safe_pack(self.boton_pegado_indice, side="left", padx=(0, 8))
+                # Empacar el botón Limpiar (Reservar Folio está en la fila de carga)
                 self.safe_pack(self.boton_limpiar_rutas_evidencias, side="left", padx=(8, 0))
             except Exception:
                 pass
@@ -4429,14 +4463,41 @@ class SistemaDictamenesVC(ctk.CTk):
             if hasattr(self, 'combo_folios_pendientes'):
                 try:
                     self.combo_folios_pendientes.configure(values=vals)
-                    # Mostrar placeholder claro cuando no hay valores
+                    # Mostrar/ocultar la sección de folios según existan reservas
                     if vals:
+                        # Asegurar que el contenedor de folios está visible
+                        try:
+                            if not self.cliente_folios_frame.winfo_ismapped():
+                                self.cliente_folios_frame.pack(fill="x", pady=(4,4))
+                        except Exception:
+                            pass
+                        
+                        # Asegurar que los widgets están visibles
+                        try:
+                            if not self.lbl_folios_pendientes.winfo_ismapped():
+                                self.lbl_folios_pendientes.pack(side="left", padx=(0,8))
+                        except Exception:
+                            pass
+                        try:
+                            if not self.combo_folios_pendientes.winfo_ismapped():
+                                self.combo_folios_pendientes.pack(side="left", fill="x", expand=True, padx=(0, 8))
+                        except Exception:
+                            pass
+                        try:
+                            if not self.btn_desmarcar_folio.winfo_ismapped():
+                                self.btn_desmarcar_folio.pack(side="left", padx=(0, 6))
+                        except Exception:
+                            pass
+                        try:
+                            if not self.btn_eliminar_folio_pendiente.winfo_ismapped():
+                                self.btn_eliminar_folio_pendiente.pack(side="left")
+                        except Exception:
+                            pass
+
                         # Dejar sin seleccionar para evitar consumir automáticamente
                         try:
-                            # Si hay una selección pendiente activa, mantenerla visible
                             sel_id = getattr(self, 'selected_pending_id', None)
                             if sel_id:
-                                # encontrar display asociado
                                 display_to_set = None
                                 for d in vals:
                                     r = pendientes_map.get(d)
@@ -4455,7 +4516,27 @@ class SistemaDictamenesVC(ctk.CTk):
                         except Exception:
                             self.combo_folios_pendientes.set(vals[0])
                     else:
-                        self.combo_folios_pendientes.set("")
+                        # No hay reservas: ocultar los widgets relacionados
+                        try:
+                            self.lbl_folios_pendientes.pack_forget()
+                        except Exception:
+                            pass
+                        try:
+                            self.combo_folios_pendientes.pack_forget()
+                        except Exception:
+                            pass
+                        try:
+                            self.btn_desmarcar_folio.pack_forget()
+                        except Exception:
+                            pass
+                        try:
+                            self.btn_eliminar_folio_pendiente.pack_forget()
+                        except Exception:
+                            pass
+                        try:
+                            self.combo_folios_pendientes.set("")
+                        except Exception:
+                            pass
                 except Exception:
                     pass
         except Exception as e:

@@ -1,4 +1,39 @@
 {
   "operaciones": [
+    {
+      "timestamp": "2025-12-29T13:05:41.220589",
+      "tipo": "eliminar_registro",
+      "folio": "CP000002",
+      "status": "exitosa",
+      "detalles": "Archivos: 3, Errores: 0"
+    },
+    {
+      "timestamp": "2025-12-29T13:14:58.756916",
+      "tipo": "eliminar_registro",
+      "folio": "CP000002",
+      "status": "exitosa",
+      "detalles": "Archivos: 3, Errores: 0"
+    },
+    {
+      "timestamp": "2025-12-29T13:20:15.161675",
+      "tipo": "eliminar_registro",
+      "folio": "CP000002",
+      "status": "exitosa",
+      "detalles": "Archivos: 3, Errores: 0"
+    },
+    {
+      "timestamp": "2025-12-29T13:26:41.370831",
+      "tipo": "eliminar_registro",
+      "folio": "CP000002",
+      "status": "exitosa",
+      "detalles": "Archivos: 3, Errores: 0"
+    },
+    {
+      "timestamp": "2025-12-29T15:44:08.522563",
+      "tipo": "eliminar_registro",
+      "folio": "CP000002",
+      "status": "exitosa",
+      "detalles": "Archivos: 3, Errores: 0"
+    }
   ]
 }
