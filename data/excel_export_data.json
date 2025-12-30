@@ -1270,7 +1270,25 @@
       "FOLIOS_USADOS": "095243 - 095278",
       "NUM_SOLICITUDES": "",
       "NORMAS": "NOM-050-SCFI-2004"
+    },
+    {
+      "FECHA_VISITA": "30/12/2025",
+      "FOLIO_VISITA": "CP000010",
+      "CLIENTE": "MAPERGO SA DE CV",
+      "SOLICITUD": "",
+      "FOLIOS_USADOS": "095243 - 095278",
+      "NUM_SOLICITUDES": "",
+      "NORMAS": "NOM-050-SCFI-2004"
+    },
+    {
+      "FECHA_VISITA": "30/12/2025",
+      "FOLIO_VISITA": "CP000011",
+      "CLIENTE": "MAPERGO SA DE CV",
+      "SOLICITUD": "",
+      "FOLIOS_USADOS": "095243 - 095278",
+      "NUM_SOLICITUDES": "",
+      "NORMAS": "NOM-050-SCFI-2004"
     }
   ],
-  "generated_at": "2025-12-30T12:35:46.108432"
+  "generated_at": "2025-12-30T12:53:41.691602"
 }

@@ -343,154 +343,174 @@ class PDFGeneratorConDatos(PDFGenerator):
 
     # Agregar hoja para pegado de evidencias fotograficas #
     def agregar_hoja_evidencia(self):
-        """Hoja en blanco para evidencia + hoja de firmas."""
-        print("   📄 Generando hoja en blanco para evidencia...")
+        """Hoja en blanco para evidencia + hoja de firmas.
 
-        # HOJA 2 – Evidencia
+        Distribuye hasta 5 evidencias por página en una cuadrícula (2 columnas).
+        Si la última página de evidencias tiene menos de 5 imágenes, las firmas
+        se colocan en esa misma página en lugar de crear una página separada.
+        """
+        print("   📄 Generando hoja para evidencias (máx. 5 por hoja)...")
+
+        # HOJA – iniciar sección de evidencias
         self.elements.append(PageBreak())
         self.elements.append(Spacer(1, 0.25 * inch))
 
         evidencias = self.datos.get('evidencias_lista', []) or []
 
         if not evidencias:
-            # Si no hay evidencias asignadas, mantener el placeholder informativo
+            # placeholder cuando no hay evidencias
             self.elements.append(Paragraph(
                 "<b>${IMAGEN}</b>",
                 ParagraphStyle('Center', parent=self.normal_style, alignment=1, fontSize=12)
             ))
-        else:
-            # Insertar cada evidencia. `evidencias` puede ser lista de rutas (str) o de BytesIO/dicts
-            from io import BytesIO
-            from PIL import Image as PILImage
-            import traceback
+            # luego agregar la página de firmas normalmente
+            self.agregar_hoja_firmas()
+            return
 
-            for idx, ev in enumerate(evidencias, start=1):
-                print(f"      → Procesando evidencia #{idx}: type={type(ev)}")
-                try:
-                    # 1) Si es cadena, tratar como ruta
-                    if isinstance(ev, str):
-                        ruta = os.path.normpath(ev)
-                        print(f"         ruta normalizada: {ruta}")
-                        if not os.path.exists(ruta):
-                            print(f"         ⚠️ Ruta no encontrada: {ruta}")
-                            # intentar corregir barras mezcladas
-                            ruta_alt = ruta.replace('\\', '/')
-                            if os.path.exists(ruta_alt):
-                                ruta = ruta_alt
+        # Procesar evidencias y normalizarlas a flowables RLImage
+        from io import BytesIO
+        from PIL import Image as PILImage
+        import traceback
+
+        image_flowables = []
+        for idx, ev in enumerate(evidencias, start=1):
+            try:
+                bio = None
+                # cadena = ruta en disco
+                if isinstance(ev, str):
+                    ruta = os.path.normpath(ev)
+                    if not os.path.exists(ruta):
+                        # intentar variantes simples
+                        ruta_alt = ruta.replace('\\', '/')
+                        if os.path.exists(ruta_alt):
+                            ruta = ruta_alt
+                        else:
+                            ruta_alt2 = ruta.replace('/', '\\')
+                            if os.path.exists(ruta_alt2):
+                                ruta = ruta_alt2
                             else:
-                                ruta_alt2 = ruta.replace('/', '\\')
-                                if os.path.exists(ruta_alt2):
-                                    ruta = ruta_alt2
-                                else:
-                                    print("         ⚠️ No se encontró la imagen en disco, se omite")
-                                    continue
+                                print(f"         ⚠️ Ruta no encontrada: {ruta} (omitida)")
+                                continue
+                    with PILImage.open(ruta) as im:
+                        im.verify()
+                    with PILImage.open(ruta) as im2:
+                        if im2.mode != 'RGB':
+                            im2 = im2.convert('RGB')
+                        bio = BytesIO()
+                        im2.save(bio, format='JPEG', quality=90, optimize=True)
+                        bio.seek(0)
 
-                        # Verificar que PIL pueda abrirla y re-encodear a JPEG/RGB
+                elif isinstance(ev, dict):
+                    img_bytes = ev.get('imagen_bytes') or ev.get('imagen_path_bytes')
+                    if img_bytes:
+                        bio_in = img_bytes if hasattr(img_bytes, 'read') else BytesIO(img_bytes)
                         try:
-                            with PILImage.open(ruta) as im:
+                            with PILImage.open(bio_in) as im:
                                 im.verify()
-                            print(f"         ✅ Imagen válida en disco: {ruta}")
-                            # Reabrir para conversión (verify() can close file)
-                            with PILImage.open(ruta) as im2:
+                            bio_in.seek(0)
+                            with PILImage.open(bio_in) as im2:
                                 if im2.mode != 'RGB':
                                     im2 = im2.convert('RGB')
-                                from io import BytesIO
                                 bio = BytesIO()
                                 im2.save(bio, format='JPEG', quality=90, optimize=True)
                                 bio.seek(0)
-                                img = RLImage(bio, width=4.5*inch, height=4.5*inch)
-                                self.elements.append(img)
-                                self.elements.append(Spacer(1, 0.25 * inch))
-                        except Exception as e:
-                            print(f"         ❌ PIL no pudo abrir/convertir la imagen: {e}")
-                            traceback.print_exc()
-                            continue
-
-                    # 2) Si es dict, puede contener BytesIO o ruta
-                    elif isinstance(ev, dict):
-                        img_bytes = ev.get('imagen_bytes') or ev.get('imagen_path_bytes')
-                        if img_bytes:
-                            try:
-                                if hasattr(img_bytes, 'seek'):
-                                    img_bytes.seek(0)
-                                # normalizar a BytesIO
-                                bio_in = img_bytes if hasattr(img_bytes, 'read') else BytesIO(img_bytes)
-                                # probar apertura con PIL y re-encodear a JPEG/RGB
-                                try:
-                                    with PILImage.open(bio_in) as im:
-                                        im.verify()
-                                    bio_in.seek(0)
-                                    with PILImage.open(bio_in) as im2:
-                                        if im2.mode != 'RGB':
-                                            im2 = im2.convert('RGB')
-                                        from io import BytesIO
-                                        bio = BytesIO()
-                                        im2.save(bio, format='JPEG', quality=90, optimize=True)
-                                        bio.seek(0)
-                                        img = RLImage(bio, width=4.5*inch, height=4.5*inch)
-                                        self.elements.append(img)
-                                        self.elements.append(Spacer(1, 0.25 * inch))
-                                except Exception as e:
-                                    print(f"         ❌ No se pudo procesar/convertir imagen en dict: {e}")
-                                    traceback.print_exc()
-                                    continue
-                            except Exception:
-                                traceback.print_exc()
-                                continue
-                        else:
-                            p = ev.get('imagen_path')
-                            if p:
-                                ruta = os.path.normpath(p)
-                                if os.path.exists(ruta):
-                                        try:
-                                            with PILImage.open(ruta) as im:
-                                                im.verify()
-                                            with PILImage.open(ruta) as im2:
-                                                if im2.mode != 'RGB':
-                                                    im2 = im2.convert('RGB')
-                                                from io import BytesIO
-                                                bio = BytesIO()
-                                                im2.save(bio, format='JPEG', quality=90, optimize=True)
-                                                bio.seek(0)
-                                                img = RLImage(bio, width=4.5*inch, height=4.5*inch)
-                                                self.elements.append(img)
-                                                self.elements.append(Spacer(1, 0.25 * inch))
-                                        except Exception:
-                                            traceback.print_exc()
-                                            continue
-                                else:
-                                    print(f"         ⚠️ imagen_path no existe: {ruta}")
-                                    continue
-
-                    # 3) Otros (BytesIO u objeto file-like)
-                    else:
-                        try:
-                            if hasattr(ev, 'seek'):
-                                ev.seek(0)
-                            # probar con PIL
-                            bio = ev
-                            try:
-                                with PILImage.open(bio) as im:
-                                    im.verify()
-                                bio.seek(0)
-                                img = RLImage(bio, width=4.5*inch, height=4.5*inch)
-                                self.elements.append(img)
-                                self.elements.append(Spacer(1, 0.25 * inch))
-                            except Exception as e:
-                                print(f"         ❌ No se pudo procesar imagen genérica: {e}")
-                                traceback.print_exc()
-                                continue
                         except Exception:
                             traceback.print_exc()
                             continue
+                    else:
+                        p = ev.get('imagen_path')
+                        if p and os.path.exists(p):
+                            with PILImage.open(p) as im:
+                                im.verify()
+                            with PILImage.open(p) as im2:
+                                if im2.mode != 'RGB':
+                                    im2 = im2.convert('RGB')
+                                bio = BytesIO()
+                                im2.save(bio, format='JPEG', quality=90, optimize=True)
+                                bio.seek(0)
+                        else:
+                            print(f"         ⚠️ imagen_path no existe o inválida: {p}")
+                            continue
 
-                except Exception:
-                    import traceback
-                    print("         ❌ Excepción al procesar evidencia:")
-                    traceback.print_exc()
+                else:
+                    # file-like / BytesIO
+                    if hasattr(ev, 'seek'):
+                        try:
+                            ev.seek(0)
+                        except Exception:
+                            pass
+                    bio = ev
+
+                if not bio:
                     continue
 
-        # HOJA 3 – Firmas
+                # Crear RLImage con tamaño adecuado para 2 columnas x 2 filas (4 por página)
+                try:
+                    img = RLImage(bio, width=3.4*inch, height=3.0*inch)
+                except Exception:
+                    # reintentar creando desde BytesIO copy
+                    try:
+                        tmp = BytesIO(bio.read() if hasattr(bio, 'read') else bio)
+                        tmp.seek(0)
+                        img = RLImage(tmp, width=3.8*inch, height=3.0*inch)
+                    except Exception:
+                        traceback.print_exc()
+                        continue
+
+                image_flowables.append(img)
+            except Exception:
+                traceback.print_exc()
+                continue
+
+        # Dividir en páginas, 4 imágenes por página (2x2)
+        pages = [image_flowables[i:i+4] for i in range(0, len(image_flowables), 4)]
+
+        for p_idx, chunk in enumerate(pages):
+            # Construir filas para una tabla de 2 columnas (2 filas para hasta 4 imágenes)
+            rows = []
+            imgs = chunk
+            if len(imgs) == 4:
+                rows.append([imgs[0], imgs[1]])
+                rows.append([imgs[2], imgs[3]])
+            elif len(imgs) == 3:
+                rows.append([imgs[0], imgs[1]])
+                rows.append([imgs[2], ''])
+            elif len(imgs) == 2:
+                rows.append([imgs[0], imgs[1]])
+            elif len(imgs) == 1:
+                rows.append([imgs[0], ''])
+
+            # Crear tabla y añadir a elementos
+            col_width = (8.5*inch - 2*0.75*inch) / 2  # aproximación con márgenes
+            tbl = Table(rows, colWidths=[col_width, col_width])
+            tbl.setStyle(TableStyle([
+                ('ALIGN',(0,0),(-1,-1),'CENTER'),
+                ('VALIGN',(0,0),(-1,-1),'MIDDLE'),
+                ('LEFTPADDING',(0,0),(-1,-1),10),
+                ('RIGHTPADDING',(0,0),(-1,-1),10),
+                ('TOPPADDING',(0,0),(-1,-1),12),
+                ('BOTTOMPADDING',(0,0),(-1,-1),12),
+            ]))
+
+            self.elements.append(tbl)
+            # aumentar espacio entre bloques de evidencias
+            self.elements.append(Spacer(1, 0.35*inch))
+
+            # Si es la última página y tiene menos de 5 imágenes, colocar firmas aquí
+            is_last = (p_idx == len(pages) - 1)
+            if is_last and len(chunk) < 5:
+                print("   📌 Firmas mostradas ABAJO de evidencias (última página incompleta)")
+                self.elements.append(Spacer(1, 0.15 * inch))
+                for e in self._get_firmas_elements():
+                    self.elements.append(e)
+                return
+            else:
+                # Si no es la última página, o la última tiene 5 imágenes, añadir salto de página
+                if not is_last:
+                    self.elements.append(PageBreak())
+
+        # Si llegamos aquí y la última página fue completa (5 imágenes), añadir página de firmas
+        print("   📌 Firmas mostradas en PÁGINA SEPARADA (última página completa)")
         self.agregar_hoja_firmas()
 
     # Funcion para el caso de ULTA BEAUTY ya que para la norma 024 es pegado de evidencia y pegado de etiquetas para las demas normas #
