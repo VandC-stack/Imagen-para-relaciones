@@ -29,7 +29,13 @@ def seleccionar_excel():
 def construir_indice_desde_excel(ruta_excel):
     ext = os.path.splitext(ruta_excel)[1].lower()
     engine = "pyxlsb" if ext == ".xlsb" else None
-    df = pd.read_excel(ruta_excel, sheet_name="CONCENTRADO", engine=engine)
+    try:
+        df = pd.read_excel(ruta_excel, sheet_name="CONCENTRADO", engine=engine)
+    except Exception as e:
+        msg = str(e).lower()
+        if ext == ".xlsb" and ("pyxlsb" in msg or "missing optional dependency" in msg):
+            raise Exception("Missing optional dependency 'pyxlsb'.") from e
+        raise
 
     indice = {}
 

@@ -7417,12 +7417,80 @@ class SistemaDictamenesVC(ctk.CTk):
             messagebox.showerror("Error", f"No se pudo guardar la ruta de evidencias:\n{e}")
 
     def handle_pegado_indice(self):
+        # Seleccionar carpeta donde están las imágenes (base para buscar carpetas/archivos)
         ruta_imgs = filedialog.askdirectory(title="Seleccionar carpeta de imágenes para índice (se guardará)")
         if not ruta_imgs:
             return
+
+        # Preguntar por el archivo Excel que contiene la hoja 'CONCENTRADO'
+        excel_path = filedialog.askopenfilename(
+            title="Seleccionar archivo Excel con hoja CONCENTRADO (columnas A,B,C)",
+            filetypes=[("Excel Files", "*.xlsx *.xlsm *.xls *.xlsb")]
+        )
+
         try:
+            # Guardar la ruta de evidencias para uso posterior
             self._save_evidence_path('manual_pegado', ruta_imgs)
-            messagebox.showinfo("Pegado guardado", "Ruta de imágenes guardada. Al generar dictámenes y subir el Excel de índice, se usarán estas imágenes.")
+
+            # Si el usuario proporcionó un Excel, construir el índice usando el script pegado_indice.py
+            if excel_path:
+                    import importlib.util
+                    import sys
+                    mod_path = os.path.join(os.path.dirname(__file__), "Pegado de Evidenvia Fotografica", "pegado_indice.py")
+                    base = os.path.dirname(mod_path)
+                    # Añadir temporalmente el directorio al sys.path para resolver imports locales (registro_fallos, main, etc.)
+                    added_to_path = False
+                    if base and base not in sys.path:
+                        sys.path.insert(0, base)
+                        added_to_path = True
+
+                    spec = importlib.util.spec_from_file_location("pegado_indice", mod_path)
+                    pegado_mod = importlib.util.module_from_spec(spec)
+                    try:
+                        spec.loader.exec_module(pegado_mod)
+                    finally:
+                        # Quitar la ruta añadida
+                        try:
+                            if added_to_path and base in sys.path:
+                                sys.path.remove(base)
+                        except Exception:
+                            pass
+
+                    # Llamar a la función para construir el índice desde el Excel
+                    try:
+                        indice = pegado_mod.construir_indice_desde_excel(excel_path)
+                        messagebox.showinfo("Índice creado", f"Índice construido con {len(indice)} entradas. Ruta de imágenes guardada.")
+                    except Exception as e:
+                        msg = str(e)
+                        # Detectar error por falta de pyxlsb (xlsxb engine)
+                        if "pyxlsb" in msg or "Missing optional dependency 'pyxlsb'" in msg or 'xlsb' in (excel_path or '').lower():
+                            instalar = messagebox.askyesno(
+                                "Falta dependencia opcional",
+                                "El archivo seleccionado es de tipo .xlsb y falta la dependencia opcional 'pyxlsb'.\n¿Desea que el programa intente instalar 'pyxlsb' ahora?\n(Se usará pip en el mismo intérprete de Python que ejecuta la aplicación)."
+                            )
+                            if instalar:
+                                try:
+                                    import subprocess, sys
+                                    proc = subprocess.run([sys.executable, "-m", "pip", "install", "pyxlsb"], capture_output=True, text=True)
+                                    if proc.returncode == 0:
+                                        # Reintentar construir índice
+                                        try:
+                                            indice = pegado_mod.construir_indice_desde_excel(excel_path)
+                                            messagebox.showinfo("Índice creado", f"Índice construido con {len(indice)} entradas. Ruta de imágenes guardada.")
+                                        except Exception as e2:
+                                            messagebox.showwarning("Índice parcial", f"Se intentó instalar 'pyxlsb' pero la construcción del índice falló:\n{e2}")
+                                    else:
+                                        messagebox.showerror("Instalación fallida", f"No se pudo instalar 'pyxlsb'. Salida de pip:\n{proc.stdout}\n{proc.stderr}")
+                                except Exception as ie:
+                                    messagebox.showerror("Error", f"Error al intentar instalar 'pyxlsb':\n{ie}")
+                            else:
+                                messagebox.showwarning("Índice parcial", f"Se guardó la ruta de imágenes, pero falló la construcción del índice desde el Excel:\n{e}")
+                        else:
+                            messagebox.showwarning("Índice parcial", f"Se guardó la ruta de imágenes, pero falló la construcción del índice desde el Excel:\n{e}")
+                
+            else:
+                messagebox.showinfo("Pegado guardado", "Ruta de imágenes guardada. Al generar dictámenes y subir el Excel de índice, se usarán estas imágenes.")
+
         except Exception as e:
             messagebox.showerror("Error", f"No se pudo guardar la ruta de evidencias:\n{e}")
 
