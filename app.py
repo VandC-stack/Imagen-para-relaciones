@@ -1936,49 +1936,60 @@ class SistemaDictamenesVC(ctk.CTk):
     def cargar_ultimo_folio(self):
         """Carga el último folio utilizado y determina el siguiente disponible"""
         try:
-            if os.path.exists(self.historial_path):
-                with open(self.historial_path, "r", encoding="utf-8") as f:
-                    data = json.load(f)
-                
-                visitas = data.get("visitas", [])
-                if visitas:
-                    # Obtener todos los folios existentes
-                    folios_existentes = set()
-                    for visita in visitas:
-                        folio_raw = visita.get("folio_visita", "")
-                        # Extraer solo los dígitos del folio (soporta prefijo CP)
-                        folio_digits = ''.join([c for c in str(folio_raw) if c.isdigit()])
-                        if folio_digits:
-                            try:
-                                folios_existentes.add(int(folio_digits))
-                            except Exception:
-                                pass
-                    
-                    # Encontrar el primer folio disponible
-                    folio_disponible = 1
-                    while folio_disponible in folios_existentes:
-                        folio_disponible += 1
-                    
-                    self.current_folio = f"{folio_disponible:06d}"
-                else:
-                    self.current_folio = "000001"
-
-                # Actualizar el campo en la interfaz con prefijo CP (si existen widgets)
+            # Preferir leer el contador global de folios (archivo compartido)
+            contador_path = os.path.join(os.path.dirname(self.historial_path), "folio_counter.json")
+            if os.path.exists(contador_path):
                 try:
-                    if hasattr(self, 'entry_folio_visita') and hasattr(self, 'entry_folio_acta'):
-                        self.entry_folio_visita.configure(state="normal")
-                        self.entry_folio_visita.delete(0, "end")
-                        folio_con_prefijo = f"CP{self.current_folio}"
-                        self.entry_folio_visita.insert(0, folio_con_prefijo)
-                        self.entry_folio_visita.configure(state="readonly")
-
-                        # Actualizar también el folio del acta
-                        self.entry_folio_acta.configure(state="normal")
-                        self.entry_folio_acta.delete(0, "end")
-                        self.entry_folio_acta.insert(0, f"AC{self.current_folio}")
-                        self.entry_folio_acta.configure(state="readonly")
+                    with open(contador_path, "r", encoding="utf-8") as cf:
+                        j = json.load(cf)
+                        last = int(j.get("last", 0))
+                        # siguiente folio disponible (no reservar aún)
+                        next_f = last + 1
+                        self.current_folio = f"{next_f:06d}"
                 except Exception:
+                    # Fallback a buscar en historial
                     pass
+            if not getattr(self, 'current_folio', None):
+                if os.path.exists(self.historial_path):
+                    with open(self.historial_path, "r", encoding="utf-8") as f:
+                        data = json.load(f)
+                    visitas = data.get("visitas", [])
+                    if visitas:
+                        # Obtener todos los folios existentes
+                        folios_existentes = set()
+                        for visita in visitas:
+                            folio_raw = visita.get("folio_visita", "")
+                            # Extraer solo los dígitos del folio (soporta prefijo CP)
+                            folio_digits = ''.join([c for c in str(folio_raw) if c.isdigit()])
+                            if folio_digits:
+                                try:
+                                    folios_existentes.add(int(folio_digits))
+                                except Exception:
+                                    pass
+                        # Encontrar el primer folio disponible
+                        folio_disponible = 1
+                        while folio_disponible in folios_existentes:
+                            folio_disponible += 1
+                        self.current_folio = f"{folio_disponible:06d}"
+                    else:
+                        self.current_folio = "000001"
+
+            # Actualizar el campo en la interfaz con prefijo CP (si existen widgets)
+            try:
+                if hasattr(self, 'entry_folio_visita') and hasattr(self, 'entry_folio_acta'):
+                    self.entry_folio_visita.configure(state="normal")
+                    self.entry_folio_visita.delete(0, "end")
+                    folio_con_prefijo = f"CP{self.current_folio}"
+                    self.entry_folio_visita.insert(0, folio_con_prefijo)
+                    self.entry_folio_visita.configure(state="readonly")
+
+                    # Actualizar también el folio del acta
+                    self.entry_folio_acta.configure(state="normal")
+                    self.entry_folio_acta.delete(0, "end")
+                    self.entry_folio_acta.insert(0, f"AC{self.current_folio}")
+                    self.entry_folio_acta.configure(state="readonly")
+            except Exception:
+                pass
                     
         except Exception as e:
             print(f"❌ Error cargando último folio: {e}")
@@ -1987,31 +1998,43 @@ class SistemaDictamenesVC(ctk.CTk):
     def crear_nueva_visita(self):
         """Prepara el formulario para una nueva visita"""
         try:
-            # Obtener el siguiente folio disponible
-            self.cargar_ultimo_folio()
-            
+            # Reservar y obtener el siguiente folio de forma atómica
+            next_folio = self._reservar_siguiente_folio()
+            if next_folio:
+                self.current_folio = f"{next_folio:06d}"
+
             # Actualizar campos con prefijo CP
             self.entry_folio_visita.configure(state="normal")
             self.entry_folio_visita.delete(0, "end")
             folio_con_prefijo = f"CP{self.current_folio}"
             self.entry_folio_visita.insert(0, folio_con_prefijo)
             self.entry_folio_visita.configure(state="readonly")
-            
+
             # Actualizar folio acta automáticamente
             self.entry_folio_acta.configure(state="normal")
             self.entry_folio_acta.delete(0, "end")
             self.entry_folio_acta.insert(0, f"AC{self.current_folio}")
             self.entry_folio_acta.configure(state="readonly")
-            
-            # Limpiar otros campos
-            self.entry_fecha_inicio.delete(0, "end")
-            self.entry_fecha_inicio.insert(0, datetime.now().strftime("%d/%m/%Y"))
-            self.entry_hora_inicio.delete(0, "end")
-            self.entry_hora_inicio.insert(0, datetime.now().strftime("%H:%M"))
-            self.entry_fecha_termino.delete(0, "end")
-            self.entry_hora_termino.delete(0, "end")
-            # Supervisor input removed from UI; nothing to clear here
-            
+            # Limpiar/poner valores por defecto en otros campos de fecha/hora
+            try:
+                self.entry_fecha_inicio.delete(0, "end")
+                self.entry_fecha_inicio.insert(0, datetime.now().strftime("%d/%m/%Y"))
+            except Exception:
+                pass
+            try:
+                self.entry_hora_inicio.delete(0, "end")
+                self.entry_hora_inicio.insert(0, datetime.now().strftime("%H:%M"))
+            except Exception:
+                pass
+            try:
+                self.entry_fecha_termino.delete(0, "end")
+            except Exception:
+                pass
+            try:
+                self.entry_hora_termino.delete(0, "end")
+            except Exception:
+                pass
+
             # No forzamos el tipo de documento: respetar la selección actual
             try:
                 seleccionado = self.combo_tipo_documento.get().strip() if hasattr(self, 'combo_tipo_documento') else None
@@ -2048,14 +2071,118 @@ class SistemaDictamenesVC(ctk.CTk):
                             except Exception:
                                 pass
                             return
-
             except Exception:
                 pass
 
             messagebox.showinfo("Nueva Visita", "Formulario listo para nueva visita")
-            
-        except Exception as e:
-            messagebox.showerror("Error", f"No se pudo crear nueva visita:\n{e}")
+        except Exception:
+            pass
+
+    # ----------------- Folio counter (archivo compartido, con lock) -----------------
+    def _acquire_file_lock(self, lock_path, timeout=5.0, poll=0.08):
+        """Intenta crear un archivo lock de manera atómica. Devuelve el file descriptor.
+        Usa O_EXCL para evitar race conditions. Lanzará Exception si no pudo adquirir en timeout."""
+        start = time.time()
+        while True:
+            try:
+                fd = os.open(lock_path, os.O_CREAT | os.O_EXCL | os.O_RDWR)
+                # escribir PID/ts
+                try:
+                    os.write(fd, f"{os.getpid()}\n{time.time()}".encode('utf-8'))
+                except Exception:
+                    pass
+                return fd
+            except FileExistsError:
+                if (time.time() - start) >= timeout:
+                    raise TimeoutError(f"No se pudo adquirir lock {lock_path}")
+                time.sleep(poll)
+
+    def _release_file_lock(self, fd, lock_path):
+        try:
+            os.close(fd)
+        except Exception:
+            pass
+        try:
+            if os.path.exists(lock_path):
+                os.remove(lock_path)
+        except Exception:
+            pass
+
+    def _read_folio_counter(self):
+        data_dir = os.path.dirname(self.historial_path)
+        contador_path = os.path.join(data_dir, "folio_counter.json")
+        if not os.path.exists(contador_path):
+            return 0
+        try:
+            with open(contador_path, 'r', encoding='utf-8') as f:
+                j = json.load(f)
+                return int(j.get('last', 0))
+        except Exception:
+            return 0
+
+    def _write_folio_counter(self, value):
+        data_dir = os.path.dirname(self.historial_path)
+        contador_path = os.path.join(data_dir, "folio_counter.json")
+        tmp = contador_path + ".tmp"
+        try:
+            with open(tmp, 'w', encoding='utf-8') as f:
+                json.dump({'last': int(value)}, f)
+            # reemplazo atómico
+            os.replace(tmp, contador_path)
+            return True
+        except Exception:
+            try:
+                if os.path.exists(tmp):
+                    os.remove(tmp)
+            except Exception:
+                pass
+            return False
+
+    def _reservar_siguiente_folio(self, timeout=5.0):
+        """Reserva el siguiente folio de manera atómica y lo retorna como int."""
+        data_dir = os.path.dirname(self.historial_path)
+        os.makedirs(data_dir, exist_ok=True)
+        contador_path = os.path.join(data_dir, "folio_counter.json")
+        lock_path = os.path.join(data_dir, "folio_counter.lock")
+        fd = None
+        try:
+            fd = self._acquire_file_lock(lock_path, timeout=timeout)
+            last = self._read_folio_counter()
+            if last <= 0:
+                # si no existe contador, calcular desde historial
+                try:
+                    if os.path.exists(self.historial_path):
+                        with open(self.historial_path, 'r', encoding='utf-8') as hf:
+                            j = json.load(hf)
+                            visitas = j.get('visitas', [])
+                            maxf = 0
+                            for v in visitas:
+                                fr = v.get('folio_visita','')
+                                digits = ''.join([c for c in str(fr) if c.isdigit()])
+                                if digits:
+                                    try:
+                                        n = int(digits)
+                                        if n > maxf:
+                                            maxf = n
+                                    except Exception:
+                                        pass
+                            last = maxf
+                except Exception:
+                    last = 0
+
+            siguiente = last + 1
+            # Escribir nuevo last
+            ok = self._write_folio_counter(siguiente)
+            if not ok:
+                raise Exception("No se pudo escribir folio_counter")
+            return siguiente
+        
+        finally:
+            if fd is not None:
+                try:
+                    self._release_file_lock(fd, lock_path)
+                except Exception:
+                    pass
 
     def guardar_visita_desde_formulario(self):
         """Guarda una nueva visita desde el formulario principal"""
