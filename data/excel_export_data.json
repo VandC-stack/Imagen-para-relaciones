@@ -1,0 +1,70 @@
+{
+  "ema": [
+    {
+      "NUMERO_SOLICITUD": "007925/25",
+      "CLIENTE": "",
+      "NUMERO_CONTRATO": "24049UCS000023",
+      "RFC": "24049UCS000023",
+      "CURP": "N/A",
+      "PRODUCTO_VERIFICADO": "VELA",
+      "MARCAS": "BATH & BODY WORKS",
+      "NOM": 50,
+      "TIPO_DOCUMENTO": "D",
+      "DOCUMENTO_EMITIDO": "007925/25",
+      "FECHA_DOCUMENTO_EMITIDO": "2025-12-03",
+      "VERIFICADOR": "",
+      "PEDIMENTO_IMPORTACION": "25 24 3953 5008513",
+      "FECHA_DESADUANAMIENTO": "2025-12-01",
+      "MODELOS": 28012648,
+      "FOLIO_EMA": "000nan"
+    },
+    {
+      "NUMERO_SOLICITUD": "007925/25",
+      "CLIENTE": "",
+      "NUMERO_CONTRATO": "24049UCS000023",
+      "RFC": "24049UCS000023",
+      "CURP": "N/A",
+      "PRODUCTO_VERIFICADO": "VELA",
+      "MARCAS": "BATH & BODY WORKS",
+      "NOM": 50,
+      "TIPO_DOCUMENTO": "D",
+      "DOCUMENTO_EMITIDO": "007925/25",
+      "FECHA_DOCUMENTO_EMITIDO": "2025-12-03",
+      "VERIFICADOR": "",
+      "PEDIMENTO_IMPORTACION": "25 24 3953 5008513",
+      "FECHA_DESADUANAMIENTO": "2025-12-01",
+      "MODELOS": 28013577,
+      "FOLIO_EMA": "000nan"
+    },
+    {
+      "NUMERO_SOLICITUD": "007925/25",
+      "CLIENTE": "",
+      "NUMERO_CONTRATO": "24049UCS000023",
+      "RFC": "24049UCS000023",
+      "CURP": "N/A",
+      "PRODUCTO_VERIFICADO": "VELA",
+      "MARCAS": "BATH & BODY WORKS",
+      "NOM": 50,
+      "TIPO_DOCUMENTO": "D",
+      "DOCUMENTO_EMITIDO": "007925/25",
+      "FECHA_DOCUMENTO_EMITIDO": "2025-12-03",
+      "VERIFICADOR": "",
+      "PEDIMENTO_IMPORTACION": "25 24 3953 5008513",
+      "FECHA_DESADUANAMIENTO": "2025-12-01",
+      "MODELOS": 28011422,
+      "FOLIO_EMA": "000nan"
+    }
+  ],
+  "anual": [
+    {
+      "FECHA_VISITA": "29/12/2025",
+      "FOLIO_VISITA": "CP000001",
+      "CLIENTE": "BLUE STRIPES SA DE CV",
+      "SOLICITUD": "",
+      "FOLIOS_USADOS": "Total: 3 folios",
+      "NUM_SOLICITUDES": "",
+      "NORMAS": "NOM-050-SCFI-2004"
+    }
+  ],
+  "generated_at": "2025-12-29T18:51:05.536292"
+}

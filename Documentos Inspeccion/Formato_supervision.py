@@ -180,10 +180,10 @@ def header_table(datos):
     #   CONTENIDO GENERAL DEL ENCABEZADO
     # ====================================================
     info = [
-        ["Número de solicitud:", datos["solicitud"]],
-        ["Servicio:", datos["servicio"]],
-        ["Fecha:", datos["fecha"]],
-        ["Cliente:", datos["cliente"]],
+        ["Número de solicitud:", datos.get("solicitud")],
+        ["Servicio:", datos.get("servicio")],
+        ["Fecha:", datos.get("fecha")],
+        ["Cliente:", datos.get("cliente")],
         ["Supervisór:", "Mario Terrez González"],
     ]
 
@@ -192,7 +192,7 @@ def header_table(datos):
     # Primera fila con firma
     data.append([
         Paragraph("<b>Número de solicitud:</b>", style_normal),
-        Paragraph(datos["solicitud"], style_normal),
+        Paragraph(str(datos.get("solicitud") or ""), style_normal),
         firma_table   # firma únicamente aquí
     ])
 
@@ -200,7 +200,7 @@ def header_table(datos):
     for label, value in info[1:]:
         data.append([
             Paragraph(f"<b>{label}</b>", style_normal),
-            Paragraph(value, style_normal),
+            Paragraph(str(value or ""), style_normal),
             ""  # vacío para SPAN
         ])
 

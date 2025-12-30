@@ -1,0 +1,55 @@
+{
+  "identificacion": {
+    "cadena_identificacion": "25049UDCNOM-050-SCFI-2004nan Solicitud de Servicio: 25049USDNOM-050-SCFI-2004007925-2",
+    "year": "25",
+    "folio": "nan",
+    "solicitud": "007925",
+    "lista": "2"
+  },
+  "norma": {
+    "codigo": "NOM-050-SCFI-2004",
+    "descripcion": "Información Comercial- Etiquetado general de productos.",
+    "capitulo": "5 Inciso 5.1 y 5.2 excepto lo establecido en el inciso 5.2.1 (f) relativo a los instructivos o manuales de operación"
+  },
+  "fechas": {
+    "verificacion": "03/12/2025",
+    "verificacion_larga": "3 de diciembre de 2025",
+    "emision": "01/12/2025"
+  },
+  "cliente": {
+    "nombre": "BLUE STRIPES SA DE CV",
+    "rfc": "BST1410212R8"
+  },
+  "producto": {
+    "descripcion": "VELA",
+    "pedimento": "25 24 3953 5008513"
+  },
+  "tabla_productos": [
+    {
+      "marca": "BATH & BODY WORKS",
+      "codigo": "28011422",
+      "factura": "0000069968BBWI10009220",
+      "cantidad": 66
+    }
+  ],
+  "cantidad_total": {
+    "valor": 66,
+    "texto": "66 unidades"
+  },
+  "observaciones": "nan",
+  "firmas": {
+    "firma1": {
+      "nombre": "Marcos Uriel Flores Gomez",
+      "valida": true,
+      "codigo_solicitado": "MFLORES",
+      "razon_sin_firma": ""
+    },
+    "firma2": {
+      "nombre": "Arturo Flores Gomez"
+    }
+  },
+  "modo_insertado": "evidencia",
+  "etiquetas": {
+    "cantidad": 0
+  }
+}

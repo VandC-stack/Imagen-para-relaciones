@@ -3921,7 +3921,7 @@ class SistemaDictamenesVC(ctk.CTk):
                             'cliente': registro.get('cliente',''),
                             'supervisor': 'Mario Terrez Gonzalez'
                         }
-                        # Determinar servicio a partir de tabla (si hay alguna entrada con TIP0...)
+                        # Determinar servicio a partir de tabla (si hay alguna entrada con TIPO DE DOCUMENTO)
                         try:
                             # buscar primer registro en tabla_dest que corresponda a folios_list
                             if os.path.exists(tabla_dest):
@@ -3934,11 +3934,44 @@ class SistemaDictamenesVC(ctk.CTk):
                                         except Exception:
                                             fol_int = None
                                         if folios_list and fol_int in folios_list:
-                                            tipo_doc = (rec.get('TIPO DE DOCUMENTO') or rec.get('TIPO_DE_DOCUMENTO') or 'D')
-                                            datos['servicio'] = 'DICTAMEN' if str(tipo_doc).strip().upper() == 'D' else str(tipo_doc)
+                                            tipo_doc = (rec.get('TIPO DE DOCUMENTO') or rec.get('TIPO_DE_DOCUMENTO') or '')
+                                            tipo_code = str(tipo_doc).strip().upper()
+                                            mapping = {
+                                                'D': 'Dictamen',
+                                                'C': 'Constancia',
+                                                'ND': 'Negacion de Dictamen',
+                                                'NC': 'Negacion de Constancia'
+                                            }
+                                            datos['servicio'] = mapping.get(tipo_code, str(tipo_doc) if tipo_doc else 'Dictamen')
                                             break
                         except Exception:
-                            datos['servicio'] = datos.get('servicio') or 'DICTAMEN'
+                            datos['servicio'] = datos.get('servicio') or 'Dictamen'
+
+                        # Si no se determinó por folios, intentar inferir servicio desde cualquier registro de la tabla
+                        if not datos.get('servicio'):
+                            try:
+                                if os.path.exists(tabla_dest):
+                                    with open(tabla_dest, 'r', encoding='utf-8') as tf2:
+                                        tabla_all = json.load(tf2)
+                                        if isinstance(tabla_all, list):
+                                            for rec in tabla_all:
+                                                tipo_doc = rec.get('TIPO DE DOCUMENTO') or rec.get('TIPO_DE_DOCUMENTO') or ''
+                                                if tipo_doc:
+                                                    tipo_code = str(tipo_doc).strip().upper()
+                                                    mapping = {
+                                                        'D': 'Dictamen',
+                                                        'C': 'Constancia',
+                                                        'ND': 'Negacion de Dictamen',
+                                                        'NC': 'Negacion de Constancia'
+                                                    }
+                                                    datos['servicio'] = mapping.get(tipo_code, str(tipo_doc))
+                                                    break
+                            except Exception:
+                                pass
+
+                        # Valor por defecto si no se logró inferir
+                        if not datos.get('servicio'):
+                            datos['servicio'] = 'Dictamen'
 
                         # Llamar al generador
                         try:
