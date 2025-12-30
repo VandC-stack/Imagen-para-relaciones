@@ -3,3 +3,9 @@ openpyxl
 python-docx
 docxtpl
 customtkinter
+
+# Packaging / runtime extras
+pyinstaller
+reportlab
+Pillow
+pyxlsb

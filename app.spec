@@ -5,7 +5,7 @@ a = Analysis(
     ['app.py'],
     pathex=[],
     binaries=[],
-    datas=[('data', 'data'), ('firmas', 'firmas'), ('img', 'img')],
+    datas=[('data', 'data'), ('Documentos Inspeccion', 'Documentos Inspeccion'), ('Pegado de Evidenvia Fotografica', 'Pegado de Evidenvia Fotografica'), ('Firmas', 'Firmas'), ('img', 'img')],
     hiddenimports=[],
     hookspath=[],
     hooksconfig={},

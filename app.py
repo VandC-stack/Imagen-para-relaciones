@@ -35,6 +35,12 @@ FONT_SUBTITLE = ("Inter", 17, "bold")
 FONT_LABEL = ("Inter", 13)
 FONT_SMALL = ("Inter", 12)
 
+# Ruta base compatible con PyInstaller (.exe)
+if getattr(sys, 'frozen', False):
+    BASE_DIR = getattr(sys, '_MEIPASS', os.path.abspath("."))
+else:
+    BASE_DIR = os.path.abspath(os.path.dirname(__file__))
+
 
 class SistemaDictamenesVC(ctk.CTk):
     # --- PAGINACIÓN HISTORIAL ---
@@ -67,14 +73,14 @@ class SistemaDictamenesVC(ctk.CTk):
         # ===== NUEVAS VARIABLES PARA HISTORIAL =====
         self.historial_data = []
         self.historial_data_original = []
-        self.historial_path = os.path.join(os.path.dirname(__file__), "data", "historial_visitas.json")
+        self.historial_path = os.path.join(BASE_DIR, "data", "historial_visitas.json")
         
         # INICIALIZAR self.historial COMO DICCIONARIO
         self.historial = {"visitas": []}
 
         # ===== NUEVA VARIABLE PARA FOLIOS POR VISITA =====
         # Crear directorios necesarios
-        data_dir = os.path.join(os.path.dirname(__file__), "data")
+        data_dir = os.path.join(BASE_DIR, "data")
         os.makedirs(data_dir, exist_ok=True)
         
         self.folios_visita_path = os.path.join(data_dir, "folios_visitas")
@@ -86,7 +92,7 @@ class SistemaDictamenesVC(ctk.CTk):
         except Exception:
             self.pending_folios = []
         # Directorio donde están los generadores/documentos (ReportLab, tablas, etc.)
-        self.documentos_dir = os.path.join(os.path.dirname(__file__), "Documentos Inspeccion")
+        self.documentos_dir = os.path.join(BASE_DIR, "Documentos Inspeccion")
 
         # ===== NUEVA ESTRUCTURA DE NAVEGACIÓN =====
         self.crear_navegacion()
@@ -759,6 +765,20 @@ class SistemaDictamenesVC(ctk.CTk):
         )
         self.info_cliente.pack(anchor="w", fill="x")
 
+        # --- PEGADO DE EVIDENCIA (siempre visible, arriba de Cargar Tabla de Relación) ---
+        pegado_section = ctk.CTkFrame(scroll_generacion, fg_color="transparent")
+        pegado_section.pack(fill="x", pady=(0, 6))
+
+        ctk.CTkLabel(
+            pegado_section,
+            text="🧩 Pegado de evidencia",
+            font=FONT_LABEL,
+            text_color=STYLE["texto_oscuro"]
+        ).pack(anchor="w", pady=(0, 8))
+
+        pegado_botones_frame = ctk.CTkFrame(pegado_section, fg_color="transparent")
+        pegado_botones_frame.pack(fill="x", pady=(0, 6))
+
         # --- FOLIOS RESERVADOS (Debajo del selector de cliente) ---
         self.cliente_folios_frame = ctk.CTkFrame(cliente_section, fg_color="transparent")
         self.cliente_folios_frame.pack(fill="x", pady=(4, 4))
@@ -819,9 +839,9 @@ class SistemaDictamenesVC(ctk.CTk):
             pass
 
         # Botón para configurar carpetas de evidencias (abre modal para elegir grupo y carpeta)
-        # Tres botones para modos de pegado (no empacados hasta selección de cliente)
+        # Tres botones para modos de pegado (siempre están visibles en la card de pegado)
         self.boton_pegado_simple = ctk.CTkButton(
-            cliente_section,
+            pegado_botones_frame,
             text="🖼️ Pegado Simple",
             command=self.handle_pegado_simple,
             font=("Inter", 11, "bold"),
@@ -834,7 +854,7 @@ class SistemaDictamenesVC(ctk.CTk):
         )
 
         self.boton_pegado_carpetas = ctk.CTkButton(
-            cliente_section,
+            pegado_botones_frame,
             text="📁 Pegado Carpetas",
             command=self.handle_pegado_carpetas,
             font=("Inter", 11, "bold"),
@@ -847,7 +867,7 @@ class SistemaDictamenesVC(ctk.CTk):
         )
 
         self.boton_pegado_indice = ctk.CTkButton(
-            cliente_section,
+            pegado_botones_frame,
             text="📑 Pegado Índice",
             command=self.handle_pegado_indice,
             font=("Inter", 11, "bold"),
@@ -860,7 +880,7 @@ class SistemaDictamenesVC(ctk.CTk):
         )
         # Botón para limpiar rutas de evidencias guardadas
         self.boton_limpiar_rutas_evidencias = ctk.CTkButton(
-            cliente_section,
+            pegado_botones_frame,
             text="🧹 Limpiar",
             command=self.handle_clear_evidence_paths,
             font=("Inter", 11, "bold"),
@@ -871,9 +891,48 @@ class SistemaDictamenesVC(ctk.CTk):
             width=180,
             corner_radius=8
         )
-        # NOTA: no empacamos el botón aquí para que permanezca oculto hasta
-        # que el usuario seleccione un cliente que requiera configuración
-        # (se mostrará desde `actualizar_cliente_seleccionado`).
+        # Empacar los botones en la card de pegado para que siempre estén visibles.
+        try:
+            # pack horizontalmente con separación
+            self.boton_pegado_simple.pack(side="left", padx=(0, 8))
+            self.boton_pegado_carpetas.pack(side="left", padx=(0, 8))
+            self.boton_pegado_indice.pack(side="left", padx=(0, 8))
+            self.boton_limpiar_rutas_evidencias.pack(side="left", padx=(8, 0))
+        except Exception:
+            pass
+
+        # Indicador + Label de estado del pegado: muestra si hay ruta cargada y el modo seleccionado
+        self.pegado_path_loaded_var = ctk.BooleanVar(value=False)
+        self.pegado_checkbox = ctk.CTkCheckBox(
+            pegado_section,
+            text="Ruta cargada",
+            variable=self.pegado_path_loaded_var,
+            state="disabled",
+            text_color=STYLE["texto_oscuro"]
+        )
+        self.pegado_checkbox.pack(side="left", padx=(0, 8))
+
+        self.pegado_status_label = ctk.CTkLabel(
+            pegado_section,
+            text="Ruta: Ninguna   ·   Modo: Ninguno",
+            font=FONT_SMALL,
+            text_color=STYLE["texto_oscuro"],
+            wraplength=720
+        )
+        self.pegado_status_label.pack(anchor="w", pady=(6, 0))
+        try:
+            saved = self._load_evidence_paths()
+            first_path = None
+            if saved and isinstance(saved, dict):
+                for k, v in saved.items():
+                    if v:
+                        first_path = v[0]
+                        break
+            if first_path:
+                self._update_pegado_status(mode="Sin seleccionar", path=first_path)
+        except Exception:
+            pass
+
 
         # --- CARGAR TABLA DE RELACIÓN ---
         carga_section = ctk.CTkFrame(scroll_generacion, fg_color="transparent")
@@ -1069,7 +1128,7 @@ class SistemaDictamenesVC(ctk.CTk):
         # Botón de generación
         self.boton_generar_dictamen = ctk.CTkButton(
             generar_section,
-            text="Generar Dictámenes",
+            text="🧾 Generar Documentos",
             command=self.generar_dictamenes,
             font=("Inter", 13, "bold"),
             fg_color=STYLE["exito"],
@@ -1448,8 +1507,8 @@ class SistemaDictamenesVC(ctk.CTk):
         y el combobox `self.combo_cliente` se rellena con los nombres detectados.
         """
         posibles_rutas = [
-            os.path.join(os.path.dirname(__file__), 'data', 'Clientes.json'),
-            os.path.join(os.path.dirname(__file__), 'Clientes.json'),
+            os.path.join(BASE_DIR, 'data', 'Clientes.json'),
+            os.path.join(BASE_DIR, 'Clientes.json'),
             'data/Clientes.json',
             'Clientes.json',
             '../data/Clientes.json'
@@ -1541,37 +1600,17 @@ class SistemaDictamenesVC(ctk.CTk):
             self.boton_limpiar_cliente.configure(state="disabled")
             self.safe_forget(self.boton_subir_etiquetado)
             self.safe_forget(self.info_etiquetado)
-            # Ocultar botones de pegado cuando no hay cliente seleccionado
-            try:
-                self.safe_forget(self.boton_pegado_simple)
-                self.safe_forget(self.boton_pegado_carpetas)
-                self.safe_forget(self.boton_pegado_indice)
-            except Exception:
-                pass
+            # Mantener los botones de pegado visibles incluso si no hay cliente seleccionado
             return
 
         # ─────────────────────────────────────────────
-        #  1) CLIENTES QUE SOLO PEGAN EVIDENCIA
+        #  1) CLIENTES QUE SE TRATAN COMO EVIDENCIA
         # ─────────────────────────────────────────────
-        CLIENTES_EVIDENCIA = {
-            # Pegado índice
-            "BASECO SAPI DE CV",
-            "BLUE STRIPES SA DE CV",
-            "GRUPO GUESS S DE RL DE CV",
-            "EAST COAST MODA SA DE CV",
-            "I NOSTRI FRATELLI S DE RL DE CV",
-            "LEDERY MEXICO SA DE CV",
-            "MODA RAPSODIA SA DE CV",
-            "MULTIBRAND OUTLET STORES SAPI DE CV",
-            "RED STRIPES SA DE CV",
-
-            # Pegado simple
-            "ROBERT BOSCH S DE RL DE CV",
-
-            # Pegado en múltiples carpetas
-            "UNILEVER MANUFACTURERA S DE RL DE CV",
-            "UNILEVER DE MÉXICO S DE RL DE CV",
-        }
+        # Por defecto tratamos TODOS los clientes como flujo de EVIDENCIA
+        # excepto los explícitos en `CLIENTES_ETIQUETA` más abajo.
+        # Dejamos esta constante vacía por compatibilidad si se quisiera
+        # mantener una lista blanca en el futuro.
+        CLIENTES_EVIDENCIA = set()
 
         # ─────────────────────────────────────────────
         # 2) CLIENTES QUE PEGAN ETIQUETAS
@@ -1728,9 +1767,9 @@ class SistemaDictamenesVC(ctk.CTk):
             pass
 
         # ─────────────────────────────────────────────
-        # CASO 1: SOLO EVIDENCIA
+        # CASO 1: EVIDENCIA (por defecto para TODOS excepto `CLIENTES_ETIQUETA`)
         # ─────────────────────────────────────────────
-        if cliente_nombre in CLIENTES_EVIDENCIA:
+        if cliente_nombre not in CLIENTES_ETIQUETA:
             self.tipo_operacion = "EVIDENCIA"
             self.safe_forget(self.boton_subir_etiquetado)
             self.safe_forget(self.info_etiquetado)
@@ -1760,32 +1799,14 @@ class SistemaDictamenesVC(ctk.CTk):
             if self.archivo_etiquetado_json:
                 self.safe_pack(self.info_etiquetado, anchor="w", fill="x", pady=(5, 0))
 
-            # Asegurarse de ocultar los botones de evidencias en flujos de etiquetas
-            try:
-                self.safe_forget(self.boton_pegado_simple)
-                self.safe_forget(self.boton_pegado_carpetas)
-                self.safe_forget(self.boton_pegado_indice)
-                self.safe_forget(self.boton_limpiar_rutas_evidencias)
-            except Exception:
-                pass
+            # En flujos de etiquetas no se ocultan los botones de pegado; se mantienen visibles
+            pass
 
         # ─────────────────────────────────────────────
         # SI YA SE CARGÓ EL JSON → habilitar dictamen
         # ─────────────────────────────────────────────
         # Mostrar/ocultar el botón de configuración según el cliente seleccionado
-        try:
-            if cliente_nombre in CLIENTES_EVIDENCIA:
-                self.safe_pack(self.boton_pegado_simple, anchor="w", pady=(8, 0))
-                self.safe_pack(self.boton_pegado_carpetas, anchor="w", pady=(8, 0))
-                self.safe_pack(self.boton_pegado_indice, anchor="w", pady=(8, 0))
-                self.safe_pack(self.boton_limpiar_rutas_evidencias, anchor="w", pady=(8, 0))
-            else:
-                self.safe_forget(self.boton_pegado_simple)
-                self.safe_forget(self.boton_pegado_carpetas)
-                self.safe_forget(self.boton_pegado_indice)
-                self.safe_forget(self.boton_limpiar_rutas_evidencias)
-        except Exception:
-            pass
+        # Los botones de pegado se mantienen visibles por diseño; no se ocultan según cliente
 
         if self.archivo_json_generado:
             self.boton_generar_dictamen.configure(state="normal")
@@ -1812,7 +1833,7 @@ class SistemaDictamenesVC(ctk.CTk):
 
             registros = df.to_dict(orient="records")
 
-            data_dir = os.path.join(os.path.dirname(__file__), "data")
+            data_dir = os.path.join(BASE_DIR, "data")
             os.makedirs(data_dir, exist_ok=True)
 
             output_json = os.path.join(data_dir, "base_etiquetado.json")
@@ -1846,16 +1867,7 @@ class SistemaDictamenesVC(ctk.CTk):
         self.boton_limpiar_cliente.configure(state="disabled")
         self.boton_generar_dictamen.configure(state="disabled")
         self.boton_subir_etiquetado.pack_forget()
-        try:
-            self.boton_pegado_simple.pack_forget()
-            self.boton_pegado_carpetas.pack_forget()
-            self.boton_pegado_indice.pack_forget()
-            try:
-                self.boton_limpiar_rutas_evidencias.pack_forget()
-            except Exception:
-                pass
-        except Exception:
-            pass
+        # No ocultar los botones de pegado al limpiar cliente; deben permanecer visibles
         self.info_etiquetado.pack_forget()
         try:
             self.combo_domicilios.configure(values=["Seleccione un domicilio..."], state='disabled')
@@ -2202,7 +2214,7 @@ class SistemaDictamenesVC(ctk.CTk):
 
             records = df.to_dict(orient="records")
 
-            data_folder = os.path.join(os.path.dirname(__file__), "data")
+            data_folder = os.path.join(BASE_DIR, "data")
             os.makedirs(data_folder, exist_ok=True)
 
             self.json_filename = "tabla_de_relacion.json"
@@ -2459,7 +2471,7 @@ class SistemaDictamenesVC(ctk.CTk):
         self.etiqueta_progreso.configure(text="")
 
         try:
-            data_dir = os.path.join(os.path.dirname(__file__), "data")
+            data_dir = os.path.join(BASE_DIR, "data")
             
             archivos_a_eliminar = [
                 "base_etiquetado.json",
@@ -2577,7 +2589,7 @@ class SistemaDictamenesVC(ctk.CTk):
                 if visit_actual and normas_en_datos:
                     # cargar Firmas.json para mapa nombre->normas
                     try:
-                        firmas_path = os.path.join(os.path.dirname(__file__), 'data', 'Firmas.json')
+                        firmas_path = os.path.join(BASE_DIR, 'data', 'Firmas.json')
                         with open(firmas_path, 'r', encoding='utf-8') as ff:
                             firmas_data = json.load(ff)
                     except Exception:
@@ -2811,7 +2823,7 @@ class SistemaDictamenesVC(ctk.CTk):
             if not self.winfo_exists():
                 return
                 
-            sys.path.append(os.path.dirname(__file__))
+            sys.path.append(BASE_DIR)
             from generador_dictamen import generar_dictamenes_gui
             
             def actualizar_progreso(porcentaje, mensaje):
@@ -2873,7 +2885,7 @@ class SistemaDictamenesVC(ctk.CTk):
 
                                 # Eliminar de archivo de reservas
                                 try:
-                                    pf = os.path.join(os.path.dirname(__file__), 'data', 'pending_folios.json')
+                                    pf = os.path.join(BASE_DIR, 'data', 'pending_folios.json')
                                     if os.path.exists(pf):
                                         with open(pf, 'r', encoding='utf-8') as f:
                                             arr = json.load(f) or []
@@ -3110,7 +3122,7 @@ class SistemaDictamenesVC(ctk.CTk):
             self.hist_create_visita(payload)
             # Persistir también en archivo de reservas (pending_folios.json)
             try:
-                pf_path = os.path.join(os.path.dirname(__file__), 'data', 'pending_folios.json')
+                pf_path = os.path.join(BASE_DIR, 'data', 'pending_folios.json')
                 arr = []
                 if os.path.exists(pf_path):
                     try:
@@ -3728,7 +3740,7 @@ class SistemaDictamenesVC(ctk.CTk):
                         return
 
                     # Preferir el backup más reciente en data/tabla_relacion_backups si existe
-                    data_dir_local = os.path.join(os.path.dirname(__file__), 'data')
+                    data_dir_local = os.path.join(BASE_DIR, 'data')
                     backups_dir = os.path.join(data_dir_local, 'tabla_relacion_backups')
                     tabla_dest = os.path.join(data_dir_local, 'tabla_de_relacion.json')
 
@@ -3757,7 +3769,7 @@ class SistemaDictamenesVC(ctk.CTk):
                     # Importar dinámicamente el generador de actas y generar
                     try:
                         import importlib.util
-                        acta_file = os.path.join(os.path.dirname(__file__), 'Documentos Inspeccion', 'Acta_inspeccion.py')
+                        acta_file = os.path.join(BASE_DIR, 'Documentos Inspeccion', 'Acta_inspeccion.py')
                         if not os.path.exists(acta_file):
                             messagebox.showerror("Error", f"No se encontró el generador de actas: {acta_file}")
                             return
@@ -3799,7 +3811,7 @@ class SistemaDictamenesVC(ctk.CTk):
                     return
 
                 # Asegurar que usamos el backup más reciente para tabla_de_relacion
-                data_dir_local = os.path.join(os.path.dirname(__file__), 'data')
+                data_dir_local = os.path.join(BASE_DIR, 'data')
                 backups_dir = os.path.join(data_dir_local, 'tabla_relacion_backups')
                 tabla_dest = os.path.join(data_dir_local, 'tabla_de_relacion.json')
 
@@ -3901,7 +3913,7 @@ class SistemaDictamenesVC(ctk.CTk):
                 try:
                     import importlib.util
                     if tipo == 'formato':
-                        formato_file = os.path.join(os.path.dirname(__file__), 'Documentos Inspeccion', 'Formato_supervision.py')
+                        formato_file = os.path.join(BASE_DIR, 'Documentos Inspeccion', 'Formato_supervision.py')
                         if not os.path.exists(formato_file):
                             messagebox.showerror('Error', f'No se encontró el módulo: {formato_file}')
                             return
@@ -3982,8 +3994,8 @@ class SistemaDictamenesVC(ctk.CTk):
 
                     elif tipo == 'oficio':
                         # Prefer a fixed fallback module if present to avoid importing a corrupted original
-                        oficio_file = os.path.join(os.path.dirname(__file__), 'Documentos Inspeccion', 'Oficio_comision.py')
-                        oficio_fixed = os.path.join(os.path.dirname(__file__), 'Documentos Inspeccion', 'Oficio_comision_fixed.py')
+                        oficio_file = os.path.join(BASE_DIR, 'Documentos Inspeccion', 'Oficio_comision.py')
+                        oficio_fixed = os.path.join(BASE_DIR, 'Documentos Inspeccion', 'Oficio_comision_fixed.py')
                         if os.path.exists(oficio_fixed):
                             oficio_file = oficio_fixed
                         if not os.path.exists(oficio_file):
@@ -4440,7 +4452,7 @@ class SistemaDictamenesVC(ctk.CTk):
                     pendientes_source = list(self.pending_folios)
                 else:
                     # intentar leer archivo
-                    pf = os.path.join(os.path.dirname(__file__), 'data', 'pending_folios.json')
+                    pf = os.path.join(BASE_DIR, 'data', 'pending_folios.json')
                     if os.path.exists(pf):
                         with open(pf, 'r', encoding='utf-8') as f:
                             pendientes_source = json.load(f) or []
@@ -4773,7 +4785,7 @@ class SistemaDictamenesVC(ctk.CTk):
 
             # También eliminar de archivo de reservas si existe
             try:
-                pf_path = os.path.join(os.path.dirname(__file__), 'data', 'pending_folios.json')
+                pf_path = os.path.join(BASE_DIR, 'data', 'pending_folios.json')
                 if os.path.exists(pf_path):
                     with open(pf_path, 'r', encoding='utf-8') as f:
                         arr = json.load(f) or []
@@ -4827,7 +4839,7 @@ class SistemaDictamenesVC(ctk.CTk):
     def _load_pending_folios(self):
         """Carga las reservas desde data/pending_folios.json en `self.pending_folios`."""
         try:
-            pf = os.path.join(os.path.dirname(__file__), 'data', 'pending_folios.json')
+            pf = os.path.join(BASE_DIR, 'data', 'pending_folios.json')
             if os.path.exists(pf):
                 with open(pf, 'r', encoding='utf-8') as f:
                     arr = json.load(f) or []
@@ -4841,7 +4853,7 @@ class SistemaDictamenesVC(ctk.CTk):
     def _save_pending_folios(self):
         """Guarda `self.pending_folios` en data/pending_folios.json."""
         try:
-            pf = os.path.join(os.path.dirname(__file__), 'data', 'pending_folios.json')
+            pf = os.path.join(BASE_DIR, 'data', 'pending_folios.json')
             with open(pf, 'w', encoding='utf-8') as f:
                 json.dump(self.pending_folios or [], f, ensure_ascii=False, indent=2)
         except Exception as e:
@@ -4851,7 +4863,7 @@ class SistemaDictamenesVC(ctk.CTk):
     def _cargar_config_exportacion(self):
         """Carga o crea la configuración persistente para las exportaciones Excel."""
         try:
-            data_folder = os.path.join(os.path.dirname(__file__), "data")
+            data_folder = os.path.join(BASE_DIR, "data")
             os.makedirs(data_folder, exist_ok=True)
             cfg_path = os.path.join(data_folder, 'excel_export_config.json')
             if not os.path.exists(cfg_path):
@@ -4877,7 +4889,7 @@ class SistemaDictamenesVC(ctk.CTk):
 
     def _guardar_config_exportacion(self):
         try:
-            data_folder = os.path.join(os.path.dirname(__file__), "data")
+            data_folder = os.path.join(BASE_DIR, "data")
             cfg_path = os.path.join(data_folder, 'excel_export_config.json')
             with open(cfg_path, 'w', encoding='utf-8') as f:
                 json.dump(self.excel_export_config, f, ensure_ascii=False, indent=2)
@@ -4887,7 +4899,7 @@ class SistemaDictamenesVC(ctk.CTk):
     def _generar_datos_exportable(self):
         """Genera y persiste un JSON consolidado que será la fuente para las exportaciones EMA y anual."""
         try:
-            data_folder = os.path.join(os.path.dirname(__file__), "data")
+            data_folder = os.path.join(BASE_DIR, "data")
             tabla_path = self.excel_export_config.get('tabla_de_relacion') or os.path.join(data_folder, 'tabla_de_relacion.json')
             clientes_path = self.excel_export_config.get('clientes') or os.path.join(data_folder, 'Clientes.json')
             export_cache = self.excel_export_config.get('export_cache') or os.path.join(data_folder, 'excel_export_data.json')
@@ -5309,7 +5321,7 @@ class SistemaDictamenesVC(ctk.CTk):
             
             # 2. ELIMINAR ARCHIVOS DE TABLA RELACIÓN BACKUP
             tabla_relacion_backup_dir = os.path.join(
-                os.path.dirname(__file__), "data", "tabla_relacion_backups"
+                BASE_DIR, "data", "tabla_relacion_backups"
             )
             if os.path.exists(tabla_relacion_backup_dir):
                 try:
@@ -5374,7 +5386,7 @@ class SistemaDictamenesVC(ctk.CTk):
             # Verificar carpetas
             carpetas = [
                 os.path.join(self.folios_visita_path, f"folios_{folio}.json"),
-                os.path.join(os.path.dirname(__file__), "data", "tabla_relacion_backups")
+                os.path.join(BASE_DIR, "data", "tabla_relacion_backups")
             ]
             
             for carpeta in carpetas:
@@ -5397,7 +5409,7 @@ class SistemaDictamenesVC(ctk.CTk):
     def _registrar_operacion(self, tipo_operacion, folio, status, detalles=""):
         """Registra todas las operaciones para auditoría y persistencia"""
         try:
-            log_path = os.path.join(os.path.dirname(__file__), "data", "operaciones_log.json")
+            log_path = os.path.join(BASE_DIR, "data", "operaciones_log.json")
             
             # Cargar log existente o crear uno nuevo
             if os.path.exists(log_path):
@@ -5493,11 +5505,11 @@ class SistemaDictamenesVC(ctk.CTk):
                         except Exception:
                             pass
 
-                tabla_relacion_path = os.path.join(os.path.dirname(__file__), 'data', 'tabla_de_relacion.json')
+                tabla_relacion_path = os.path.join(BASE_DIR, 'data', 'tabla_de_relacion.json')
                 if os.path.exists(tabla_relacion_path):
                     # Hacer backup antes de modificar
                     try:
-                        backup_dir = os.path.join(os.path.dirname(__file__), 'data', 'tabla_relacion_backups')
+                        backup_dir = os.path.join(BASE_DIR, 'data', 'tabla_relacion_backups')
                         os.makedirs(backup_dir, exist_ok=True)
                         ts = datetime.now().strftime('%Y%m%d%H%M%S')
                         shutil.copyfile(tabla_relacion_path, os.path.join(backup_dir, f"tabla_de_relacion_{folio}_{ts}.json"))
@@ -5630,7 +5642,7 @@ class SistemaDictamenesVC(ctk.CTk):
                         need_addr = not payload.get('direccion') or not payload.get('calle_numero')
                         cliente_nombre = payload.get('cliente') or ''
                         if need_addr and cliente_nombre:
-                            clientes_path = os.path.join(os.path.dirname(__file__), 'data', 'Clientes.json')
+                            clientes_path = os.path.join(BASE_DIR, 'data', 'Clientes.json')
                             if os.path.exists(clientes_path):
                                 try:
                                     with open(clientes_path, 'r', encoding='utf-8') as cf:
@@ -5882,7 +5894,7 @@ class SistemaDictamenesVC(ctk.CTk):
                         need_addr = not actualizado.get('direccion') or not actualizado.get('calle_numero')
                         cliente_nombre = actualizado.get('cliente') or ''
                         if need_addr and cliente_nombre:
-                            clientes_path = os.path.join(os.path.dirname(__file__), 'data', 'Clientes.json')
+                            clientes_path = os.path.join(BASE_DIR, 'data', 'Clientes.json')
                             if os.path.exists(clientes_path):
                                 try:
                                     with open(clientes_path, 'r', encoding='utf-8') as cf:
@@ -6096,7 +6108,7 @@ class SistemaDictamenesVC(ctk.CTk):
             
             if datos_tabla:
                 # Cargar el archivo de normas
-                normas_path = os.path.join(os.path.dirname(__file__), "data", "Normas.json")
+                normas_path = os.path.join(BASE_DIR, "data", "Normas.json")
                 
                 if os.path.exists(normas_path):
                     with open(normas_path, 'r', encoding='utf-8') as f:
@@ -6147,7 +6159,7 @@ class SistemaDictamenesVC(ctk.CTk):
             
             if datos_tabla:
                 # Cargar el archivo de firmas
-                firmas_path = os.path.join(os.path.dirname(__file__), "data", "Firmas.json")
+                firmas_path = os.path.join(BASE_DIR, "data", "Firmas.json")
                 
                 # Prepare mapping dict even if file missing
                 firmas_mapeadas = {}
@@ -6249,7 +6261,7 @@ class SistemaDictamenesVC(ctk.CTk):
         self.etiqueta_progreso.configure(text="")
 
         try:
-            data_dir = os.path.join(os.path.dirname(__file__), "data")
+            data_dir = os.path.join(BASE_DIR, "data")
             
             # Archivos a eliminar (pero NO los de folios_visitas)
             archivos_a_eliminar = [
@@ -6342,7 +6354,7 @@ class SistemaDictamenesVC(ctk.CTk):
         selected_address_raw = {}
         # Cargar listas de normas e inspectores para helpers del modal
         try:
-            normas_path = os.path.join(os.path.dirname(__file__), 'data', 'Normas.json')
+            normas_path = os.path.join(BASE_DIR, 'data', 'Normas.json')
             if os.path.exists(normas_path):
                 with open(normas_path, 'r', encoding='utf-8') as nf:
                     normas_data = json.load(nf)
@@ -6353,7 +6365,7 @@ class SistemaDictamenesVC(ctk.CTk):
             normas_list = []
 
         try:
-            firmas_path = os.path.join(os.path.dirname(__file__), 'data', 'Firmas.json')
+            firmas_path = os.path.join(BASE_DIR, 'data', 'Firmas.json')
             if os.path.exists(firmas_path):
                 with open(firmas_path, 'r', encoding='utf-8') as ff:
                     firmas_data = json.load(ff)
@@ -7267,7 +7279,7 @@ class SistemaDictamenesVC(ctk.CTk):
     def _load_evidence_paths(self):
         """Carga el archivo `data/evidence_paths.json` si existe."""
         try:
-            data_file = os.path.join(os.path.dirname(__file__), "data", "evidence_paths.json")
+            data_file = os.path.join(BASE_DIR, "data", "evidence_paths.json")
             if os.path.exists(data_file):
                 with open(data_file, "r", encoding="utf-8") as f:
                     return json.load(f)
@@ -7277,7 +7289,7 @@ class SistemaDictamenesVC(ctk.CTk):
 
     def _save_evidence_path(self, group, path):
         """Guarda la ruta `path` bajo la clave `group` en `data/evidence_paths.json`."""
-        data_file = os.path.join(os.path.dirname(__file__), "data", "evidence_paths.json")
+        data_file = os.path.join(BASE_DIR, "data", "evidence_paths.json")
         os.makedirs(os.path.dirname(data_file), exist_ok=True)
         data = self._load_evidence_paths() or {}
         existing = data.get(group, [])
@@ -7366,7 +7378,7 @@ class SistemaDictamenesVC(ctk.CTk):
         `obtener_rutas()` que devuelve esas rutas y convierte `guardar_config` en no-op.
         """
         try:
-            base = os.path.join(os.path.dirname(__file__), "Pegado de Evidenvia Fotografica")
+            base = os.path.join(BASE_DIR, "Pegado de Evidenvia Fotografica")
             main_path = os.path.join(base, "main.py")
 
             # Asegurar que la carpeta del pegado esté en sys.path para que
@@ -7436,6 +7448,10 @@ class SistemaDictamenesVC(ctk.CTk):
             # Guardar la ruta bajo un grupo genérico 'manual_pegado'
             self._save_evidence_path('manual_pegado', ruta_imgs)
             messagebox.showinfo("Pegado guardado", "Ruta de imágenes guardada. Cuando genere los dictámenes, se buscarán evidencias en esta carpeta.")
+            try:
+                self._update_pegado_status(mode="Pegado Simple", path=ruta_imgs)
+            except Exception:
+                pass
         except Exception as e:
             messagebox.showerror("Error", f"No se pudo guardar la ruta de evidencias:\n{e}")
 
@@ -7446,6 +7462,10 @@ class SistemaDictamenesVC(ctk.CTk):
         try:
             self._save_evidence_path('manual_pegado', ruta_imgs)
             messagebox.showinfo("Pegado guardado", "Ruta de carpetas guardada. Cuando genere los dictámenes, se buscarán evidencias en estas carpetas.")
+            try:
+                self._update_pegado_status(mode="Pegado Carpetas", path=ruta_imgs)
+            except Exception:
+                pass
         except Exception as e:
             messagebox.showerror("Error", f"No se pudo guardar la ruta de evidencias:\n{e}")
 
@@ -7467,60 +7487,66 @@ class SistemaDictamenesVC(ctk.CTk):
 
             # Si el usuario proporcionó un Excel, construir el índice usando el script pegado_indice.py
             if excel_path:
-                    import importlib.util
-                    import sys
-                    mod_path = os.path.join(os.path.dirname(__file__), "Pegado de Evidenvia Fotografica", "pegado_indice.py")
-                    base = os.path.dirname(mod_path)
-                    # Añadir temporalmente el directorio al sys.path para resolver imports locales (registro_fallos, main, etc.)
-                    added_to_path = False
-                    if base and base not in sys.path:
-                        sys.path.insert(0, base)
-                        added_to_path = True
+                import importlib.util
+                import sys
+                mod_path = os.path.join(BASE_DIR, "Pegado de Evidenvia Fotografica", "pegado_indice.py")
+                base = os.path.dirname(mod_path)
+                # Añadir temporalmente el directorio al sys.path para resolver imports locales (registro_fallos, main, etc.)
+                added_to_path = False
+                if base and base not in sys.path:
+                    sys.path.insert(0, base)
+                    added_to_path = True
 
-                    spec = importlib.util.spec_from_file_location("pegado_indice", mod_path)
-                    pegado_mod = importlib.util.module_from_spec(spec)
-                    try:
-                        spec.loader.exec_module(pegado_mod)
-                    finally:
-                        # Quitar la ruta añadida
-                        try:
-                            if added_to_path and base in sys.path:
-                                sys.path.remove(base)
-                        except Exception:
-                            pass
+                spec = importlib.util.spec_from_file_location("pegado_indice", mod_path)
+                pegado_mod = importlib.util.module_from_spec(spec)
 
-                    # Llamar a la función para construir el índice desde el Excel
+                try:
+                    spec.loader.exec_module(pegado_mod)
+                finally:
+                    # Quitar la ruta añadida
                     try:
-                        indice = pegado_mod.construir_indice_desde_excel(excel_path)
-                        messagebox.showinfo("Índice creado", f"Índice construido con {len(indice)} entradas. Ruta de imágenes guardada.")
-                    except Exception as e:
-                        msg = str(e)
-                        # Detectar error por falta de pyxlsb (xlsxb engine)
-                        if "pyxlsb" in msg or "Missing optional dependency 'pyxlsb'" in msg or 'xlsb' in (excel_path or '').lower():
-                            instalar = messagebox.askyesno(
-                                "Falta dependencia opcional",
-                                "El archivo seleccionado es de tipo .xlsb y falta la dependencia opcional 'pyxlsb'.\n¿Desea que el programa intente instalar 'pyxlsb' ahora?\n(Se usará pip en el mismo intérprete de Python que ejecuta la aplicación)."
-                            )
-                            if instalar:
-                                try:
-                                    import subprocess, sys
-                                    proc = subprocess.run([sys.executable, "-m", "pip", "install", "pyxlsb"], capture_output=True, text=True)
-                                    if proc.returncode == 0:
-                                        # Reintentar construir índice
-                                        try:
-                                            indice = pegado_mod.construir_indice_desde_excel(excel_path)
-                                            messagebox.showinfo("Índice creado", f"Índice construido con {len(indice)} entradas. Ruta de imágenes guardada.")
-                                        except Exception as e2:
-                                            messagebox.showwarning("Índice parcial", f"Se intentó instalar 'pyxlsb' pero la construcción del índice falló:\n{e2}")
-                                    else:
-                                        messagebox.showerror("Instalación fallida", f"No se pudo instalar 'pyxlsb'. Salida de pip:\n{proc.stdout}\n{proc.stderr}")
-                                except Exception as ie:
-                                    messagebox.showerror("Error", f"Error al intentar instalar 'pyxlsb':\n{ie}")
-                            else:
-                                messagebox.showwarning("Índice parcial", f"Se guardó la ruta de imágenes, pero falló la construcción del índice desde el Excel:\n{e}")
+                        if added_to_path and base in sys.path:
+                            sys.path.remove(base)
+                    except Exception:
+                        pass
+
+                # Llamar a la función para construir el índice desde el Excel
+                try:
+                    indice = pegado_mod.construir_indice_desde_excel(excel_path)
+                    messagebox.showinfo("Índice creado", f"Índice construido con {len(indice)} entradas. Ruta de imágenes guardada.")
+                except Exception as e:
+                    msg = str(e)
+                    # Detectar error por falta de pyxlsb (xlsxb engine)
+                    if "pyxlsb" in msg or "Missing optional dependency 'pyxlsb'" in msg or 'xlsb' in (excel_path or '').lower():
+                        instalar = messagebox.askyesno(
+                            "Falta dependencia opcional",
+                            "El archivo seleccionado es de tipo .xlsb y falta la dependencia opcional 'pyxlsb'.\n¿Desea que el programa intente instalar 'pyxlsb' ahora?\n(Se usará pip en el mismo intérprete de Python que ejecuta la aplicación)."
+                        )
+                        if instalar:
+                            try:
+                                import subprocess, sys
+                                proc = subprocess.run([sys.executable, "-m", "pip", "install", "pyxlsb"], capture_output=True, text=True)
+                                if proc.returncode == 0:
+                                    # Reintentar construir índice
+                                    try:
+                                        indice = pegado_mod.construir_indice_desde_excel(excel_path)
+                                        messagebox.showinfo("Índice creado", f"Índice construido con {len(indice)} entradas. Ruta de imágenes guardada.")
+                                    except Exception as e2:
+                                        messagebox.showwarning("Índice parcial", f"Se intentó instalar 'pyxlsb' pero la construcción del índice falló:\n{e2}")
+                                else:
+                                    messagebox.showerror("Instalación fallida", f"No se pudo instalar 'pyxlsb'. Salida de pip:\n{proc.stdout}\n{proc.stderr}")
+                            except Exception as ie:
+                                messagebox.showerror("Error", f"Error al intentar instalar 'pyxlsb':\n{ie}")
                         else:
                             messagebox.showwarning("Índice parcial", f"Se guardó la ruta de imágenes, pero falló la construcción del índice desde el Excel:\n{e}")
-                
+                    else:
+                        messagebox.showwarning("Índice parcial", f"Se guardó la ruta de imágenes, pero falló la construcción del índice desde el Excel:\n{e}")
+
+                # Actualizar estado de pegado (después de intentar construir índice)
+                try:
+                    self._update_pegado_status(mode="Pegado Índice", path=ruta_imgs)
+                except Exception:
+                    pass
             else:
                 messagebox.showinfo("Pegado guardado", "Ruta de imágenes guardada. Al generar dictámenes y subir el Excel de índice, se usarán estas imágenes.")
 
@@ -7532,7 +7558,7 @@ class SistemaDictamenesVC(ctk.CTk):
         Pide confirmación al usuario antes de eliminar/limpiar.
         """
         try:
-            data_file = os.path.join(os.path.dirname(__file__), "data", "evidence_paths.json")
+            data_file = os.path.join(BASE_DIR, "data", "evidence_paths.json")
             if not os.path.exists(data_file):
                 messagebox.showinfo("Limpiar rutas", "No hay rutas guardadas para limpiar.")
                 return
@@ -7553,8 +7579,40 @@ class SistemaDictamenesVC(ctk.CTk):
                     return
 
             messagebox.showinfo("Rutas limpiadas", "Se han eliminado las rutas de evidencias guardadas.")
+            try:
+                self._update_pegado_status(mode=None, path=None)
+            except Exception:
+                pass
         except Exception as e:
             messagebox.showerror("Error", f"Error al limpiar rutas de evidencias:\n{e}")
+
+    def _update_pegado_status(self, mode=None, path=None):
+        """Actualiza la etiqueta de estado del pegado con la ruta y el modo seleccionados."""
+        try:
+            if not hasattr(self, 'pegado_status_label'):
+                return
+            display_mode = mode if mode else "Ninguno"
+            if path:
+                p = str(path)
+                # acortar si es muy largo
+                if len(p) > 80:
+                    p = '...' + p[-77:]
+                display_path = p
+                color = STYLE["exito"]
+                loaded = True
+            else:
+                display_path = "Ninguna"
+                color = STYLE["advertencia"]
+                loaded = False
+
+            text = f"Ruta: {display_path}   ·   Modo: {display_mode}"
+            self.pegado_status_label.configure(text=text, text_color=color)
+            try:
+                self.pegado_path_loaded_var.set(bool(loaded))
+            except Exception:
+                pass
+        except Exception:
+            pass
 
 # ================== EJECUCIÓN ================== #
 if __name__ == "__main__":

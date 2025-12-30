@@ -198,6 +198,39 @@ Esta sección documenta los archivos principales, responsabilidades y puntos de 
    - Funciones: `cargar_tabla_relacion`, `cargar_normas`, `cargar_clientes`, `cargar_firmas`, `preparar_datos_familia`.
    - Normaliza y transforma los registros para que el generador tenga la estructura esperada.
 
+## 🧩 Empaquetado a .exe (Windows)
+
+Se incluye un `app.spec` configurado y un script `build_exe.bat` para generar un ejecutable con PyInstaller.
+
+Pasos rápidos:
+
+1. Crear un entorno virtual y activar:
+
+```powershell
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+```
+
+2. Instalar dependencias (incluye PyInstaller):
+
+```powershell
+pip install -r requirements.txt
+```
+
+3. Ejecutar el build:
+
+```powershell
+.\build_exe.bat
+```
+
+Notas importantes:
+- `app.spec` incluye las carpetas de datos necesarias (`data`, `Documentos Inspeccion`, `Pegado de Evidenvia Fotografica`, `Firmas`, `img`, `Plantillas PDF`, `etiquetas_generadas`). Si añades otras carpetas con recursos, añádelas a `datas` en `app.spec`.
+- Si usas archivos `.xlsb` en Excel necesitarás `pyxlsb` instalado en el entorno de destino.
+- El código ya usa `sys._MEIPASS` mediante `plantillaPDF.obtener_ruta_recurso()` para localizar recursos cuando está empacado con PyInstaller.
+- Para problemas de importación dinámica (módulos cargados por ruta), PyInstaller puede requerir `hiddenimports` — si al ejecutar el exe aparece un ImportError, añádelo a `hiddenimports` en `app.spec`.
+
+Si quieres, puedo ejecutar el build aquí o ajustar `app.spec` para incluir/excluir archivos concretos según tus preferencias.
+
 - **`DictamenPDF.py`**: Clase base para generación de PDF con ReportLab.
    - Define estilos, layout y utilidades para encabezados, pies de página y paginación.
    - Se extiende desde `PDFGeneratorConDatos` en `generador_dictamen.py` para adaptarse a datos reales.

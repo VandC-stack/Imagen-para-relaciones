@@ -24,6 +24,7 @@ from reportlab.lib.pagesizes import letter
 from reportlab.lib.units import inch
 from reportlab.lib import colors
 from reportlab.lib.styles import ParagraphStyle
+from reportlab.lib.utils import ImageReader
 
 def obtener_ruta_recurso(ruta_relativa):
     """
@@ -360,41 +361,133 @@ class PDFGeneratorConDatos(PDFGenerator):
         else:
             # Insertar cada evidencia. `evidencias` puede ser lista de rutas (str) o de BytesIO/dicts
             from io import BytesIO
-            for ev in evidencias:
+            from PIL import Image as PILImage
+            import traceback
+
+            for idx, ev in enumerate(evidencias, start=1):
+                print(f"      → Procesando evidencia #{idx}: type={type(ev)}")
                 try:
+                    # 1) Si es cadena, tratar como ruta
                     if isinstance(ev, str):
-                        if os.path.exists(ev):
-                            img = RLImage(ev, width=4.5*inch, height=4.5*inch)
-                            self.elements.append(img)
-                            self.elements.append(Spacer(1, 0.25 * inch))
-                        else:
-                            # ruta no existe -> intentar si es JSON-like dict con imagen_bytes
+                        ruta = os.path.normpath(ev)
+                        print(f"         ruta normalizada: {ruta}")
+                        if not os.path.exists(ruta):
+                            print(f"         ⚠️ Ruta no encontrada: {ruta}")
+                            # intentar corregir barras mezcladas
+                            ruta_alt = ruta.replace('\\', '/')
+                            if os.path.exists(ruta_alt):
+                                ruta = ruta_alt
+                            else:
+                                ruta_alt2 = ruta.replace('/', '\\')
+                                if os.path.exists(ruta_alt2):
+                                    ruta = ruta_alt2
+                                else:
+                                    print("         ⚠️ No se encontró la imagen en disco, se omite")
+                                    continue
+
+                        # Verificar que PIL pueda abrirla y re-encodear a JPEG/RGB
+                        try:
+                            with PILImage.open(ruta) as im:
+                                im.verify()
+                            print(f"         ✅ Imagen válida en disco: {ruta}")
+                            # Reabrir para conversión (verify() can close file)
+                            with PILImage.open(ruta) as im2:
+                                if im2.mode != 'RGB':
+                                    im2 = im2.convert('RGB')
+                                from io import BytesIO
+                                bio = BytesIO()
+                                im2.save(bio, format='JPEG', quality=90, optimize=True)
+                                bio.seek(0)
+                                img = RLImage(bio, width=4.5*inch, height=4.5*inch)
+                                self.elements.append(img)
+                                self.elements.append(Spacer(1, 0.25 * inch))
+                        except Exception as e:
+                            print(f"         ❌ PIL no pudo abrir/convertir la imagen: {e}")
+                            traceback.print_exc()
                             continue
+
+                    # 2) Si es dict, puede contener BytesIO o ruta
                     elif isinstance(ev, dict):
                         img_bytes = ev.get('imagen_bytes') or ev.get('imagen_path_bytes')
                         if img_bytes:
-                            if hasattr(img_bytes, 'seek'):
-                                img_bytes.seek(0)
-                                img = RLImage(img_bytes, width=4.5*inch, height=4.5*inch)
-                                self.elements.append(img)
-                                self.elements.append(Spacer(1, 0.25 * inch))
+                            try:
+                                if hasattr(img_bytes, 'seek'):
+                                    img_bytes.seek(0)
+                                # normalizar a BytesIO
+                                bio_in = img_bytes if hasattr(img_bytes, 'read') else BytesIO(img_bytes)
+                                # probar apertura con PIL y re-encodear a JPEG/RGB
+                                try:
+                                    with PILImage.open(bio_in) as im:
+                                        im.verify()
+                                    bio_in.seek(0)
+                                    with PILImage.open(bio_in) as im2:
+                                        if im2.mode != 'RGB':
+                                            im2 = im2.convert('RGB')
+                                        from io import BytesIO
+                                        bio = BytesIO()
+                                        im2.save(bio, format='JPEG', quality=90, optimize=True)
+                                        bio.seek(0)
+                                        img = RLImage(bio, width=4.5*inch, height=4.5*inch)
+                                        self.elements.append(img)
+                                        self.elements.append(Spacer(1, 0.25 * inch))
+                                except Exception as e:
+                                    print(f"         ❌ No se pudo procesar/convertir imagen en dict: {e}")
+                                    traceback.print_exc()
+                                    continue
+                            except Exception:
+                                traceback.print_exc()
+                                continue
                         else:
-                            # maybe it's a path stored under 'imagen_path'
                             p = ev.get('imagen_path')
-                            if p and os.path.exists(p):
-                                img = RLImage(p, width=4.5*inch, height=4.5*inch)
+                            if p:
+                                ruta = os.path.normpath(p)
+                                if os.path.exists(ruta):
+                                        try:
+                                            with PILImage.open(ruta) as im:
+                                                im.verify()
+                                            with PILImage.open(ruta) as im2:
+                                                if im2.mode != 'RGB':
+                                                    im2 = im2.convert('RGB')
+                                                from io import BytesIO
+                                                bio = BytesIO()
+                                                im2.save(bio, format='JPEG', quality=90, optimize=True)
+                                                bio.seek(0)
+                                                img = RLImage(bio, width=4.5*inch, height=4.5*inch)
+                                                self.elements.append(img)
+                                                self.elements.append(Spacer(1, 0.25 * inch))
+                                        except Exception:
+                                            traceback.print_exc()
+                                            continue
+                                else:
+                                    print(f"         ⚠️ imagen_path no existe: {ruta}")
+                                    continue
+
+                    # 3) Otros (BytesIO u objeto file-like)
+                    else:
+                        try:
+                            if hasattr(ev, 'seek'):
+                                ev.seek(0)
+                            # probar con PIL
+                            bio = ev
+                            try:
+                                with PILImage.open(bio) as im:
+                                    im.verify()
+                                bio.seek(0)
+                                img = RLImage(bio, width=4.5*inch, height=4.5*inch)
                                 self.elements.append(img)
                                 self.elements.append(Spacer(1, 0.25 * inch))
-                    else:
-                        # assume BytesIO-like
-                        try:
-                            ev.seek(0)
-                            img = RLImage(ev, width=4.5*inch, height=4.5*inch)
-                            self.elements.append(img)
-                            self.elements.append(Spacer(1, 0.25 * inch))
+                            except Exception as e:
+                                print(f"         ❌ No se pudo procesar imagen genérica: {e}")
+                                traceback.print_exc()
+                                continue
                         except Exception:
+                            traceback.print_exc()
                             continue
+
                 except Exception:
+                    import traceback
+                    print("         ❌ Excepción al procesar evidencia:")
+                    traceback.print_exc()
                     continue
 
         # HOJA 3 – Firmas
@@ -416,7 +509,10 @@ class PDFGeneratorConDatos(PDFGenerator):
                 img_bytes = ev.get('imagen_bytes')
                 if img_bytes:
                     img_bytes.seek(0)
-                    img = RLImage(img_bytes, width=4.5*inch, height=4.5*inch)
+                    try:
+                        img = RLImage(img_bytes, width=4.5*inch, height=4.5*inch)
+                    except Exception:
+                        img = RLImage(img_bytes, width=4.5*inch, height=4.5*inch)
                     self.elements.append(img)
                     self.elements.append(Spacer(1, 0.25 * inch))
 
@@ -657,29 +753,14 @@ def detectar_flujo_cliente(cliente_nombre, norma_nombre=""):
     norma_upper = str(norma_nombre).upper().strip()
     
     # ─────────────────────────────────────────────
-    # CLIENTES QUE PEGAN EVIDENCIA
+    # CLIENTES QUE PEGAN ETIQUETAS (EXCEPCIONES)
     # ─────────────────────────────────────────────
-    CLIENTES_EVIDENCIA = {
-        "BASECO SAPI DE CV",
-        "BLUE STRIPES SA DE CV",
-        "GRUPO GUESS S DE RL DE CV",
-        "EAST COAST MODA SA DE CV",
-        "I NOSTRI FRATELLI S DE RL DE CV",
-        "LEDERY MEXICO SA DE CV",
-        "MODA RAPSODIA SA DE CV",
-        "MULTIBRAND OUTLET STORES SAPI DE CV",
-        "RED STRIPES SA DE CV",
-        "ROBERT BOSCH S DE RL DE CV",
-        "UNILEVER MANUFACTURERA S DE RL DE CV",
-        "UNILEVER DE MÉXICO S DE RL DE CV",
-    }
-    
-    # ─────────────────────────────────────────────
-    # CLIENTES QUE PEGAN ETIQUETAS
-    # ─────────────────────────────────────────────
+    # Todos los clientes se tratan como flujo de EVIDENCIA por defecto,
+    # salvo los listados aquí. Añadimos la regla especial de ULTA.
     CLIENTES_ETIQUETA = {
         "ARTICULOS DEPORTIVOS DECATHLON SA DE CV",
         "FERRAGAMO MEXICO S DE RL DE CV",
+        "ULTA BEAUTY SAPI DE CV",
     }
     
     # ─────────────────────────────────────────────
@@ -690,15 +771,13 @@ def detectar_flujo_cliente(cliente_nombre, norma_nombre=""):
             return "mixto"
         else:
             return "etiqueta"
-    
-    if cliente_upper in CLIENTES_EVIDENCIA:
-        return "evidencia"
-    
+
+    # Si está en la lista de etiquetas -> modo etiqueta
     if cliente_upper in CLIENTES_ETIQUETA:
         return "etiqueta"
-    
-    # Default: etiqueta
-    return "etiqueta"
+
+    # Por defecto todos los demás clientes usan modo evidencia
+    return "evidencia"
 
 def generar_dictamenes_completos(directorio_destino, cliente_manual=None, rfc_manual=None):
     print("🚀 INICIANDO GENERACIÓN DE DICTÁMENES")
@@ -720,7 +799,7 @@ def generar_dictamenes_completos(directorio_destino, cliente_manual=None, rfc_ma
     # Construir índice global de evidencias a partir de rutas guardadas por la UI
     evidencia_cfg = {}
     try:
-        ruta_evidence_cfg = os.path.join(os.path.dirname(__file__), 'data', 'evidence_paths.json')
+        ruta_evidence_cfg = obtener_ruta_recurso('data/evidence_paths.json')
         if os.path.exists(ruta_evidence_cfg):
             with open(ruta_evidence_cfg, 'r', encoding='utf-8') as f:
                 evidencia_cfg = json.load(f) or {}
@@ -766,7 +845,7 @@ def generar_dictamenes_completos(directorio_destino, cliente_manual=None, rfc_ma
     os.makedirs(directorio_destino, exist_ok=True)
     
     # Crear directorio para JSON dentro de 'data/Dictamenes' para centralizar los dictámenes
-    directorio_json = os.path.join(os.path.dirname(__file__), 'data', 'Dictamenes')
+    directorio_json = obtener_ruta_recurso('data/Dictamenes')
     os.makedirs(directorio_json, exist_ok=True)
     
     dictamenes_generados = 0

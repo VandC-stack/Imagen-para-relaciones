@@ -14,6 +14,7 @@ from PyPDF2 import PdfReader, PdfWriter
 from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import letter
 from io import BytesIO
+from reportlab.lib.utils import ImageReader
 
 class GeneradorEtiquetasDecathlon:
     def __init__(self):
@@ -69,8 +70,16 @@ class GeneradorEtiquetasDecathlon:
 
                 img_bytes = etiqueta["imagen_bytes"]
 
-                # Insertar etiqueta en PDF temporal
-                c.drawImage(img_bytes, x, y - alto_pt, width=ancho_pt, height=alto_pt)
+                # Insertar etiqueta en PDF temporal (usar ImageReader para BytesIO/objetos)
+                try:
+                    c.drawImage(ImageReader(img_bytes), x, y - alto_pt, width=ancho_pt, height=alto_pt)
+                except Exception:
+                    # Fallback: intentar usar la ruta si está disponible como str
+                    try:
+                        c.drawImage(img_bytes, x, y - alto_pt, width=ancho_pt, height=alto_pt)
+                    except Exception:
+                        # si falla, saltar esa etiqueta
+                        continue
 
                 x += ancho_pt + 20
                 if x > 500:
@@ -600,7 +609,13 @@ class GeneradorEtiquetasDecathlon:
                 ancho_pt = ancho_cm * 28.35
                 alto_pt = alto_cm * 28.35
                 
-                c.drawImage(etiqueta['imagen_bytes'], x, y - alto_pt, width=ancho_pt, height=alto_pt)
+                try:
+                    c.drawImage(ImageReader(etiqueta['imagen_bytes']), x, y - alto_pt, width=ancho_pt, height=alto_pt)
+                except Exception:
+                    try:
+                        c.drawImage(etiqueta['imagen_bytes'], x, y - alto_pt, width=ancho_pt, height=alto_pt)
+                    except Exception:
+                        continue
                 
                 x += ancho_pt + 0.5 * cm
                 
