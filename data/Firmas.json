@@ -1,6 +1,7 @@
 [
   {
     "NOMBRE DE INSPECTOR": "Aitana Yolitzin Sanchez Tenorio",
+    "CORREO":"operaciones@vyc.com.mx",
     "IMAGEN": "Firmas/ASANCHEZ.png",
     "FIRMA": "ASANCHEZ",
     "Puesto": "Inspector",
@@ -16,6 +17,7 @@
   },
   {
     "NOMBRE DE INSPECTOR": "Alberto Martinez Guzman",
+    "CORREO":"tecnico9@vyc.com.mx",
     "IMAGEN": "Firmas/AMARTINEZ.png",
     "FIRMA": "AMARTINEZ",
     "Puesto": "Inspector",
@@ -34,6 +36,7 @@
   },
   {
     "NOMBRE DE INSPECTOR": "Alejandro Fernando Moreno Valdovinos",
+    "CORREO":"soporte2@vyc.com.mx",
     "IMAGEN": "Firmas/AMORENO.png",
     "FIRMA": "AMORENO",
     "Puesto": "Inspector",
@@ -48,6 +51,7 @@
   },
   {
     "NOMBRE DE INSPECTOR": "Andrea Paola Ramos Santos",
+    "CORREO":"andrea.ramos@vyc.com.mx",
     "IMAGEN": "Firmas/ARAMOS.png",
     "FIRMA": "ARAMOS",
     "Puesto": "Inspector",
@@ -64,6 +68,7 @@
   },
   {
     "NOMBRE DE INSPECTOR": "Angel Imanol Pozos Zertuche",
+    "CORREO":"tecnico7@vyc.com.mx",
     "IMAGEN": "Firmas/IPOZOS.png",
     "FIRMA": "IPOZOS",
     "Puesto": "Inspector",
@@ -79,6 +84,7 @@
   },
   {
     "NOMBRE DE INSPECTOR": "Arturo Flores Gomez",
+    "CORREO":"arturo.flores@vyc.com.mx",
     "IMAGEN": "Firmas/AFLORES.png",
     "FIRMA": "AFLORES",
     "Puesto": "Responsable de Supervisión UI",
@@ -102,6 +108,7 @@
   },
   {
     "NOMBRE DE INSPECTOR": "Arturo Ivan Cortes Flores",
+    "CORREO":"ivan.cortes@vyc.com.mx",
     "IMAGEN": "Firmas/ICORTES.png",
     "FIRMA": "ICORTES",
     "Puesto": "Inspector",
@@ -122,6 +129,7 @@
   },
   {
     "NOMBRE DE INSPECTOR": "Brayan Arano Chontal",
+    "CORREO":"tecnico3@vyc.com.mx",
     "IMAGEN": "Firmas/BCHONTAL.png",
     "FIRMA": "BCHONTAL",
     "Puesto": "Inspector",
@@ -137,6 +145,7 @@
   },
   {
     "NOMBRE DE INSPECTOR": "Braulio Saul Garcia Maganda",
+    "CORREO":"tecnico6@vyc.com.mx",
     "IMAGEN": "Firmas/BMAGANDA.png",
     "FIRMA": "BMAGANDA",
     "Puesto": "Inspector",
@@ -152,6 +161,7 @@
   },
   {
     "NOMBRE DE INSPECTOR": "David Garcia Alcantara",
+    "CORREO":"tecnico5@vyc.com.mx",
     "IMAGEN": "Firmas/DGARCIA.png",
     "FIRMA": "DGARCIA",
     "Puesto": "Inspector",
@@ -172,6 +182,7 @@
   },
   {
     "NOMBRE DE INSPECTOR": "Edvin Zaid Ornelas Hernandez",
+    "CORREO":"tecnico8@vyc.com.mx",
     "IMAGEN": "Firmas/EORNELAS.png",
     "FIRMA": "EORNELAS",
     "Puesto": "Inspector",
@@ -185,6 +196,7 @@
   },
   {
     "NOMBRE DE INSPECTOR": "Flor Selenia Marquez Rivera",
+    "CORREO":"flor.marquez@vyc.com.mx",
     "IMAGEN": "Firmas/FMARQUEZ.png",
     "FIRMA": "FMARQUEZ",
     "Puesto": "Inspector",
@@ -202,6 +214,7 @@
   },
   {
     "NOMBRE DE INSPECTOR": "Gabriel Ramirez Castillo",
+    "CORREO":"gabriel.ramirez@vyc.com.mx",
     "IMAGEN": "Firmas/GRAMIREZ.png",
     "FIRMA": "GRAMIREZ",
     "Puesto": "Inspector",
@@ -220,6 +233,7 @@
   },
   {
     "NOMBRE DE INSPECTOR": "Jesus Eduardo Reyes Lozano",
+    "CORREO":"eduardo.reyes@vyc.com.mx",
     "IMAGEN": "Firmas/EREYES.png",
     "FIRMA": "EREYES",
     "Puesto": "Inspector",
@@ -230,6 +244,7 @@
   },
   {
     "NOMBRE DE INSPECTOR": "Jose Alberto Zuñiga Estrada",
+    "CORREO":"tecnico2@vyc.com.mx",
     "IMAGEN": "Firmas/JZUNIGA.png",
     "FIRMA": "JZUNIGA",
     "Puesto": "Inspector",
@@ -245,6 +260,7 @@
   },
   {
     "NOMBRE DE INSPECTOR": "Marcos Uriel Flores Gomez",
+    "CORREO":"marcos.flores@vyc.com.mx",
     "IMAGEN": "Firmas/MFLORES.png",
     "FIRMA": "MFLORES",
     "Puesto": "Inspector",
@@ -269,6 +285,7 @@
   },
   {
     "NOMBRE DE INSPECTOR": "Mario Terrez Gonzalez",
+    "CORREO":"mario.terrez@vyc.com.mx",
     "IMAGEN": "Firmas/MTERREZ.png",
     "FIRMA": "MTERREZ",
     "Puesto": "Inspector",
@@ -293,6 +310,7 @@
   },
   {
     "NOMBRE DE INSPECTOR": "Oscar Perez Ramirez",
+    "CORREO":"tecnico1@vyc.com.mx",
     "IMAGEN": "Firmas/OPEREZ.png",
     "FIRMA": "OPEREZ",
     "Puesto": "Inspector",

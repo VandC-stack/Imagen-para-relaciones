@@ -11,6 +11,7 @@ import subprocess
 import importlib
 import importlib.util
 from datetime import datetime
+import folio_manager
 import unicodedata
 import time
 import platform
@@ -1105,7 +1106,7 @@ class SistemaDictamenesVC(ctk.CTk):
         self.boton_guardar_folio = ctk.CTkButton(
             botones_fila1,
             text="Reservar Folio",
-            command=self.guardar_folio_historial,
+            command=self.reservar_folios_tabla,
             font=("Inter", 12, "bold"),
             fg_color=STYLE["primario"],
             hover_color="#D4BF22",
@@ -1494,6 +1495,22 @@ class SistemaDictamenesVC(ctk.CTk):
             font=("Inter", 10),
             text_color=STYLE["secundario"]
         ).pack(side="left")
+        # Label para mostrar el siguiente folio de documento (visual, no persiste salvo confirmación)
+        try:
+            self.lbl_siguiente_folio_doc = ctk.CTkLabel(
+                footer_content,
+                text="Siguiente folio documento: ---",
+                font=("Inter", 10),
+                text_color=STYLE["secundario"]
+            )
+            self.lbl_siguiente_folio_doc.pack(side="right")
+            # Actualizar valor inicial
+            try:
+                self._update_siguiente_folio_label()
+            except Exception:
+                pass
+        except Exception:
+            pass
 
     # -----------------------------------------------------------
     # MÉTODOS PARA GESTIÓN DE CLIENTES
@@ -1936,43 +1953,39 @@ class SistemaDictamenesVC(ctk.CTk):
     def cargar_ultimo_folio(self):
         """Carga el último folio utilizado y determina el siguiente disponible"""
         try:
-            # Preferir leer el contador global de folios (archivo compartido)
-            contador_path = os.path.join(os.path.dirname(self.historial_path), "folio_counter.json")
-            if os.path.exists(contador_path):
-                try:
-                    with open(contador_path, "r", encoding="utf-8") as cf:
-                        j = json.load(cf)
-                        last = int(j.get("last", 0))
-                        # siguiente folio disponible (no reservar aún)
-                        next_f = last + 1
-                        self.current_folio = f"{next_f:06d}"
-                except Exception:
-                    # Fallback a buscar en historial
-                    pass
-            if not getattr(self, 'current_folio', None):
+            # Determinar el siguiente folio de visita (CP...) a partir del historial
+            # de visitas (campo `folio_visita`). Esto es independiente del siguiente
+            # folio de documento (usado para los dictámenes) que se calcula con
+            # `_get_next_document_folio()` y se muestra en el footer.
+            try:
                 if os.path.exists(self.historial_path):
                     with open(self.historial_path, "r", encoding="utf-8") as f:
                         data = json.load(f)
                     visitas = data.get("visitas", [])
                     if visitas:
-                        # Obtener todos los folios existentes
-                        folios_existentes = set()
+                        maxv = 0
                         for visita in visitas:
                             folio_raw = visita.get("folio_visita", "")
-                            # Extraer solo los dígitos del folio (soporta prefijo CP)
+                            # Extraer solo dígitos (soporta formatos como 'CP000012')
                             folio_digits = ''.join([c for c in str(folio_raw) if c.isdigit()])
                             if folio_digits:
                                 try:
-                                    folios_existentes.add(int(folio_digits))
+                                    n = int(folio_digits)
+                                    if n > maxv:
+                                        maxv = n
                                 except Exception:
                                     pass
-                        # Encontrar el primer folio disponible
-                        folio_disponible = 1
-                        while folio_disponible in folios_existentes:
-                            folio_disponible += 1
-                        self.current_folio = f"{folio_disponible:06d}"
+                        # siguiente visita = maxv + 1 (si maxv==0 -> 1)
+                        self.current_folio = f"{(maxv + 1):06d}"
                     else:
                         self.current_folio = "000001"
+                else:
+                    self.current_folio = "000001"
+            except Exception:
+                self.current_folio = None
+            # Mantener el comportamiento original: el folio de visita (CP/AC)
+            # se determina únicamente a partir del historial de visitas en disco
+            # (no se fuerza desde el contador de documentos central).
 
             # Actualizar el campo en la interfaz con prefijo CP (si existen widgets)
             try:
@@ -1990,6 +2003,11 @@ class SistemaDictamenesVC(ctk.CTk):
                     self.entry_folio_acta.configure(state="readonly")
             except Exception:
                 pass
+            # Actualizar etiqueta visual del siguiente folio de documento
+            try:
+                self._update_siguiente_folio_label()
+            except Exception:
+                pass
                     
         except Exception as e:
             print(f"❌ Error cargando último folio: {e}")
@@ -1998,10 +2016,13 @@ class SistemaDictamenesVC(ctk.CTk):
     def crear_nueva_visita(self):
         """Prepara el formulario para una nueva visita"""
         try:
-            # Reservar y obtener el siguiente folio de forma atómica
-            next_folio = self._reservar_siguiente_folio()
-            if next_folio:
-                self.current_folio = f"{next_folio:06d}"
+            # No reservar ni avanzar el contador en disco aquí. Solo calcular/usar
+            # el siguiente folio a partir del historial en memoria o recargarlo.
+            try:
+                # recargar desde historial para evitar usar folio_counter.json
+                self.cargar_ultimo_folio()
+            except Exception:
+                pass
 
             # Actualizar campos con prefijo CP
             self.entry_folio_visita.configure(state="normal")
@@ -2107,82 +2128,6 @@ class SistemaDictamenesVC(ctk.CTk):
                 os.remove(lock_path)
         except Exception:
             pass
-
-    def _read_folio_counter(self):
-        data_dir = os.path.dirname(self.historial_path)
-        contador_path = os.path.join(data_dir, "folio_counter.json")
-        if not os.path.exists(contador_path):
-            return 0
-        try:
-            with open(contador_path, 'r', encoding='utf-8') as f:
-                j = json.load(f)
-                return int(j.get('last', 0))
-        except Exception:
-            return 0
-
-    def _write_folio_counter(self, value):
-        data_dir = os.path.dirname(self.historial_path)
-        contador_path = os.path.join(data_dir, "folio_counter.json")
-        tmp = contador_path + ".tmp"
-        try:
-            with open(tmp, 'w', encoding='utf-8') as f:
-                json.dump({'last': int(value)}, f)
-            # reemplazo atómico
-            os.replace(tmp, contador_path)
-            return True
-        except Exception:
-            try:
-                if os.path.exists(tmp):
-                    os.remove(tmp)
-            except Exception:
-                pass
-            return False
-
-    def _reservar_siguiente_folio(self, timeout=5.0):
-        """Reserva el siguiente folio de manera atómica y lo retorna como int."""
-        data_dir = os.path.dirname(self.historial_path)
-        os.makedirs(data_dir, exist_ok=True)
-        contador_path = os.path.join(data_dir, "folio_counter.json")
-        lock_path = os.path.join(data_dir, "folio_counter.lock")
-        fd = None
-        try:
-            fd = self._acquire_file_lock(lock_path, timeout=timeout)
-            last = self._read_folio_counter()
-            if last <= 0:
-                # si no existe contador, calcular desde historial
-                try:
-                    if os.path.exists(self.historial_path):
-                        with open(self.historial_path, 'r', encoding='utf-8') as hf:
-                            j = json.load(hf)
-                            visitas = j.get('visitas', [])
-                            maxf = 0
-                            for v in visitas:
-                                fr = v.get('folio_visita','')
-                                digits = ''.join([c for c in str(fr) if c.isdigit()])
-                                if digits:
-                                    try:
-                                        n = int(digits)
-                                        if n > maxf:
-                                            maxf = n
-                                    except Exception:
-                                        pass
-                            last = maxf
-                except Exception:
-                    last = 0
-
-            siguiente = last + 1
-            # Escribir nuevo last
-            ok = self._write_folio_counter(siguiente)
-            if not ok:
-                raise Exception("No se pudo escribir folio_counter")
-            return siguiente
-        
-        finally:
-            if fd is not None:
-                try:
-                    self._release_file_lock(fd, lock_path)
-                except Exception:
-                    pass
 
     def guardar_visita_desde_formulario(self):
         """Guarda una nueva visita desde el formulario principal"""
@@ -2341,6 +2286,98 @@ class SistemaDictamenesVC(ctk.CTk):
 
             records = df.to_dict(orient="records")
 
+            # ----------------- ASIGNAR FOLIOS USANDO FOLIO_MANAGER -----------------
+            # Intentamos reservar un bloque persistente desde folio_manager para
+            # asignar folios por familia (SOLICITUD, LISTA). Si la reserva atómica
+            # falla, se hace un fallback a la asignación en memoria basada en historial.
+            try:
+                # Recolectar pares únicos (SOLICITUD, LISTA)
+                pares_vistos = []
+                for r in records:
+                    sol_val = None
+                    for sk in ('SOLICITUD', 'Solicitud', 'solicitud'):
+                        if sk in r and r.get(sk) is not None and str(r.get(sk)).strip() != "":
+                            sol_val = str(r.get(sk)).strip()
+                            break
+                    lista_val = None
+                    for key in ('LISTA', 'Lista', 'lista'):
+                        if key in r and r.get(key) is not None and str(r.get(key)).strip() != "":
+                            lista_val = str(r.get(key)).strip()
+                            break
+                    if lista_val is None:
+                        continue
+                    pair = (sol_val or '', lista_val)
+                    if pair not in pares_vistos:
+                        pares_vistos.append(pair)
+
+                total_necesarios = len(pares_vistos)
+                pair_to_folio = {}
+
+                if total_necesarios > 0:
+                    try:
+                        inicio = folio_manager.reserve_block(total_necesarios)
+                        print(f"🔐 Reserva persistente de {total_necesarios} folios iniciando en {inicio:06d}")
+                        for i, pair in enumerate(pares_vistos):
+                            fol = int(inicio) + i
+                            pair_to_folio[pair] = int(fol)
+                            print(f"      → SOL {pair[0]} LISTA {pair[1]} → Folio {fol:06d} (reservado)")
+                    except Exception as e:
+                        # Fallback: asignación en memoria basada en historial (no persiste)
+                        print(f"⚠️ No se pudo reservar bloque persistente: {e}. Usando historial como fallback (no persistente).")
+                        try:
+                            maxf = 0
+                            if os.path.exists(self.historial_path):
+                                with open(self.historial_path, 'r', encoding='utf-8') as hf:
+                                    hj = json.load(hf)
+                                    visitas = hj.get('visitas', [])
+                            import re
+                            for v in visitas:
+                                fr = v.get('folio_visita','')
+                                nums = re.findall(r"\d+", str(fr))
+                                for d in nums:
+                                    try:
+                                        n = int(d)
+                                        if n > maxf:
+                                            maxf = n
+                                    except Exception:
+                                        pass
+                            next_local = maxf + 1
+                        except Exception:
+                            next_local = 1
+                        for pair in pares_vistos:
+                            pair_to_folio[pair] = int(next_local)
+                            print(f"      → SOL {pair[0]} LISTA {pair[1]} → Folio {int(next_local):06d} (in-memory)")
+                            next_local += 1
+
+                # Propagar folios a los registros
+                asignados = 0
+                for r in records:
+                    sol_val = None
+                    for sk in ('SOLICITUD', 'Solicitud', 'solicitud'):
+                        if sk in r and r.get(sk) is not None and str(r.get(sk)).strip() != "":
+                            sol_val = str(r.get(sk)).strip()
+                            break
+                    lista_val = None
+                    for key in ('LISTA', 'Lista', 'lista'):
+                        if key in r and r.get(key) is not None and str(r.get(key)).strip() != "":
+                            lista_val = str(r.get(key)).strip()
+                            break
+                    if lista_val is None:
+                        continue
+                    fol_asig = pair_to_folio.get((sol_val or '', lista_val))
+                    if fol_asig is not None:
+                        try:
+                            r['FOLIO'] = int(fol_asig)
+                        except Exception:
+                            r['FOLIO'] = str(fol_asig)
+                        asignados += 1
+
+                if asignados:
+                    print(f"🔢 Asignados {asignados} registros a {len(pair_to_folio)} folios únicos")
+            except Exception as e:
+                print(f"⚠️ Error asignando folios automáticos secuenciales: {e}")
+
+
             data_folder = os.path.join(BASE_DIR, "data")
             os.makedirs(data_folder, exist_ok=True)
 
@@ -2352,6 +2389,11 @@ class SistemaDictamenesVC(ctk.CTk):
 
             # EXTRAER Y GUARDAR INFORMACIÓN DE FOLIOS
             self._extraer_informacion_folios(records)
+            try:
+                # actualizar indicador visual de siguiente folio
+                self._update_siguiente_folio_label()
+            except Exception:
+                pass
 
             # GUARDAR FOLIOS PARA VISITA ACTUAL CON PERSISTENCIA
             if hasattr(self, 'current_folio') and self.current_folio:
@@ -2578,6 +2620,75 @@ class SistemaDictamenesVC(ctk.CTk):
             f"Total de registros: {num_registros}"
         )
 
+    # ----------------- Helpers para folio documento (visual) -----------------
+    def _get_next_document_folio(self):
+        """Calcula el siguiente folio de documento disponible a partir del historial.
+        Esto es solo informativo y no persiste nada. Devuelve entero (1-based).
+        """
+        try:
+            # Buscar el máximo folio numérico entre los archivos data/folios_visitas/folios_*.json
+            maxf = 0
+            try:
+                dirp = self.folios_visita_path
+                if os.path.exists(dirp):
+                    for fn in os.listdir(dirp):
+                        if fn.startswith('folios_') and fn.endswith('.json'):
+                            pathf = os.path.join(dirp, fn)
+                            try:
+                                with open(pathf, 'r', encoding='utf-8') as fh:
+                                    arr = json.load(fh) or []
+                                    for entry in arr:
+                                        fol = entry.get('FOLIOS') or entry.get('FOLIOS', '')
+                                        if not fol:
+                                            continue
+                                        digits = ''.join([c for c in str(fol) if c.isdigit()])
+                                        if digits:
+                                            try:
+                                                n = int(digits)
+                                                if n > maxf:
+                                                    maxf = n
+                                            except Exception:
+                                                pass
+                            except Exception:
+                                continue
+            except Exception:
+                pass
+
+            # Además, leer el contador legacy `folio_counter.json` si existe y
+            # tomar como referencia el mayor entre ambos (archivos por visita
+            # vs contador). De esta forma el UI recuerda hasta dónde se
+            # avanzó aunque no haya archivos en `folios_visitas/`.
+            try:
+                data_dir = os.path.dirname(self.historial_path)
+                contador_path = os.path.join(data_dir, "folio_counter.json")
+                if os.path.exists(contador_path):
+                    try:
+                        with open(contador_path, 'r', encoding='utf-8') as cf:
+                            j = json.load(cf) or {}
+                            last = int(j.get('last', 0))
+                            if last > maxf:
+                                maxf = last
+                    except Exception:
+                        pass
+            except Exception:
+                pass
+
+            return maxf + 1
+        except Exception:
+            return 1
+
+    def _update_siguiente_folio_label(self):
+        try:
+            nxt = self._get_next_document_folio()
+            txt = f"Siguiente folio documento: {nxt:06d}"
+            if hasattr(self, 'lbl_siguiente_folio_doc'):
+                try:
+                    self.lbl_siguiente_folio_doc.configure(text=txt)
+                except Exception:
+                    pass
+        except Exception:
+            pass
+
     def limpiar_archivo(self):
         self.archivo_excel_cargado = None
         self.archivo_json_generado = None
@@ -2604,7 +2715,7 @@ class SistemaDictamenesVC(ctk.CTk):
                 "base_etiquetado.json",
                 "tabla_de_relacion.json"
             ]
-            
+
             archivos_eliminados = []
             
             for archivo in archivos_a_eliminar:
@@ -2622,6 +2733,8 @@ class SistemaDictamenesVC(ctk.CTk):
             self.archivo_etiquetado_json = None
             self.info_etiquetado.configure(text="")
             self.info_etiquetado.pack_forget()
+        except Exception:
+            pass
 
         except Exception as e:
             print(f"⚠️ Error al eliminar archivos: {e}")
@@ -3096,7 +3209,7 @@ class SistemaDictamenesVC(ctk.CTk):
 
             # Actualizar título del panel de generación
             title_map = {
-                'Dictamen': 'Generar Dictámenes',
+                'Dictamen': 'Generar Documentos',
                 'Negación de Dictamen': 'Generar Negación de Dictamen',
                 'Constancia': 'Generar Constancias',
                 'Negación de Constancia': 'Generar Negación de Constancia'
@@ -3247,6 +3360,11 @@ class SistemaDictamenesVC(ctk.CTk):
 
             # Guardar usando la función existente
             self.hist_create_visita(payload)
+            try:
+                # actualizar indicador visual del siguiente folio
+                self._update_siguiente_folio_label()
+            except Exception:
+                pass
             # Persistir también en archivo de reservas (pending_folios.json)
             try:
                 pf_path = os.path.join(BASE_DIR, 'data', 'pending_folios.json')
@@ -3294,6 +3412,91 @@ class SistemaDictamenesVC(ctk.CTk):
                     self._refresh_pending_folios_dropdown()
             except Exception:
                 pass
+
+    def reservar_folios_tabla(self):
+        """Reserva un bloque de folios y sobrescribe la columna 'FOLIO' en
+        `data/tabla_de_relacion.json` asignando un folio por familia (LISTA).
+        """
+        try:
+            data_dir = os.path.join(BASE_DIR, 'data')
+            tabla_path = os.path.join(data_dir, 'tabla_de_relacion.json')
+            if not os.path.exists(tabla_path):
+                messagebox.showwarning("Tabla no encontrada", "No se encontró data/tabla_de_relacion.json. Primero convierta/importe la tabla de relación.")
+                return
+
+            with open(tabla_path, 'r', encoding='utf-8') as f:
+                registros = json.load(f) or []
+
+            # Agrupar por LISTA (si no existe, intentar 'lista')
+            familias = {}
+            for r in registros:
+                llave = r.get('LISTA') or r.get('lista') or r.get('Lista') or r.get('Lista')
+                if llave is None:
+                    # fallback: usar índice por fila
+                    llave = f"_ROW_{len(familias)}"
+                familias.setdefault(str(llave), []).append(r)
+
+            total_needed = len(familias)
+            if total_needed <= 0:
+                messagebox.showinfo("Sin familias", "No se detectaron familias/listas en la tabla para reservar folios.")
+                return
+
+            # Reservar bloque atómico
+            try:
+                start = folio_manager.reserve_block(total_needed)
+            except Exception as e:
+                # intentar obtener último conocido y calcular
+                try:
+                    last = folio_manager.get_last()
+                    start = int(last) + 1
+                    folio_manager.set_last(int(last) + int(total_needed))
+                except Exception:
+                    messagebox.showerror("Reserva fallida", f"No se pudo reservar folios: {e}")
+                    return
+
+            # Asignar folios por familia en orden determinista (orden de claves)
+            claves = sorted(list(familias.keys()))
+            current = int(start)
+            for k in claves:
+                for rec in familias[k]:
+                    try:
+                        rec['FOLIO'] = int(current)
+                    except Exception:
+                        rec['FOLIO'] = str(current)
+                current += 1
+
+            # Hacer backup antes de sobrescribir
+            backups_dir = os.path.join(data_dir, 'tabla_relacion_backups')
+            os.makedirs(backups_dir, exist_ok=True)
+            ts = datetime.now().strftime('%Y%m%d_%H%M%S')
+            backup_name = f"tabla_relacion_backup_{start:06d}_{ts}.json"
+            backup_path = os.path.join(backups_dir, backup_name)
+            try:
+                with open(backup_path, 'w', encoding='utf-8') as bf:
+                    json.dump(registros, bf, ensure_ascii=False, indent=2)
+            except Exception:
+                pass
+
+            # Sobrescribir tabla_de_relacion.json
+            try:
+                with open(tabla_path, 'w', encoding='utf-8') as f:
+                    json.dump(registros, f, ensure_ascii=False, indent=2)
+            except Exception as e:
+                messagebox.showerror("Error guardando tabla", f"No se pudo actualizar tabla_de_relacion.json: {e}")
+                return
+
+            # Actualizar UI y estado
+            try:
+                # Forzar recalcular info_folios_actual
+                self._extraer_informacion_folios(registros)
+                self._update_siguiente_folio_label()
+            except Exception:
+                pass
+
+            messagebox.showinfo("Reserva completada", f"Reservados {total_needed} folios empezando desde {int(start):06d}. Tabla actualizada.")
+
+        except Exception as e:
+            messagebox.showerror("Error", f"Error al reservar folios: {e}")
 
     def _finalizar_generacion(self):
         if self.winfo_exists():  # Verificar si la ventana aún existe
@@ -3479,8 +3682,29 @@ class SistemaDictamenesVC(ctk.CTk):
                     pass
 
             # Escribir archivo principal
-            with open(target_path, "w", encoding="utf-8") as f:
-                json.dump(self.historial, f, ensure_ascii=False, indent=2)
+            # Escritura atómica: volcar a tmp y luego reemplazar
+            tmp_path = target_path + '.tmp'
+            try:
+                with open(tmp_path, 'w', encoding='utf-8') as f:
+                    json.dump(self.historial, f, ensure_ascii=False, indent=2)
+                    f.flush()
+                    try:
+                        os.fsync(f.fileno())
+                    except Exception:
+                        pass
+
+                # Reemplazar de forma atómica
+                try:
+                    os.replace(tmp_path, target_path)
+                except Exception:
+                    # Fallback a copy if replace falla
+                    shutil.copy2(tmp_path, target_path)
+            finally:
+                try:
+                    if os.path.exists(tmp_path):
+                        os.remove(tmp_path)
+                except Exception:
+                    pass
 
             # Verificar que se escribió correctamente
             if os.path.exists(target_path):
@@ -4402,6 +4626,19 @@ class SistemaDictamenesVC(ctk.CTk):
                 # Agregar solo si tiene folio
                 if folio_data["FOLIOS"]:
                     folios_data.append(folio_data)
+
+            # Deduplicar por número de folio (mantener primer registro para cada folio)
+            seen = set()
+            deduped = []
+            for f in folios_data:
+                val = f.get('FOLIOS')
+                if not val:
+                    continue
+                if val in seen:
+                    continue
+                seen.add(val)
+                deduped.append(f)
+            folios_data = deduped
             
             if not folios_data:
                 print(f"⚠️ No se encontraron folios válidos para guardar en la visita {folio_visita}")
@@ -4414,6 +4651,34 @@ class SistemaDictamenesVC(ctk.CTk):
                 json.dump(folios_data, f, ensure_ascii=False, indent=2)
             
             print(f"✅ Folios guardados para visita {folio_visita}: {len(folios_data)} registros")
+            # Actualizar contador legacy `folio_counter.json` con el mayor folio
+            try:
+                max_num = 0
+                for fdata in folios_data:
+                    fol = fdata.get('FOLIOS') or ''
+                    digits = ''.join([c for c in str(fol) if c.isdigit()])
+                    if digits:
+                        try:
+                            n = int(digits)
+                            if n > max_num:
+                                max_num = n
+                        except Exception:
+                            pass
+                if max_num > 0:
+                    try:
+                        # escribir atómico usando helper existente, pero no bajar el contador
+                        try:
+                            current_counter = int(self._read_folio_counter() or 0)
+                        except Exception:
+                            current_counter = 0
+                        safe_max = max(current_counter, int(max_num or 0))
+                        if safe_max > 0 and safe_max != current_counter:
+                            self._write_folio_counter(safe_max)
+                            print(f"🔁 folio_counter.json actualizado a {safe_max:06d}")
+                    except Exception:
+                        pass
+            except Exception:
+                pass
             return True
             
         except Exception as e:
@@ -6186,47 +6451,35 @@ class SistemaDictamenesVC(ctk.CTk):
                 # Guardar folios específicos para esta visita
                 self.guardar_folios_visita(folio_visita, datos_tabla)
 
-            # ===== EXTRACCIÓN DE FOLIOS NUMÉRICOS DE LA TABLA DE RELACIÓN =====
-            folios_numericos = []
-            folios_totales = 0
-            
+            # ===== EXTRACCIÓN DE FOLIOS NUMÉRICOS ÚNICOS DE LA TABLA DE RELACIÓN =====
+            folios_numericos_set = set()
+            total_registros = 0
+
             if datos_tabla:
                 for registro in datos_tabla:
-                    # Contar registros totales
-                    folios_totales += 1
-                    
-                    # Extraer folio numérico si existe y no es NaN
+                    total_registros += 1
                     if "FOLIO" in registro:
                         folio_valor = registro["FOLIO"]
-                        
-                        # Verificar que no sea NaN, None o vacío
-                        if (folio_valor is not None and 
-                            str(folio_valor).strip() != "" and 
-                            str(folio_valor).lower() != "nan" and
-                            str(folio_valor).lower() != "none"):
-                            
+                        if (folio_valor is not None and str(folio_valor).strip() != "" and
+                            str(folio_valor).lower() != "nan" and str(folio_valor).lower() != "none"):
                             try:
-                                # Convertir a entero
                                 folio_int = int(float(folio_valor))
-                                folios_numericos.append(folio_int)
+                                folios_numericos_set.add(folio_int)
                             except (ValueError, TypeError):
-                                # Si no se puede convertir a número, ignorar
                                 pass
-            
-            # Ordenar folios numéricos
-            folios_numericos_ordenados = sorted(folios_numericos)
-            
-            # Formatear información de folios para mostrar
+
+            # Ordenar folios únicos
+            folios_numericos_ordenados = sorted(folios_numericos_set)
+
+            # Formatear información de folios para mostrar y persistir
             if folios_numericos_ordenados:
                 if len(folios_numericos_ordenados) == 1:
                     folios_str = f"Folio: {folios_numericos_ordenados[0]:06d}"
                 else:
-                    # Mostrar solo rango
                     folios_str = f"{folios_numericos_ordenados[0]:06d} - {folios_numericos_ordenados[-1]:06d}"
             else:
-                # Si no hay folios numéricos
-                if folios_totales > 0:
-                    folios_str = f"Total: {folios_totales} folios"
+                if total_registros > 0:
+                    folios_str = f"Total registros: {total_registros} (sin folios numéricos)"
                 else:
                     folios_str = "No se encontraron folios"
 
@@ -6348,9 +6601,9 @@ class SistemaDictamenesVC(ctk.CTk):
                 "nfirma2": "",
                 "estatus": "Completada",
                 "tipo_documento": tipo_documento,
-                "folios_utilizados": folios_str,  # Información formateada de folios
-                "total_folios": folios_totales,
-                "total_folios_numericos": len(folios_numericos),
+                "folios_utilizados": folios_str,  # Información formateada de folios (únicos)
+                "total_folios": len(folios_numericos_ordenados),
+                "total_folios_numericos": len(folios_numericos_ordenados),
                 "supervisores_tabla": supervisores_str,  # Todos los supervisores de la tabla
                 "supervisor_formulario": supervisor  # Supervisor del formulario (por si se necesita)
             }

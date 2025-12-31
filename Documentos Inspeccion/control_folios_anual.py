@@ -553,12 +553,28 @@ class ControlFoliosAnual:
                     mapped.append(str(c))
             nom_display = ", ".join(sorted(set(mapped))) if mapped else "N/A"
 
-        # Para la columna DOCUMENTO EMITIDO preferimos el valor de cadena_identificacion
-        # pero solo el primer token (ej: "25049UDCNOM-004-SE-2021046296"). Si no existe,
-        # se usa el número de solicitud calculado.
+        # Para la columna DOCUMENTO EMITIDO preferimos usar un token informativo
+        # extraído de `cadena_identificacion`. Normalmente la cadena contiene
+        # un bloque "Solicitud de Servicio: <token>" que es el más completo. Si
+        # no, tomamos el primer token (antes de '/') y, cuando disponemos de
+        # `solicitud` y `folio`, anexamos la parte '<solicitud>-<folio>' para
+        # obtener formatos como '25049USDNOM-141-SSA1007045-126'.
         if cadena_ident:
             try:
-                documento_emitido = str(cadena_ident).strip().split()[0]
+                token = None
+                # Preferir token después de 'Solicitud de Servicio:' si existe
+                msol = re.search(r"Solicitud de Servicio:\s*([A-Za-z0-9\-/]+)", str(cadena_ident))
+                if msol:
+                    token = msol.group(1).split('/')[0]
+                else:
+                    # Fallback: primer token antes de espacios, y quitar cualquier parte tras '/'
+                    token = str(cadena_ident).strip().split()[0].split('/')[0]
+
+                sol_part = self.extraer_sol_ema(solicitud) or ''
+                if sol_part and folio:
+                    documento_emitido = f"{token}{sol_part}-{folio}"
+                else:
+                    documento_emitido = token
             except Exception:
                 documento_emitido = numero_solicitud_display
         else:

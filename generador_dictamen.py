@@ -5,6 +5,16 @@ import json
 import pandas as pd
 from datetime import datetime
 import traceback
+import time
+
+# Evitar UnicodeEncodeError en consolas Windows (CP1252) al imprimir emojis u
+# otros caracteres Unicode. Intentar reconfigurar stdout/stderr a UTF-8 cuando
+# sea posible.
+try:
+    sys.stdout.reconfigure(encoding='utf-8')
+    sys.stderr.reconfigure(encoding='utf-8')
+except Exception:
+    pass
 
 from plantillaPDF import (
     cargar_tabla_relacion,
@@ -16,6 +26,7 @@ from plantillaPDF import (
 )
 
 from DictamenPDF import PDFGenerator
+import folio_manager
 
 from reportlab.platypus import (
     SimpleDocTemplate, Paragraph, Table, TableStyle, Spacer, Image as RLImage, PageBreak, KeepTogether
@@ -38,6 +49,41 @@ def obtener_ruta_recurso(ruta_relativa):
 
     return os.path.join(base_path, ruta_relativa)
 
+
+# ---------------- Folio counter (reserva atómica) ----------------
+def _get_folio_paths():
+    carpeta = obtener_ruta_recurso('data')
+    try:
+        os.makedirs(carpeta, exist_ok=True)
+    except Exception:
+        pass
+    return os.path.join(carpeta, 'folio_counter.json'), os.path.join(carpeta, 'folio_counter.lock')
+
+def _acquire_lock(lock_path, timeout=5.0):
+    start = time.time()
+    while True:
+        try:
+            fd = os.open(lock_path, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+            os.close(fd)
+            return True
+        except FileExistsError:
+            if (time.time() - start) >= timeout:
+                return False
+            time.sleep(0.1)
+
+def _release_lock(lock_path):
+    try:
+        if os.path.exists(lock_path):
+            os.remove(lock_path)
+    except Exception:
+        pass
+
+def reservar_siguiente_folio(timeout=5.0):
+    """Reserva el siguiente folio delegando al nuevo módulo `folio_manager`."""
+    try:
+        return folio_manager.reserve_next(timeout=timeout)
+    except Exception as e:
+        raise RuntimeError(f"No se pudo reservar siguiente folio: {e}")
 class PDFGeneratorConDatos(PDFGenerator):
     """Subclase que genera PDFs con datos reales y tablas dinámicas
        Evita saltos de página vacíos y calcula correctamente total_pages.
@@ -670,16 +716,37 @@ def convertir_dictamen_a_json(datos):
     solicitud_raw = str(datos.get("solicitud", "")).strip()
     lista = str(datos.get("lista", "")).strip()
 
-    if folio_raw.isdigit():
-        folio_formateado = f"{int(folio_raw):06d}"
-    else:
-        folio_formateado = folio_raw
+    # Extraer año desde la solicitud si está presente (p. ej. "006669/25")
+    year_from_solicitud = ''
+    try:
+        if '/' in solicitud_raw:
+            parts = solicitud_raw.split('/')
+            suf = parts[-1].strip()
+            if suf.isdigit():
+                year_from_solicitud = suf[-2:]
+    except Exception:
+        year_from_solicitud = ''
 
-    if solicitud_raw.isdigit():
-        solicitud_formateado = f"{int(solicitud_raw):06d}"
-    else:
-        solicitud_formateado = solicitud_raw
+    if not year and year_from_solicitud:
+        year = year_from_solicitud
 
+    if year and year.isdigit() and len(year) == 4:
+        year = year[-2:]
+
+    # Formatear folio a 6 dígitos si tiene dígitos
+    folio_digits = ''.join([c for c in folio_raw if c.isdigit()])
+    folio_formateado = folio_digits.zfill(6) if folio_digits else folio_raw
+
+    # Formatear solicitud: tomar la parte antes de '/' o los dígitos
+    solicitud_num = ''
+    if solicitud_raw:
+        if '/' in solicitud_raw:
+            solicitud_num = solicitud_raw.split('/')[0].strip()
+        else:
+            solicitud_num = ''.join([c for c in solicitud_raw if c.isdigit()])
+    solicitud_formateado = solicitud_num.zfill(6) if solicitud_num and solicitud_num.isdigit() else solicitud_num
+
+    # Construir cadena_identificacion siempre (asegurar variable definida)
     cadena_identificacion = (
         f"{year}049UDC{norma}{folio_formateado} Solicitud de Servicio: {year}049USD{norma}{solicitud_formateado}-{lista}"
     )
@@ -880,6 +947,120 @@ def generar_dictamenes_completos(directorio_destino, cliente_manual=None, rfc_ma
     archivos_creados = []
     sin_firma_detalle = []
 
+    # Calcular bloque de folios a asignar para este proceso.
+    total_needed = len(familias)
+    last_known = None
+    try:
+        last_known = folio_manager.get_last()
+    except Exception:
+        last_known = None
+
+    # Detectar si la tabla ya trae folios asignados por familia. Si es así,
+    # respetamos esos folios y evitamos reservar de nuevo (para no duplicar
+    # el avance del contador). Si no hay folios preasignados, intentamos reservar
+    # un bloque atómico aquí.
+    preassigned_map = {}
+    try:
+        assigned_set = set()
+        for lista, registros in familias.items():
+            found = None
+            for rec in registros:
+                # considerar 'FOLIO' o 'folio'
+                val = rec.get('FOLIO') if 'FOLIO' in rec else rec.get('folio')
+                if val is not None and str(val).strip() != "":
+                    try:
+                        n = int(float(str(val)))
+                        found = int(n)
+                        break
+                    except Exception:
+                        continue
+            if found is not None:
+                preassigned_map[lista] = found
+                assigned_set.add(found)
+    except Exception:
+        preassigned_map = {}
+
+    use_preassigned = False
+    if total_needed > 0 and len(preassigned_map) == total_needed and len(assigned_set) == total_needed:
+        use_preassigned = True
+
+    next_folio_to_assign = None
+    reserved_here = False
+
+    if use_preassigned:
+        print(f"🔎 Se detectaron folios preasignados en la tabla; se usarán sin reservar aquí.")
+    else:
+        if total_needed > 0:
+            try:
+                start = folio_manager.reserve_block(total_needed)
+                next_folio_to_assign = start
+                reserved_here = True
+            except Exception:
+                # Si reserve_block falla, pero conocemos el último contador,
+                # asignamos a partir de last_known+1 y tratamos de persistir
+                # el nuevo último con set_last().
+                if last_known is not None:
+                    try:
+                        start = int(last_known) + 1
+                        next_folio_to_assign = start
+                        try:
+                            folio_manager.set_last(int(last_known) + int(total_needed))
+                        except Exception:
+                            pass
+                    except Exception:
+                        next_folio_to_assign = None
+                else:
+                    # Fallback robusto: inspeccionar archivos locales para calcular el siguiente
+                    try:
+                        carpeta = os.path.dirname(_get_folio_paths()[0])
+                        dirp = os.path.join(carpeta, 'folios_visitas')
+                        maxf = 0
+                        if os.path.exists(dirp):
+                            import re
+                            for fn in os.listdir(dirp):
+                                if fn.startswith('folios_') and fn.endswith('.json'):
+                                    pathf = os.path.join(dirp, fn)
+                                    try:
+                                        with open(pathf, 'r', encoding='utf-8') as fh:
+                                            arr = json.load(fh) or []
+                                            for entry in arr:
+                                                fol = entry.get('FOLIOS') or ''
+                                                nums = re.findall(r"\d+", str(fol))
+                                                for d in nums:
+                                                    try:
+                                                        n = int(d)
+                                                        if n > maxf:
+                                                            maxf = n
+                                                    except Exception:
+                                                        pass
+                                    except Exception:
+                                        continue
+                        next_folio_to_assign = maxf + 1
+                    except Exception:
+                        next_folio_to_assign = None
+
+        else:
+            next_folio_to_assign = None
+
+        # Asegurar coherencia: si conocemos el último folio persistido, el siguiente
+        # folio a asignar no debe ser menor que last_known + 1.
+        try:
+            if last_known is not None and not use_preassigned:
+                minimo = int(last_known) + 1
+                if next_folio_to_assign is None:
+                    print(f"   ℹ️ Usando folio_counter como inicio: {minimo}")
+                    next_folio_to_assign = minimo
+                    try:
+                        folio_manager.set_last(int(last_known) + int(total_needed))
+                    except Exception:
+                        pass
+                else:
+                    if int(next_folio_to_assign) < minimo:
+                        print(f"   ⚠️ Ajustando inicio de folios {next_folio_to_assign} -> {minimo} (según folio_counter)")
+                        next_folio_to_assign = minimo
+        except Exception:
+            pass
+
     for lista, registros in familias.items():
         print(f"\n📄 Procesando familia LISTA {lista} ({len(registros)} registros)...")
         try:
@@ -897,6 +1078,61 @@ def generar_dictamenes_completos(directorio_destino, cliente_manual=None, rfc_ma
                 dictamenes_error += 1
                 print(f"   ❌ ERROR: No se pudieron preparar datos para lista {lista}")
                 continue
+
+            # ---------------- Asignar folio automático por familia (LISTA) ----------------
+            try:
+                # Si pre-calculamos un bloque, usarlo y avanzar la variable local;
+                # si no, usar el mecanismo de reserva atómica por compatibilidad.
+                if use_preassigned:
+                    # usar folio preasignado por la tabla (por lista)
+                    folio_num = preassigned_map.get(lista)
+                    if folio_num is None:
+                        # fallback: reservar uno-a-uno
+                        folio_num = reservar_siguiente_folio()
+                else:
+                    if next_folio_to_assign is None:
+                        folio_num = reservar_siguiente_folio()
+                    else:
+                        folio_num = next_folio_to_assign
+                        next_folio_to_assign += 1
+
+                datos['folio'] = str(folio_num)
+                print(f"   🔢 Folio asignado automáticamente: {int(folio_num):06d}")
+                # Propagar el folio asignado a cada registro de la familia (columna 'FOLIO')
+                try:
+                    for rec in registros:
+                        try:
+                            rec['FOLIO'] = int(folio_num)
+                        except Exception:
+                            rec['FOLIO'] = str(folio_num)
+                except Exception:
+                    pass
+            except Exception as e:
+                print(f"   ⚠️ No se pudo reservar folio automáticamente: {e}")
+                traceback.print_exc()
+                # Intentar reserva uno-a-uno como fallback antes de usar folios preexistentes
+                try:
+                    folio_num = reservar_siguiente_folio()
+                    datos['folio'] = str(folio_num)
+                    print(f"   🔁 Reserva fallback exitosa: {int(folio_num):06d}")
+                    try:
+                        for rec in registros:
+                            try:
+                                rec['FOLIO'] = int(folio_num)
+                            except Exception:
+                                rec['FOLIO'] = str(folio_num)
+                    except Exception:
+                        pass
+                except Exception as e2:
+                    print(f"   ⚠️ Fallback de reserva uno-a-uno falló: {e2}")
+                    # Último recurso: mantener folio existente en registros si lo hubiera
+                    try:
+                        posible = registros[0].get('FOLIO') or registros[0].get('folio')
+                        if posible:
+                            datos['folio'] = str(posible)
+                            print(f"   ℹ️ Usando folio preexistente: {datos['folio']}")
+                    except Exception:
+                        pass
 
             # 🎯 DETECTAR Y ASIGNAR FLUJO AUTOMÁTICAMENTE
             # --- Intentar asignar evidencias a partir del índice global ---
@@ -1024,6 +1260,20 @@ def generar_dictamenes_completos(directorio_destino, cliente_manual=None, rfc_ma
             print(f"   ❌ Error en familia {lista}: {e}")
             traceback.print_exc()
             continue
+
+    # Actualizar folio_counter.json al último folio asignado para este lote
+    try:
+        # Si usamos folios preasignados por la tabla, asumimos que ya se hizo
+        # la reserva (o que la tabla fue preparada por el usuario) y NO
+        # actualizamos el contador aquí para evitar duplicados.
+        if (not use_preassigned) and next_folio_to_assign is not None and not reserved_here:
+            try:
+                last_to_write = int(next_folio_to_assign) - 1
+                folio_manager.set_last(last_to_write)
+            except Exception:
+                pass
+    except Exception:
+        pass
 
     print("\n" + "="*60)
     print("📊 RESUMEN DE GENERACIÓN")
