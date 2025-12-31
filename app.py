@@ -5940,6 +5940,26 @@ class SistemaDictamenesVC(ctk.CTk):
                         with open(tabla_relacion_path, 'w', encoding='utf-8') as f:
                             json.dump(nueva_tabla, f, ensure_ascii=False, indent=2)
                         resultados['eliminados'].append('Entradas en tabla_de_relacion.json')
+
+                        # Eliminar backups relacionados con este folio en tabla_relacion_backups
+                        try:
+                            backup_dir = os.path.join(BASE_DIR, 'data', 'tabla_relacion_backups')
+                            if os.path.exists(backup_dir):
+                                deleted_backups = []
+                                for bfn in os.listdir(backup_dir):
+                                    # Solo considerar archivos que parezcan backups de tabla_de_relacion
+                                    lower = bfn.lower()
+                                    if ('tabla' in lower and 'relacion' in lower) and str(folio) in bfn:
+                                        pathb = os.path.join(backup_dir, bfn)
+                                        try:
+                                            os.remove(pathb)
+                                            deleted_backups.append(bfn)
+                                        except Exception as e:
+                                            resultados['errores'].append(f"No se pudo eliminar backup {bfn}: {e}")
+                                if deleted_backups:
+                                    resultados['eliminados'].append(f"Backups eliminados en tabla_relacion_backups: {len(deleted_backups)}")
+                        except Exception as e:
+                            resultados['errores'].append(f"Error limpiando backups de tabla_relacion_backups: {e}")
                     except Exception as e:
                         resultados['errores'].append(f"Error modificando tabla_de_relacion.json: {e}")
 
@@ -5951,6 +5971,70 @@ class SistemaDictamenesVC(ctk.CTk):
             
             if persistencia_garantizada:
                 resultados["eliminados"].append("✅ Persistencia verificada y garantizada")
+
+            # Intentar recomputar el mayor folio restante y ajustar el contador
+            try:
+                try:
+                    last_counter = int(folio_manager.get_last() or 0)
+                except Exception:
+                    last_counter = 0
+
+                # Buscar mayor folio numérico entre archivos restantes en folios_visitas
+                max_remain = 0
+                try:
+                    dirp = self.folios_visita_path
+                    if os.path.exists(dirp):
+                        for fn in os.listdir(dirp):
+                            if fn.startswith('folios_') and fn.endswith('.json'):
+                                pathf = os.path.join(dirp, fn)
+                                try:
+                                    with open(pathf, 'r', encoding='utf-8') as fh:
+                                        arr = json.load(fh) or []
+                                        for entry in arr:
+                                            fol = entry.get('FOLIOS') or entry.get('FOLIOS', '')
+                                            if not fol:
+                                                continue
+                                            digits = ''.join([c for c in str(fol) if c.isdigit()])
+                                            if digits:
+                                                try:
+                                                    n = int(digits)
+                                                    if n > max_remain:
+                                                        max_remain = n
+                                                except Exception:
+                                                    pass
+                                except Exception:
+                                    continue
+                except Exception:
+                    pass
+
+                # También comprobar tabla_de_relacion.json por si quedan folios ahí
+                try:
+                    tabla_relacion_path = os.path.join(BASE_DIR, 'data', 'tabla_de_relacion.json')
+                    if os.path.exists(tabla_relacion_path):
+                        with open(tabla_relacion_path, 'r', encoding='utf-8') as tf:
+                            tabla = json.load(tf) or []
+                        for row in tabla:
+                            try:
+                                v = row.get('FOLIO') or row.get('FOLIOS') or ''
+                                digits = ''.join([c for c in str(v) if c.isdigit()])
+                                if digits:
+                                    n = int(digits)
+                                    if n > max_remain:
+                                        max_remain = n
+                            except Exception:
+                                continue
+                except Exception:
+                    pass
+
+                # Ajustar el contador si el mayor restante es menor que el guardado
+                if max_remain < last_counter:
+                    try:
+                        folio_manager.set_last(int(max_remain))
+                        resultados['eliminados'].append(f"folio_counter.json ajustado a {int(max_remain):06d}")
+                    except Exception as e:
+                        resultados['errores'].append(f"No se pudo ajustar folio_counter: {e}")
+            except Exception:
+                pass
             
             # Registrar la operación para auditoría
             detalles_eliminacion = f"Archivos: {len(resultados['eliminados'])}, Errores: {len(resultados['errores'])}"
