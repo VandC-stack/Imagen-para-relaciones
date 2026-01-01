@@ -754,7 +754,7 @@ def convertir_dictamen_a_json(datos):
     json_data = {
         "identificacion": {
             "cadena_identificacion": cadena_identificacion,
-            "year": datos.get("year", ""),
+            "year": year,
             "folio": datos.get("folio", ""),
             "solicitud": datos.get("solicitud", ""),
             "lista": datos.get("lista", "")
@@ -806,8 +806,7 @@ def guardar_dictamen_json(datos, lista, directorio_json):
     Guarda los datos del dictamen en formato JSON.
     Retorna (exito, mensaje_error)
     """
-    try:
-        # Crear directorio si no existe
+    try:       # Crear directorio si no existe
         os.makedirs(directorio_json, exist_ok=True)
         
         # Convertir datos a JSON
@@ -946,6 +945,7 @@ def generar_dictamenes_completos(directorio_destino, cliente_manual=None, rfc_ma
     
     archivos_creados = []
     sin_firma_detalle = []
+    folios_usados_set = set()
 
     # Calcular bloque de folios a asignar para este proceso.
     total_needed = len(familias)
@@ -981,8 +981,22 @@ def generar_dictamenes_completos(directorio_destino, cliente_manual=None, rfc_ma
         preassigned_map = {}
 
     use_preassigned = False
-    if total_needed > 0 and len(preassigned_map) == total_needed and len(assigned_set) == total_needed:
-        use_preassigned = True
+    try:
+        # Only treat table folios as preassigned if every folio is a valid positive int
+        # and is greater than the current persisted last known folio. This avoids
+        # reusing placeholder or old folios present in the table (e.g., 000001..)
+        current_last = int(last_known) if last_known is not None else 0
+        if total_needed > 0 and len(preassigned_map) == total_needed and len(assigned_set) == total_needed:
+            try:
+                min_assigned = min(int(x) for x in assigned_set)
+                if min_assigned > current_last:
+                    use_preassigned = True
+                else:
+                    use_preassigned = False
+            except Exception:
+                use_preassigned = False
+    except Exception:
+        use_preassigned = False
 
     next_folio_to_assign = None
     reserved_here = False
@@ -1224,6 +1238,11 @@ def generar_dictamenes_completos(directorio_destino, cliente_manual=None, rfc_ma
             if generador.generar_pdf_con_datos(ruta_completa):
                 dictamenes_generados += 1
                 archivos_creados.append(ruta_completa)
+                try:
+                    used_folio = int(str(datos.get('folio') or folio_num))
+                    folios_usados_set.add(used_folio)
+                except Exception:
+                    pass
                 
                 # Guardar JSON del dictamen
                 exito_json, error_json = guardar_dictamen_json(datos, lista, directorio_json)
@@ -1266,12 +1285,60 @@ def generar_dictamenes_completos(directorio_destino, cliente_manual=None, rfc_ma
         # Si usamos folios preasignados por la tabla, asumimos que ya se hizo
         # la reserva (o que la tabla fue preparada por el usuario) y NO
         # actualizamos el contador aquí para evitar duplicados.
-        if (not use_preassigned) and next_folio_to_assign is not None and not reserved_here:
+        if reserved_here:
+            # Si reservamos un bloque, ajustar el contador al máximo folio efectivamente usado.
             try:
-                last_to_write = int(next_folio_to_assign) - 1
-                folio_manager.set_last(last_to_write)
+                if folios_usados_set:
+                    max_used = int(max(folios_usados_set))
+                    try:
+                        folio_manager.set_last(max_used)
+                        print(f"   🔢 Reserva ajustada: folio_counter fijado a {int(max_used):06d} (máx. folio usado)")
+                    except Exception:
+                        # Fallback atómico
+                        try:
+                            counter_path = os.path.join(os.path.dirname(__file__), 'data', 'folio_counter.json')
+                            tmp = counter_path + '.tmp'
+                            with open(tmp, 'w', encoding='utf-8') as tf:
+                                json.dump({'last': int(max_used)}, tf)
+                            try:
+                                os.replace(tmp, counter_path)
+                            except Exception:
+                                if os.path.exists(counter_path):
+                                    os.remove(counter_path)
+                                os.replace(tmp, counter_path)
+                            print(f"   🔢 Reserva ajustada (fallback): folio_counter fijado a {int(max_used):06d}")
+                        except Exception as e:
+                            print(f"   ⚠️ No se pudo ajustar reserva del contador: {e}")
+                else:
+                    # No se usó ningún folio: revertir al valor conocido
+                    if last_known is not None:
+                        try:
+                            folio_manager.set_last(int(last_known))
+                            print(f"   🔁 Reserva revertida: folio_counter restaurado a {int(last_known):06d}")
+                        except Exception:
+                            try:
+                                counter_path = os.path.join(os.path.dirname(__file__), 'data', 'folio_counter.json')
+                                tmp = counter_path + '.tmp'
+                                with open(tmp, 'w', encoding='utf-8') as tf:
+                                    json.dump({'last': int(last_known)}, tf)
+                                try:
+                                    os.replace(tmp, counter_path)
+                                except Exception:
+                                    if os.path.exists(counter_path):
+                                        os.remove(counter_path)
+                                    os.replace(tmp, counter_path)
+                                print(f"   🔁 Reserva revertida (fallback): folio_counter restaurado a {int(last_known):06d}")
+                            except Exception as e:
+                                print(f"   ⚠️ No se pudo revertir reserva del contador: {e}")
             except Exception:
                 pass
+        else:
+            if (not use_preassigned) and next_folio_to_assign is not None and not reserved_here:
+                try:
+                    last_to_write = int(next_folio_to_assign) - 1
+                    folio_manager.set_last(last_to_write)
+                except Exception:
+                    pass
     except Exception:
         pass
 
@@ -1317,6 +1384,20 @@ def generar_dictamenes_completos(directorio_destino, cliente_manual=None, rfc_ma
     
     print("\n" + "="*60)
 
+    # Preparar información de folios utilizados para feedback en UI
+    folios_info = None
+    folios_list = None
+    try:
+        if folios_usados_set:
+            used_sorted = sorted(int(x) for x in folios_usados_set)
+            folios_list = [f"{x:06d}" for x in used_sorted]
+            if len(used_sorted) == 1:
+                folios_info = f"{used_sorted[0]:06d}"
+            else:
+                folios_info = f"{used_sorted[0]:06d} - {used_sorted[-1]:06d}"
+    except Exception:
+        folios_info = None
+
     resultado = {
         'directorio': directorio_destino,
         'total_generados': dictamenes_generados,
@@ -1327,7 +1408,9 @@ def generar_dictamenes_completos(directorio_destino, cliente_manual=None, rfc_ma
         'archivos': archivos_creados,
         'sin_firma_detalle': sin_firma_detalle,
         'json_errores': json_errores,
-        'json_errores_detalle': json_errores_detalle
+        'json_errores_detalle': json_errores_detalle,
+        'folios_utilizados': folios_info,
+        'folios_usados_list': folios_list
     }
 
     mensaje = f"Se generaron {dictamenes_generados} dictámenes ({dictamenes_con_firma} con firma, {dictamenes_sin_firma} sin firma)"

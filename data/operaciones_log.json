@@ -363,6 +363,69 @@
       "folio": "CP000001",
       "status": "exitosa",
       "detalles": "Archivos: 4, Errores: 0"
+    },
+    {
+      "timestamp": "2025-12-31T14:57:43.703484",
+      "tipo": "eliminar_registro",
+      "folio": "CP000001",
+      "status": "exitosa",
+      "detalles": "Archivos: 6, Errores: 0"
+    },
+    {
+      "timestamp": "2025-12-31T15:14:35.658405",
+      "tipo": "eliminar_registro",
+      "folio": "CP000001",
+      "status": "exitosa",
+      "detalles": "Archivos: 6, Errores: 0"
+    },
+    {
+      "timestamp": "2025-12-31T15:21:14.855906",
+      "tipo": "eliminar_registro",
+      "folio": "CP000001",
+      "status": "exitosa",
+      "detalles": "Archivos: 6, Errores: 0"
+    },
+    {
+      "timestamp": "2025-12-31T15:25:53.989785",
+      "tipo": "eliminar_registro",
+      "folio": "CP000001",
+      "status": "exitosa",
+      "detalles": "Archivos: 8, Errores: 0"
+    },
+    {
+      "timestamp": "2025-12-31T15:27:14.678133",
+      "tipo": "eliminar_registro",
+      "folio": "CP000001",
+      "status": "exitosa",
+      "detalles": "Archivos: 8, Errores: 0"
+    },
+    {
+      "timestamp": "2025-12-31T15:31:50.467128",
+      "tipo": "eliminar_registro",
+      "folio": "CP000001",
+      "status": "exitosa",
+      "detalles": "Archivos: 7, Errores: 0"
+    },
+    {
+      "timestamp": "2025-12-31T15:51:25.793286",
+      "tipo": "eliminar_registro",
+      "folio": "CP000001",
+      "status": "exitosa",
+      "detalles": "Archivos: 3, Errores: 0"
+    },
+    {
+      "timestamp": "2025-12-31T15:51:34.691375",
+      "tipo": "eliminar_registro",
+      "folio": "CP000001",
+      "status": "exitosa",
+      "detalles": "Archivos: 2, Errores: 0"
+    },
+    {
+      "timestamp": "2025-12-31T17:21:07.064431",
+      "tipo": "eliminar_registro",
+      "folio": "CP000001",
+      "status": "exitosa",
+      "detalles": "Archivos: 6, Errores: 0"
     }
   ]
 }
