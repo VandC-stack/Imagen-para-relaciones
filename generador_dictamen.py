@@ -818,17 +818,27 @@ def convertir_dictamen_a_json(datos):
     }
     return json_data
 
-def guardar_dictamen_json(datos, lista, directorio_json):
+def guardar_dictamen_json(datos, lista, directorio_json, metadata=None):
     """
-    Guarda los datos del dictamen en formato JSON.
-    Retorna (exito, mensaje_error)
+    Guarda los datos del dictamen en formato JSON. Añade un campo opcional
+    'metadata' dentro del JSON para almacenar estado del PDF u otros datos
+    de diagnóstico. Retorna (exito, mensaje_error)
     """
     try:       # Crear directorio si no existe
         os.makedirs(directorio_json, exist_ok=True)
-        
-        # Convertir datos a JSON
+
+        # Convertir datos a JSON base
         json_data = convertir_dictamen_a_json(datos)
-        
+
+        # Añadir metadata si se proporcionó (no sobrescribe campos existentes)
+        if metadata and isinstance(metadata, dict):
+            try:
+                json_data.setdefault('metadata', {})
+                for k, v in metadata.items():
+                    json_data['metadata'][k] = v
+            except Exception:
+                pass
+
         # Nombre base del archivo JSON (limpiar caracteres no válidos)
         base_nombre = limpiar_nombre_archivo(f"Dictamen_Lista_{lista}.json")
         ruta_json = os.path.join(directorio_json, base_nombre)
@@ -842,7 +852,7 @@ def guardar_dictamen_json(datos, lista, directorio_json):
         # Guardar archivo JSON
         with open(ruta_json, 'w', encoding='utf-8') as f:
             json.dump(json_data, f, ensure_ascii=False, indent=2)
-        
+
         return True, None
     except Exception as e:
         return False, str(e)
@@ -1252,7 +1262,16 @@ def generar_dictamenes_completos(directorio_destino, cliente_manual=None, rfc_ma
             nombre_archivo = limpiar_nombre_archivo(f"Dictamen_Lista_{lista}.pdf")
             ruta_completa = os.path.join(carpeta_solicitud, nombre_archivo)
 
-            if generador.generar_pdf_con_datos(ruta_completa):
+            pdf_ok = False
+            try:
+                pdf_ok = generador.generar_pdf_con_datos(ruta_completa)
+            except Exception as e:
+                pdf_ok = False
+                pdf_error_msg = str(e)
+            else:
+                pdf_error_msg = None
+
+            if pdf_ok:
                 dictamenes_generados += 1
                 archivos_creados.append(ruta_completa)
                 try:
@@ -1260,9 +1279,10 @@ def generar_dictamenes_completos(directorio_destino, cliente_manual=None, rfc_ma
                     folios_usados_set.add(used_folio)
                 except Exception:
                     pass
-                
-                # Guardar JSON del dictamen
-                exito_json, error_json = guardar_dictamen_json(datos, lista, directorio_json)
+
+                # Guardar JSON del dictamen con metadata indicando PDF creado
+                meta = {'pdf_generado': True, 'pdf_path': os.path.abspath(ruta_completa)}
+                exito_json, error_json = guardar_dictamen_json(datos, lista, directorio_json, metadata=meta)
                 if exito_json:
                     json_generados += 1
                     print(f"   💾 JSON guardado: Dictamen_Lista_{lista}.json")
@@ -1273,14 +1293,13 @@ def generar_dictamenes_completos(directorio_destino, cliente_manual=None, rfc_ma
                         "error": error_json
                     })
                     print(f"   ⚠️ Error guardando JSON: {error_json}")
-                
+
                 if tiene_firma:
                     dictamenes_con_firma += 1
                     print(f"   ✅ Creado CON FIRMA: {nombre_archivo}")
                 else:
                     dictamenes_sin_firma += 1
                     print(f"   ⚠️ Creado SIN FIRMA: {nombre_archivo}")
-                    
                     sin_firma_detalle.append({
                         "lista": lista,
                         "norma": datos.get("norma", ""),
@@ -1290,6 +1309,22 @@ def generar_dictamenes_completos(directorio_destino, cliente_manual=None, rfc_ma
             else:
                 dictamenes_error += 1
                 print(f"   ❌ Error creando dictamen para lista {lista}")
+                # Incluso si el PDF falló, intentar guardar JSON con metadata de error
+                try:
+                    meta = {'pdf_generado': False, 'pdf_error': str(pdf_error_msg or 'Error desconocido')}
+                    exito_json, error_json = guardar_dictamen_json(datos, lista, directorio_json, metadata=meta)
+                    if exito_json:
+                        json_generados += 1
+                        print(f"   💾 JSON guardado (error): Dictamen_Lista_{lista}.json")
+                    else:
+                        json_errores += 1
+                        json_errores_detalle.append({
+                            "lista": lista,
+                            "error": error_json
+                        })
+                        print(f"   ⚠️ Error guardando JSON tras fallo de PDF: {error_json}")
+                except Exception:
+                    pass
 
         except Exception as e:
             dictamenes_error += 1

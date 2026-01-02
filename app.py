@@ -7503,7 +7503,8 @@ class SistemaDictamenesVC(ctk.CTk):
                         # y usarlo más adelante como padre del listado de normas.
                         try:
                             norma_container = ctk.CTkFrame(field_frame, fg_color='transparent')
-                            norma_container.pack(fill='both', expand=True, pady=(-8, 0))
+                            # evitar valores negativos que rompen el escalado en algunos sistemas
+                            norma_container.pack(fill='both', expand=True, pady=(0, 0))
                             entries['_norma_container'] = norma_container
                         except Exception:
                             entries['_norma_container'] = field_frame
@@ -7523,133 +7524,210 @@ class SistemaDictamenesVC(ctk.CTk):
                 
                 entries[key] = ent
         
-        # Helper: inserción rápida de inspectores y selección múltiple de normas
-        try:
-            # Colocar inspectores en la columna 0, normas en la columna 1 para mejor visibilidad
-            # Inspectores: columna 3 con checkboxes; cada click muestra normas acreditadas
-            insp_frame = ctk.CTkFrame(col_frames[3], fg_color='transparent')
-            insp_frame.pack(fill='both', expand=True)
-            ctk.CTkLabel(insp_frame, text='Listado de Inspectores', font=FONT_SMALL, text_color=STYLE['texto_oscuro']).pack(anchor='w')
-            # Reducir la altura del listado de inspectores a la mitad
-            scroll_insp = ctk.CTkScrollableFrame(insp_frame, height=100, fg_color='transparent')
-            scroll_insp.pack(fill='both', expand=True, pady=(6,6), padx=(6,0))
+        # Helper: diferir la creación de los listados pesados (inspectores y normas)
+        # para mostrar el modal rápidamente y poblar el contenido después.
+        insp_placeholder = ctk.CTkFrame(col_frames[3], fg_color='transparent')
+        insp_placeholder.pack(fill='both', expand=True)
+        ctk.CTkLabel(insp_placeholder, text='Cargando...', font=FONT_SMALL, text_color=STYLE['texto_oscuro']).pack(anchor='center', pady=20)
+        entries['_insp_placeholder'] = insp_placeholder
 
-            insp_checks = []
-            # Determinar inspectores seleccionados a partir de los datos de la visita
+        def _populate_heavy_ui_chunked():
             try:
-                existing_raw_insp = (datos.get('supervisores_tabla') or datos.get('nfirma1') or '') if datos else ''
-                selected_inspectores = [s.strip() for s in str(existing_raw_insp).split(',') if s.strip()]
-            except Exception:
-                selected_inspectores = []
-            last_insp_normas_label = ctk.CTkLabel(insp_frame, text='', font=("Inter", 11), text_color=STYLE['texto_oscuro'])
-            last_insp_normas_label.pack(anchor='w', pady=(6,4))
-
-            # mapping para labels de estado (marca verde)
-            inspector_status_labels = {}
-
-            def _on_insp_click(nombre, var):
+                # eliminar placeholder
                 try:
-                    normas = firmas_map.get(nombre, []) if 'firmas_map' in locals() or 'firmas_map' in globals() else []
-                    if normas:
-                        lines = [f"{i}. {n}" for i, n in enumerate(normas, start=1)]
-                        last_insp_normas_label.configure(text="\n".join(lines))
-                    else:
-                        last_insp_normas_label.configure(text='(Sin normas acreditadas)')
+                    insp_placeholder.destroy()
                 except Exception:
+                    pass
+
+                # Crear contenedores visibles inmediatamente
+                insp_frame = ctk.CTkFrame(col_frames[3], fg_color='transparent')
+                insp_frame.pack(fill='both', expand=True)
+                ctk.CTkLabel(insp_frame, text='Listado de Inspectores', font=FONT_SMALL, text_color=STYLE['texto_oscuro']).pack(anchor='w')
+                scroll_insp = ctk.CTkScrollableFrame(insp_frame, height=100, fg_color='transparent')
+                scroll_insp.pack(fill='both', expand=True, pady=(6,6), padx=(6,0))
+
+                parent_container = entries.get('_norma_container') if entries.get('_norma_container') else col_frames[1]
+                normas_frame = ctk.CTkFrame(parent_container, fg_color='transparent')
+                normas_frame.pack(fill='both', expand=False, pady=(0, 0))
+                ctk.CTkLabel(normas_frame, text='Listado de Normas', font=FONT_SMALL, text_color=STYLE['texto_oscuro']).pack(anchor='w', pady=(0,4))
+                normas_list_frame = ctk.CTkFrame(normas_frame, fg_color='transparent')
+                normas_list_frame.pack(fill='both', expand=True, pady=(0,2))
+
+                # preparaciones comunes
+                try:
+                    existing_raw_insp = (datos.get('supervisores_tabla') or datos.get('nfirma1') or '') if datos else ''
+                    selected_inspectores = [s.strip() for s in str(existing_raw_insp).split(',') if s.strip()]
+                except Exception:
+                    selected_inspectores = []
+
+                last_insp_normas_label = ctk.CTkLabel(insp_frame, text='', font=("Inter", 11), text_color=STYLE['texto_oscuro'])
+                last_insp_normas_label.pack(anchor='w', pady=(6,4))
+
+                inspector_status_labels = {}
+
+                def _on_insp_click(nombre, var):
                     try:
-                        last_insp_normas_label.configure(text='')
+                        normas = firmas_map.get(nombre, []) if 'firmas_map' in locals() or 'firmas_map' in globals() else []
+                        if normas:
+                            lines = [f"{i}. {n}" for i, n in enumerate(normas, start=1)]
+                            last_insp_normas_label.configure(text="\n".join(lines))
+                        else:
+                            last_insp_normas_label.configure(text='(Sin normas acreditadas)')
+                    except Exception:
+                        try:
+                            last_insp_normas_label.configure(text='')
+                        except Exception:
+                            pass
+
+                def update_inspector_statuses():
+                    try:
+                        norma_checks_local = entries.get('_norma_checks') or []
+                        selected_norms = [nm for nm, v in norma_checks_local if getattr(v, 'get', lambda: '0')() in ('1', 'True', 'true')]
+                        for nombre, lbl in inspector_status_labels.items():
+                            try:
+                                acc = set(firmas_map.get(nombre, []) or [])
+                                ok = False
+                                if selected_norms:
+                                    ok = set(selected_norms).issubset(acc)
+                                else:
+                                    ok = False
+                                if ok:
+                                    lbl.configure(text='✓', text_color=STYLE['exito'])
+                                else:
+                                    lbl.configure(text='', text_color=STYLE['texto_oscuro'])
+                            except Exception:
+                                try:
+                                    lbl.configure(text='', text_color=STYLE['texto_oscuro'])
+                                except Exception:
+                                    pass
                     except Exception:
                         pass
 
-            def update_inspector_statuses():
-                try:
-                    norma_checks_local = entries.get('_norma_checks') or []
-                    selected_norms = [nm for nm, v in norma_checks_local if getattr(v, 'get', lambda: '0')() in ('1', 'True', 'true')]
-                    for nombre, lbl in inspector_status_labels.items():
-                        try:
-                            acc = set(firmas_map.get(nombre, []) or [])
-                            ok = False
-                            if selected_norms:
-                                ok = set(selected_norms).issubset(acc)
-                            else:
-                                ok = False
-                            if ok:
-                                lbl.configure(text='✓', text_color=STYLE['exito'])
-                            else:
-                                lbl.configure(text='', text_color=STYLE['texto_oscuro'])
-                        except Exception:
+                # Guardar referencias en entries para que otros handlers las usen
+                entries['_insp_scroll'] = scroll_insp
+                entries['_normas_frame'] = normas_list_frame
+                entries['_insp_status_labels'] = inspector_status_labels
+
+                # Batching helpers
+                insp_index = {'i': 0}
+                norma_index = {'i': 0}
+                BATCH = 10
+
+                def _create_inspectores_batch():
+                    try:
+                        created = 0
+                        while insp_index['i'] < len(inspectores_list or []) and created < BATCH:
+                            nombre = inspectores_list[insp_index['i']]
                             try:
-                                lbl.configure(text='', text_color=STYLE['texto_oscuro'])
+                                var = ctk.StringVar(value='0')
+                                row = ctk.CTkFrame(scroll_insp, fg_color='transparent')
+                                row.pack(fill='x', pady=(2,2), padx=(2,0))
+                                row.grid_columnconfigure(0, weight=1)
+                                chk = ctk.CTkCheckBox(row, text=nombre, variable=var, onvalue='1', offvalue='0', command=lambda n=nombre, v=var: _on_insp_click(n, v), font=("Inter", 11))
+                                chk.grid(row=0, column=0, sticky='w')
+                                status_lbl = ctk.CTkLabel(row, text='', font=("Inter", 11), text_color=STYLE['exito'])
+                                status_lbl.grid(row=0, column=1, sticky='w', padx=(6,0))
+                                inspector_status_labels[nombre] = status_lbl
+                                try:
+                                    var.trace_add('write', lambda *a, _n=nombre: update_inspector_statuses())
+                                except Exception:
+                                    pass
+                                try:
+                                    if nombre in selected_inspectores:
+                                        var.set('1')
+                                except Exception:
+                                    pass
+                                # append to list
+                                lst = entries.get('_inspectores_checks') or []
+                                lst.append((nombre, var))
+                                entries['_inspectores_checks'] = lst
+                            except Exception:
+                                pass
+                            insp_index['i'] += 1
+                            created += 1
+                        # schedule next batch if remaining
+                        if insp_index['i'] < len(inspectores_list or []):
+                            modal.after(10, _create_inspectores_batch)
+                    except Exception:
+                        pass
+
+                def _create_normas_batch():
+                    try:
+                        created = 0
+                        while norma_index['i'] < len(normas_list or []) and created < BATCH:
+                            nm = normas_list[norma_index['i']]
+                            try:
+                                var = ctk.StringVar(value='0')
+                                chk = ctk.CTkCheckBox(normas_list_frame, text=nm, variable=var, onvalue='1', offvalue='0')
+                                chk.pack(anchor='w', fill='x')
+                                try:
+                                    var.trace_add('write', lambda *a: update_inspector_statuses())
+                                except Exception:
+                                    pass
+                                if datos and nm in [n.strip() for n in (datos.get('norma') or '').split(',') if n.strip()]:
+                                    try:
+                                        var.set('1')
+                                    except Exception:
+                                        pass
+                                lst = entries.get('_norma_checks') or []
+                                lst.append((nm, var))
+                                entries['_norma_checks'] = lst
+                            except Exception:
+                                pass
+                            norma_index['i'] += 1
+                            created += 1
+                        if norma_index['i'] < len(normas_list or []):
+                            modal.after(10, _create_normas_batch)
+                    except Exception:
+                        pass
+
+                # Start batches quickly to keep UI responsive
+                try:
+                    modal.after(10, _create_inspectores_batch)
+                    modal.after(10, _create_normas_batch)
+                except Exception:
+                    # fallback immediate creation if after fails
+                    _create_inspectores_batch()
+                    _create_normas_batch()
+
+                # Población del combobox de clientes (deferred, lightweight)
+                try:
+                    cliente_widget = entries.get('cliente')
+                    if cliente_widget and isinstance(cliente_widget, ctk.CTkComboBox):
+                        clientes_lista = ['Seleccione un cliente...']
+                        if hasattr(self, 'clientes_data') and self.clientes_data:
+                            for cliente in self.clientes_data:
+                                if not isinstance(cliente, dict):
+                                    continue
+                                name = cliente.get('CLIENTE') or cliente.get('RAZÓN SOCIAL ') or cliente.get('RAZON SOCIAL') or cliente.get('RAZON_SOCIAL') or cliente.get('RFC') or cliente.get('NÚMERO_DE_CONTRATO')
+                                if name:
+                                    clientes_lista.append(name)
+                        cliente_widget.configure(values=clientes_lista, state='readonly')
+                        if datos and "cliente" in datos:
+                            try:
+                                cliente_actual = datos.get('cliente', '')
+                                if cliente_actual in clientes_lista:
+                                    cliente_widget.set(cliente_actual)
                             except Exception:
                                 pass
                 except Exception:
                     pass
 
-            for nombre in (inspectores_list or []):
                 try:
-                    var = ctk.StringVar(value='0')
-                    # fila contenedora para checkbox + estado
-                    row = ctk.CTkFrame(scroll_insp, fg_color='transparent')
-                    row.pack(fill='x', pady=(2,2), padx=(2,0))
-                    row.grid_columnconfigure(0, weight=1)
-                    chk = ctk.CTkCheckBox(row, text=nombre, variable=var, onvalue='1', offvalue='0', command=lambda n=nombre, v=var: _on_insp_click(n, v), font=("Inter", 11))
-                    chk.grid(row=0, column=0, sticky='w')
-                    status_lbl = ctk.CTkLabel(row, text='', font=("Inter", 11), text_color=STYLE['exito'])
-                    status_lbl.grid(row=0, column=1, sticky='w', padx=(6,0))
-                    inspector_status_labels[nombre] = status_lbl
-                    # trace para actualizar estado cuando cambien normas o el propio checkbox
-                    try:
-                        var.trace_add('write', lambda *a, _n=nombre: update_inspector_statuses())
-                    except Exception:
-                        pass
-                    # Si en los datos de la visita ya viene este inspector, marcarlo
-                    try:
-                        if nombre in selected_inspectores:
-                            try:
-                                var.set('1')
-                            except Exception:
-                                pass
-                    except Exception:
-                        pass
-                    insp_checks.append((nombre, var))
+                    modal.update_idletasks()
                 except Exception:
-                    continue
-            entries['_inspectores_checks'] = insp_checks
+                    pass
+            except Exception:
+                pass
 
-            # Normas: lista de checkboxes para selección múltiple (columna central)
-            # Usar el contenedor creado en el lugar del campo 'norma' para
-            # que el listado quede justo debajo de Fecha Termino.
-            parent_container = entries.get('_norma_container') if entries.get('_norma_container') else col_frames[1]
-            normas_frame = ctk.CTkFrame(parent_container, fg_color='transparent')
-            normas_frame.pack(fill='both', expand=False, pady=(0, 0))
-            ctk.CTkLabel(normas_frame, text='Listado de Normas', font=FONT_SMALL, text_color=STYLE['texto_oscuro']).pack(anchor='w', pady=(0,4))
-            # Quitar el scroll del listado de normas para mostrarlas directamente
-            normas_list_frame = ctk.CTkFrame(normas_frame, fg_color='transparent')
-            normas_list_frame.pack(fill='both', expand=True, pady=(0,2))
-            # crear checkvariables
-            norma_checks = []
-            selected_normas = [n.strip() for n in (datos.get('norma') or '').split(',') if n.strip()] if datos else []
-            for nm in (normas_list or []):
-                try:
-                    var = ctk.StringVar(value='0')
-                    chk = ctk.CTkCheckBox(normas_list_frame, text=nm, variable=var, onvalue='1', offvalue='0')
-                    chk.pack(anchor='w', fill='x')
-                    # cuando cambie una norma, actualizar estados de inspectores
-                    try:
-                        var.trace_add('write', lambda *a: update_inspector_statuses())
-                    except Exception:
-                        pass
-                    if nm in selected_normas:
-                        try:
-                            var.set('1')
-                        except Exception:
-                            pass
-                    norma_checks.append((nm, var))
-                except Exception:
-                    continue
-            entries['_norma_checks'] = norma_checks
+        # schedule deferred population so modal appears immediately; use tiny delay and chunking
+        try:
+            modal.after(1, _populate_heavy_ui_chunked)
         except Exception:
-            pass
+            try:
+                _populate_heavy_ui_chunked()
+            except Exception:
+                pass
 
         # Frame para botones
         btn_frame = ctk.CTkFrame(main_frame, fg_color="transparent")
