@@ -44,7 +44,8 @@ class ControlFoliosAnual:
                     self.clientes = json.load(f)
                 print(f"✅ Clientes cargados: {len(self.clientes)} registros")
             else:
-                return False, f"No se encontró {clientes_path}"
+                print(f"⚠️ Advertencia: No se encontró {clientes_path}. Continuando con clientes vacíos.")
+                self.clientes = []
             
             # Cargar Firmas.json
             firmas_path = os.path.join(self.data_dir, "Firmas.json")
@@ -53,7 +54,8 @@ class ControlFoliosAnual:
                     self.firmas = json.load(f)
                 print(f"✅ Firmas cargadas: {len(self.firmas)} registros")
             else:
-                return False, f"No se encontró {firmas_path}"
+                print(f"⚠️ Advertencia: No se encontró {firmas_path}. Continuando con firmas vacías.")
+                self.firmas = []
             
             # Cargar tabla_de_relacion.json
             tabla_path = os.path.join(self.data_dir, "tabla_de_relacion.json")
@@ -62,7 +64,8 @@ class ControlFoliosAnual:
                     self.tabla_relacion = json.load(f)
                 print(f"✅ Tabla de relación cargada: {len(self.tabla_relacion)} registros")
             else:
-                return False, f"No se encontró {tabla_path}"
+                print(f"⚠️ Advertencia: No se encontró {tabla_path}. Continuando con tabla_de_relacion vacía.")
+                self.tabla_relacion = []
 
             # Cargar backups de tabla_relacion (cada visita genera una copia aquí)
             # y construir un mapeo (SOLICITUD, FOLIO) -> FECHA DE ENTRADA
@@ -642,11 +645,16 @@ class ControlFoliosAnual:
         if not fecha_inicio and not fecha_fin:
             return True
         
-        # Usar la fecha de verificación para filtrar
+        # Usar la fecha de verificación para filtrar. Si no existe, intentar otros campos.
         fecha_str = fila.get("FECHA DE VISITA (CUANDO APLIQUE)", "")
-        
+
+        # Si no hay fecha de visita, intentar usar fecha de documento emitido o fecha de desaduanamiento
         if not fecha_str or fecha_str == "N/A":
-            return False
+            fecha_str = fila.get("FECHA DE DOCUMENTO EMITIDO") or fila.get("FECHA DE DESADUANAMIENTO (CUANDO APLIQUE)") or fila.get("FECHA DE EMISION DE SOLICITUD")
+
+        # Si aún no hay fecha, incluir el registro (comportamiento más permisivo)
+        if not fecha_str or fecha_str == "N/A":
+            return True
         
         try:
             # Intentar parsear la fecha en diferentes formatos
@@ -1050,11 +1058,28 @@ def generar_control_folios_anual(
     fecha_inicio = normalizar(start_date)
     fecha_fin = normalizar(end_date)
 
+    # DEBUG: imprimir parámetros recibidos
+    try:
+        print(f"[DEBUG] generar_control_folios_anual called with:\n  historial_path={historial_path}\n  tabla_backups_dir={tabla_backups_dir}\n  output_path={output_path}\n  year={year}\n  start_date={start_date} -> {fecha_inicio}\n  end_date={end_date} -> {fecha_fin}\n  export_cache={export_cache}\n")
+    except Exception:
+        pass
+
     # Resolver data_dir: si se pasó explícitamente lo usamos, si no
     # lo calculamos desde el historial_path como antes.
     if not data_dir:
         base_dir = os.path.dirname(os.path.dirname(historial_path))
         data_dir = os.path.join(base_dir, "data")
+
+    try:
+        print(f"[DEBUG] Resolved data_dir: {data_dir}")
+        dicts_dir = os.path.join(data_dir, 'Dictamenes')
+        if os.path.exists(dicts_dir):
+            files = [f for f in os.listdir(dicts_dir) if f.lower().endswith('.json')]
+        else:
+            files = []
+        print(f"[DEBUG] Dictamenes files in {dicts_dir}: {len(files)}")
+    except Exception:
+        pass
 
     generador = ControlFoliosAnual(data_dir=data_dir)
 

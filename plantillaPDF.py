@@ -257,13 +257,27 @@ def preparar_datos_familia(
 
     r0 = registros[0]
 
-    # YEAR
-    year = datetime.now().strftime("%y")
-
     # FOLIO, SOLICITUD, LISTA
     folio = str(r0.get("FOLIO", "")).strip()
     solicitud_raw = str(r0.get("SOLICITUD", "")).strip()
-    solicitud = solicitud_raw.split("/")[0]
+    # Extraer año desde la solicitud si viene en formato 'NNNNNN/YY' y usar esos dos
+    # dígitos como `year`. Si no existe, usar el año actual (dos dígitos).
+    year = ''
+    try:
+        if '/' in solicitud_raw:
+            parts = solicitud_raw.split('/')
+            suf = parts[-1].strip()
+            if suf.isdigit():
+                year = suf[-2:]
+    except Exception:
+        year = ''
+    if not year:
+        year = datetime.now().strftime("%y")
+
+    # Solicitud: tomar la parte antes de '/' y formatearla a 6 dígitos si es numérica
+    solicitud = solicitud_raw.split('/')[0].strip()
+    if solicitud.isdigit():
+        solicitud = solicitud.zfill(6)
     lista = str(r0.get("LISTA", "")).strip()
 
     # NORMA
@@ -281,7 +295,9 @@ def preparar_datos_familia(
     else:
         print(f"⚠️ No se encontró la NOM para CLASIF UVA = {clasif}")
 
-    cadena_identificacion = f"{year}049UDC{norma}{folio} Solicitud de Servicio: {year}049USD{norma}{solicitud}-{lista}"
+    # Formatear folio a 6 dígitos para la cadena de identificación
+    folio_disp = folio.zfill(6) if folio and str(folio).isdigit() else folio
+    cadena_identificacion = f"{year}049UDC{norma}{folio_disp} Solicitud de Servicio: {year}049USD{norma}{solicitud}-{lista}"
 
     def fecha_corta(f):
         try:

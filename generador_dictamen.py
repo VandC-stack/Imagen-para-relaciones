@@ -651,15 +651,27 @@ class PDFGeneratorConDatos(PDFGenerator):
         canvas.setFont("Helvetica-Bold", 16)
         canvas.drawCentredString(8.5*inch/2, 11*inch-60, "DICTAMEN DE CUMPLIMIENTO")
         
-        year = datetime.now().strftime("%y")
+        # Preferir el `year` incluido en los datos del dictamen si existe (dos dígitos),
+        # en caso contrario usar el año actual.
+        year = str(self.datos.get('year', '')).strip()
+        if not year:
+            year = datetime.now().strftime("%y")
+        # Si viene como 4 dígitos, usar los últimos dos
+        if year and year.isdigit() and len(year) == 4:
+            year = year[-2:]
+
         norma = str(self.datos.get('norma', '')).strip()
         folio = str(self.datos.get('folio', '')).strip()
         solicitud = str(self.datos.get('solicitud', '')).strip()
         lista = str(self.datos.get('lista', '')).strip()
-        
-        # Formato folio a 6 dígitos: ${year}049UDC${norma}${folio} Solicitud de Servicio: ${year}049USD${norma}${solicitud}-${lista}
-        folio_formateado = f"{int(folio) if folio.isdigit() else 0:06d}"
-        solicitud_formateado = f"{int(solicitud) if solicitud.isdigit() else 0:06d}"
+
+        # Normalizar solicitud: si viene con '/', tomar parte antes del '/'
+        if '/' in solicitud:
+            solicitud = solicitud.split('/')[0].strip()
+
+        # Formato folio y solicitud a 6 dígitos cuando son numéricos
+        folio_formateado = folio.zfill(6) if folio.isdigit() else folio
+        solicitud_formateado = solicitud.zfill(6) if solicitud.isdigit() else solicitud
         linea_completa = f"{year}049UDC{norma}{folio_formateado}   Solicitud de Servicio: {year}049USD{norma}{solicitud_formateado}-{lista}"
         canvas.setFont("Helvetica", 9)
         canvas.drawCentredString(8.5*inch/2, 11*inch-80, linea_completa)
@@ -710,26 +722,31 @@ def convertir_dictamen_a_json(datos):
     Extrae solo los datos relevantes, excluyendo objetos binarios como imágenes.
     """
     # Construir cadena_identificacion asegurando folio y solicitud a 6 dígitos
-    year = str(datos.get("year", "")).strip()
     norma = str(datos.get("norma", "")).strip()
     folio_raw = str(datos.get("folio", "")).strip()
     solicitud_raw = str(datos.get("solicitud", "")).strip()
     lista = str(datos.get("lista", "")).strip()
 
-    # Extraer año desde la solicitud si está presente (p. ej. "006669/25")
+    # Extraer año desde la solicitud si está presente (p. ej. "006669/25").
+    # Preferimos el año indicado en la solicitud por encima del campo 'year'
     year_from_solicitud = ''
     try:
         if '/' in solicitud_raw:
             parts = solicitud_raw.split('/')
             suf = parts[-1].strip()
             if suf.isdigit():
+                # Tomar los dos últimos dígitos (p. ej. 2025 -> 25)
                 year_from_solicitud = suf[-2:]
     except Exception:
         year_from_solicitud = ''
 
-    if not year and year_from_solicitud:
+    # Determinar year definitivo: preferir el extraído desde la solicitud
+    if year_from_solicitud:
         year = year_from_solicitud
+    else:
+        year = str(datos.get("year", "")).strip()
 
+    # Si viene como 4 dígitos (ej. 2025), usar los últimos dos
     if year and year.isdigit() and len(year) == 4:
         year = year[-2:]
 
