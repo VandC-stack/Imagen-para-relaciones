@@ -3,7 +3,7 @@ import os, sys, uuid, shutil
 import json
 import pandas as pd
 import customtkinter as ctk
-from tkinter import filedialog, messagebox
+from tkinter import filedialog, messagebox, simpledialog
 from tkinter import ttk
 import tkinter as tk
 import threading
@@ -2960,16 +2960,7 @@ class SistemaDictamenesVC(ctk.CTk):
                     except Exception:
                         sugeridos_unicos = []
 
-                    # Si no hay sugerencias, mantener comportamiento anterior
-                    if not sugeridos_unicos:
-                        msg_lines.append("¿Desea abrir el editor de la visita para corregir los inspectores antes de generar?")
-                        if messagebox.askyesno("Inspectores no acreditados", "\n".join(msg_lines)):
-                            try:
-                                if visit_actual:
-                                    self.hist_editar_registro(visit_actual)
-                                    return
-                            except Exception:
-                                pass
+                    # Si no hay sugerencias, no interrumpir el flujo (se omite el diálogo)
                     else:
                         # Construir modal para seleccionar inspectores sugeridos
                         dlg = tk.Toplevel(self)
@@ -3498,7 +3489,13 @@ class SistemaDictamenesVC(ctk.CTk):
             data_dir = os.path.join(BASE_DIR, 'data')
             tabla_path = os.path.join(data_dir, 'tabla_de_relacion.json')
             if not os.path.exists(tabla_path):
-                messagebox.showwarning("Tabla no encontrada", "No se encontró data/tabla_de_relacion.json. Primero convierta/importe la tabla de relación.")
+                # Si no existe la tabla de relación, reservar el folio directamente
+                # usando los datos del formulario (comportamiento original).
+                try:
+                    self.guardar_folio_historial()
+                except Exception as e:
+                    # No interrumpir con un diálogo; registrar error y retornar
+                    print(f"[ERROR] reservar_folios_tabla -> guardar_folio_historial: {e}")
                 return
 
             with open(tabla_path, 'r', encoding='utf-8') as f:
