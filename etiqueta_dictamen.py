@@ -18,15 +18,62 @@ from reportlab.lib.utils import ImageReader
 
 class GeneradorEtiquetasDecathlon:
     def __init__(self):
-        # Detectar ruta base compatible con PyInstaller
-        base_path = getattr(sys, '_MEIPASS', os.path.abspath("."))
-        self.data_dir = os.path.join(base_path, "data")
+        # Detectar ruta de `data` en tres lugares (preferir carpeta junto al exe):
+        # 1) carpeta junto al ejecutable (APP_DIR / exe dir)
+        # 2) PyInstaller _MEIPASS (bundle interno)
+        # 3) directorio actual
+        exe_dir = None
+        try:
+            if getattr(sys, 'frozen', False):
+                exe_dir = os.path.dirname(sys.executable)
+        except Exception:
+            exe_dir = None
 
-        # Rutas completas
-        base_etiquetado_path = os.path.join(self.data_dir, "BASE_ETIQUETADO.json")
-        tabla_relacion_path = os.path.join(self.data_dir, "TABLA_DE_RELACION.json")
+        candidates = []
+        if exe_dir:
+            candidates.append(os.path.join(exe_dir, 'data'))
+        # _MEIPASS (if running from a bundle)
+        try:
+            meipass = getattr(sys, '_MEIPASS', None)
+            if meipass:
+                candidates.append(os.path.join(meipass, 'data'))
+        except Exception:
+            pass
+
+        candidates.append(os.path.join(os.path.abspath('.'), 'data'))
+
+        # Choose the first existing 'data' folder, otherwise fallback to first candidate
+        data_dir = None
+        for c in candidates:
+            try:
+                if os.path.isdir(c):
+                    data_dir = c
+                    break
+            except Exception:
+                continue
+        if data_dir is None:
+            data_dir = candidates[0]
+
+        self.data_dir = data_dir
+
+        # Rutas completas (resolviendo posibles variantes de nombre de archivo)
+        base_etiquetado_path = None
+        for name in ("BASE_ETIQUETADO.json", "base_etiquetado.json", "Base_Etiquetado.json"):
+            p = os.path.join(self.data_dir, name)
+            if os.path.exists(p):
+                base_etiquetado_path = p
+                break
+
+        tabla_relacion_path = None
+        for name in ("TABLA_DE_RELACION.json", "tabla_de_relacion.json", "tabla_relacion.json"):
+            p = os.path.join(self.data_dir, name)
+            if os.path.exists(p):
+                tabla_relacion_path = p
+                break
+
         config_etiquetas_path = os.path.join(self.data_dir, "config_etiquetas.json")
 
+        # Pasar None si no existen; la función `cargar_datos` manejará la ausencia
         self.cargar_datos(base_etiquetado_path, tabla_relacion_path)
         self.configuraciones = self.cargar_configuraciones(config_etiquetas_path)
         self.mapeo_norma_uva = self.crear_mapeo_norma_uva()
@@ -34,11 +81,21 @@ class GeneradorEtiquetasDecathlon:
     def cargar_datos(self, base_etiquetado_path, tabla_relacion_path):
         """Carga los datos de la base de etiquetado y tabla de relación"""
         try:
-            with open(base_etiquetado_path, 'r', encoding='utf-8') as f:
-                self.base_etiquetado = json.load(f)
-            with open(tabla_relacion_path, 'r', encoding='utf-8') as f:
-                self.tabla_relacion = json.load(f)
-            print("✅ Archivos JSON cargados correctamente")
+            if base_etiquetado_path and os.path.exists(base_etiquetado_path):
+                with open(base_etiquetado_path, 'r', encoding='utf-8') as f:
+                    self.base_etiquetado = json.load(f)
+            else:
+                print(f"⚠️ BASE_ETIQUETADO no encontrado en {self.data_dir}")
+                self.base_etiquetado = []
+
+            if tabla_relacion_path and os.path.exists(tabla_relacion_path):
+                with open(tabla_relacion_path, 'r', encoding='utf-8') as f:
+                    self.tabla_relacion = json.load(f)
+            else:
+                print(f"⚠️ TABLA_DE_RELACION no encontrada en {self.data_dir}")
+                self.tabla_relacion = []
+
+            print("✅ Archivos JSON procesados (si existían)")
         except Exception as e:
             print(f"❌ Error cargando archivos: {e}")
             self.base_etiquetado = []

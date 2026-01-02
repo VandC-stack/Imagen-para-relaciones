@@ -42,6 +42,13 @@ if getattr(sys, 'frozen', False):
 else:
     BASE_DIR = os.path.abspath(os.path.dirname(__file__))
 
+# Directorio de la aplicación (donde queremos crear la carpeta `data` cuando
+# se ejecute el .exe). En ejecución congelada, `sys.executable` apunta al .exe.
+if getattr(sys, 'frozen', False):
+    APP_DIR = os.path.dirname(sys.executable)
+else:
+    APP_DIR = os.path.abspath(os.path.dirname(__file__))
+
 
 class SistemaDictamenesVC(ctk.CTk):
     # --- PAGINACIÓN HISTORIAL ---
@@ -55,6 +62,20 @@ class SistemaDictamenesVC(ctk.CTk):
         self.title("Generador de Dictámenes")
         self.geometry("1275x600")
         self.minsize(1275, 600)
+        # Establecer icono de la ventana si existe
+        try:
+            icon_path = os.path.join(APP_DIR, 'img', 'icono.ico')
+            if os.path.exists(icon_path):
+                try:
+                    self.iconbitmap(icon_path)
+                except Exception:
+                    try:
+                        img_icon = tk.PhotoImage(file=icon_path)
+                        self.iconphoto(False, img_icon)
+                    except Exception:
+                        pass
+        except Exception:
+            pass
         ctk.set_appearance_mode("light")
         self.configure(fg_color=STYLE["fondo"])
 
@@ -74,15 +95,58 @@ class SistemaDictamenesVC(ctk.CTk):
         # ===== NUEVAS VARIABLES PARA HISTORIAL =====
         self.historial_data = []
         self.historial_data_original = []
-        self.historial_path = os.path.join(BASE_DIR, "data", "historial_visitas.json")
+        self.historial_path = os.path.join(APP_DIR, "data", "historial_visitas.json")
         
         # INICIALIZAR self.historial COMO DICCIONARIO
         self.historial = {"visitas": []}
 
         # ===== NUEVA VARIABLE PARA FOLIOS POR VISITA =====
-        # Crear directorios necesarios
-        data_dir = os.path.join(BASE_DIR, "data")
-        os.makedirs(data_dir, exist_ok=True)
+        # Crear directorios necesarios. Usar `APP_DIR` para que la carpeta
+        # `data` se cree junto al ejecutable cuando esté generado.
+        data_dir = os.path.join(APP_DIR, "data")
+        # Si estamos en un ejecutable congelado y no existe la carpeta externa
+        # `APP_DIR/data`, extraer (copiar) la carpeta `data` embebida dentro
+        # del bundle (BASE_DIR apunta a sys._MEIPASS cuando está congelado).
+        if getattr(sys, 'frozen', False):
+            try:
+                # asegúrate de que exista data
+                if not os.path.exists(data_dir):
+                    embedded_data = os.path.join(BASE_DIR, 'data')
+                    if os.path.exists(embedded_data):
+                        try:
+                            shutil.copytree(embedded_data, data_dir)
+                        except Exception:
+                            os.makedirs(data_dir, exist_ok=True)
+                    else:
+                        os.makedirs(data_dir, exist_ok=True)
+
+                # Asegurar que otros recursos estén disponibles junto al exe.
+                resource_folders = [
+                    'Plantillas PDF',
+                    'Pegado de Evidenvia Fotografica',
+                    'Documentos Inspeccion',
+                    'Firmas',
+                    'img'
+                ]
+                for rf in resource_folders:
+                    src = os.path.join(BASE_DIR, rf)
+                    dst = os.path.join(APP_DIR, rf)
+                    if not os.path.exists(dst) and os.path.exists(src):
+                        try:
+                            shutil.copytree(src, dst)
+                        except Exception:
+                            # fallback: create directory
+                            try:
+                                os.makedirs(dst, exist_ok=True)
+                            except Exception:
+                                pass
+            except Exception:
+                try:
+                    os.makedirs(data_dir, exist_ok=True)
+                except Exception:
+                    pass
+        else:
+            os.makedirs(data_dir, exist_ok=True)
         
         self.folios_visita_path = os.path.join(data_dir, "folios_visitas")
         os.makedirs(self.folios_visita_path, exist_ok=True)
@@ -90,6 +154,8 @@ class SistemaDictamenesVC(ctk.CTk):
         self.pending_folios = []
         try:
             self._load_pending_folios()
+            # Iniciar watcher para detectar cambios externos en pending_folios.json
+            self._start_pending_folios_watcher()
         except Exception:
             self.pending_folios = []
         # Directorio donde están los generadores/documentos (ReportLab, tablas, etc.)
@@ -1526,7 +1592,7 @@ class SistemaDictamenesVC(ctk.CTk):
         y el combobox `self.combo_cliente` se rellena con los nombres detectados.
         """
         posibles_rutas = [
-            os.path.join(BASE_DIR, 'data', 'Clientes.json'),
+            os.path.join(APP_DIR, 'data', 'Clientes.json'),
             os.path.join(BASE_DIR, 'Clientes.json'),
             'data/Clientes.json',
             'Clientes.json',
@@ -1852,7 +1918,7 @@ class SistemaDictamenesVC(ctk.CTk):
 
             registros = df.to_dict(orient="records")
 
-            data_dir = os.path.join(BASE_DIR, "data")
+            data_dir = os.path.join(APP_DIR, "data")
             os.makedirs(data_dir, exist_ok=True)
 
             output_json = os.path.join(data_dir, "base_etiquetado.json")
@@ -2401,7 +2467,7 @@ class SistemaDictamenesVC(ctk.CTk):
                 print(f"⚠️ Error asignando folios automáticos secuenciales: {e}")
 
 
-            data_folder = os.path.join(BASE_DIR, "data")
+            data_folder = os.path.join(APP_DIR, "data")
             os.makedirs(data_folder, exist_ok=True)
 
             self.json_filename = "tabla_de_relacion.json"
@@ -2748,7 +2814,7 @@ class SistemaDictamenesVC(ctk.CTk):
         self.etiqueta_progreso.configure(text="")
 
         try:
-            data_dir = os.path.join(BASE_DIR, "data")
+            data_dir = os.path.join(APP_DIR, "data")
             
             archivos_a_eliminar = [
                 "base_etiquetado.json",
@@ -2893,7 +2959,7 @@ class SistemaDictamenesVC(ctk.CTk):
                 if visit_actual and normas_en_datos:
                     # cargar Firmas.json para mapa nombre->normas
                     try:
-                        firmas_path = os.path.join(BASE_DIR, 'data', 'Firmas.json')
+                        firmas_path = os.path.join(APP_DIR, 'data', 'Firmas.json')
                         with open(firmas_path, 'r', encoding='utf-8') as ff:
                             firmas_data = json.load(ff)
                     except Exception:
@@ -2960,104 +3026,12 @@ class SistemaDictamenesVC(ctk.CTk):
                     except Exception:
                         sugeridos_unicos = []
 
-                    # Si no hay sugerencias, no interrumpir el flujo (se omite el diálogo)
-                    else:
-                        # Construir modal para seleccionar inspectores sugeridos
-                        dlg = tk.Toplevel(self)
-                        dlg.title("Seleccionar inspectores sugeridos")
-                        dlg.geometry("600x420")
-                        dlg.transient(self)
-                        dlg.grab_set()
-
-                        tk.Label(dlg, text="Se detectaron conflictos de acreditación:", font=(None, 10, 'bold')).pack(anchor='w', padx=12, pady=(8,4))
-                        text = tk.Text(dlg, height=6, wrap='word')
-                        text.insert('1.0', "\n".join(msg_lines))
-                        text.configure(state='disabled')
-                        text.pack(fill='both', padx=12, pady=(0,8), expand=False)
-
-                        tk.Label(dlg, text="Seleccione uno o más inspectores sugeridos para aplicar a la visita:", anchor='w').pack(anchor='w', padx=12)
-                        frame_checks = tk.Frame(dlg)
-                        frame_checks.pack(fill='both', padx=12, pady=(6,6), expand=True)
-
-                        check_vars = []
-                        for name in sugeridos_unicos:
-                            var = tk.BooleanVar(value=False)
-                            cb = tk.Checkbutton(frame_checks, text=name, variable=var, anchor='w')
-                            cb.pack(anchor='w')
-                            check_vars.append((name, var))
-
-                        # Radio: modo aplicar
-                        modo_var = tk.StringVar(value='append')
-                        modo_frame = tk.Frame(dlg)
-                        modo_frame.pack(fill='x', padx=12, pady=(6,4))
-                        tk.Label(modo_frame, text='Modo:').pack(side='left')
-                        tk.Radiobutton(modo_frame, text='Añadir a inspectores asignados', variable=modo_var, value='append').pack(side='left', padx=6)
-                        tk.Radiobutton(modo_frame, text='Reemplazar inspectores asignados', variable=modo_var, value='replace').pack(side='left', padx=6)
-
-                        btn_frame = tk.Frame(dlg)
-                        btn_frame.pack(fill='x', padx=12, pady=10)
-
-                        result = {'action': None, 'selected': []}
-
-                        def _apply_and_continue():
-                            sel = [n for n, v in check_vars if v.get()]
-                            result['action'] = 'apply'
-                            result['selected'] = sel
-                            dlg.destroy()
-
-                        def _skip_and_continue():
-                            result['action'] = 'skip'
-                            dlg.destroy()
-
-                        def _cancel():
-                            result['action'] = 'cancel'
-                            dlg.destroy()
-
-                        tk.Button(btn_frame, text='Aplicar y continuar', command=_apply_and_continue).pack(side='left')
-                        tk.Button(btn_frame, text='Omitir y continuar', command=_skip_and_continue).pack(side='left', padx=8)
-                        tk.Button(btn_frame, text='Cancelar', command=_cancel).pack(side='right')
-
-                        # Esperar cierre modal
-                        self.wait_window(dlg)
-
-                        if result.get('action') == 'cancel':
-                            return
-
-                        if result.get('action') == 'apply' and result.get('selected'):
-                            chosen = result.get('selected')
-                            # Calcular nuevos supervisores según el modo
-                            try:
-                                existing_assigned = [s.strip() for s in str(assigned_raw).split(',') if s.strip()]
-                            except Exception:
-                                existing_assigned = []
-                            if modo_var.get() == 'replace':
-                                new_list = chosen
-                            else:
-                                new_list = existing_assigned.copy()
-                                for c in chosen:
-                                    if c and c not in new_list:
-                                        new_list.append(c)
-
-                            joined_new = ', '.join(new_list)
-                            # Actualizar visita en el historial (si existe)
-                            try:
-                                if visit_actual:
-                                    id_for_update = visit_actual.get('_id') or visit_actual.get('id') or visit_actual.get('folio_visita') or visit_actual.get('folio_acta')
-                                    nuevos = {'supervisores_tabla': joined_new, 'nfirma1': joined_new}
-                                    try:
-                                        self.hist_update_visita(id_for_update, nuevos)
-                                    except Exception:
-                                        # fallback: modificar en memoria y guardar
-                                        visit_actual['supervisores_tabla'] = joined_new
-                                        visit_actual['nfirma1'] = joined_new
-                                        try:
-                                            self._guardar_historial()
-                                        except Exception:
-                                            pass
-                            except Exception:
-                                pass
-                            # continuar a confirmación
-                        # si skip o no se eligieron, continuar normalmente
+                    # No abrir interfaz modal: registrar sugerencias en log y continuar.
+                    if sugeridos_unicos:
+                        try:
+                            print("[ADVERTENCIA] Inspectores sugeridos detectados:", ", ".join(sugeridos_unicos))
+                        except Exception:
+                            pass
 
             except Exception:
                 # en caso de errores en la validación, continuar con confirmación normal
@@ -3193,7 +3167,7 @@ class SistemaDictamenesVC(ctk.CTk):
 
                                 # Eliminar de archivo de reservas
                                 try:
-                                    pf = os.path.join(BASE_DIR, 'data', 'pending_folios.json')
+                                    pf = os.path.join(APP_DIR, 'data', 'pending_folios.json')
                                     if os.path.exists(pf):
                                         with open(pf, 'r', encoding='utf-8') as f:
                                             arr = json.load(f) or []
@@ -3435,7 +3409,7 @@ class SistemaDictamenesVC(ctk.CTk):
                 pass
             # Persistir también en archivo de reservas (pending_folios.json)
             try:
-                pf_path = os.path.join(BASE_DIR, 'data', 'pending_folios.json')
+                pf_path = os.path.join(APP_DIR, 'data', 'pending_folios.json')
                 arr = []
                 if os.path.exists(pf_path):
                     try:
@@ -3486,7 +3460,7 @@ class SistemaDictamenesVC(ctk.CTk):
         `data/tabla_de_relacion.json` asignando un folio por familia (LISTA).
         """
         try:
-            data_dir = os.path.join(BASE_DIR, 'data')
+            data_dir = os.path.join(APP_DIR, 'data')
             tabla_path = os.path.join(data_dir, 'tabla_de_relacion.json')
             if not os.path.exists(tabla_path):
                 # Si no existe la tabla de relación, reservar el folio directamente
@@ -3736,13 +3710,27 @@ class SistemaDictamenesVC(ctk.CTk):
                 base_dir = None
 
             try:
-                # Si estamos en un ejecutable congelado (PyInstaller) o el directorio no es escribible,
-                # redirigir a APPDATA\GeneradorDictamenes para persistencia.
-                if getattr(sys, 'frozen', False) or (base_dir and not os.access(base_dir, os.W_OK)):
+                # Si estamos en un ejecutable congelado (PyInstaller), preferir escribir
+                # en APP_DIR/data (carpeta junto al exe) para que los archivos sean visibles
+                # al usuario. Solo si eso falla, redirigir a APPDATA.
+                if getattr(sys, 'frozen', False):
+                    try:
+                        app_data_dir = os.path.join(APP_DIR, 'data')
+                        os.makedirs(app_data_dir, exist_ok=True)
+                        if os.access(app_data_dir, os.W_OK):
+                            target_path = os.path.join(app_data_dir, os.path.basename(self.historial_path))
+                            self.historial_path = target_path
+                        else:
+                            raise Exception("No write access to APP_DIR/data")
+                    except Exception:
+                        alt_base = os.path.join(os.environ.get('APPDATA', os.path.expanduser('~')), 'GeneradorDictamenes')
+                        os.makedirs(alt_base, exist_ok=True)
+                        target_path = os.path.join(alt_base, os.path.basename(self.historial_path))
+                        self.historial_path = target_path
+                elif base_dir and not os.access(base_dir, os.W_OK):
                     alt_base = os.path.join(os.environ.get('APPDATA', os.path.expanduser('~')), 'GeneradorDictamenes')
                     os.makedirs(alt_base, exist_ok=True)
                     target_path = os.path.join(alt_base, os.path.basename(self.historial_path))
-                    # actualizar historial_path para futuras operaciones
                     self.historial_path = target_path
             except Exception:
                 target_path = self.historial_path
@@ -4199,7 +4187,7 @@ class SistemaDictamenesVC(ctk.CTk):
                         return
 
                     # Preferir el backup más reciente en data/tabla_relacion_backups si existe
-                    data_dir_local = os.path.join(BASE_DIR, 'data')
+                    data_dir_local = os.path.join(APP_DIR, 'data')
                     backups_dir = os.path.join(data_dir_local, 'tabla_relacion_backups')
                     tabla_dest = os.path.join(data_dir_local, 'tabla_de_relacion.json')
 
@@ -4270,7 +4258,7 @@ class SistemaDictamenesVC(ctk.CTk):
                     return
 
                 # Asegurar que usamos el backup más reciente para tabla_de_relacion
-                data_dir_local = os.path.join(BASE_DIR, 'data')
+                data_dir_local = os.path.join(APP_DIR, 'data')
                 backups_dir = os.path.join(data_dir_local, 'tabla_relacion_backups')
                 tabla_dest = os.path.join(data_dir_local, 'tabla_de_relacion.json')
 
@@ -4795,7 +4783,7 @@ class SistemaDictamenesVC(ctk.CTk):
                                 except Exception:
                                     # Fallback atómico directo al archivo si folio_manager falla
                                     try:
-                                        counter_path = os.path.join(BASE_DIR, 'data', 'folio_counter.json')
+                                        counter_path = os.path.join(APP_DIR, 'data', 'folio_counter.json')
                                         tmp = counter_path + '.tmp'
                                         with open(tmp, 'w', encoding='utf-8') as tf:
                                             json.dump({'last': int(safe_max)}, tf)
@@ -4977,7 +4965,7 @@ class SistemaDictamenesVC(ctk.CTk):
                     pendientes_source = list(self.pending_folios)
                 else:
                     # intentar leer archivo
-                    pf = os.path.join(BASE_DIR, 'data', 'pending_folios.json')
+                    pf = os.path.join(APP_DIR, 'data', 'pending_folios.json')
                     if os.path.exists(pf):
                         with open(pf, 'r', encoding='utf-8') as f:
                             pendientes_source = json.load(f) or []
@@ -5310,7 +5298,7 @@ class SistemaDictamenesVC(ctk.CTk):
 
             # También eliminar de archivo de reservas si existe
             try:
-                pf_path = os.path.join(BASE_DIR, 'data', 'pending_folios.json')
+                pf_path = os.path.join(APP_DIR, 'data', 'pending_folios.json')
                 if os.path.exists(pf_path):
                     with open(pf_path, 'r', encoding='utf-8') as f:
                         arr = json.load(f) or []
@@ -5364,31 +5352,114 @@ class SistemaDictamenesVC(ctk.CTk):
     def _load_pending_folios(self):
         """Carga las reservas desde data/pending_folios.json en `self.pending_folios`."""
         try:
-            pf = os.path.join(BASE_DIR, 'data', 'pending_folios.json')
-            if os.path.exists(pf):
-                with open(pf, 'r', encoding='utf-8') as f:
-                    arr = json.load(f) or []
-                    self.pending_folios = [r for r in arr if isinstance(r, dict)]
-            else:
-                self.pending_folios = []
+            arr = self._read_pending_folios_disk()
+            self.pending_folios = arr
         except Exception as e:
             print(f"[WARN] Error cargando pending_folios.json: {e}")
             self.pending_folios = []
 
     def _save_pending_folios(self):
-        """Guarda `self.pending_folios` en data/pending_folios.json."""
+        """Guarda `self.pending_folios` en data/pending_folios.json con lock y escritura atómica."""
+        pf = os.path.join(APP_DIR, 'data', 'pending_folios.json')
+        lock_path = pf + '.lock'
+        fd = None
         try:
-            pf = os.path.join(BASE_DIR, 'data', 'pending_folios.json')
-            with open(pf, 'w', encoding='utf-8') as f:
+            fd = self._acquire_file_lock(lock_path, timeout=3.0)
+            tmp_path = pf + '.tmp'
+            with open(tmp_path, 'w', encoding='utf-8') as f:
                 json.dump(self.pending_folios or [], f, ensure_ascii=False, indent=2)
+                f.flush()
+                try:
+                    os.fsync(f.fileno())
+                except Exception:
+                    pass
+            try:
+                os.replace(tmp_path, pf)
+            except Exception:
+                try:
+                    shutil.copy2(tmp_path, pf)
+                except Exception:
+                    pass
+            try:
+                self._pending_folios_last = json.dumps(self.pending_folios or [], sort_keys=True)
+            except Exception:
+                pass
         except Exception as e:
             print(f"[WARN] Error guardando pending_folios.json: {e}")
+        finally:
+            try:
+                if fd:
+                    self._release_file_lock(fd, lock_path)
+            except Exception:
+                pass
+
+    def _read_pending_folios_disk(self, timeout=2.0):
+        """Lee `pending_folios.json` desde disco usando lock. Devuelve lista de dicts."""
+        pf = os.path.join(APP_DIR, 'data', 'pending_folios.json')
+        lock_path = pf + '.lock'
+        try:
+            fd = self._acquire_file_lock(lock_path, timeout=timeout)
+            try:
+                if os.path.exists(pf):
+                    with open(pf, 'r', encoding='utf-8') as f:
+                        arr = json.load(f) or []
+                        return [r for r in arr if isinstance(r, dict)]
+                else:
+                    return []
+            finally:
+                try:
+                    self._release_file_lock(fd, lock_path)
+                except Exception:
+                    pass
+        except Exception:
+            # Fallback: leer sin lock si no se pudo adquirir
+            try:
+                if os.path.exists(pf):
+                    with open(pf, 'r', encoding='utf-8') as f:
+                        arr = json.load(f) or []
+                        return [r for r in arr if isinstance(r, dict)]
+            except Exception:
+                pass
+            return []
+
+    def _start_pending_folios_watcher(self):
+        """Inicia un polling cada 5s para detectar cambios externos en pending_folios.json."""
+        try:
+            self._pending_folios_last = json.dumps(self.pending_folios or [], sort_keys=True)
+        except Exception:
+            self._pending_folios_last = None
+        try:
+            self.after(5000, self._pending_folios_watcher_tick)
+        except Exception:
+            pass
+
+    def _pending_folios_watcher_tick(self):
+        try:
+            new = self._read_pending_folios_disk(timeout=1.0)
+            try:
+                new_s = json.dumps(new or [], sort_keys=True)
+            except Exception:
+                new_s = None
+            if new_s != getattr(self, '_pending_folios_last', None):
+                self.pending_folios = new
+                try:
+                    self._refresh_pending_folios_dropdown()
+                except Exception:
+                    pass
+                self._pending_folios_last = new_s
+        except Exception:
+            pass
+        finally:
+            try:
+                self.after(5000, self._pending_folios_watcher_tick)
+            except Exception:
+                pass
 
     # ----------------- Config y export persistente -----------------
     def _cargar_config_exportacion(self):
         """Carga o crea la configuración persistente para las exportaciones Excel."""
         try:
-            data_folder = os.path.join(BASE_DIR, "data")
+            data_folder = os.path.join(APP_DIR, "data")
             os.makedirs(data_folder, exist_ok=True)
             cfg_path = os.path.join(data_folder, 'excel_export_config.json')
             if not os.path.exists(cfg_path):
@@ -5405,6 +5476,22 @@ class SistemaDictamenesVC(ctk.CTk):
             else:
                 with open(cfg_path, 'r', encoding='utf-8') as f:
                     self.excel_export_config = json.load(f)
+            # Normalizar rutas: si alguna apunta a una ubicación inexistente,
+            # buscarla en APP_DIR/data y reemplazarla para usar la carpeta externa.
+            try:
+                for key in ('tabla_de_relacion', 'clientes', 'export_cache', 'tabla_backups_dir'):
+                    val = self.excel_export_config.get(key)
+                    if val and not os.path.exists(val):
+                        candidate = os.path.join(APP_DIR, 'data', os.path.basename(val))
+                        if os.path.exists(candidate):
+                            self.excel_export_config[key] = candidate
+                        else:
+                            # special case: backups dir should be a directory
+                            if key == 'tabla_backups_dir':
+                                candidate_dir = os.path.join(APP_DIR, 'data', os.path.basename(val) if os.path.basename(val) else 'tabla_relacion_backups')
+                                self.excel_export_config[key] = candidate_dir
+            except Exception:
+                pass
             # Ensure directories exist
             os.makedirs(os.path.dirname(self.excel_export_config.get('tabla_de_relacion','') or data_folder), exist_ok=True)
             os.makedirs(self.excel_export_config.get('tabla_backups_dir', data_folder), exist_ok=True)
@@ -5414,7 +5501,7 @@ class SistemaDictamenesVC(ctk.CTk):
 
     def _guardar_config_exportacion(self):
         try:
-            data_folder = os.path.join(BASE_DIR, "data")
+            data_folder = os.path.join(APP_DIR, "data")
             cfg_path = os.path.join(data_folder, 'excel_export_config.json')
             with open(cfg_path, 'w', encoding='utf-8') as f:
                 json.dump(self.excel_export_config, f, ensure_ascii=False, indent=2)
@@ -5424,7 +5511,7 @@ class SistemaDictamenesVC(ctk.CTk):
     def _generar_datos_exportable(self):
         """Genera y persiste un JSON consolidado que será la fuente para las exportaciones EMA y anual."""
         try:
-            data_folder = os.path.join(BASE_DIR, "data")
+            data_folder = os.path.join(APP_DIR, "data")
             tabla_path = self.excel_export_config.get('tabla_de_relacion') or os.path.join(data_folder, 'tabla_de_relacion.json')
             clientes_path = self.excel_export_config.get('clientes') or os.path.join(data_folder, 'Clientes.json')
             export_cache = self.excel_export_config.get('export_cache') or os.path.join(data_folder, 'excel_export_data.json')
@@ -5858,7 +5945,7 @@ class SistemaDictamenesVC(ctk.CTk):
             
             # 2. ELIMINAR ARCHIVOS DE TABLA RELACIÓN BACKUP
             tabla_relacion_backup_dir = os.path.join(
-                BASE_DIR, "data", "tabla_relacion_backups"
+                APP_DIR, "data", "tabla_relacion_backups"
             )
             if os.path.exists(tabla_relacion_backup_dir):
                 try:
@@ -5923,7 +6010,7 @@ class SistemaDictamenesVC(ctk.CTk):
             # Verificar carpetas
             carpetas = [
                 os.path.join(self.folios_visita_path, f"folios_{folio}.json"),
-                os.path.join(BASE_DIR, "data", "tabla_relacion_backups")
+                os.path.join(APP_DIR, "data", "tabla_relacion_backups")
             ]
             
             for carpeta in carpetas:
@@ -5946,7 +6033,7 @@ class SistemaDictamenesVC(ctk.CTk):
     def _registrar_operacion(self, tipo_operacion, folio, status, detalles=""):
         """Registra todas las operaciones para auditoría y persistencia"""
         try:
-            log_path = os.path.join(BASE_DIR, "data", "operaciones_log.json")
+            log_path = os.path.join(APP_DIR, "data", "operaciones_log.json")
             
             # Cargar log existente o crear uno nuevo
             if os.path.exists(log_path):
@@ -6042,11 +6129,11 @@ class SistemaDictamenesVC(ctk.CTk):
                         except Exception:
                             pass
 
-                tabla_relacion_path = os.path.join(BASE_DIR, 'data', 'tabla_de_relacion.json')
+                tabla_relacion_path = os.path.join(APP_DIR, 'data', 'tabla_de_relacion.json')
                 if os.path.exists(tabla_relacion_path):
                     # Hacer backup antes de modificar
                     try:
-                        backup_dir = os.path.join(BASE_DIR, 'data', 'tabla_relacion_backups')
+                        backup_dir = os.path.join(APP_DIR, 'data', 'tabla_relacion_backups')
                         os.makedirs(backup_dir, exist_ok=True)
                         ts = datetime.now().strftime('%Y%m%d%H%M%S')
                         shutil.copyfile(tabla_relacion_path, os.path.join(backup_dir, f"tabla_de_relacion_{folio}_{ts}.json"))
@@ -6088,7 +6175,7 @@ class SistemaDictamenesVC(ctk.CTk):
 
                         # Eliminar backups relacionados con este folio en tabla_relacion_backups
                         try:
-                            backup_dir = os.path.join(BASE_DIR, 'data', 'tabla_relacion_backups')
+                            backup_dir = os.path.join(APP_DIR, 'data', 'tabla_relacion_backups')
                             if os.path.exists(backup_dir):
                                 deleted_backups = []
                                 for bfn in os.listdir(backup_dir):
@@ -6155,7 +6242,7 @@ class SistemaDictamenesVC(ctk.CTk):
 
                 # También comprobar tabla_de_relacion.json por si quedan folios ahí
                 try:
-                    tabla_relacion_path = os.path.join(BASE_DIR, 'data', 'tabla_de_relacion.json')
+                    tabla_relacion_path = os.path.join(APP_DIR, 'data', 'tabla_de_relacion.json')
                     if os.path.exists(tabla_relacion_path):
                         with open(tabla_relacion_path, 'r', encoding='utf-8') as tf:
                             tabla = json.load(tf) or []
@@ -6264,7 +6351,7 @@ class SistemaDictamenesVC(ctk.CTk):
                         need_addr = not payload.get('direccion') or not payload.get('calle_numero')
                         cliente_nombre = payload.get('cliente') or ''
                         if need_addr and cliente_nombre:
-                            clientes_path = os.path.join(BASE_DIR, 'data', 'Clientes.json')
+                            clientes_path = os.path.join(APP_DIR, 'data', 'Clientes.json')
                             if os.path.exists(clientes_path):
                                 try:
                                     with open(clientes_path, 'r', encoding='utf-8') as cf:
@@ -6516,7 +6603,7 @@ class SistemaDictamenesVC(ctk.CTk):
                         need_addr = not actualizado.get('direccion') or not actualizado.get('calle_numero')
                         cliente_nombre = actualizado.get('cliente') or ''
                         if need_addr and cliente_nombre:
-                            clientes_path = os.path.join(BASE_DIR, 'data', 'Clientes.json')
+                            clientes_path = os.path.join(APP_DIR, 'data', 'Clientes.json')
                             if os.path.exists(clientes_path):
                                 try:
                                     with open(clientes_path, 'r', encoding='utf-8') as cf:
@@ -6694,9 +6781,9 @@ class SistemaDictamenesVC(ctk.CTk):
                     self.guardar_folios_visita(folio_visita, datos_tabla, persist_counter=persist_flag)
                     # Crear respaldo persistente de la tabla_de_relacion para visitas generadas
                     try:
-                        tabla_relacion_path = os.path.join(BASE_DIR, 'data', 'tabla_de_relacion.json')
+                        tabla_relacion_path = os.path.join(APP_DIR, 'data', 'tabla_de_relacion.json')
                         if os.path.exists(tabla_relacion_path):
-                            backup_dir = os.path.join(BASE_DIR, 'data', 'tabla_relacion_backups')
+                            backup_dir = os.path.join(APP_DIR, 'data', 'tabla_relacion_backups')
                             os.makedirs(backup_dir, exist_ok=True)
                             ts = datetime.now().strftime('%Y%m%d%H%M%S')
                             # Marcar como PERSIST para que no sea eliminado por limpiar
@@ -6748,7 +6835,7 @@ class SistemaDictamenesVC(ctk.CTk):
             
             if datos_tabla:
                 # Cargar el archivo de normas
-                normas_path = os.path.join(BASE_DIR, "data", "Normas.json")
+                normas_path = os.path.join(APP_DIR, "data", "Normas.json")
                 
                 if os.path.exists(normas_path):
                     with open(normas_path, 'r', encoding='utf-8') as f:
@@ -6799,7 +6886,7 @@ class SistemaDictamenesVC(ctk.CTk):
             
             if datos_tabla:
                 # Cargar el archivo de firmas
-                firmas_path = os.path.join(BASE_DIR, "data", "Firmas.json")
+                firmas_path = os.path.join(APP_DIR, "data", "Firmas.json")
                 
                 # Prepare mapping dict even if file missing
                 firmas_mapeadas = {}
@@ -6901,7 +6988,7 @@ class SistemaDictamenesVC(ctk.CTk):
         self.etiqueta_progreso.configure(text="")
 
         try:
-            data_dir = os.path.join(BASE_DIR, "data")
+            data_dir = os.path.join(APP_DIR, "data")
             
             # Archivos a eliminar (pero NO los de folios_visitas)
             archivos_a_eliminar = [
@@ -6994,7 +7081,7 @@ class SistemaDictamenesVC(ctk.CTk):
         selected_address_raw = {}
         # Cargar listas de normas e inspectores para helpers del modal
         try:
-            normas_path = os.path.join(BASE_DIR, 'data', 'Normas.json')
+            normas_path = os.path.join(APP_DIR, 'data', 'Normas.json')
             if os.path.exists(normas_path):
                 with open(normas_path, 'r', encoding='utf-8') as nf:
                     normas_data = json.load(nf)
@@ -7005,7 +7092,7 @@ class SistemaDictamenesVC(ctk.CTk):
             normas_list = []
 
         try:
-            firmas_path = os.path.join(BASE_DIR, 'data', 'Firmas.json')
+            firmas_path = os.path.join(APP_DIR, 'data', 'Firmas.json')
             if os.path.exists(firmas_path):
                 with open(firmas_path, 'r', encoding='utf-8') as ff:
                     firmas_data = json.load(ff)
@@ -7997,7 +8084,7 @@ class SistemaDictamenesVC(ctk.CTk):
     def _load_evidence_paths(self):
         """Carga el archivo `data/evidence_paths.json` si existe."""
         try:
-            data_file = os.path.join(BASE_DIR, "data", "evidence_paths.json")
+            data_file = os.path.join(APP_DIR, "data", "evidence_paths.json")
             if os.path.exists(data_file):
                 with open(data_file, "r", encoding="utf-8") as f:
                     return json.load(f)
@@ -8007,7 +8094,7 @@ class SistemaDictamenesVC(ctk.CTk):
 
     def _save_evidence_path(self, group, path):
         """Guarda la ruta `path` bajo la clave `group` en `data/evidence_paths.json`."""
-        data_file = os.path.join(BASE_DIR, "data", "evidence_paths.json")
+        data_file = os.path.join(APP_DIR, "data", "evidence_paths.json")
         os.makedirs(os.path.dirname(data_file), exist_ok=True)
         data = self._load_evidence_paths() or {}
         existing = data.get(group, [])
@@ -8078,15 +8165,31 @@ class SistemaDictamenesVC(ctk.CTk):
 
     # ------------------ PEGADO EVIDENCIAS (botones UI) ------------------
     def _run_script_and_notify(self, fn):
+        import traceback
+        log_path = os.path.join(APP_DIR, 'data', 'pegado.log')
+        os.makedirs(os.path.dirname(log_path), exist_ok=True)
         try:
+            with open(log_path, 'a', encoding='utf-8') as lg:
+                lg.write(f"\n===== Pegado start: {datetime.now().isoformat()} =====\n")
             fn()
+            try:
+                with open(log_path, 'a', encoding='utf-8') as lg:
+                    lg.write(f"Pegado finished: {datetime.now().isoformat()}\n")
+            except Exception:
+                pass
             try:
                 messagebox.showinfo("Pegado", "Proceso de pegado finalizado. Revise el registro de fallos si corresponde.")
             except Exception:
                 pass
         except Exception as e:
+            tb = traceback.format_exc()
             try:
-                messagebox.showerror("Error pegado", f"Error al ejecutar el proceso de pegado:\n{e}")
+                with open(log_path, 'a', encoding='utf-8') as lg:
+                    lg.write(f"ERROR: {e}\n{tb}\n")
+            except Exception:
+                pass
+            try:
+                messagebox.showerror("Error pegado", f"Error al ejecutar el proceso de pegado:\n{e}\nRevise {log_path} para más detalles.")
             except Exception:
                 pass
 
@@ -8096,7 +8199,7 @@ class SistemaDictamenesVC(ctk.CTk):
         `obtener_rutas()` que devuelve esas rutas y convierte `guardar_config` en no-op.
         """
         try:
-            base = os.path.join(BASE_DIR, "Pegado de Evidenvia Fotografica")
+            base = os.path.join(APP_DIR, "Pegado de Evidenvia Fotografica")
             main_path = os.path.join(base, "main.py")
 
             # Asegurar que la carpeta del pegado esté en sys.path para que
@@ -8207,7 +8310,7 @@ class SistemaDictamenesVC(ctk.CTk):
             if excel_path:
                 import importlib.util
                 import sys
-                mod_path = os.path.join(BASE_DIR, "Pegado de Evidenvia Fotografica", "pegado_indice.py")
+                mod_path = os.path.join(APP_DIR, "Pegado de Evidenvia Fotografica", "pegado_indice.py")
                 base = os.path.dirname(mod_path)
                 # Añadir temporalmente el directorio al sys.path para resolver imports locales (registro_fallos, main, etc.)
                 added_to_path = False
@@ -8276,7 +8379,7 @@ class SistemaDictamenesVC(ctk.CTk):
         Pide confirmación al usuario antes de eliminar/limpiar.
         """
         try:
-            data_file = os.path.join(BASE_DIR, "data", "evidence_paths.json")
+            data_file = os.path.join(APP_DIR, "data", "evidence_paths.json")
             if not os.path.exists(data_file):
                 messagebox.showinfo("Limpiar rutas", "No hay rutas guardadas para limpiar.")
                 return

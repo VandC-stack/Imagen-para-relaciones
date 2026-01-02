@@ -1,6 +1,8 @@
 import os
 import json
 import pandas as pd
+import re
+from datetime import datetime
 from tkinter import filedialog, Tk
 from docx import Document
 from registro_fallos import registrar_fallo, limpiar_registro, mostrar_registro, LOG_FILE
@@ -16,6 +18,18 @@ from plantillaPDF import cargar_tabla_relacion
 
 INDEX_FILE = os.path.join(APPDATA_DIR, "index_indice.json")
 IMG_EXTS = [".png", ".jpg", ".jpeg", ".webp", ".bmp", ".tif"]
+
+# Debug logger for pegado indice
+DEBUG_INDEX_LOG = os.path.join(APPDATA_DIR, "pegado_indice_debug.log")
+def _log_index(msg: str):
+    try:
+        with open(DEBUG_INDEX_LOG, 'a', encoding='utf-8') as lf:
+            lf.write(f"[{datetime.now().isoformat()}] {msg}\n")
+    except Exception:
+        try:
+            print("[pegado_indice]", msg)
+        except Exception:
+            pass
 
 
 def seleccionar_excel():
@@ -73,6 +87,7 @@ def construir_indice_desde_excel(ruta_excel):
 
     with open(INDEX_FILE, "w", encoding="utf-8") as f:
         json.dump(indice, f, ensure_ascii=False, indent=4)
+    _log_index(f"Indice construido: {len(indice)} entries; index_file={INDEX_FILE}")
 
     return indice
 
@@ -150,8 +165,11 @@ def procesar_doc_con_indice_docx(ruta_doc, ruta_imagenes, indice):
             fallo_registrado = True
         return
 
+    _log_index(f"Procesando DOCX: {ruta_doc}; codigos_found={len(codigos)}; ruta_imagenes={ruta_imagenes}")
     for p in doc.paragraphs:
-        if "${imagen}" in (p.text or ""):
+        txt = (p.text or "")
+        # Accept case-variants like ${IMAGEN} or ${imagen} (allow spaces inside braces)
+        if re.search(r"\$\{\s*imagen\s*\}", txt, flags=re.IGNORECASE):
             p.clear()
             run = p.add_run()
 
@@ -161,7 +179,9 @@ def procesar_doc_con_indice_docx(ruta_doc, ruta_imagenes, indice):
                     continue
 
                 destino = indice[canon]
+                _log_index(f"Codigo {canon} -> destino {destino}")
                 tipo, ruta = buscar_destino(ruta_imagenes, destino)
+                _log_index(f"buscar_destino -> tipo={tipo} ruta={ruta}")
 
                 if tipo == "imagen":
                     insertar_imagen_con_transparencia(run, ruta)
@@ -202,13 +222,16 @@ def procesar_doc_con_indice_pdf(ruta_doc, ruta_imagenes, indice):
 
     rutas_imagenes = []
 
+    _log_index(f"Procesando PDF: {ruta_doc}; codigos_found={len(codigos)}; ruta_imagenes={ruta_imagenes}")
     for codigo in codigos:
         canon = normalizar_cadena_alnum_mayus(codigo)
         if canon not in indice:
             continue
 
         destino = indice[canon]
+        _log_index(f"Codigo {canon} -> destino {destino}")
         tipo, ruta = buscar_destino(ruta_imagenes, destino)
+        _log_index(f"buscar_destino -> tipo={tipo} ruta={ruta}")
 
         if tipo == "imagen":
             rutas_imagenes.append(ruta)

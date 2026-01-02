@@ -5,6 +5,25 @@ from reportlab.lib.units import mm
 from reportlab.lib.utils import ImageReader
 import os
 import json
+import sys
+from pathlib import Path
+
+# Simple debug logger for acta generation; writes to data/acta_debug.log next to exe when possible
+def _log_acta(msg: str):
+    try:
+        base = None
+        if getattr(sys, 'frozen', False):
+            base = Path(sys.executable).parent
+        else:
+            base = Path(__file__).resolve().parent
+        data_dir = base / 'data'
+        data_dir.mkdir(parents=True, exist_ok=True)
+        log_path = data_dir / 'acta_debug.log'
+        with open(log_path, 'a', encoding='utf-8') as lf:
+            lf.write(f"[{datetime.now().isoformat()}] {msg}\n")
+    except Exception:
+        # Best-effort logging only
+        pass
 from datetime import datetime
 
 class ActaPDFGenerator:
@@ -708,28 +727,82 @@ def generar_acta_desde_visita(folio_visita=None, ruta_salida=None):
     """Genera un acta a partir de la información en data/historial_visitas.json y
     data/tabla_de_relacion.json. Si `folio_visita` es None toma la última visita.
     """
-    base_dir = os.path.join(os.path.dirname(__file__), '..')
-    data_dir = os.path.join(base_dir, 'data')
+    # Resolver data_dir de forma robusta: preferir carpeta junto al exe,
+    # luego ruta bundle (_MEIPASS), luego ruta relativa al paquete y cwd.
+    candidates = []
+    try:
+        if getattr(sys, 'frozen', False):
+            exe_dir = os.path.dirname(sys.executable)
+            candidates.append(os.path.join(exe_dir, 'data'))
+    except Exception:
+        pass
+
+    meipass = getattr(sys, '_MEIPASS', None)
+    if meipass:
+        candidates.append(os.path.join(meipass, 'data'))
+
+    # data relative to the source tree
+    candidates.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'data')))
+    # current working directory
+    candidates.append(os.path.join(os.getcwd(), 'data'))
+
+    # APPDATA fallback
+    try:
+        appdata_dir = os.path.join(os.environ.get('APPDATA', ''), 'GeneradorDictamenes')
+        candidates.append(os.path.join(appdata_dir, 'data'))
+    except Exception:
+        pass
+
+    data_dir = None
+    for c in candidates:
+        _log_acta(f"Checking candidate data dir: {c}")
+        if c and os.path.exists(c):
+            data_dir = c
+            _log_acta(f"Selected data_dir: {data_dir}")
+            break
+
+    if data_dir is None:
+        # No candidate existed; default to first candidate or './data'
+        data_dir = candidates[0] if candidates else os.path.abspath('data')
+        _log_acta(f"No existing data dir found; defaulting to: {data_dir}")
+
     historial_path = os.path.join(data_dir, 'historial_visitas.json')
-    # Preferir backups recientes: si existen backups en tabla_relacion_backups, usar el más reciente
+    _log_acta(f"Historial path resolved to: {historial_path} (exists={os.path.exists(historial_path)})")
+    # Default tabla_path; we may override with a per-visit backup later
     tabla_path = os.path.join(data_dir, 'tabla_de_relacion.json')
     backups_dir = os.path.join(data_dir, 'tabla_relacion_backups')
-    if os.path.exists(backups_dir):
-        try:
-            backup_files = [os.path.join(backups_dir, f) for f in os.listdir(backups_dir) if f.lower().endswith('.json')]
-            if backup_files:
-                tabla_path = max(backup_files, key=os.path.getmtime)
-                print(f"📁 Usando backup de tabla de relación para acta: {tabla_path}")
-        except Exception:
-            pass
 
+    # If historial doesn't exist at resolved path, try a few fallbacks
     if not os.path.exists(historial_path):
-        raise FileNotFoundError(f"No se encontró {historial_path}")
+        alt_candidates = [
+            os.path.join(os.getcwd(), 'data', 'historial_visitas.json'),
+            os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'data', 'historial_visitas.json')),
+            os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', 'data', 'historial_visitas.json'))
+        ]
+        found_alt = None
+        for a in alt_candidates:
+            _log_acta(f"Trying alt historial: {a} (exists={os.path.exists(a)})")
+            if os.path.exists(a):
+                found_alt = a
+                break
+        if found_alt:
+            historial_path = found_alt
+            _log_acta(f"Using alternative historial_path: {historial_path}")
+        else:
+            _log_acta(f"Historial not found in any candidate. Last checked: {historial_path}")
+            raise FileNotFoundError(f"No se encontró {historial_path} o alternativas")
 
-    with open(historial_path, 'r', encoding='utf-8') as f:
-        historial = json.load(f)
+    # Load historial with diagnostics
+    try:
+        with open(historial_path, 'r', encoding='utf-8') as f:
+            historial = json.load(f)
+    except Exception as e:
+        _log_acta(f"Error leyendo historial JSON: {e}; path={historial_path}")
+        raise
 
+    # soportar formato {'visitas': [...]} o lista simple
     visitas = historial.get('visitas', []) if isinstance(historial, dict) else historial
+    _log_acta(f"Loaded historial: type={type(historial).__name__}, visitas_count={len(visitas) if hasattr(visitas, '__len__') else 'unknown'}")
     visita = None
     if folio_visita:
         for v in visitas:
@@ -780,12 +853,53 @@ def generar_acta_desde_visita(folio_visita=None, ruta_salida=None):
     # Cargar tabla_de_relacion (o backup seleccionado) y filtrar registros por folio
     productos = []
     fecha_verificacion = None
+    # If backups exist, prefer a backup matching the visit's folio when possible
+    try:
+        if os.path.exists(backups_dir):
+            backup_files = [f for f in os.listdir(backups_dir) if f.lower().endswith('.json')]
+            # try to find backups that include the folio_num in their filename
+            matching = [os.path.join(backups_dir, f) for f in backup_files if folio_num and folio_num in f]
+            if matching:
+                # pick the most recent matching backup
+                tabla_path = max(matching, key=os.path.getmtime)
+                _log_acta(f"Using per-visit backup for tabla_de_relacion: {tabla_path}")
+            else:
+                # fallback to most recent backup overall if present
+                if backup_files:
+                    allpaths = [os.path.join(backups_dir, f) for f in backup_files]
+                    tabla_path = max(allpaths, key=os.path.getmtime)
+                    _log_acta(f"Using latest backup (no per-visit match) for tabla_de_relacion: {tabla_path}")
+    except Exception as e:
+        _log_acta(f"Error selecting backup: {e}")
+
     if os.path.exists(tabla_path):
         try:
             with open(tabla_path, 'r', encoding='utf-8') as tf:
                 tabla = json.load(tf)
-                # tabla puede ser lista de dicts
-                for rec in tabla:
+
+                # Normalizar `tabla` a una lista de registros llamada `records`.
+                records = []
+                if isinstance(tabla, list):
+                    records = tabla
+                elif isinstance(tabla, dict):
+                    # Buscar el primer valor que sea una lista (común en backups)
+                    for v in tabla.values():
+                        if isinstance(v, list):
+                            records = v
+                            break
+                    # Intentar claves comunes
+                    if not records:
+                        for key in ("registros", "tabla", "data", "rows", "records"):
+                            if key in tabla and isinstance(tabla[key], list):
+                                records = tabla[key]
+                                break
+
+                _log_acta(f"Loaded tabla_path={tabla_path}; tabla_type={type(tabla).__name__}; records={len(records)}")
+
+                # tabla puede ser lista de dicts en `records`
+                for rec in records:
+                    if not isinstance(rec, dict):
+                        continue
                     fol = rec.get('FOLIO')
                     try:
                         fol_int = int(fol) if fol is not None and str(fol).isdigit() else None
@@ -795,13 +909,14 @@ def generar_acta_desde_visita(folio_visita=None, ruta_salida=None):
                         productos.append(rec)
                         if not fecha_verificacion and rec.get('FECHA DE VERIFICACION'):
                             fecha_verificacion = rec.get('FECHA DE VERIFICACION')
+
                 # si no encontramos por folios, intentar usar primer registro si existe
-                if not productos and isinstance(tabla, list) and tabla:
-                    # intentar extraer fecha de verificacion del primer registro
-                    first = tabla[0]
-                    if first.get('FECHA DE VERIFICACION') and not fecha_verificacion:
+                if not productos and records:
+                    first = records[0]
+                    if isinstance(first, dict) and first.get('FECHA DE VERIFICACION') and not fecha_verificacion:
                         fecha_verificacion = first.get('FECHA DE VERIFICACION')
-        except Exception:
+        except Exception as e:
+            _log_acta(f"Error leyendo tabla_de_relacion: {e}")
             productos = []
 
     # Preparar datos para el acta

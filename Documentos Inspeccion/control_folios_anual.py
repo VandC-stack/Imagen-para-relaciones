@@ -574,8 +574,18 @@ class ControlFoliosAnual:
                     token = str(cadena_ident).strip().split()[0].split('/')[0]
 
                 sol_part = self.extraer_sol_ema(solicitud) or ''
+                # Build a sensible documento_emitido without duplicating fragments.
                 if sol_part and folio:
-                    documento_emitido = f"{token}{sol_part}-{folio}"
+                    suffix = f"{sol_part}-{folio}".lstrip('-')
+                    # If token already contains the suffix or the sol_part, avoid appending again
+                    if token and (token.endswith(suffix) or sol_part in token):
+                        documento_emitido = token
+                    else:
+                        # ensure separator
+                        sep = ''
+                        if token and not token.endswith('-'):
+                            sep = '-'
+                        documento_emitido = f"{token}{sep}{suffix}" if token else f"{suffix}"
                 else:
                     documento_emitido = token
             except Exception:

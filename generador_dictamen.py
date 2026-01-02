@@ -42,12 +42,29 @@ def obtener_ruta_recurso(ruta_relativa):
     Obtiene la ruta absoluta del recurso, funciona tanto para .py como para .exe.
     PyInstaller crea una carpeta temporal y guarda la ruta en _MEIPASS.
     """
+    # Preferir carpeta junto al ejecutable (portable `data`), luego _MEIPASS, luego cwd
     try:
-        base_path = sys._MEIPASS   # ruta temporal del .exe
+        if getattr(sys, 'frozen', False):
+            exe_dir = os.path.dirname(sys.executable)
+            candidate = os.path.join(exe_dir, ruta_relativa)
+            # si existe la ruta o su carpeta padre existe, usarla
+            parent = os.path.dirname(candidate)
+            try:
+                if os.path.exists(candidate) or (parent and os.path.exists(parent)):
+                    return candidate
+            except Exception:
+                pass
     except Exception:
-        base_path = os.path.abspath(".")  # ruta local en modo .py
+        pass
 
-    return os.path.join(base_path, ruta_relativa)
+    try:
+        meipass = getattr(sys, '_MEIPASS', None)
+        if meipass:
+            return os.path.join(meipass, ruta_relativa)
+    except Exception:
+        pass
+
+    return os.path.join(os.path.abspath('.'), ruta_relativa)
 
 
 # ---------------- Folio counter (reserva atómica) ----------------

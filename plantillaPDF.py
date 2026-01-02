@@ -23,6 +23,19 @@ def obtener_ruta_recurso(ruta_relativa):
         # Si no existe _MEIPASS, estamos corriendo como .py normal
         ruta_base = os.path.abspath(".")
     
+    # Preferir carpeta `data` ubicada junto al ejecutable (APP_DIR) si existe.
+    try:
+        if getattr(sys, 'frozen', False):
+            app_dir = os.path.dirname(sys.executable)
+        else:
+            app_dir = os.path.abspath(".")
+
+        posible_externo = os.path.join(app_dir, ruta_relativa)
+        if os.path.exists(posible_externo):
+            return posible_externo
+    except Exception:
+        pass
+
     return os.path.join(ruta_base, ruta_relativa)
 
 # ---------------------------------------------------------

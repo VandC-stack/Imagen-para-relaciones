@@ -410,12 +410,28 @@ def insertar_imagenes_en_pdf_placeholder(ruta_pdf, rutas_imagenes, placeholder="
     page_target = None
     marca = None
 
-    # Buscar la primera ocurrencia del placeholder en todo el documento
+    # Buscar la primera ocurrencia del placeholder en todo el documento.
+    # Hacer búsqueda tolerante a mayúsculas/minúsculas probando variantes.
+    variants = [placeholder]
+    try:
+        variants.append(placeholder.upper())
+        variants.append(placeholder.lower())
+    except Exception:
+        pass
+
     for page in doc:
-        rects = page.search_for(placeholder)
-        if rects:
-            page_target = page
-            marca = rects[0]
+        found = False
+        for v in variants:
+            try:
+                rects = page.search_for(v)
+            except Exception:
+                rects = []
+            if rects:
+                page_target = page
+                marca = rects[0]
+                found = True
+                break
+        if found:
             break
 
     if page_target is None or marca is None:
