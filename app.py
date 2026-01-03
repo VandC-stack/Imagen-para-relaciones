@@ -179,8 +179,6 @@ class SistemaDictamenesVC(ctk.CTk):
         except Exception:
             pass
         
-        
-
     # ----------------- Overlay de Acciones (botones interactivos) -----------------
     def _create_actions_overlay(self, parent, actions_col=None):
         """Crea un frame flotante con botones que se posiciona sobre la columna 'Acciones'."""
@@ -8439,3 +8437,4 @@ class SistemaDictamenesVC(ctk.CTk):
 if __name__ == "__main__":
     app = SistemaDictamenesVC()
     app.mainloop()
+

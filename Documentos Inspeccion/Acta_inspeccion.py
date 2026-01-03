@@ -722,7 +722,6 @@ def preparar_datos_desde_visita(datos_visita, firmas_json_path="data/Firmas.json
     
     return datos_acta
 
-
 def generar_acta_desde_visita(folio_visita=None, ruta_salida=None):
     """Genera un acta a partir de la información en data/historial_visitas.json y
     data/tabla_de_relacion.json. Si `folio_visita` es None toma la última visita.
@@ -1011,7 +1010,6 @@ if __name__ == "__main__":
     # Generar PDF
     generar_acta_pdf(datos, "Plantillas PDF/Acta_inspeccion.pdf")
 
-
 """
 Ejemplo de cómo debe aparecer la información en los formatos (no modificar nada más):
 
@@ -1027,5 +1025,3 @@ Estos datos se guardan en `data/historial_visitas.json` como:
 "ciudad_estado": "Estado de México",
 "cp": "54603",
 """
-
-
