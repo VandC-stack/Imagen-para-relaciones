@@ -999,6 +999,38 @@ def generar_dictamenes_completos(directorio_destino, cliente_manual=None, rfc_ma
     except Exception:
         last_known = None
 
+    # Fallback adicional: leer directamente `data/folio_counter.json` usando
+    # `obtener_ruta_recurso` (maneja rutas para .py y .exe). Esto ayuda cuando
+    # folio_manager pueda estar apuntando a una ruta diferente inesperadamente
+    # o cuando fue editado manualmente fuera del flujo del módulo.
+    try:
+        if not last_known or int(last_known) == 0:
+            contador_path = os.path.join(obtener_ruta_recurso('data'), 'folio_counter.json')
+            if os.path.exists(contador_path):
+                try:
+                    with open(contador_path, 'r', encoding='utf-8') as cf:
+                        j = json.load(cf) or {}
+                        v = int(j.get('last', 0))
+                        if v and v > 0:
+                            last_known = v
+                            print(f"   ℹ️ folio_counter.json (fallback) leído: {last_known}")
+                            # Intentar sincronizar con folio_manager para asegurar que
+                            # las próximas reservas usen este valor como referencia.
+                            try:
+                                current_mgr = folio_manager.get_last()
+                                if current_mgr is None or int(current_mgr) < int(v):
+                                    try:
+                                        folio_manager.set_last(int(v))
+                                        print(f"   ℹ️ folio_manager sincronizado a {int(v)}")
+                                    except Exception:
+                                        pass
+                            except Exception:
+                                pass
+                except Exception:
+                    pass
+    except Exception:
+        pass
+
     # Detectar si la tabla ya trae folios asignados por familia. Si es así,
     # respetamos esos folios y evitamos reservar de nuevo (para no duplicar
     # el avance del contador). Si no hay folios preasignados, intentamos reservar
@@ -1481,6 +1513,45 @@ def generar_dictamenes_completos(directorio_destino, cliente_manual=None, rfc_ma
         'folios_utilizados': folios_info,
         'folios_usados_list': folios_list
     }
+
+    # Exportar una copia plana de la tabla de relación con los folios actualizados
+    try:
+        tabla_out = []
+        # `familias` es un dict lista->registros donde cada registro ya contiene 'FOLIO'
+        for lista_k, regs in familias.items():
+            for r in regs:
+                try:
+                    # Asegurar que FOLIO esté en formato int o string
+                    fol = r.get('FOLIO') if 'FOLIO' in r else r.get('folio')
+                except Exception:
+                    fol = r.get('folio', '')
+                # Normalizar algunos campos que `guardar_folios_visita` espera
+                tabla_out.append({
+                    'FOLIO': fol,
+                    'MARCA': r.get('MARCA') or r.get('marca') or '',
+                    'SOLICITUD': r.get('SOLICITUD') or r.get('SOLICITUDES') or r.get('solicitud') or '',
+                    'FECHA DE VERIFICACION': r.get('FECHA DE VERIFICACION') or r.get('fverificacion') or '',
+                    'TIPO DE DOCUMENTO': r.get('TIPO DE DOCUMENTO') or r.get('tipo_documento') or 'D',
+                    'INSPECTOR': r.get('INSPECTOR') or r.get('inspector') or r.get('Inspector') or '',
+                    'LISTA': lista_k,
+                    'CODIGO': r.get('CODIGO') or r.get('codigo') or r.get('Codigo') or '',
+                    # Añadir campos necesarios para que la app pueda mapear supervisor y norma
+                    'FIRMA': r.get('FIRMA') or r.get('firma') or r.get('Firma') or '',
+                    'CLASIF UVA': r.get('CLASIF UVA') or r.get('CLASIF_UVA') or r.get('CLASIF_Uva') or r.get('clasif_uva') or None,
+                    'NORMA UVA': r.get('NORMA UVA') or r.get('NORMA_UVA') or r.get('NORMA_Uva') or r.get('norma_uva') or None
+                })
+        if tabla_out:
+            ts = datetime.now().strftime('%Y%m%d%H%M%S')
+            out_path = os.path.join(directorio_json, f"tabla_relacion_generada_{ts}.json")
+            try:
+                with open(out_path, 'w', encoding='utf-8') as of:
+                    json.dump(tabla_out, of, ensure_ascii=False, indent=2)
+                resultado['tabla_relacion_actualizada'] = out_path
+                print(f"   💾 Tabla de relación actualizada guardada: {out_path}")
+            except Exception:
+                pass
+    except Exception:
+        pass
 
     mensaje = f"Se generaron {dictamenes_generados} dictámenes ({dictamenes_con_firma} con firma, {dictamenes_sin_firma} sin firma)"
     success = dictamenes_generados > 0

@@ -4693,6 +4693,43 @@ class SistemaDictamenesVC(ctk.CTk):
             # Preparar datos para el archivo JSON
             folios_data = []
             
+            # Cargar mapeos de firmas -> nombre completo y de normas
+            firmas_map = {}
+            try:
+                firmas_path = os.path.join(APP_DIR, 'data', 'Firmas.json')
+                if os.path.exists(firmas_path):
+                    with open(firmas_path, 'r', encoding='utf-8') as ff:
+                        fdata = json.load(ff) or []
+                        for ent in fdata:
+                            try:
+                                key = (str(ent.get('FIRMA') or '').strip()).upper()
+                                val = str(ent.get('NOMBRE DE INSPECTOR') or '').strip()
+                                if key:
+                                    firmas_map[key] = val
+                            except Exception:
+                                continue
+            except Exception:
+                firmas_map = {}
+
+            normas_map = {}
+            try:
+                normas_path = os.path.join(APP_DIR, 'data', 'Normas.json')
+                if os.path.exists(normas_path):
+                    with open(normas_path, 'r', encoding='utf-8') as nf:
+                        ndata = json.load(nf) or []
+                        import re
+                        for n in ndata:
+                            try:
+                                nom_code = str(n.get('NOM') or '').strip()
+                                m = re.search(r'NOM-(\d+)-', nom_code)
+                                if m:
+                                    num = int(m.group(1))
+                                    normas_map[num] = nom_code
+                            except Exception:
+                                continue
+            except Exception:
+                normas_map = {}
+
             for item in datos_tabla:
                 # Obtener y formatear el folio a 6 dígitos
                 folio_raw = item.get('FOLIO', '')
@@ -4720,10 +4757,53 @@ class SistemaDictamenesVC(ctk.CTk):
                     "FOLIOS": folio_formateado,
                     "MARCA": str(item.get('MARCA', '')).strip() if item.get('MARCA') else "",
                     "SOLICITUDES": solicitud,
+                    "INSPECTOR": str(item.get('INSPECTOR', '') or item.get('inspector', '') or '').strip(),
+                    # Supervisor: si la tabla trae 'FIRMA' (codificado), mapear a nombre completo desde Firmas.json
+                    "SUPERVISOR": "",
+                    "NORMA": "",
+                    "LISTA": str(item.get('LISTA', '') or item.get('lista', '') or '').strip(),
+                    "CODIGO": str(item.get('CODIGO', '') or item.get('codigo', '') or '').strip(),
                     "FECHA DE IMPRESION": self.entry_fecha_termino.get().strip() or datetime.now().strftime("%d/%m/%Y"),
                     "FECHA DE VERIFICACION": str(item.get('FECHA DE VERIFICACION', '')).strip() if item.get('FECHA DE VERIFICACION') else "",
                     "TIPO DE DOCUMENTO": str(item.get('TIPO DE DOCUMENTO', 'D')).strip()
                 }
+
+                # Resolver SUPERVISOR: preferir mapeo por 'FIRMA', luego 'INSPECTOR'
+                try:
+                    firma_code = (str(item.get('FIRMA') or '')).strip()
+                    if not firma_code:
+                        # some tables may store signature code under 'FIRMA' uppercase/lower
+                        for k in ('FIRMA', 'firma'):
+                            if k in item and item.get(k):
+                                firma_code = str(item.get(k)).strip()
+                                break
+                    if firma_code:
+                        nombre = firmas_map.get(firma_code.upper()) or firmas_map.get(firma_code)
+                        if nombre:
+                            folio_data['SUPERVISOR'] = nombre
+                        else:
+                            # fallback: if item contains inspector full name already
+                            folio_data['SUPERVISOR'] = str(item.get('INSPECTOR') or item.get('inspector') or '')
+                except Exception:
+                    pass
+
+                # Resolver NORMA desde 'CLASIF UVA' o 'NORMA UVA' (numérico)
+                try:
+                    val = None
+                    for k in ('CLASIF UVA', 'CLASIF_UVA', 'NORMA UVA', 'NORMA_UVA', 'NORMA'):
+                        if k in item and item.get(k) is not None:
+                            val = item.get(k)
+                            break
+                    if val is not None and str(val).strip() != '':
+                        try:
+                            num = int(float(val))
+                            nom = normas_map.get(int(num))
+                            if nom:
+                                folio_data['NORMA'] = nom
+                        except Exception:
+                            pass
+                except Exception:
+                    pass
                 
                 # Agregar solo si tiene folio
                 if folio_data["FOLIOS"]:
@@ -6946,42 +7026,60 @@ class SistemaDictamenesVC(ctk.CTk):
 
             # CARGAR DATOS DE TABLA DE RELACIÓN SI EXISTEN
             datos_tabla = []
-            if self.archivo_json_generado and os.path.exists(self.archivo_json_generado):
-                with open(self.archivo_json_generado, 'r', encoding='utf-8') as f:
-                    datos_tabla = json.load(f)
+            # Si el generador devolvió una tabla actualizada con folios asignados, preferirla
+            tabla_actualizada_path = None
+            try:
+                if isinstance(resultado_dictamenes, dict):
+                    tabla_actualizada_path = resultado_dictamenes.get('tabla_relacion_actualizada')
+            except Exception:
+                tabla_actualizada_path = None
 
-                # Determinar si debemos persistir el contador global: solo si el generador
-                # realmente creó archivos (resultado_dictamenes contiene 'archivos')
-                persist_flag = False
+            if tabla_actualizada_path and os.path.exists(tabla_actualizada_path):
                 try:
-                    if isinstance(resultado_dictamenes, dict) and resultado_dictamenes.get('archivos'):
-                        persist_flag = True
+                    with open(tabla_actualizada_path, 'r', encoding='utf-8') as f:
+                        datos_tabla = json.load(f)
                 except Exception:
-                    persist_flag = False
-
-                # Guardar folios específicos para esta visita solo SI el generador
-                # realmente creó documentos (evita escribir en `folios_visitas` en
-                # cargas/previas que luego se limpian).
-                if persist_flag:
-                    self.guardar_folios_visita(folio_visita, datos_tabla, persist_counter=persist_flag)
-                    # Crear respaldo persistente de la tabla_de_relacion para visitas generadas
+                    datos_tabla = []
+            else:
+                if self.archivo_json_generado and os.path.exists(self.archivo_json_generado):
                     try:
-                        tabla_relacion_path = os.path.join(APP_DIR, 'data', 'tabla_de_relacion.json')
-                        if os.path.exists(tabla_relacion_path):
-                            backup_dir = os.path.join(APP_DIR, 'data', 'tabla_relacion_backups')
-                            os.makedirs(backup_dir, exist_ok=True)
-                            ts = datetime.now().strftime('%Y%m%d%H%M%S')
-                            # Marcar como PERSIST para que no sea eliminado por limpiar
-                            dest_name = f"tabla_de_relacion_{folio_visita}_PERSIST_{ts}.json"
-                            try:
-                                shutil.copyfile(tabla_relacion_path, os.path.join(backup_dir, dest_name))
-                                print(f"📦 Respaldo persistente creado: {dest_name}")
-                            except Exception as e:
-                                print(f"⚠️ No se pudo crear respaldo persistente: {e}")
+                        with open(self.archivo_json_generado, 'r', encoding='utf-8') as f:
+                            datos_tabla = json.load(f)
                     except Exception:
-                        pass
-                else:
-                    print(f"ℹ️ No se almacenaron folios para visita {folio_visita} porque no se generaron documentos.")
+                        datos_tabla = []
+
+            # Determinar si debemos persistir el contador global: solo si el generador
+            # realmente creó archivos (resultado_dictamenes contiene 'archivos')
+            persist_flag = False
+            try:
+                if isinstance(resultado_dictamenes, dict) and resultado_dictamenes.get('archivos'):
+                    persist_flag = True
+            except Exception:
+                persist_flag = False
+
+            # Guardar folios específicos para esta visita solo SI el generador
+            # realmente creó documentos (evita escribir en `folios_visitas` en
+            # cargas/previas que luego se limpian).
+            if persist_flag and datos_tabla:
+                self.guardar_folios_visita(folio_visita, datos_tabla, persist_counter=persist_flag)
+                # Crear respaldo persistente de la tabla_de_relacion para visitas generadas
+                try:
+                    tabla_relacion_path = os.path.join(APP_DIR, 'data', 'tabla_de_relacion.json')
+                    if os.path.exists(tabla_relacion_path):
+                        backup_dir = os.path.join(APP_DIR, 'data', 'tabla_relacion_backups')
+                        os.makedirs(backup_dir, exist_ok=True)
+                        ts = datetime.now().strftime('%Y%m%d%H%M%S')
+                        # Marcar como PERSIST para que no sea eliminado por limpiar
+                        dest_name = f"tabla_de_relacion_{folio_visita}_PERSIST_{ts}.json"
+                        try:
+                            shutil.copyfile(tabla_relacion_path, os.path.join(backup_dir, dest_name))
+                            print(f"📦 Respaldo persistente creado: {dest_name}")
+                        except Exception as e:
+                            print(f"⚠️ No se pudo crear respaldo persistente: {e}")
+                except Exception:
+                    pass
+            else:
+                print(f"ℹ️ No se almacenaron folios para visita {folio_visita} porque no se generaron documentos o no hay tabla.")
 
             # ===== EXTRACCIÓN DE FOLIOS NUMÉRICOS ÚNICOS DE LA TABLA DE RELACIÓN =====
             folios_numericos_set = set()
