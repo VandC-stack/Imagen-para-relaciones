@@ -12,6 +12,7 @@ import importlib
 import importlib.util
 from datetime import datetime
 import folio_manager
+from plantillaPDF import cargar_tabla_relacion
 import unicodedata
 import time
 import platform
@@ -611,7 +612,7 @@ class SistemaDictamenesVC(ctk.CTk):
         self.entry_folio_visita.pack(fill="x", pady=(0, 5))
         folio_con_prefijo = f"CP{self.current_folio}"
         self.entry_folio_visita.insert(0, folio_con_prefijo)
-        self.entry_folio_visita.configure(state="readonly")
+        self.entry_folio_visita.configure(state="normal")
 
         # Folio de acta (automático - AC + folio visita)
         acta_frame = ctk.CTkFrame(scroll_form, fg_color="transparent")
@@ -633,7 +634,7 @@ class SistemaDictamenesVC(ctk.CTk):
         )
         self.entry_folio_acta.pack(fill="x", pady=(0, 5))
         self.entry_folio_acta.insert(0, f"AC{self.current_folio}")
-        self.entry_folio_acta.configure(state="readonly")
+        self.entry_folio_acta.configure(state="normal")
 
         # Fecha Inicio
         fecha_inicio_frame = ctk.CTkFrame(scroll_form, fg_color="transparent")
@@ -2060,13 +2061,13 @@ class SistemaDictamenesVC(ctk.CTk):
                     self.entry_folio_visita.delete(0, "end")
                     folio_con_prefijo = f"CP{self.current_folio}"
                     self.entry_folio_visita.insert(0, folio_con_prefijo)
-                    self.entry_folio_visita.configure(state="readonly")
+                    self.entry_folio_visita.configure(state="normal")
 
                     # Actualizar también el folio del acta
                     self.entry_folio_acta.configure(state="normal")
                     self.entry_folio_acta.delete(0, "end")
                     self.entry_folio_acta.insert(0, f"AC{self.current_folio}")
-                    self.entry_folio_acta.configure(state="readonly")
+                    self.entry_folio_acta.configure(state="normal")
             except Exception:
                 pass
             # Actualizar etiqueta visual del siguiente folio de documento
@@ -2095,13 +2096,13 @@ class SistemaDictamenesVC(ctk.CTk):
             self.entry_folio_visita.delete(0, "end")
             folio_con_prefijo = f"CP{self.current_folio}"
             self.entry_folio_visita.insert(0, folio_con_prefijo)
-            self.entry_folio_visita.configure(state="readonly")
+            self.entry_folio_visita.configure(state="normal")
 
             # Actualizar folio acta automáticamente
             self.entry_folio_acta.configure(state="normal")
             self.entry_folio_acta.delete(0, "end")
             self.entry_folio_acta.insert(0, f"AC{self.current_folio}")
-            self.entry_folio_acta.configure(state="readonly")
+            self.entry_folio_acta.configure(state="normal")
             # Limpiar/poner valores por defecto en otros campos de fecha/hora
             try:
                 self.entry_fecha_inicio.delete(0, "end")
@@ -4804,6 +4805,24 @@ class SistemaDictamenesVC(ctk.CTk):
             print(f"❌ Error guardando folios para visita {folio_visita}: {e}")
             return False
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
     def descargar_folios_visita(self, registro):
         """Descarga los folios de una visita en formato Excel con columnas personalizadas"""
         try:
@@ -4829,9 +4848,154 @@ class SistemaDictamenesVC(ctk.CTk):
             
             # Crear DataFrame con el orden de columnas específico
             df = pd.DataFrame(folios_data)
+
+            # Intentar enriquecer el reporte con `LISTA` y `CODIGO` usando el backup
+            try:
+                # Buscar backups específicos para esta visita en data/tabla_relacion_backups
+                try:
+                    backups_dir = os.path.join(APP_DIR, 'data', 'tabla_relacion_backups')
+                except Exception:
+                    backups_dir = os.path.join(os.path.dirname(__file__), 'data', 'tabla_relacion_backups')
+
+                rel = None
+                # Preferir archivo cuyo nombre contenga el folio de visita
+                folio_key = folio_visita or ''
+                folio_digits = ''.join([c for c in folio_key if c.isdigit()])
+
+                if os.path.exists(backups_dir):
+                    candidates = [os.path.join(backups_dir, f) for f in os.listdir(backups_dir) if f.lower().endswith('.json')]
+                    # buscar coincidencias por nombre
+                    matches_files = []
+                    for p in candidates:
+                        name = os.path.basename(p)
+                        if folio_key and folio_key in name:
+                            matches_files.append(p)
+                        elif folio_digits and folio_digits in name:
+                            matches_files.append(p)
+
+                    chosen = None
+                    if matches_files:
+                        # elegir el más reciente entre matches
+                        chosen = max(matches_files, key=os.path.getmtime)
+                    elif candidates:
+                        # fallback: el backup más reciente general
+                        chosen = max(candidates, key=os.path.getmtime)
+
+                    if chosen:
+                        try:
+                            with open(chosen, 'r', encoding='utf-8') as rf:
+                                data_rel = json.load(rf)
+                            rel = pd.DataFrame(data_rel)
+                            print(f"📁 Usando backup de tabla de relación para reporte: {chosen}")
+                        except Exception as e:
+                            print(f"⚠️ Error cargando backup seleccionado: {e}")
+
+                # Fallback a tabla principal si no se cargó backup
+                if rel is None or rel.empty:
+                    try:
+                        df_rel = cargar_tabla_relacion()
+                        if not df_rel.empty:
+                            rel = df_rel.copy()
+                    except Exception:
+                        rel = pd.DataFrame()
+
+                if rel is not None and not rel.empty:
+                    # Normalizar nombres de columnas
+                    rel_columns = [str(c).strip() for c in rel.columns]
+                    rel.columns = rel_columns
+
+                    listas_col = None
+                    for c in ('LISTA', 'Lista', 'lista'):
+                        if c in rel.columns:
+                            listas_col = c
+                            break
+
+                    codigo_col = None
+                    for c in ('CODIGO', 'Codigo', 'codigo'):
+                        if c in rel.columns:
+                            codigo_col = c
+                            break
+
+                    folio_col = None
+                    for c in ('FOLIO', 'FOLIOS', 'folio'):
+                        if c in rel.columns:
+                            folio_col = c
+                            break
+
+                    solicitud_col = None
+                    for c in ('SOLICITUD', 'SOLICITUDES', 'Solicitud', 'NO. SOLICITUD', 'NUMERO_SOLICITUD'):
+                        if c in rel.columns:
+                            solicitud_col = c
+                            break
+
+                    listas_vals = []
+                    codigos_vals = []
+
+                    for _, r in df.iterrows():
+                        fol = str(r.get('FOLIOS', '')).strip()
+                        fol_digits = ''.join([ch for ch in fol if ch.isdigit()])
+                        sol = str(r.get('SOLICITUDES', '')).strip()
+
+                        matches = rel.copy()
+                        # Filtrar por folio si existe columna (comparar como enteros para evitar ceros a la izquierda)
+                        if folio_col and fol_digits:
+                            try:
+                                fol_int = int(fol_digits)
+                                def extract_int(x):
+                                    s = ''.join([ch for ch in str(x) if ch.isdigit()])
+                                    return int(s) if s not in (None, '') else None
+                                # Keep rows where folio_col numeric value matches fol_int
+                                matches = matches[matches[folio_col].notna()]
+                                matches = matches[matches[folio_col].astype(str).apply(lambda x: ''.join([ch for ch in str(x) if ch.isdigit()]) ) != '']
+                                matches = matches[matches[folio_col].astype(str).apply(lambda x: extract_int(x) == fol_int if extract_int(x) is not None else False)]
+                            except Exception:
+                                # Fallback a comparación por dígitos como string
+                                matches = matches[matches[folio_col].notna()]
+                                matches = matches[matches[folio_col].astype(str).apply(lambda x: ''.join([ch for ch in str(x) if ch.isdigit()])) == fol_digits]
+
+                        # Filtrar por solicitud si se proporcionó
+                        if solicitud_col and sol:
+                            matches = matches[matches[solicitud_col].astype(str).str.strip() == sol]
+
+                        if not matches.empty:
+                            listas_set = sorted({str(v).strip() for v in matches[listas_col].tolist() if listas_col and v is not None and str(v).strip() != ''}) if listas_col else []
+                            # CODIGO puede contener listas separadas por comas; extraer todos
+                            codigos_set = []
+                            if codigo_col:
+                                raw_codigos = []
+                                for cv in matches[codigo_col].tolist():
+                                    if cv is None:
+                                        continue
+                                    for part in str(cv).split(','):
+                                        p = part.strip()
+                                        if p:
+                                            raw_codigos.append(p)
+                                codigos_set = sorted(set(raw_codigos))
+
+                            listas_vals.append(','.join(map(str, listas_set)) if listas_set else '')
+                            codigos_vals.append(','.join(codigos_set) if codigos_set else '')
+                            print(f"→ Folio {fol} | Solicitud '{sol}' → LISTA: {','.join(map(str, listas_set))} | CODIGO: {','.join(codigos_set)}")
+                        else:
+                            listas_vals.append('')
+                            codigos_vals.append('')
+                            print(f"→ Folio {fol} | Solicitud '{sol}' → No se encontraron coincidencias en backups de tabla_de_relacion")
+
+                    df['LISTA'] = listas_vals
+                    df['CODIGO'] = codigos_vals
+            except Exception as e:
+                print(f"⚠️ No se pudo enriquecer reporte con tabla de relación: {e}")
             
-            # Definir el orden de columnas deseado
-            column_order = ["FOLIOS", "MARCA", "SOLICITUDES", "FECHA DE IMPRESION", "FECHA DE VERIFICACION", "TIPO DE DOCUMENTO"]
+            # Definir el orden de columnas deseado (incluir LISTA y CODIGO si existen)
+            column_order = [
+                "LISTA",
+                "CODIGO",
+                "FOLIOS",
+                "MARCA",
+                "SOLICITUDES",
+                "FECHA DE IMPRESION",
+                "FECHA DE VERIFICACION",
+                "TIPO DE DOCUMENTO",
+            ]
             
             # Reordenar columnas si existen
             existing_columns = [col for col in column_order if col in df.columns]
@@ -4922,6 +5086,29 @@ class SistemaDictamenesVC(ctk.CTk):
                 
         except Exception as e:
             messagebox.showerror("Error", f"No se pudieron descargar los folios:\n{str(e)}")
+    
+    
+    
+    
+    
+    
+    
+    
+
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
     # ----------------- FOLIOS PENDIENTES (UI helpers) -----------------
     def _get_folios_pendientes(self):
         """Retorna lista de registros pendientes.
