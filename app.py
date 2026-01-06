@@ -2444,6 +2444,17 @@ class SistemaDictamenesVC(ctk.CTk):
                                 pass
 
                         next_local = maxf + 1
+                        # Si no se encontraron folios locales (next_local == 1),
+                        # intentar sincronizar con el contador persistente
+                        # `data/folio_counter.json` mediante `folio_manager`.
+                        if int(next_local) == 1:
+                            try:
+                                import folio_manager
+                                curr = folio_manager.get_last()
+                                if curr and int(curr) > 0:
+                                    next_local = int(curr) + 1
+                            except Exception:
+                                pass
                     except Exception:
                         next_local = 1
                     for pair in pares_vistos:

@@ -1001,34 +1001,37 @@ def generar_dictamenes_completos(directorio_destino, cliente_manual=None, rfc_ma
         last_known = None
 
     # Fallback adicional: leer directamente `data/folio_counter.json` usando
-    # `obtener_ruta_recurso` (maneja rutas para .py y .exe). Esto ayuda cuando
-    # folio_manager pueda estar apuntando a una ruta diferente inesperadamente
-    # o cuando fue editado manualmente fuera del flujo del módulo.
+    # `obtener_ruta_recurso` (maneja rutas para .py y .exe). Intentar sincronizar
+    # el `folio_manager` con el valor en disco SIEMPRE que el archivo exista
+    # y su valor sea mayor que el almacenado en el manager. Esto evita casos
+    # donde el manager lea un archivo embebido más antiguo dentro del bundle
+    # y cause reinicio de folios a 000001.
     try:
-        if not last_known or int(last_known) == 0:
-            contador_path = os.path.join(obtener_ruta_recurso('data'), 'folio_counter.json')
-            if os.path.exists(contador_path):
-                try:
-                    with open(contador_path, 'r', encoding='utf-8') as cf:
-                        j = json.load(cf) or {}
-                        v = int(j.get('last', 0))
-                        if v and v > 0:
-                            last_known = v
-                            print(f"   ℹ️ folio_counter.json (fallback) leído: {last_known}")
-                            # Intentar sincronizar con folio_manager para asegurar que
-                            # las próximas reservas usen este valor como referencia.
-                            try:
-                                current_mgr = folio_manager.get_last()
-                                if current_mgr is None or int(current_mgr) < int(v):
-                                    try:
-                                        folio_manager.set_last(int(v))
-                                        print(f"   ℹ️ folio_manager sincronizado a {int(v)}")
-                                    except Exception:
-                                        pass
-                            except Exception:
-                                pass
-                except Exception:
-                    pass
+        contador_path = os.path.join(obtener_ruta_recurso('data'), 'folio_counter.json')
+        if os.path.exists(contador_path):
+            try:
+                with open(contador_path, 'r', encoding='utf-8') as cf:
+                    j = json.load(cf) or {}
+                    v = int(j.get('last', 0))
+                    if v and v > 0:
+                        # Registrar y sincronizar si el manager tiene un valor menor
+                        try:
+                            current_mgr = folio_manager.get_last()
+                        except Exception:
+                            current_mgr = None
+                        try:
+                            if current_mgr is None or int(current_mgr) < int(v):
+                                folio_manager.set_last(int(v))
+                                print(f"   ℹ️ folio_manager sincronizado a {int(v)} desde {contador_path}")
+                                last_known = int(v)
+                            else:
+                                # Aunque el manager esté al día, actualizar last_known
+                                last_known = int(current_mgr) if current_mgr is not None else int(v)
+                        except Exception:
+                            # Si no se pudo setear, al menos usar el valor en disco
+                            last_known = int(v)
+            except Exception:
+                pass
     except Exception:
         pass
 
