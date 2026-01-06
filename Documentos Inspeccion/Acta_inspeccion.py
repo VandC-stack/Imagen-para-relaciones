@@ -394,14 +394,16 @@ class ActaPDFGenerator:
 
     def _dibujar_tabla_productos_canvas(self, c, productos):
         """Dibuja una tabla simple en canvas con los campos solicitados.
-        Campos mostrados: SOLICITUD, PEDIMENTO, FACTURA, CODIGO, CANTIDAD, EVALUACIÓN
+        Campos mostrados: SOLICITUD, PEDIMENTO, FACTURA, CODIGO, PIEZAS, EVALUACIÓN
         """
         # Coordenadas y medidas
         left = 20 * mm
         top = self.height - 90
         row_h = 12
-        # Columnas más compactas para que se vean más juntas
-        col_widths = [40 * mm, 40 * mm, 40 * mm, 40 * mm, 20 * mm, 20 * mm]
+        # Columnas: ajustar anchos para que todas las columnas quepan en página
+        # Margen izquierdo/desplazamiento aproximado se considera al dibujar
+        # Totales aproximados en mm deben ser menores al ancho de página (~216mm)
+        col_widths = [28 * mm, 38 * mm, 50 * mm, 50 * mm, 12 * mm, 12 * mm]
 
         headers = ["No. Solicitud", "No. De Pedimento", "Factura", "Código", "Piezas", "Eval."]
 
@@ -423,13 +425,11 @@ class ActaPDFGenerator:
         # Iterar productos y pintar filas (paginar si necesario)
         for idx, prod in enumerate(productos):
             if y < 50:  # nueva página
-                # incrementar contador de páginas y crear nueva
                 try:
                     self.page_num = getattr(self, 'page_num', 1) + 1
                 except Exception:
                     self.page_num = 2
                 c.showPage()
-                # dibujar fondo y paginación en nueva página
                 try:
                     self.dibujar_fondo(c)
                 except Exception:
@@ -451,29 +451,38 @@ class ActaPDFGenerator:
             x = left
             # Normalizar claves para búsqueda flexible (case-insensitive y sin signos)
             norm = {}
-            for k, v in prod.items():
-                norm[_norm_key(k)] = v
+            if isinstance(prod, dict):
+                for k, v in prod.items():
+                    norm[_norm_key(k)] = v
+            else:
+                # Si el registro no es dict, representarlo como string en la columna código
+                norm[_norm_key('codigo')] = prod
 
             def find_value(candidates, default=''):
                 for cand in candidates:
                     nk = _norm_key(cand)
-                    if nk in norm:
+                    if nk in norm and norm[nk] not in (None, ''):
                         return norm[nk]
                 return default
 
-            solicitud = str(find_value(['SOLICITUD', 'no solicitud', 'no.solicitud', 'no. de solicitud', 'no_solicitud'], ''))
-            pedimento = str(find_value(['PEDIMENTO', 'no pedimento', 'no.pedimento', 'no. de pedimento'], ''))
-            factura = str(find_value(['FACTURA', 'factura', 'FACTURAS'], ''))
-            codigo = str(find_value(['CODIGO', 'CÓDIGO', 'codigo'], ''))
-            cantidad = str(find_value(['CANTIDAD', 'PIEZAS', 'piezas', 'cantidad'], ''))
+            solicitud = str(find_value(['SOLICITUD', 'no solicitud', 'no.solicitud', 'no. de solicitud', 'no_solicitud', 'SOLICITUD_NO'], ''))
+            pedimento = str(find_value(['PEDIMENTO', 'no pedimento', 'no.pedimento', 'no. de pedimento', 'nopedimento', 'num pedimento', 'numero pedimento'], ''))
+            factura = str(find_value(['FACTURA', 'factura', 'FACTURAS', 'NO FACTURA', 'NUM FACTURA', 'NFACTURA', 'n° factura'], ''))
+            codigo = str(find_value(['CODIGO', 'CÓDIGO', 'codigo', 'SKU', 'ITEM', 'REFERENCIA'], ''))
+            # Obtener piezas desde el campo CONTENIDO (si existe). Mantener CANTIDAD internamente si se necesita.
+            piezas = str(find_value(['CONTENIDO', 'DESCRIPCION', 'DESCRIPCIÓN', 'CONTENIDO MERCANCIA', 'CONTENIDO_PRODUCTO', 'DESCRIPCION_PRODUCTO'], ''))
+            cantidad = str(find_value(['CANTIDAD', 'PIEZAS', 'piezas', 'cantidad', 'UNIDADES', 'CANT'], ''))
             evaluacion = str(find_value(['EVALUACION', 'EVALUACIÓN', 'Eval', 'EVAL'], '')) or 'C'
 
-            values = [solicitud, pedimento, factura, codigo, cantidad, evaluacion]
+            # Mostrar Piezas (valor de CONTENIDO) y no la columna 'Contenido'
+            values = [solicitud, pedimento, factura, codigo, piezas, evaluacion]
             for i, val in enumerate(values):
-                # Truncar si es muy largo
-                txt = str(val)
+                txt = '' if val is None else str(val)
                 # Ajustar font y ancho máximo por columna
-                max_chars = int(col_widths[i] / 3.8)
+                try:
+                    max_chars = int(col_widths[i] / 3.8)
+                except Exception:
+                    max_chars = 20
                 if len(txt) > max_chars:
                     txt = txt[:max_chars-3] + '...'
                 c.drawString(x + 2, y, txt)
@@ -823,11 +832,38 @@ def generar_acta_desde_visita(folio_visita=None, ruta_salida=None):
         try:
             with open(folios_file, 'r', encoding='utf-8') as ff:
                 data = json.load(ff)
-                # esperar lista de folios en data
+                # Formatos soportados:
+                # - lista simple de números/strings
+                # - dict {'folios': [...]}
+                # - lista de dicts (cada dict con clave 'FOLIOS' o 'FOLIO')
                 if isinstance(data, list):
-                    folios_list = [int(x) for x in data if str(x).isdigit()]
+                    # lista simple?
+                    if data and all(not isinstance(x, dict) for x in data):
+                        folios_list = [int(x) for x in data if str(x).strip().isdigit()]
+                    else:
+                        # lista de registros -> extraer campo FOLIOS/FOLIO
+                        extracted = []
+                        for rec in data:
+                            if not isinstance(rec, dict):
+                                continue
+                            val = None
+                            for key in ('FOLIOS', 'FOLIO', 'folios', 'folio'):
+                                if key in rec and rec.get(key) is not None:
+                                    val = rec.get(key)
+                                    break
+                            if val is None:
+                                continue
+                            # val puede ser '000867' u objeto. Extraer dígitos
+                            s = str(val)
+                            digits = ''.join([c for c in s if c.isdigit()])
+                            if digits:
+                                try:
+                                    extracted.append(int(digits))
+                                except Exception:
+                                    pass
+                        folios_list = extracted
                 elif isinstance(data, dict) and 'folios' in data:
-                    folios_list = [int(x) for x in data.get('folios', []) if str(x).isdigit()]
+                    folios_list = [int(x) for x in data.get('folios', []) if str(x).strip().isdigit()]
         except Exception:
             folios_list = []
 

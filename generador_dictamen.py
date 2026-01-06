@@ -6,6 +6,7 @@ import pandas as pd
 from datetime import datetime
 import traceback
 import time
+import shutil
 
 # Evitar UnicodeEncodeError en consolas Windows (CP1252) al imprimir emojis u
 # otros caracteres Unicode. Intentar reconfigurar stdout/stderr a UTF-8 cuando
@@ -1541,13 +1542,28 @@ def generar_dictamenes_completos(directorio_destino, cliente_manual=None, rfc_ma
                     'NORMA UVA': r.get('NORMA UVA') or r.get('NORMA_UVA') or r.get('NORMA_Uva') or r.get('norma_uva') or None
                 })
         if tabla_out:
-            ts = datetime.now().strftime('%Y%m%d%H%M%S')
-            out_path = os.path.join(directorio_json, f"tabla_relacion_generada_{ts}.json")
+            # Nota: No sobrescribimos ni creamos copias reducidas de `data/tabla_de_relacion.json`.
+            # La intención es preservar la tabla completa que el usuario haya subido.
+            # Por tanto, si ya existe `tabla_de_relacion.json` en `data/`, lo dejamos intacto
+            # y usamos esa versión completa como único respaldo persistente.
             try:
-                with open(out_path, 'w', encoding='utf-8') as of:
-                    json.dump(tabla_out, of, ensure_ascii=False, indent=2)
-                resultado['tabla_relacion_actualizada'] = out_path
-                print(f"   💾 Tabla de relación actualizada guardada: {out_path}")
+                data_dir = obtener_ruta_recurso('data')
+                tabla_principal = os.path.join(data_dir, 'tabla_de_relacion.json')
+                backup_dir = os.path.join(data_dir, 'tabla_relacion_backups')
+                os.makedirs(backup_dir, exist_ok=True)
+
+                # Si existe la tabla principal completa, NO crear el respaldo PERSIST aquí.
+                # La aplicación (app.py) es responsable de crear el respaldo final cuando
+                # la generación de documentos sea exitosa y tenga el folio de visita.
+                if os.path.exists(tabla_principal):
+                    try:
+                        print("   ℹ️ Se omite creación de PERSIST en el generador; lo crea app.py tras generación.")
+                        resultado['tabla_relacion_actualizada'] = None
+                    except Exception:
+                        resultado['tabla_relacion_actualizada'] = None
+                else:
+                    # Si no existe una tabla principal completa, no crear backups reducidos automáticamente.
+                    print("   ⚠️ No existe tabla_de_relacion.json completa; no se creará respaldo reducido.")
             except Exception:
                 pass
     except Exception:

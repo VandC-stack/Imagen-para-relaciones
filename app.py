@@ -2351,7 +2351,21 @@ class SistemaDictamenesVC(ctk.CTk):
             if col_solicitud and col_solicitud != 'SOLICITUD':
                 df.rename(columns={col_solicitud: 'SOLICITUD'}, inplace=True)
 
-            records = df.to_dict(orient="records")
+            # Reemplazar NaN por None para mantener claves presentes y serializables
+            try:
+                df = df.astype(object).where(pd.notnull(df), None)
+            except Exception:
+                pass
+
+            # Construir lista de registros respetando el orden original de columnas
+            cols = list(df.columns)
+            records = []
+            for _, row in df.iterrows():
+                rec = {}
+                for c in cols:
+                    # Asegurarse de que la clave exista incluso si el valor es None
+                    rec[c] = row.get(c, None)
+                records.append(rec)
 
             # ----------------- ASIGNAR FOLIOS USANDO FOLIO_MANAGER -----------------
             # Intentamos reservar un bloque persistente desde folio_manager para
@@ -2474,6 +2488,15 @@ class SistemaDictamenesVC(ctk.CTk):
 
             with open(output_path, "w", encoding="utf-8") as f:
                 json.dump(records, f, ensure_ascii=False, indent=2)
+
+            # NOTA: No crear PERSIST/backup durante la conversión de la tabla. La copia
+            # persistente (PERSIST) se creará únicamente cuando la generación de
+            # documentos sea exitosa, usando el folio de la visita como identificador.
+            # Esto evita crear múltiples copias al subir/editar tablas que luego se descartan.
+            try:
+                print("   ℹ️ Conversión completada: no se crea backup PERSIST en esta etapa.")
+            except Exception:
+                pass
 
             # EXTRAER Y GUARDAR INFORMACIÓN DE FOLIOS
             self._extraer_informacion_folios(records)
@@ -3519,8 +3542,12 @@ class SistemaDictamenesVC(ctk.CTk):
             backup_name = f"tabla_relacion_backup_{start:06d}_{ts}.json"
             backup_path = os.path.join(backups_dir, backup_name)
             try:
-                with open(backup_path, 'w', encoding='utf-8') as bf:
-                    json.dump(registros, bf, ensure_ascii=False, indent=2)
+                # Copiar el archivo existente para preservar su formato exacto
+                if os.path.exists(tabla_path):
+                    shutil.copyfile(tabla_path, backup_path)
+                else:
+                    with open(backup_path, 'w', encoding='utf-8') as bf:
+                        json.dump(registros, bf, ensure_ascii=False, indent=2)
             except Exception:
                 pass
 
@@ -6401,7 +6428,24 @@ class SistemaDictamenesVC(ctk.CTk):
                         backup_dir = os.path.join(APP_DIR, 'data', 'tabla_relacion_backups')
                         os.makedirs(backup_dir, exist_ok=True)
                         ts = datetime.now().strftime('%Y%m%d%H%M%S')
-                        shutil.copyfile(tabla_relacion_path, os.path.join(backup_dir, f"tabla_de_relacion_{folio}_{ts}.json"))
+                        # Crear solo un PERSIST por CP: si ya existe, no crear nuevos backups.
+                        try:
+                            cp_digits = ''.join([c for c in str(folio) if c.isdigit()]) or ''
+                            cp = f"CP{int(cp_digits):06d}" if cp_digits else f"CP{str(folio)}"
+                        except Exception:
+                            cp = f"CP{str(folio)}"
+
+                        existing = [fn for fn in os.listdir(backup_dir) if fn.upper().startswith(f"TABLA_DE_RELACION_{cp}_PERSIST_")]
+                        if existing:
+                            # Ya existe un respaldo persistente; crear solo un respaldo no-persistente.
+                            print(f"   ℹ️ Ya existe PERSIST para {cp}, creando respaldo BACKUP en su lugar: {existing[0]}")
+                            dest_name = f"tabla_de_relacion_{cp}_BACKUP_{ts}.json"
+                        else:
+                            # No hay PERSIST aún: crear respaldo no-persistente (la copia persistente
+                            # definitiva se crea en la ruta de generación exitosa).
+                            dest_name = f"tabla_de_relacion_{cp}_BACKUP_{ts}.json"
+                        shutil.copyfile(tabla_relacion_path, os.path.join(backup_dir, dest_name))
+                        print(f"   💾 Backup de tabla_de_relacion creado (no-persistente): {dest_name}")
                     except Exception as e:
                         resultados['errores'].append(f"No se pudo crear backup de tabla_de_relacion: {e}")
 
