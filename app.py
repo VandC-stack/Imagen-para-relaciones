@@ -867,7 +867,7 @@ class SistemaDictamenesVC(ctk.CTk):
 
         self.lbl_folios_pendientes = ctk.CTkLabel(
             self.cliente_folios_frame,
-            text="Folios reservados:",
+            text="Visitas Reservadas:",
             font=("Inter", 10),
             text_color=STYLE["texto_oscuro"]
         )
@@ -1186,7 +1186,7 @@ class SistemaDictamenesVC(ctk.CTk):
         # para que siempre esté visible junto a 'Subir archivo', 'Verificar Datos' y 'Limpiar'.
         self.boton_guardar_folio = ctk.CTkButton(
             botones_fila1,
-            text="Reservar Folio",
+            text="Reservar Visita",
             command=self.reservar_folios_tabla,
             font=("Inter", 12, "bold"),
             fg_color=STYLE["primario"],
@@ -2252,7 +2252,7 @@ class SistemaDictamenesVC(ctk.CTk):
                             "tipo_documento": tipo_documento,
                         "folios_utilizados": f"{folio_visita} - {folio_visita}"  # Guardar el folio como rango único
                     }
-                    self.hist_create_visita(payload)
+                    self.hist_create_visita(payload, show_notification=False)
                     self.crear_nueva_visita()
                     messagebox.showinfo("Registro guardado", "El folio se guardó como registro incompleto. Podrá completarlo más adelante.")
                     return
@@ -2321,7 +2321,7 @@ class SistemaDictamenesVC(ctk.CTk):
             except Exception:
                 pass
 
-            self.hist_create_visita(payload)
+            self.hist_create_visita(payload, show_notification=False)
             # Forzar actualización inmediata de la etiqueta de siguiente folio
             try:
                 self._update_siguiente_folio_label()
@@ -3512,14 +3512,18 @@ class SistemaDictamenesVC(ctk.CTk):
                 "cp": getattr(self, 'cp_seleccionado', '')
             }
 
-            # DEBUG: imprimir payload que vamos a guardar
+            # Log breve: indicar folio guardado (evitar volcar todo el payload)
             try:
-                print(f"[DEBUG] guardar_folio_historial payload: {json.dumps(payload, ensure_ascii=False)}")
+                print(f"[INFO] Visita pendiente guardada: {payload.get('folio_visita','-')} tipo={payload.get('tipo_documento','-')}")
             except Exception:
-                print(f"[DEBUG] guardar_folio_historial payload: {payload}")
+                try:
+                    print(f"[INFO] Visita pendiente guardada")
+                except Exception:
+                    pass
 
-            # Guardar usando la función existente
-            self.hist_create_visita(payload)
+            # Guardar usando la función existente (suprimir notificación interna
+            # porque este llamador mostrará su propio messagebox)
+            self.hist_create_visita(payload, show_notification=False)
             try:
                 # actualizar indicador visual del siguiente folio
                 self._update_siguiente_folio_label()
@@ -3589,102 +3593,20 @@ class SistemaDictamenesVC(ctk.CTk):
         `data/tabla_de_relacion.json` asignando un folio por familia (LISTA).
         """
         try:
-            data_dir = DATA_DIR
-            tabla_path = os.path.join(data_dir, 'tabla_de_relacion.json')
-            if not os.path.exists(tabla_path):
-                # Si no existe la tabla de relación, reservar el folio directamente
-                # usando los datos del formulario (comportamiento original).
-                try:
-                    self.guardar_folio_historial()
-                except Exception as e:
-                    # No interrumpir con un diálogo; registrar error y retornar
-                    print(f"[ERROR] reservar_folios_tabla -> guardar_folio_historial: {e}")
-                return
-
-            with open(tabla_path, 'r', encoding='utf-8') as f:
-                registros = json.load(f) or []
-
-            # Agrupar por LISTA (si no existe, intentar 'lista')
-            familias = {}
-            for r in registros:
-                llave = r.get('LISTA') or r.get('lista') or r.get('Lista') or r.get('Lista')
-                if llave is None:
-                    # fallback: usar índice por fila
-                    llave = f"_ROW_{len(familias)}"
-                familias.setdefault(str(llave), []).append(r)
-
-            total_needed = len(familias)
-            if total_needed <= 0:
-                messagebox.showinfo("Sin familias", "No se detectaron familias/listas en la tabla para reservar folios.")
-                return
-
-            # Reservar bloque atómico
+            # Esta función fue simplificada: ya no requiere ni usa
+            # `tabla_de_relacion.json`. El botón "Reservar Folio" únicamente
+            # guarda la visita actual como pendiente en el historial y en
+            # `pending_folios.json` para que el usuario la seleccione después.
             try:
-                start = folio_manager.reserve_block(total_needed)
-            except Exception as e:
-                # intentar obtener último conocido y calcular
-                try:
-                    last = folio_manager.get_last()
-                    start = int(last) + 1
-                    folio_manager.set_last(int(last) + int(total_needed))
-                except Exception:
-                    messagebox.showerror("Reserva fallida", f"No se pudo reservar folios: {e}")
-                    return
-
-            # Asignar folios por familia en orden determinista (orden de claves)
-            claves = sorted(list(familias.keys()))
-            current = int(start)
-            for k in claves:
-                for rec in familias[k]:
-                    try:
-                        rec['FOLIO'] = int(current)
-                    except Exception:
-                        rec['FOLIO'] = str(current)
-                current += 1
-
-            # Hacer backup antes de sobrescribir
-            backups_dir = os.path.join(data_dir, 'tabla_relacion_backups')
-            os.makedirs(backups_dir, exist_ok=True)
-            ts = datetime.now().strftime('%Y%m%d_%H%M%S')
-            backup_name = f"tabla_relacion_backup_{start:06d}_{ts}.json"
-            backup_path = os.path.join(backups_dir, backup_name)
-            try:
-                # Copiar el archivo existente para preservar su formato exacto
-                if os.path.exists(tabla_path):
-                    shutil.copyfile(tabla_path, backup_path)
-                else:
-                    with open(backup_path, 'w', encoding='utf-8') as bf:
-                        json.dump(registros, bf, ensure_ascii=False, indent=2)
-            except Exception:
-                pass
-
-            # Sobrescribir tabla_de_relacion.json
-            try:
-                with open(tabla_path, 'w', encoding='utf-8') as f:
-                    json.dump(registros, f, ensure_ascii=False, indent=2)
-            except Exception as e:
-                messagebox.showerror("Error guardando tabla", f"No se pudo actualizar tabla_de_relacion.json: {e}")
-                return
-
-            # Actualizar UI y estado
-            try:
-                # Forzar recalcular info_folios_actual
-                self._extraer_informacion_folios(registros)
-                self._update_siguiente_folio_label()
-            except Exception:
-                pass
-
-            # Después de asignar folios y actualizar la tabla, guardar la visita
-            # actual como pendiente en el historial/pending_folios para que la
-            # reserva quede disponible inmediatamente (comportamiento igual a .py)
-            try:
-                # Intentar persistir la visita actual como pendiente
                 self.guardar_folio_historial()
             except Exception as e:
-                print(f"[WARN] reservar_folios_tabla -> guardar_folio_historial: {e}")
-
+                print(f"[ERROR] reservar_folios_tabla -> guardar_folio_historial: {e}")
         except Exception as e:
-            messagebox.showerror("Error", f"Error al reservar folios: {e}")
+            # No interrumpimos la UX: mostrar un error genérico si ocurre
+            try:
+                messagebox.showerror("Error", f"Error guardando visita: {e}")
+            except Exception:
+                print(f"Error guardando visita: {e}")
 
     def _finalizar_generacion(self):
         if self.winfo_exists():  # Verificar si la ventana aún existe
@@ -4404,6 +4326,37 @@ class SistemaDictamenesVC(ctk.CTk):
             # ACTUALIZAR self.historial_data DESDE self.historial
             self.historial_data = self.historial.get("visitas", [])
             self.historial_data_original = self.historial_data.copy()
+
+            # Ordenar historial por `folio_visita` (CP) de menor a mayor cuando sea posible.
+            # Intentamos extraer el primer número presente en el campo `folio_visita` y
+            # ordenar numéricamente; si no es posible, caer al comparador de texto.
+            try:
+                import re
+                def _folio_key(rec):
+                    try:
+                        fv = str(rec.get('folio_visita') or '')
+                    except Exception:
+                        fv = ''
+                    # Buscar primer bloque de dígitos
+                    m = re.search(r'(\d+)', fv)
+                    if m:
+                        try:
+                            return int(m.group(1))
+                        except Exception:
+                            pass
+                    # Intentar convertir entero directo
+                    try:
+                        return int(fv)
+                    except Exception:
+                        return fv.lower() if isinstance(fv, str) else fv
+
+                visitas_list = self.historial.get('visitas')
+                if isinstance(visitas_list, list) and visitas_list:
+                    visitas_list.sort(key=_folio_key)
+                    # Asegurar que self.historial_data refleje el orden actual
+                    self.historial_data = visitas_list
+            except Exception:
+                pass
             
             # Determinar ruta de guardado (soporte para .exe congelado y rutas no escribibles)
             target_path = self.historial_path
@@ -7639,7 +7592,7 @@ class SistemaDictamenesVC(ctk.CTk):
             print(f"❌ Error en hist_eliminar_registro: {e}")
             messagebox.showerror("Error", f"No se pudo eliminar el registro:\n{e}")
 
-    def hist_create_visita(self, payload, es_automatica=False):
+    def hist_create_visita(self, payload, es_automatica=False, show_notification=True):
         """Crea una nueva visita en el historial"""
         try:
             # Generar ID único
@@ -7830,7 +7783,7 @@ class SistemaDictamenesVC(ctk.CTk):
                     except Exception:
                         pass
 
-                    if not es_automatica:
+                    if not es_automatica and show_notification:
                         messagebox.showinfo("OK", f"Visita {payload.get('folio_visita','-')} guardada correctamente")
 
                     # DEBUG: mostrar resumen mínimo del historial después de añadir
@@ -9428,11 +9381,14 @@ class SistemaDictamenesVC(ctk.CTk):
             except Exception:
                 pass
 
-            # DEBUG: mostrar payload recogido del modal
+            # Log breve desde modal: mostrar sólo folio y cliente
             try:
-                print(f"[DEBUG] modal _guardar payload: {json.dumps(payload, ensure_ascii=False)}")
+                print(f"[INFO] Modal guardar: folio={payload.get('folio_visita','-')} cliente={payload.get('cliente','-')}")
             except Exception:
-                print(f"[DEBUG] modal _guardar payload: {payload}")
+                try:
+                    print("[INFO] Modal guardar")
+                except Exception:
+                    pass
 
             # usar id seguro (soporta _id, id o folio) para actualizar
             target_id = datos.get('_id') or datos.get('id') or datos.get('folio_visita') or datos.get('folio_acta')
