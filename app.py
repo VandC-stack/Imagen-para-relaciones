@@ -50,6 +50,20 @@ if getattr(sys, 'frozen', False):
 else:
     APP_DIR = os.path.abspath(os.path.dirname(__file__))
 
+# Directorio de datos: permitir carpeta central mediante variable de entorno
+# Si `IMAGENESVC_DATA_DIR` está definida, usarla; en caso contrario, usar
+# la carpeta `data` junto a `APP_DIR` (comportamiento por defecto).
+DATA_DIR = os.getenv('IMAGENESVC_DATA_DIR')
+if DATA_DIR:
+    DATA_DIR = os.path.abspath(DATA_DIR)
+else:
+    DATA_DIR = os.path.join(APP_DIR, 'data')
+# Asegurar que folio_manager use la misma carpeta de datos (cuando busque folio_counter)
+try:
+    os.environ['FOLIO_DATA_DIR'] = DATA_DIR
+except Exception:
+    pass
+
 
 class SistemaDictamenesVC(ctk.CTk):
     # --- PAGINACIÓN HISTORIAL ---
@@ -96,7 +110,7 @@ class SistemaDictamenesVC(ctk.CTk):
         # ===== NUEVAS VARIABLES PARA HISTORIAL =====
         self.historial_data = []
         self.historial_data_original = []
-        self.historial_path = os.path.join(APP_DIR, "data", "historial_visitas.json")
+        self.historial_path = os.path.join(DATA_DIR, "historial_visitas.json")
         
         # INICIALIZAR self.historial COMO DICCIONARIO
         self.historial = {"visitas": []}
@@ -104,7 +118,7 @@ class SistemaDictamenesVC(ctk.CTk):
         # ===== NUEVA VARIABLE PARA FOLIOS POR VISITA =====
         # Crear directorios necesarios. Usar `APP_DIR` para que la carpeta
         # `data` se cree junto al ejecutable cuando esté generado.
-        data_dir = os.path.join(APP_DIR, "data")
+        data_dir = DATA_DIR
         # Si estamos en un ejecutable congelado y no existe la carpeta externa
         # `APP_DIR/data`, extraer (copiar) la carpeta `data` embebida dentro
         # del bundle (BASE_DIR apunta a sys._MEIPASS cuando está congelado).
@@ -754,7 +768,7 @@ class SistemaDictamenesVC(ctk.CTk):
 
         # --- SELECCIONAR CLIENTE ---
         cliente_section = ctk.CTkFrame(scroll_generacion, fg_color="transparent")
-        cliente_section.pack(fill="x", pady=(0, 6))
+        cliente_section.pack(fill="x", pady=(0, 4))
 
         ctk.CTkLabel(
             cliente_section,
@@ -764,7 +778,7 @@ class SistemaDictamenesVC(ctk.CTk):
         ).pack(anchor="w", pady=(0, 10))
 
         cliente_controls_frame = ctk.CTkFrame(cliente_section, fg_color="transparent")
-        cliente_controls_frame.pack(fill="x", pady=(0, 10))
+        cliente_controls_frame.pack(fill="x", pady=(0, 6))
 
         # Usamos grid dentro de cliente_controls_frame para que el combo de
         # cliente y el combo de domicilios compartan el mismo ancho.
@@ -831,11 +845,11 @@ class SistemaDictamenesVC(ctk.CTk):
             text_color=STYLE["texto_claro"],
             wraplength=350
         )
-        self.info_cliente.pack(anchor="w", fill="x")
+        self.info_cliente.pack(anchor="w", fill="x", pady=(0,4))
 
         # --- PEGADO DE EVIDENCIA (siempre visible, arriba de Cargar Tabla de Relación) ---
         pegado_section = ctk.CTkFrame(scroll_generacion, fg_color="transparent")
-        pegado_section.pack(fill="x", pady=(0, 6))
+        pegado_section.pack(fill="x", pady=(0, 4))
 
         ctk.CTkLabel(
             pegado_section,
@@ -845,7 +859,7 @@ class SistemaDictamenesVC(ctk.CTk):
         ).pack(anchor="w", pady=(0, 8))
 
         pegado_botones_frame = ctk.CTkFrame(pegado_section, fg_color="transparent")
-        pegado_botones_frame.pack(fill="x", pady=(0, 6))
+        pegado_botones_frame.pack(fill="x", pady=(0, 4))
 
         # --- FOLIOS RESERVADOS (Debajo del selector de cliente) ---
         self.cliente_folios_frame = ctk.CTkFrame(cliente_section, fg_color="transparent")
@@ -1591,7 +1605,7 @@ class SistemaDictamenesVC(ctk.CTk):
         y el combobox `self.combo_cliente` se rellena con los nombres detectados.
         """
         posibles_rutas = [
-            os.path.join(APP_DIR, 'data', 'Clientes.json'),
+            os.path.join(DATA_DIR, 'Clientes.json'),
             os.path.join(BASE_DIR, 'Clientes.json'),
             'data/Clientes.json',
             'Clientes.json',
@@ -2129,36 +2143,30 @@ class SistemaDictamenesVC(ctk.CTk):
             except Exception:
                 seleccionado = None
 
-            # Si existe un folio pendiente para este tipo, ofrecer reutilizarlo
+            # No consumir automáticamente las reservas al crear un formulario nuevo.
+            # Dejaremos las visitas en estado 'Pendiente' hasta que el usuario
+            # seleccione explícitamente una de las reservas desde el combobox.
             try:
-                if seleccionado:
-                    pendientes = [r for r in getattr(self, 'historial_data', []) if (r.get('tipo_documento') or '').strip() == seleccionado and (r.get('estatus','').lower() == 'pendiente')]
-                    if pendientes:
-                        primero = pendientes[0]
-                        usar = messagebox.askyesno("Folio pendiente encontrado", f"Se encontró un folio pendiente: {primero.get('folio_visita','-')} / {primero.get('folio_acta','-')}\n¿Desea usarlo para esta visita?")
-                        if usar:
-                            # Cargar folios pendientes en el formulario
+                # Asegurar que el combobox de folios pendientes esté actualizado
+                if hasattr(self, '_refresh_pending_folios_dropdown'):
+                    try:
+                        self._refresh_pending_folios_dropdown()
+                    except Exception:
+                        pass
+                # Indicar al usuario si existe alguna reserva para el tipo seleccionado
+                try:
+                    if seleccionado:
+                        pendientes = [r for r in getattr(self, 'historial_data', []) if (r.get('tipo_documento') or '').strip() == seleccionado and (r.get('estatus','').lower() == 'pendiente')]
+                        if pendientes:
+                            # Mostrar mensaje no intrusivo en la etiqueta de info
                             try:
-                                self.entry_folio_visita.configure(state='normal')
-                                self.entry_folio_visita.delete(0, 'end')
-                                self.entry_folio_visita.insert(0, primero.get('folio_visita',''))
-                                self.entry_folio_visita.configure(state='readonly')
-
-                                self.entry_folio_acta.configure(state='normal')
-                                self.entry_folio_acta.delete(0, 'end')
-                                self.entry_folio_acta.insert(0, primero.get('folio_acta',''))
-                                self.entry_folio_acta.configure(state='readonly')
+                                if hasattr(self, 'info_folio_pendiente'):
+                                    p0 = pendientes[0]
+                                    self.info_folio_pendiente.configure(text=f"Folio pendiente disponible: {p0.get('folio_visita','-')}")
                             except Exception:
                                 pass
-
-                            # Marcar el registro como en proceso para no sugerirlo de nuevo
-                            try:
-                                rid = primero.get('_id') or primero.get('id')
-                                if rid:
-                                    self.hist_update_visita(rid, {'estatus': 'En proceso'})
-                            except Exception:
-                                pass
-                            return
+                except Exception:
+                    pass
             except Exception:
                 pass
 
@@ -2286,7 +2294,40 @@ class SistemaDictamenesVC(ctk.CTk):
                 pass
 
             # Guardar visita
+            # Validar unicidad leyendo la versión en disco del historial (evita duplicados entre procesos)
+            try:
+                new_fv = str(payload.get('folio_visita','') or '').strip()
+                new_fa = str(payload.get('folio_acta','') or '').strip()
+                latest_visitas = []
+                try:
+                    hist_path = getattr(self, 'historial_path', None) or os.path.join(DATA_DIR, 'historial_visitas.json')
+                    if os.path.exists(hist_path):
+                        with open(hist_path, 'r', encoding='utf-8') as hf:
+                            hobj = json.load(hf) or {}
+                            latest_visitas = hobj.get('visitas', []) if isinstance(hobj, dict) else (hobj or [])
+                except Exception:
+                    latest_visitas = self.historial.get('visitas', []) or []
+
+                for v in (latest_visitas or []):
+                    try:
+                        if new_fv and str(v.get('folio_visita','') or '').strip().lower() == new_fv.lower():
+                            messagebox.showwarning("Folio duplicado", f"El folio de visita {new_fv} ya está en uso. No se puede duplicar CP.")
+                            return
+                        if new_fa and str(v.get('folio_acta','') or '').strip().lower() == new_fa.lower():
+                            messagebox.showwarning("Folio duplicado", f"El folio de acta {new_fa} ya está en uso. No se puede duplicar AC.")
+                            return
+                    except Exception:
+                        continue
+            except Exception:
+                pass
+
             self.hist_create_visita(payload)
+            # Forzar actualización inmediata de la etiqueta de siguiente folio
+            try:
+                self._update_siguiente_folio_label()
+            except Exception:
+                pass
+
             # Limpiar formulario después de guardar
             self.crear_nueva_visita()
         except Exception as e:
@@ -2774,6 +2815,50 @@ class SistemaDictamenesVC(ctk.CTk):
             except Exception:
                 pass
 
+            # Considerar reservas pendientes y folios recién calculados en memoria
+            try:
+                # `self.pending_folios` contiene reservas no persistidas o recién añadidas
+                for p in getattr(self, 'pending_folios', []) or []:
+                    try:
+                        fus = p.get('folios_utilizados') or p.get('folios') or []
+                        if isinstance(fus, list):
+                            for f in fus:
+                                digits = ''.join([c for c in str(f) if c.isdigit()])
+                                if digits:
+                                    try:
+                                        n = int(digits)
+                                        if n > maxf:
+                                            maxf = n
+                                    except Exception:
+                                        pass
+                        else:
+                            digits = ''.join([c for c in str(fus) if c.isdigit()])
+                            if digits:
+                                try:
+                                    n = int(digits)
+                                    if n > maxf:
+                                        maxf = n
+                                except Exception:
+                                    pass
+                    except Exception:
+                        continue
+
+                # También considerar `folios_utilizados_actual` (datos cargados desde la tabla)
+                try:
+                    for f in getattr(self, 'folios_utilizados_actual', []) or []:
+                        digits = ''.join([c for c in str(f) if c.isdigit()])
+                        if digits:
+                            try:
+                                n = int(digits)
+                                if n > maxf:
+                                    maxf = n
+                            except Exception:
+                                pass
+                except Exception:
+                    pass
+            except Exception:
+                pass
+
             # Además, leer el contador legacy `folio_counter.json` si existe y
             # tomar como referencia el mayor entre ambos (archivos por visita
             # vs contador). De esta forma el UI recuerda hasta dónde se
@@ -2992,7 +3077,7 @@ class SistemaDictamenesVC(ctk.CTk):
                 if visit_actual and normas_en_datos:
                     # cargar Firmas.json para mapa nombre->normas
                     try:
-                        firmas_path = os.path.join(APP_DIR, 'data', 'Firmas.json')
+                        firmas_path = os.path.join(DATA_DIR, 'Firmas.json')
                         with open(firmas_path, 'r', encoding='utf-8') as ff:
                             firmas_data = json.load(ff)
                     except Exception:
@@ -3200,7 +3285,7 @@ class SistemaDictamenesVC(ctk.CTk):
 
                                 # Eliminar de archivo de reservas
                                 try:
-                                    pf = os.path.join(APP_DIR, 'data', 'pending_folios.json')
+                                    pf = os.path.join(DATA_DIR, 'pending_folios.json')
                                     if os.path.exists(pf):
                                         with open(pf, 'r', encoding='utf-8') as f:
                                             arr = json.load(f) or []
@@ -3442,7 +3527,7 @@ class SistemaDictamenesVC(ctk.CTk):
                 pass
             # Persistir también en archivo de reservas (pending_folios.json)
             try:
-                pf_path = os.path.join(APP_DIR, 'data', 'pending_folios.json')
+                pf_path = os.path.join(DATA_DIR, 'pending_folios.json')
                 arr = []
                 if os.path.exists(pf_path):
                     try:
@@ -3456,6 +3541,17 @@ class SistemaDictamenesVC(ctk.CTk):
                     with open(pf_path, 'w', encoding='utf-8') as f:
                         json.dump(arr, f, ensure_ascii=False, indent=2)
                     self.pending_folios = arr
+                    # Forzar refresco inmediato de la UI de folios pendientes
+                    try:
+                        if hasattr(self, '_refresh_pending_folios_dropdown'):
+                            self._refresh_pending_folios_dropdown()
+                    except Exception:
+                        pass
+                    try:
+                        if hasattr(self, 'cliente_folios_frame') and not self.cliente_folios_frame.winfo_ismapped():
+                            self.cliente_folios_frame.pack(fill="x", pady=(4,4))
+                    except Exception:
+                        pass
             except Exception as e:
                 print(f"[WARN] No se pudo persistir reserva en pending_folios.json: {e}")
             # DEBUG: leer historial inmediatamente y confirmar último registro
@@ -3493,7 +3589,7 @@ class SistemaDictamenesVC(ctk.CTk):
         `data/tabla_de_relacion.json` asignando un folio por familia (LISTA).
         """
         try:
-            data_dir = os.path.join(APP_DIR, 'data')
+            data_dir = DATA_DIR
             tabla_path = os.path.join(data_dir, 'tabla_de_relacion.json')
             if not os.path.exists(tabla_path):
                 # Si no existe la tabla de relación, reservar el folio directamente
@@ -3578,7 +3674,14 @@ class SistemaDictamenesVC(ctk.CTk):
             except Exception:
                 pass
 
-            messagebox.showinfo("Reserva completada", f"Reservados {total_needed} folios empezando desde {int(start):06d}. Tabla actualizada.")
+            # Después de asignar folios y actualizar la tabla, guardar la visita
+            # actual como pendiente en el historial/pending_folios para que la
+            # reserva quede disponible inmediatamente (comportamiento igual a .py)
+            try:
+                # Intentar persistir la visita actual como pendiente
+                self.guardar_folio_historial()
+            except Exception as e:
+                print(f"[WARN] reservar_folios_tabla -> guardar_folio_historial: {e}")
 
         except Exception as e:
             messagebox.showerror("Error", f"Error al reservar folios: {e}")
@@ -3742,7 +3845,7 @@ class SistemaDictamenesVC(ctk.CTk):
                         assigned_nums = set()
                     # Log early read result
                     try:
-                        dbg_dir_early = os.path.join(APP_DIR, 'data')
+                        dbg_dir_early = DATA_DIR
                         os.makedirs(dbg_dir_early, exist_ok=True)
                         dbg_path_early = os.path.join(dbg_dir_early, 'hist_borrar_debug.log')
                         from datetime import datetime as _dt
@@ -3871,7 +3974,7 @@ class SistemaDictamenesVC(ctk.CTk):
                         pass
 
                 # Ruta a data/Dictamenes (compatible con exe y desarrollo)
-                dicts_dir = os.path.join(APP_DIR, 'data', 'Dictamenes')
+                dicts_dir = os.path.join(DATA_DIR, 'Dictamenes')
                 deleted_files = []
                 # Siempre escanear `data/Dictamenes` para intentar localizar archivos
                 # relacionados con la visita aunque no tengamos `folios_a_eliminar`.
@@ -4029,7 +4132,7 @@ class SistemaDictamenesVC(ctk.CTk):
                     existing = set()
                     # Escanear data/Dictamenes
                     try:
-                        dicts_dir = os.path.join(APP_DIR, 'data', 'Dictamenes')
+                        dicts_dir = os.path.join(DATA_DIR, 'Dictamenes')
                         if os.path.exists(dicts_dir):
                             for fn in os.listdir(dicts_dir):
                                 if not fn.lower().endswith('.json'):
@@ -4055,7 +4158,7 @@ class SistemaDictamenesVC(ctk.CTk):
 
                     # Escanear data/folios_visitas
                     try:
-                        fv_dir = os.path.join(APP_DIR, 'data', 'folios_visitas')
+                        fv_dir = os.path.join(DATA_DIR, 'folios_visitas')
                         if os.path.exists(fv_dir):
                             for ffn in os.listdir(fv_dir):
                                 if not ffn.lower().endswith('.json'):
@@ -4224,7 +4327,7 @@ class SistemaDictamenesVC(ctk.CTk):
                                     set_ok = False
                                 if not set_ok:
                                     try:
-                                        fc_dir = os.path.join(APP_DIR, 'data')
+                                        fc_dir = DATA_DIR
                                         os.makedirs(fc_dir, exist_ok=True)
                                         tmp_path = os.path.join(fc_dir, 'folio_counter.json.tmp')
                                         real_path = os.path.join(fc_dir, 'folio_counter.json')
@@ -4247,7 +4350,7 @@ class SistemaDictamenesVC(ctk.CTk):
 
                     # Write debug log entries
                     try:
-                        dbg_dir = os.path.join(APP_DIR, 'data')
+                        dbg_dir = DATA_DIR
                         os.makedirs(dbg_dir, exist_ok=True)
                         dbg_path = os.path.join(dbg_dir, 'hist_borrar_debug.log')
                         with open(dbg_path, 'a', encoding='utf-8') as dbgf:
@@ -4316,7 +4419,7 @@ class SistemaDictamenesVC(ctk.CTk):
                 # al usuario. Solo si eso falla, redirigir a APPDATA.
                 if getattr(sys, 'frozen', False):
                     try:
-                        app_data_dir = os.path.join(APP_DIR, 'data')
+                        app_data_dir = DATA_DIR
                         os.makedirs(app_data_dir, exist_ok=True)
                         if os.access(app_data_dir, os.W_OK):
                             target_path = os.path.join(app_data_dir, os.path.basename(self.historial_path))
@@ -4454,6 +4557,23 @@ class SistemaDictamenesVC(ctk.CTk):
             self._cargar_historial()
             self._force_reload_hist = False
         regs = getattr(self, 'historial_data', []) or []
+
+        # Ordenar visitas por folio_visita (CP) ascendente, y luego por folio_acta (AC)
+        try:
+            def _folio_key(r):
+                def digits_of(s):
+                    try:
+                        s = str(s) or ''
+                        digs = ''.join([c for c in s if c.isdigit()])
+                        return int(digs) if digs else 0
+                    except Exception:
+                        return 0
+
+                return (digits_of(r.get('folio_visita') or r.get('folio') or ''), digits_of(r.get('folio_acta') or ''))
+
+            regs = sorted(regs, key=_folio_key)
+        except Exception:
+            pass
 
         total_registros = len(regs)
         regs_pagina = self.HISTORIAL_REGS_POR_PAGINA
@@ -4788,7 +4908,7 @@ class SistemaDictamenesVC(ctk.CTk):
                         return
 
                     # Preferir el backup más reciente en data/tabla_relacion_backups si existe
-                    data_dir_local = os.path.join(APP_DIR, 'data')
+                    data_dir_local = DATA_DIR
                     backups_dir = os.path.join(data_dir_local, 'tabla_relacion_backups')
                     tabla_dest = os.path.join(data_dir_local, 'tabla_de_relacion.json')
 
@@ -4859,7 +4979,7 @@ class SistemaDictamenesVC(ctk.CTk):
                     return
 
                 # Asegurar que usamos el backup más reciente para tabla_de_relacion
-                data_dir_local = os.path.join(APP_DIR, 'data')
+                data_dir_local = DATA_DIR
                 backups_dir = os.path.join(data_dir_local, 'tabla_relacion_backups')
                 tabla_dest = os.path.join(data_dir_local, 'tabla_de_relacion.json')
 
@@ -5298,7 +5418,7 @@ class SistemaDictamenesVC(ctk.CTk):
             # Cargar mapeos de firmas -> nombre completo y de normas
             firmas_map = {}
             try:
-                firmas_path = os.path.join(APP_DIR, 'data', 'Firmas.json')
+                firmas_path = os.path.join(DATA_DIR, 'Firmas.json')
                 if os.path.exists(firmas_path):
                     with open(firmas_path, 'r', encoding='utf-8') as ff:
                         fdata = json.load(ff) or []
@@ -5315,7 +5435,7 @@ class SistemaDictamenesVC(ctk.CTk):
 
             normas_map = {}
             try:
-                normas_path = os.path.join(APP_DIR, 'data', 'Normas.json')
+                normas_path = os.path.join(DATA_DIR, 'Normas.json')
                 if os.path.exists(normas_path):
                     with open(normas_path, 'r', encoding='utf-8') as nf:
                         ndata = json.load(nf) or []
@@ -5479,7 +5599,7 @@ class SistemaDictamenesVC(ctk.CTk):
                                 except Exception:
                                     # Fallback atómico directo al archivo si folio_manager falla
                                     try:
-                                        counter_path = os.path.join(APP_DIR, 'data', 'folio_counter.json')
+                                        counter_path = os.path.join(DATA_DIR, 'folio_counter.json')
                                         tmp = counter_path + '.tmp'
                                         with open(tmp, 'w', encoding='utf-8') as tf:
                                             json.dump({'last': int(safe_max)}, tf)
@@ -5554,7 +5674,7 @@ class SistemaDictamenesVC(ctk.CTk):
             try:
                 # Buscar backups específicos para esta visita en data/tabla_relacion_backups
                 try:
-                    backups_dir = os.path.join(APP_DIR, 'data', 'tabla_relacion_backups')
+                    backups_dir = os.path.join(DATA_DIR, 'tabla_relacion_backups')
                 except Exception:
                     backups_dir = os.path.join(os.path.dirname(__file__), 'data', 'tabla_relacion_backups')
 
@@ -5851,7 +5971,7 @@ class SistemaDictamenesVC(ctk.CTk):
                     pendientes_source = list(self.pending_folios)
                 else:
                     # intentar leer archivo
-                    pf = os.path.join(APP_DIR, 'data', 'pending_folios.json')
+                    pf = os.path.join(DATA_DIR, 'pending_folios.json')
                     if os.path.exists(pf):
                         with open(pf, 'r', encoding='utf-8') as f:
                             pendientes_source = json.load(f) or []
@@ -5959,6 +6079,16 @@ class SistemaDictamenesVC(ctk.CTk):
                                 self.combo_folios_pendientes.set("")
                         except Exception:
                             self.combo_folios_pendientes.set(vals[0])
+                        try:
+                            # Intentar abrir el desplegable para que el usuario vea las opciones
+                            try:
+                                self.combo_folios_pendientes.focus_set()
+                                self.combo_folios_pendientes.event_generate('<Button-1>')
+                                self.combo_folios_pendientes.event_generate('<Down>')
+                            except Exception:
+                                pass
+                        except Exception:
+                            pass
                     else:
                         # No hay reservas: ocultar los widgets relacionados
                         try:
@@ -6130,7 +6260,12 @@ class SistemaDictamenesVC(ctk.CTk):
                 self._refresh_pending_folios_dropdown()
             except Exception:
                 pass
-            messagebox.showinfo("Desmarcado", "La selección del folio reservado ha sido desactivada. La reserva se mantiene hasta que se utilice o se elimine.")
+
+            # Actualizar etiqueta de siguiente folio en la UI sin mostrar popup
+            try:
+                self._update_siguiente_folio_label()
+            except Exception:
+                pass
         except Exception as e:
             messagebox.showerror("Error", f"No se pudo desmarcar la selección: {e}")
 
@@ -6184,7 +6319,7 @@ class SistemaDictamenesVC(ctk.CTk):
 
             # También eliminar de archivo de reservas si existe
             try:
-                pf_path = os.path.join(APP_DIR, 'data', 'pending_folios.json')
+                pf_path = os.path.join(DATA_DIR, 'pending_folios.json')
                 if os.path.exists(pf_path):
                     with open(pf_path, 'r', encoding='utf-8') as f:
                         arr = json.load(f) or []
@@ -6246,7 +6381,7 @@ class SistemaDictamenesVC(ctk.CTk):
 
     def _save_pending_folios(self):
         """Guarda `self.pending_folios` en data/pending_folios.json con lock y escritura atómica."""
-        pf = os.path.join(APP_DIR, 'data', 'pending_folios.json')
+        pf = os.path.join(DATA_DIR, 'pending_folios.json')
         lock_path = pf + '.lock'
         fd = None
         try:
@@ -6281,7 +6416,7 @@ class SistemaDictamenesVC(ctk.CTk):
 
     def _read_pending_folios_disk(self, timeout=2.0):
         """Lee `pending_folios.json` desde disco usando lock. Devuelve lista de dicts."""
-        pf = os.path.join(APP_DIR, 'data', 'pending_folios.json')
+        pf = os.path.join(DATA_DIR, 'pending_folios.json')
         lock_path = pf + '.lock'
         try:
             fd = self._acquire_file_lock(lock_path, timeout=timeout)
@@ -6368,13 +6503,13 @@ class SistemaDictamenesVC(ctk.CTk):
                 for key in ('tabla_de_relacion', 'clientes', 'export_cache', 'tabla_backups_dir'):
                     val = self.excel_export_config.get(key)
                     if val and not os.path.exists(val):
-                        candidate = os.path.join(APP_DIR, 'data', os.path.basename(val))
+                        candidate = os.path.join(DATA_DIR, os.path.basename(val))
                         if os.path.exists(candidate):
                             self.excel_export_config[key] = candidate
                         else:
                             # special case: backups dir should be a directory
                             if key == 'tabla_backups_dir':
-                                candidate_dir = os.path.join(APP_DIR, 'data', os.path.basename(val) if os.path.basename(val) else 'tabla_relacion_backups')
+                                candidate_dir = os.path.join(DATA_DIR, os.path.basename(val) if os.path.basename(val) else 'tabla_relacion_backups')
                                 self.excel_export_config[key] = candidate_dir
             except Exception:
                 pass
@@ -6810,7 +6945,7 @@ class SistemaDictamenesVC(ctk.CTk):
 
         try:
             # 1) Extraer de folios_{folio}.json si existe
-            folios_visita_dir = getattr(self, 'folios_visita_path', os.path.join(APP_DIR, 'data', 'folios_visitas'))
+            folios_visita_dir = getattr(self, 'folios_visita_path', os.path.join(DATA_DIR, 'folios_visitas'))
             folio_file = os.path.join(folios_visita_dir, f"folios_{folio}.json")
             if os.path.exists(folio_file):
                 try:
@@ -7192,6 +7327,13 @@ class SistemaDictamenesVC(ctk.CTk):
                 resultados["eliminados"].append("✅ Entrada en historial visitas")
             else:
                 resultados["errores"].append("⚠️ Error al sincronizar historial")
+
+            # Forzar actualización de la etiqueta de siguiente folio tras eliminación
+            try:
+                if hasattr(self, '_update_siguiente_folio_label'):
+                    self._update_siguiente_folio_label()
+            except Exception:
+                pass
             
             # Adicional: eliminar entradas de data/tabla_de_relacion.json que pertenezcan a estos folios
             try:
@@ -7277,11 +7419,11 @@ class SistemaDictamenesVC(ctk.CTk):
                         except Exception:
                             pass
 
-                tabla_relacion_path = os.path.join(APP_DIR, 'data', 'tabla_de_relacion.json')
+                tabla_relacion_path = os.path.join(DATA_DIR, 'tabla_de_relacion.json')
                 if os.path.exists(tabla_relacion_path):
                     # Hacer backup antes de modificar
                     try:
-                        backup_dir = os.path.join(APP_DIR, 'data', 'tabla_relacion_backups')
+                        backup_dir = os.path.join(DATA_DIR, 'tabla_relacion_backups')
                         os.makedirs(backup_dir, exist_ok=True)
                         ts = datetime.now().strftime('%Y%m%d%H%M%S')
                         # Crear solo un PERSIST por CP: si ya existe, no crear nuevos backups.
@@ -7469,6 +7611,10 @@ class SistemaDictamenesVC(ctk.CTk):
             # Recalcular folio actual en memoria y UI para que tome efecto inmediato
             try:
                 self.cargar_ultimo_folio()
+                try:
+                    self._update_siguiente_folio_label()
+                except Exception:
+                    pass
             except Exception:
                 pass
             
@@ -7530,6 +7676,47 @@ class SistemaDictamenesVC(ctk.CTk):
                     for k in ('direccion','calle_numero','colonia','municipio','ciudad_estado','cp'):
                         if k not in payload:
                             payload[k] = ''
+                    # ---------- Validación de unicidad (CP/AC) ----------
+                    try:
+                        new_fv = str(payload.get('folio_visita', '') or '').strip()
+                        new_fa = str(payload.get('folio_acta', '') or '').strip()
+                        # Leer versión en disco para evitar duplicados entre procesos
+                        try:
+                            hist_path = getattr(self, 'historial_path', None) or os.path.join(DATA_DIR, 'historial_visitas.json')
+                            if os.path.exists(hist_path):
+                                with open(hist_path, 'r', encoding='utf-8') as hf:
+                                    hobj = json.load(hf) or {}
+                                    disk_visitas = hobj.get('visitas', []) if isinstance(hobj, dict) else (hobj or [])
+                            else:
+                                disk_visitas = self.historial.get('visitas', []) or []
+                        except Exception:
+                            disk_visitas = self.historial.get('visitas', []) or []
+
+                        if new_fv:
+                            for idx2, vv in enumerate(disk_visitas or []):
+                                try:
+                                    # permitir reemplazo si es el mismo índice existente
+                                    if idx2 == existing_idx:
+                                        continue
+                                    other_fv = str(vv.get('folio_visita', '') or '').strip()
+                                    if other_fv and other_fv.lower() == new_fv.lower():
+                                        messagebox.showwarning("Folio duplicado", f"El folio de visita {new_fv} ya está en uso. No se puede duplicar CP.")
+                                        return
+                                except Exception:
+                                    continue
+                        if new_fa:
+                            for idx2, vv in enumerate(disk_visitas or []):
+                                try:
+                                    if idx2 == existing_idx:
+                                        continue
+                                    other_fa = str(vv.get('folio_acta', '') or '').strip()
+                                    if other_fa and other_fa.lower() == new_fa.lower():
+                                        messagebox.showwarning("Folio duplicado", f"El folio de acta {new_fa} ya está en uso. No se puede duplicar AC.")
+                                        return
+                                except Exception:
+                                    continue
+                    except Exception:
+                        pass
                     # Asegurar que cp sea string (preservar ceros a la izquierda si los hay)
                     try:
                         if payload.get('cp') is not None and payload.get('cp') != '':
@@ -7621,6 +7808,18 @@ class SistemaDictamenesVC(ctk.CTk):
                     # Recalcular folio actual inmediatamente
                     try:
                         self.cargar_ultimo_folio()
+                    except Exception:
+                        pass
+                    try:
+                        if hasattr(self, '_update_siguiente_folio_label'):
+                            self._update_siguiente_folio_label()
+                    except Exception:
+                        pass
+
+                    # Forzar actualización visual de la etiqueta de siguiente folio
+                    try:
+                        if hasattr(self, '_update_siguiente_folio_label'):
+                            self._update_siguiente_folio_label()
                     except Exception:
                         pass
 
@@ -7833,6 +8032,40 @@ class SistemaDictamenesVC(ctk.CTk):
                                             continue
                                 except Exception:
                                     pass
+                    except Exception:
+                        pass
+
+                    # Antes de reemplazar, validar unicidad CP/AC frente a otros registros
+                    try:
+                        new_fv = str(actualizado.get('folio_visita','') or '').strip()
+                        new_fa = str(actualizado.get('folio_acta','') or '').strip()
+                        # Leer versión en disco para evitar duplicados entre procesos
+                        try:
+                            hist_path = getattr(self, 'historial_path', None) or os.path.join(DATA_DIR, 'historial_visitas.json')
+                            if os.path.exists(hist_path):
+                                with open(hist_path, 'r', encoding='utf-8') as hf:
+                                    hobj = json.load(hf) or {}
+                                    disk_visitas = hobj.get('visitas', []) if isinstance(hobj, dict) else (hobj or [])
+                            else:
+                                disk_visitas = visitas
+                        except Exception:
+                            disk_visitas = visitas
+
+                        for j, other in enumerate(disk_visitas or []):
+                            try:
+                                # si es el mismo índice ignorar
+                                if j == i:
+                                    continue
+                                ofv = str(other.get('folio_visita','') or '').strip()
+                                ofa = str(other.get('folio_acta','') or '').strip()
+                                if new_fv and ofv and ofv.lower() == new_fv.lower():
+                                    messagebox.showwarning("Folio duplicado", f"El folio de visita {new_fv} ya está en uso por otro registro. No se puede duplicar CP.")
+                                    return
+                                if new_fa and ofa and ofa.lower() == new_fa.lower():
+                                    messagebox.showwarning("Folio duplicado", f"El folio de acta {new_fa} ya está en uso por otro registro. No se puede duplicar AC.")
+                                    return
+                            except Exception:
+                                continue
                     except Exception:
                         pass
 
