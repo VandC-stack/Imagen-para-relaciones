@@ -1,4 +1,33 @@
 {
   "last_folio_visita": 0,
-  "visitas": []
+  "visitas": [
+    {
+      "folio_visita": "CP000001",
+      "folio_acta": "AC000001",
+      "fecha_inicio": "05/01/2026",
+      "fecha_termino": "05/01/2026",
+      "hora_inicio_24h": "20:21",
+      "hora_termino_24h": "18:00",
+      "hora_inicio": "8:21 PM",
+      "hora_termino": "6:00 PM",
+      "norma": "NOM-004-SE-2021, NOM-020-SCFI-1997",
+      "cliente": "BASECO SAPI DE CV",
+      "nfirma1": "Angel Imanol Pozos Zertuche",
+      "nfirma2": "",
+      "estatus": "Completada",
+      "tipo_documento": "Dictamen",
+      "folios_utilizados": "000001 - 000009",
+      "total_folios": 9,
+      "total_folios_numericos": 9,
+      "supervisores_tabla": "Angel Imanol Pozos Zertuche",
+      "supervisor_formulario": "",
+      "_id": "2dcef5a2-c71f-44d4-a0a4-7fe15e8c7a76",
+      "direccion": "Av. José López Portillo 4889, San Pedro Barrientos, Tlalnepantla, Estado de México, C.P. 54015",
+      "calle_numero": "Av. José López Portillo 4889",
+      "colonia": "San Pedro Barrientos",
+      "municipio": "Tlalnepantla",
+      "ciudad_estado": "Estado de México",
+      "cp": "54015"
+    }
+  ]
 }

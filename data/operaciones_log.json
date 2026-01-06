@@ -573,6 +573,76 @@
       "folio": "CP000002",
       "status": "exitosa",
       "detalles": "Archivos: 2, Errores: 0"
+    },
+    {
+      "timestamp": "2026-01-05T19:33:47.495660",
+      "tipo": "eliminar_registro",
+      "folio": "CP000014",
+      "status": "exitosa",
+      "detalles": "Archivos: 4, Errores: 0"
+    },
+    {
+      "timestamp": "2026-01-05T19:36:55.451098",
+      "tipo": "eliminar_registro",
+      "folio": "CP000001",
+      "status": "exitosa",
+      "detalles": "Archivos: 8, Errores: 0"
+    },
+    {
+      "timestamp": "2026-01-05T19:43:21.441320",
+      "tipo": "eliminar_registro",
+      "folio": "CP000001",
+      "status": "exitosa",
+      "detalles": "Archivos: 8, Errores: 0"
+    },
+    {
+      "timestamp": "2026-01-05T19:48:17.480403",
+      "tipo": "eliminar_registro",
+      "folio": "CP000001",
+      "status": "exitosa",
+      "detalles": "Archivos: 8, Errores: 0"
+    },
+    {
+      "timestamp": "2026-01-05T19:55:38.058958",
+      "tipo": "eliminar_registro",
+      "folio": "CP000001",
+      "status": "exitosa",
+      "detalles": "Archivos: 8, Errores: 0"
+    },
+    {
+      "timestamp": "2026-01-05T20:06:51.170967",
+      "tipo": "eliminar_registro",
+      "folio": "CP000001",
+      "status": "exitosa",
+      "detalles": "Archivos: 8, Errores: 0"
+    },
+    {
+      "timestamp": "2026-01-05T20:07:56.963842",
+      "tipo": "eliminar_registro",
+      "folio": "CP000001",
+      "status": "exitosa",
+      "detalles": "Archivos: 8, Errores: 0"
+    },
+    {
+      "timestamp": "2026-01-05T20:12:14.921353",
+      "tipo": "eliminar_registro",
+      "folio": "CP000001",
+      "status": "exitosa",
+      "detalles": "Archivos: 8, Errores: 0"
+    },
+    {
+      "timestamp": "2026-01-05T20:13:48.364940",
+      "tipo": "eliminar_registro",
+      "folio": "CP000001",
+      "status": "exitosa",
+      "detalles": "Archivos: 8, Errores: 0"
+    },
+    {
+      "timestamp": "2026-01-05T20:21:41.538245",
+      "tipo": "eliminar_registro",
+      "folio": "CP000001",
+      "status": "exitosa",
+      "detalles": "Archivos: 17, Errores: 0"
     }
   ]
 }

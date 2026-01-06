@@ -3715,7 +3715,170 @@ class SistemaDictamenesVC(ctk.CTk):
 
             # Recalcular el folio actual (buscar el siguiente disponible)
             self.cargar_ultimo_folio()
-            messagebox.showinfo("Folio actualizado", f"Se borró el folio {folio_borrado}. Folio actual recalculado: {self.current_folio}")
+            # Además de borrar el registro en el historial, eliminar archivos JSON
+            # de dictámenes que correspondan a los folios asociados a esta visita.
+            try:
+                # Intentar cargar folios y solicitudes desde el archivo folios_{folio}.json (si existe)
+                folios_a_eliminar = set()
+                solicitudes_a_eliminar = set()
+                try:
+                    folios_visita_file = os.path.join(self.folios_visita_path, f"folios_{folio_borrado}.json")
+                    if os.path.exists(folios_visita_file):
+                        with open(folios_visita_file, 'r', encoding='utf-8') as ff:
+                            fv = json.load(ff) or []
+                            for entry in fv:
+                                try:
+                                    fval = str(entry.get('FOLIOS') or entry.get('FOLIO') or '').strip()
+                                    if not fval:
+                                        continue
+                                    # Normalizar a sólo dígitos
+                                    digits = ''.join([c for c in fval if c.isdigit()])
+                                    if digits:
+                                        folios_a_eliminar.add(digits.lstrip('0') or '0')
+                                        folios_a_eliminar.add(digits.zfill(6))
+                                    else:
+                                        folios_a_eliminar.add(fval)
+                                    # También recoger solicitud si está presente
+                                    try:
+                                        sol = entry.get('SOLICITUDES') or entry.get('SOLICITUD') or entry.get('SOLICITUDE') or ''
+                                        sol = str(sol).strip()
+                                        if sol:
+                                            solicitudes_a_eliminar.add(sol)
+                                            # si la solicitud contiene dígitos, añadir formas sin/ con ceros
+                                            sd = ''.join([c for c in sol if c.isdigit()])
+                                            if sd:
+                                                solicitudes_a_eliminar.add(sd)
+                                                solicitudes_a_eliminar.add(sd.lstrip('0'))
+                                                solicitudes_a_eliminar.add(sd.zfill(6))
+                                    except Exception:
+                                        pass
+                                except Exception:
+                                    continue
+                except Exception:
+                    folios_a_eliminar = set()
+                    solicitudes_a_eliminar = set()
+
+                # Fallback: intentar extraer folios desde el campo del registro en historial
+                # Fallback: intentar extraer folios y solicitudes desde el campo del registro en historial
+                if not folios_a_eliminar or not solicitudes_a_eliminar:
+                    raw = visita_a_borrar.get('folios_utilizados') or visita_a_borrar.get('folios') or visita_a_borrar.get('folios_usados') or ''
+                    try:
+                        import re
+                        posibles = re.findall(r"\d{1,6}", str(raw))
+                        for p in posibles:
+                            folios_a_eliminar.add(str(int(p)))
+                            folios_a_eliminar.add(p.zfill(6))
+                            # algunas solicitudes pueden estar incluidas; añadir también como solicitud
+                            solicitudes_a_eliminar.add(p)
+                            solicitudes_a_eliminar.add(p.zfill(6))
+                        # también intentar extraer solicitudes formateadas (ej '004227')
+                        posibles_sol = re.findall(r"\b\d{4,8}\b", str(raw))
+                        for s in posibles_sol:
+                            solicitudes_a_eliminar.add(s)
+                            solicitudes_a_eliminar.add(s.lstrip('0'))
+                            solicitudes_a_eliminar.add(s.zfill(6))
+                    except Exception:
+                        pass
+
+                # Ruta a data/Dictamenes (compatible con exe y desarrollo)
+                dicts_dir = os.path.join(APP_DIR, 'data', 'Dictamenes')
+                deleted_files = []
+                if os.path.exists(dicts_dir) and (folios_a_eliminar or solicitudes_a_eliminar):
+                    for fn in os.listdir(dicts_dir):
+                        if not fn.lower().endswith('.json'):
+                            continue
+                        fp = os.path.join(dicts_dir, fn)
+                        try:
+                            with open(fp, 'r', encoding='utf-8') as jf:
+                                d = json.load(jf)
+                        except Exception:
+                            continue
+                        ident = d.get('identificacion') or {}
+                        fol_file = str(ident.get('folio') or '').strip()
+                        sol_file = str(ident.get('solicitud') or '').strip()
+                        cadena = str(ident.get('cadena_identificacion') or '').strip()
+                        # Normalizar folio del archivo a dígitos si es posible
+                        fol_file_digits = ''.join([c for c in fol_file if c.isdigit()])
+                        fol_file_norm = (fol_file_digits.lstrip('0') or '0') if fol_file_digits else fol_file
+                        fol_file_z6 = fol_file_digits.zfill(6) if fol_file_digits else fol_file
+                        candidates = {fol_file, fol_file_digits, fol_file_norm, fol_file_z6}
+
+                        # Normalizar solicitud del archivo a dígitos sin ceros a la izquierda
+                        sol_digits = ''.join([c for c in sol_file if c.isdigit()])
+                        sol_norm = sol_digits.lstrip('0') if sol_digits else sol_file
+
+                        # Preparar solicitudes a eliminar normalizadas (strip after '/')
+                        normalized_solicitudes = set()
+                        for s in solicitudes_a_eliminar:
+                            try:
+                                s_str = str(s).split('/')[0].strip()
+                                s_digits = ''.join([c for c in s_str if c.isdigit()])
+                                if not s_digits:
+                                    continue
+                                s_norm = s_digits.lstrip('0') or '0'
+                                # evitar coincidencias con números muy cortos (ej. '1','25')
+                                if len(s_norm) < 3:
+                                    continue
+                                normalized_solicitudes.add(s_norm)
+                                normalized_solicitudes.add(s_norm.zfill(6))
+                            except Exception:
+                                continue
+
+                        match = False
+                        # Comprobar coincidencia por folio (comparación de formas normalizadas)
+                        for f_candidate in folios_a_eliminar:
+                            f_c = ''.join([c for c in str(f_candidate) if c.isdigit()]) or str(f_candidate)
+                            f_c_norm = f_c.lstrip('0') if f_c else f_c
+                            try:
+                                if f_c_norm and (f_c_norm == fol_file_norm or f_c_norm == fol_file_digits or f_c_norm == fol_file_z6 or f_c_norm == fol_file):
+                                    match = True
+                                    break
+                            except Exception:
+                                continue
+
+                        # Comprobar coincidencia por solicitud (exigir igualdad tras normalizar)
+                        if not match and normalized_solicitudes:
+                            import re
+                            digit_groups = re.findall(r"\d+", cadena)
+                            for s_norm in normalized_solicitudes:
+                                # comparar con el campo solicitud del archivo
+                                if sol_digits and (s_norm == sol_digits.lstrip('0') or s_norm == sol_digits or s_norm == sol_digits.zfill(6)):
+                                    match = True
+                                    break
+                                # buscar en la cadena de identificacion grupos de dígitos y comparar normalizados
+                                for dg in digit_groups:
+                                    dg_norm = dg.lstrip('0')
+                                    if dg_norm == s_norm or dg == s_norm or dg.zfill(6) == s_norm:
+                                        match = True
+                                        break
+                                if match:
+                                    break
+                        if match:
+                            # Evitar borrar archivos claramente no relacionados (ej. nombres que contengan 'style')
+                            if 'style' in fn.lower():
+                                continue
+                            try:
+                                os.remove(fp)
+                                deleted_files.append(fn)
+                            except Exception:
+                                continue
+
+                # Intentar eliminar también el archivo folios_{folio}.json asociado
+                try:
+                    if os.path.exists(os.path.join(self.folios_visita_path, f"folios_{folio_borrado}.json")):
+                        os.remove(os.path.join(self.folios_visita_path, f"folios_{folio_borrado}.json"))
+                except Exception:
+                    pass
+
+                resumen = f"Se borró el folio {folio_borrado}. Folio actual recalculado: {self.current_folio}."
+                if deleted_files:
+                    resumen += f"\nSe eliminaron {len(deleted_files)} archivos JSON de dictámenes asociados: {', '.join(deleted_files)}"
+                messagebox.showinfo("Folio actualizado", resumen)
+            except Exception as e:
+                try:
+                    messagebox.showinfo("Folio actualizado", f"Se borró el folio {folio_borrado}. Folio actual recalculado: {self.current_folio}")
+                except Exception:
+                    pass
 
         except Exception as e:
             messagebox.showerror("Error", str(e))
@@ -6204,58 +6367,243 @@ class SistemaDictamenesVC(ctk.CTk):
             
         self._poblar_historial_ui()
 
-    def _eliminar_archivos_asociados_folio(self, folio):
-        """Elimina todos los archivos asociados a un folio de forma segura"""
+    def _eliminar_archivos_asociados_folio(self, folio, registro=None):
+        """Elimina todos los archivos asociados a un folio de forma segura.
+        Si se proporciona `registro`, se usa como fallback para extraer folios o solicitudes.
+        Devuelve un dict con claves `eliminados` y `errores`.
+        """
         resultados = {"eliminados": [], "errores": []}
-        
+
+        folios_a_eliminar = set()
+        solicitudes_a_eliminar = set()
+
         try:
-            # 1. ELIMINAR ARCHIVOS DE FOLIOS VISITA
-            folios_visita_dir = self.folios_visita_path
-            if os.path.exists(folios_visita_dir):
-                folio_file = os.path.join(folios_visita_dir, f"folios_{folio}.json")
-                if os.path.exists(folio_file):
-                    try:
-                        os.remove(folio_file)
-                        resultados["eliminados"].append(f"Archivo de folios: folios_{folio}.json")
-                    except Exception as e:
-                        resultados["errores"].append(f"Error eliminando folios_{folio}.json: {str(e)}")
-                
-                # Eliminar backup si existe
-                backup_dir = os.path.join(folios_visita_dir, "backups")
-                if os.path.exists(backup_dir):
-                    try:
-                        for archivo in os.listdir(backup_dir):
-                            if folio in archivo:
-                                ruta_archivo = os.path.join(backup_dir, archivo)
-                                try:
-                                    os.remove(ruta_archivo)
-                                    resultados["eliminados"].append(f"Backup: {archivo}")
-                                except Exception as e:
-                                    resultados["errores"].append(f"Error eliminando backup {archivo}: {str(e)}")
-                    except Exception as e:
-                        resultados["errores"].append(f"Error accediendo a backups: {str(e)}")
-            
-            # 2. ELIMINAR ARCHIVOS DE TABLA RELACIÓN BACKUP
-            tabla_relacion_backup_dir = os.path.join(
-                APP_DIR, "data", "tabla_relacion_backups"
-            )
-            if os.path.exists(tabla_relacion_backup_dir):
+            # 1) Extraer de folios_{folio}.json si existe
+            folios_visita_dir = getattr(self, 'folios_visita_path', os.path.join(APP_DIR, 'data', 'folios_visitas'))
+            folio_file = os.path.join(folios_visita_dir, f"folios_{folio}.json")
+            if os.path.exists(folio_file):
                 try:
+                    with open(folio_file, 'r', encoding='utf-8') as ff:
+                        fv = json.load(ff) or []
+                        for entry in fv:
+                            try:
+                                fval = str(entry.get('FOLIOS') or entry.get('FOLIO') or '').strip()
+                                if fval:
+                                    digits = ''.join([c for c in fval if c.isdigit()])
+                                    if digits:
+                                        folios_a_eliminar.add(digits.lstrip('0') or '0')
+                                        folios_a_eliminar.add(digits.zfill(6))
+                                    else:
+                                        folios_a_eliminar.add(fval)
+                                sol = entry.get('SOLICITUDES') or entry.get('SOLICITUD') or entry.get('SOLICITUDE') or ''
+                                sol = str(sol).strip()
+                                if sol:
+                                    solicitudes_a_eliminar.add(sol)
+                                    sd = ''.join([c for c in sol if c.isdigit()])
+                                    if sd:
+                                        solicitudes_a_eliminar.add(sd)
+                                        solicitudes_a_eliminar.add(sd.lstrip('0'))
+                                        solicitudes_a_eliminar.add(sd.zfill(6))
+                            except Exception:
+                                continue
+                except Exception as e:
+                    resultados['errores'].append(f"Error leyendo {folio_file}: {e}")
+                # intentar eliminar el archivo de folios
+                try:
+                    os.remove(folio_file)
+                    resultados['eliminados'].append(f"Archivo de folios: {os.path.basename(folio_file)}")
+                except Exception as e:
+                    resultados['errores'].append(f"Error eliminando {folio_file}: {e}")
+
+            # 2) Revisar backups locales en folios_visita/backups
+            try:
+                backup_dir = os.path.join(folios_visita_dir, 'backups')
+                if os.path.exists(backup_dir):
+                    for archivo in os.listdir(backup_dir):
+                        if folio in archivo:
+                            ruta = os.path.join(backup_dir, archivo)
+                            # intentar extraer solicitudes desde el JSON antes de borrar
+                            try:
+                                if os.path.isfile(ruta):
+                                    with open(ruta, 'r', encoding='utf-8') as bf:
+                                        contenido = json.load(bf)
+                                        if isinstance(contenido, list):
+                                            for row in contenido:
+                                                try:
+                                                    sol = row.get('SOLICITUD') or row.get('SOLICITUDES') or ''
+                                                    if sol:
+                                                        s = str(sol).strip()
+                                                        if s:
+                                                            solicitudes_a_eliminar.add(s)
+                                                except Exception:
+                                                    continue
+                            except Exception:
+                                pass
+                            try:
+                                os.remove(ruta)
+                                resultados['eliminados'].append(f"Backup: {archivo}")
+                            except Exception as e:
+                                resultados['errores'].append(f"Error eliminando backup {archivo}: {e}")
+            except Exception as e:
+                resultados['errores'].append(f"Error accediendo a backups locales: {e}")
+
+            # 3) Revisar tabla_relacion_backups
+            try:
+                tabla_relacion_backup_dir = os.path.join(APP_DIR, 'data', 'tabla_relacion_backups')
+                if os.path.exists(tabla_relacion_backup_dir):
                     for archivo in os.listdir(tabla_relacion_backup_dir):
                         if folio in archivo:
                             ruta_archivo = os.path.join(tabla_relacion_backup_dir, archivo)
                             try:
                                 if os.path.isfile(ruta_archivo):
-                                    os.remove(ruta_archivo)
-                                    resultados["eliminados"].append(f"Tabla backup: {archivo}")
+                                    with open(ruta_archivo, 'r', encoding='utf-8') as bf:
+                                        contenido = json.load(bf)
+                                        if isinstance(contenido, list):
+                                            for row in contenido:
+                                                try:
+                                                    sol = row.get('SOLICITUD') or row.get('SOLICITUDES') or row.get('SOLICITUDE') or ''
+                                                    if sol:
+                                                        s = str(sol).strip()
+                                                        if s:
+                                                            solicitudes_a_eliminar.add(s)
+                                                except Exception:
+                                                    continue
+                            except Exception:
+                                pass
+                            try:
+                                os.remove(ruta_archivo)
+                                resultados['eliminados'].append(f"Tabla backup: {archivo}")
                             except Exception as e:
-                                resultados["errores"].append(f"Error eliminando {archivo}: {str(e)}")
-                except Exception as e:
-                    resultados["errores"].append(f"Error accediendo a tabla_relacion_backups: {str(e)}")
-            
+                                resultados['errores'].append(f"Error eliminando {archivo}: {e}")
+            except Exception as e:
+                resultados['errores'].append(f"Error accediendo a tabla_relacion_backups: {e}")
+
+            # 4) Si aún no hay solicitudes, intentar leer tabla_de_relacion.json para filas asociadas al folio
+            try:
+                if not solicitudes_a_eliminar:
+                    tabla_relacion_path = os.path.join(APP_DIR, 'data', 'tabla_de_relacion.json')
+                    if os.path.exists(tabla_relacion_path):
+                        try:
+                            with open(tabla_relacion_path, 'r', encoding='utf-8') as tf:
+                                tbl = json.load(tf) or []
+                            folio_digits = ''.join([c for c in str(folio) if c.isdigit()])
+                            for row in tbl:
+                                try:
+                                    row_folio = row.get('FOLIO') or row.get('FOLIOS') or ''
+                                    row_digits = ''.join([c for c in str(row_folio) if c.isdigit()])
+                                    if folio_digits and folio_digits in row_digits:
+                                        sol = row.get('SOLICITUD') or row.get('SOLICITUDES') or ''
+                                        if sol:
+                                            s = str(sol).strip()
+                                            solicitudes_a_eliminar.add(s)
+                                            sd = ''.join([c for c in s if c.isdigit()])
+                                            if sd:
+                                                solicitudes_a_eliminar.add(sd)
+                                                solicitudes_a_eliminar.add(sd.lstrip('0'))
+                                                solicitudes_a_eliminar.add(sd.zfill(6))
+                                except Exception:
+                                    continue
+                        except Exception:
+                            pass
+            except Exception as e:
+                resultados['errores'].append(f"Error leyendo tabla_de_relacion.json: {e}")
+
+            # 5) Fallback: extraer números del propio folio string
+            try:
+                if not folios_a_eliminar and not solicitudes_a_eliminar:
+                    import re
+                    posibles = re.findall(r"\d{1,6}", str(folio))
+                    for p in posibles:
+                        folios_a_eliminar.add(str(int(p)))
+                        folios_a_eliminar.add(p.zfill(6))
+                        solicitudes_a_eliminar.add(p)
+                        solicitudes_a_eliminar.add(p.zfill(6))
+            except Exception:
+                pass
+
+            # 6) Eliminar dictámenes en data/Dictamenes que coincidan
+            try:
+                dicts_dir = os.path.join(APP_DIR, 'data', 'Dictamenes')
+                if os.path.exists(dicts_dir) and (folios_a_eliminar or solicitudes_a_eliminar):
+                    import re
+                    for fn in os.listdir(dicts_dir):
+                        if not fn.lower().endswith('.json'):
+                            continue
+                        if 'style' in fn.lower():
+                            continue
+                        fp = os.path.join(dicts_dir, fn)
+                        try:
+                            with open(fp, 'r', encoding='utf-8') as jf:
+                                d = json.load(jf)
+                        except Exception:
+                            continue
+
+                        ident = d.get('identificacion') or {}
+                        fol_file = str(ident.get('folio') or '').strip()
+                        sol_file = str(ident.get('solicitud') or '').strip()
+                        cadena = str(ident.get('cadena_identificacion') or '').strip()
+
+                        # Normalizar
+                        fol_file_digits = ''.join([c for c in fol_file if c.isdigit()])
+                        fol_file_norm = (fol_file_digits.lstrip('0') or '0') if fol_file_digits else fol_file
+                        fol_file_z6 = fol_file_digits.zfill(6) if fol_file_digits else fol_file
+
+                        sol_digits = ''.join([c for c in sol_file if c.isdigit()])
+                        sol_norm = sol_digits.lstrip('0') if sol_digits else sol_file
+
+                        match = False
+                        # comparar folios
+                        for f_candidate in folios_a_eliminar:
+                            f_c = ''.join([c for c in str(f_candidate) if c.isdigit()]) or str(f_candidate)
+                            f_c_norm = f_c.lstrip('0') if f_c else f_c
+                            try:
+                                if f_c_norm and (f_c_norm == fol_file_norm or f_c_norm == fol_file_digits or f_c_norm == fol_file_z6 or f_c_norm == fol_file):
+                                    match = True
+                                    break
+                            except Exception:
+                                continue
+
+                        # comparar solicitudes (normalizar /xx)
+                        if not match and solicitudes_a_eliminar:
+                            normalized_solicitudes = set()
+                            for s in solicitudes_a_eliminar:
+                                try:
+                                    s_str = str(s).split('/')[0].strip()
+                                    s_digits = ''.join([c for c in s_str if c.isdigit()])
+                                    if not s_digits:
+                                        continue
+                                    s_norm = s_digits.lstrip('0') or '0'
+                                    normalized_solicitudes.add(s_norm)
+                                    normalized_solicitudes.add(s_norm.zfill(6))
+                                except Exception:
+                                    continue
+
+                            if normalized_solicitudes:
+                                digit_groups = re.findall(r"\d+", cadena)
+                                for s_norm in normalized_solicitudes:
+                                    if sol_digits and (s_norm == sol_digits.lstrip('0') or s_norm == sol_digits or s_norm == sol_digits.zfill(6)):
+                                        match = True
+                                        break
+                                    for dg in digit_groups:
+                                        dg_norm = dg.lstrip('0')
+                                        if dg_norm == s_norm or dg == s_norm or dg.zfill(6) == s_norm:
+                                            match = True
+                                            break
+                                    if match:
+                                        break
+
+                        if match:
+                            try:
+                                os.remove(fp)
+                                resultados['eliminados'].append(f"Dictamen eliminado: {fn}")
+                            except Exception as e:
+                                resultados['errores'].append(f"Error eliminando dictamen {fn}: {e}")
+            except Exception as e:
+                resultados['errores'].append(f"Error eliminando dictámenes asociados: {e}")
+
         except Exception as e:
-            resultados["errores"].append(f"Error general en eliminación: {str(e)}")
-        
+            resultados['errores'].append(f"Error general en eliminación: {str(e)}")
+
         return resultados
 
     def _validar_integridad_historial(self):
@@ -6367,7 +6715,7 @@ class SistemaDictamenesVC(ctk.CTk):
                 return
             
             # Eliminar archivos asociados de forma segura (folios file + backups)
-            resultados = self._eliminar_archivos_asociados_folio(folio)
+            resultados = self._eliminar_archivos_asociados_folio(folio, registro)
 
             # Eliminar SOLO la fila correspondiente en memoria (preferir _id cuando exista)
             registro_id = registro.get('_id')
