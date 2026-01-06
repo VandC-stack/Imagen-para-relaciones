@@ -1,0 +1,9 @@
+[2026-01-05T22:40:03.406126] forced_release visita=CP000001 assigned=[850, 851, 852, 853, 854, 855, 856] new_last=849 set_ok=True
+[2026-01-05T22:43:26.272237] recovery_set last from 15 to 15 computed_max=15
+[2026-01-05T22:44:00.378724] manual_force visita=CP000001 assigned=[2, 3, 4, 5, 6, 7, 8] set_last_from=15 to=1
+[2026-01-05T22:47:21.750061] recovery_strict_set from 856 to 0 computed_max=0
+[2026-01-05T22:48:28.175437] recovery_rollback_restore to 856
+[2026-01-05T22:56:22.683668] sim_delete CP000001 assigned=[865, 866, 867, 868, 869, 870, 871, 872, 873] curr=872 new_last=0
+[2026-01-05T22:57:03.584071] sim_delete_v2 CP000001 assigned=[865, 866, 867, 868, 869, 870, 871, 872, 873] curr=0 new_last=864
+[2026-01-05T23:01:00.366392] forced_restore_from_file CP000001 assigned=[849, 850, 851, 852, 853, 854, 855, 856, 857] curr=856 new_last=848
+[2026-01-05T23:05:00.470545] debug_probe test entry

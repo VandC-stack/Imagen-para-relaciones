@@ -3724,6 +3724,35 @@ class SistemaDictamenesVC(ctk.CTk):
             self._guardar_historial()
             self._poblar_historial_ui()
 
+            # Leer previamente el archivo `data/folios_visitas/folios_<visita>.json`
+            # para obtener la lista autoritativa de folios asignados a esta visita.
+            try:
+                assigned_nums = set()
+                fv_file_early = os.path.join(self.folios_visita_path, f"folios_{folio_borrado}.json")
+                if os.path.exists(fv_file_early):
+                    try:
+                        with open(fv_file_early, 'r', encoding='utf-8') as _ff_early:
+                            _arr_early = json.load(_ff_early) or []
+                        for _entry_early in _arr_early:
+                            folv = _entry_early.get('FOLIOS') or _entry_early.get('FOLIO') or ''
+                            digs = ''.join([c for c in str(folv) if c.isdigit()])
+                            if digs:
+                                assigned_nums.add(int(digs.lstrip('0') or '0'))
+                    except Exception:
+                        assigned_nums = set()
+                    # Log early read result
+                    try:
+                        dbg_dir_early = os.path.join(APP_DIR, 'data')
+                        os.makedirs(dbg_dir_early, exist_ok=True)
+                        dbg_path_early = os.path.join(dbg_dir_early, 'hist_borrar_debug.log')
+                        from datetime import datetime as _dt
+                        with open(dbg_path_early, 'a', encoding='utf-8') as _dbg_early:
+                            _dbg_early.write(f"[{_dt.now().isoformat()}] early_read visita={folio_borrado} file_exists={os.path.exists(fv_file_early)} assigned_early={sorted(list(assigned_nums))}\n")
+                    except Exception:
+                        pass
+            except Exception:
+                assigned_nums = set()
+
             # Recalcular el folio actual (buscar el siguiente disponible)
             self.cargar_ultimo_folio()
             # Además de borrar el registro en el historial, eliminar archivos JSON
@@ -3742,11 +3771,35 @@ class SistemaDictamenesVC(ctk.CTk):
                                     fval = str(entry.get('FOLIOS') or entry.get('FOLIO') or '').strip()
                                     if not fval:
                                         continue
-                                    # Normalizar a sólo dígitos
-                                    digits = ''.join([c for c in fval if c.isdigit()])
-                                    if digits:
-                                        folios_a_eliminar.add(digits.lstrip('0') or '0')
-                                        folios_a_eliminar.add(digits.zfill(6))
+                                    # Extraer todos los números y expandir rangos (ej. 849-857)
+                                    import re
+                                    # First, expand explicit ranges like 849-857
+                                    ranges = re.findall(r"(\d{1,6})\s*-\s*(\d{1,6})", fval)
+                                    for a,b in ranges:
+                                        try:
+                                            start = int(a.lstrip('0') or '0')
+                                            end = int(b.lstrip('0') or '0')
+                                            if start <= end:
+                                                # limit expansion to reasonable size
+                                                span = end - start + 1
+                                                if span <= 2000:
+                                                    for n in range(start, end+1):
+                                                        folios_a_eliminar.add(str(n))
+                                                        folios_a_eliminar.add(n)
+                                                        folios_a_eliminar.add(str(n).zfill(6))
+                                        except Exception:
+                                            continue
+                                    # Then add any standalone numbers
+                                    nums = re.findall(r"\d{1,6}", fval)
+                                    if nums:
+                                        for num in nums:
+                                            try:
+                                                n = int(num.lstrip('0') or '0')
+                                                folios_a_eliminar.add(str(n))
+                                                folios_a_eliminar.add(n)
+                                                folios_a_eliminar.add(str(n).zfill(6))
+                                            except Exception:
+                                                continue
                                     else:
                                         folios_a_eliminar.add(fval)
                                     # También recoger solicitud si está presente
@@ -3754,13 +3807,19 @@ class SistemaDictamenesVC(ctk.CTk):
                                         sol = entry.get('SOLICITUDES') or entry.get('SOLICITUD') or entry.get('SOLICITUDE') or ''
                                         sol = str(sol).strip()
                                         if sol:
-                                            solicitudes_a_eliminar.add(sol)
-                                            # si la solicitud contiene dígitos, añadir formas sin/ con ceros
-                                            sd = ''.join([c for c in sol if c.isdigit()])
-                                            if sd:
-                                                solicitudes_a_eliminar.add(sd)
-                                                solicitudes_a_eliminar.add(sd.lstrip('0'))
-                                                solicitudes_a_eliminar.add(sd.zfill(6))
+                                            # extraer dígitos de solicitud también
+                                            s_nums = re.findall(r"\d{1,8}", sol)
+                                            if s_nums:
+                                                for sd in s_nums:
+                                                    try:
+                                                        sni = sd.lstrip('0')
+                                                        solicitudes_a_eliminar.add(sni)
+                                                        solicitudes_a_eliminar.add(sd)
+                                                        solicitudes_a_eliminar.add(sd.zfill(6))
+                                                    except Exception:
+                                                        continue
+                                            else:
+                                                solicitudes_a_eliminar.add(sol)
                                     except Exception:
                                         pass
                                 except Exception:
@@ -3775,13 +3834,33 @@ class SistemaDictamenesVC(ctk.CTk):
                     raw = visita_a_borrar.get('folios_utilizados') or visita_a_borrar.get('folios') or visita_a_borrar.get('folios_usados') or ''
                     try:
                         import re
-                        posibles = re.findall(r"\d{1,6}", str(raw))
+                        raw_str = str(raw)
+                        # expand ranges like 849-857
+                        ranges = re.findall(r"(\d{1,6})\s*-\s*(\d{1,6})", raw_str)
+                        for a,b in ranges:
+                            try:
+                                start = int(a.lstrip('0') or '0')
+                                end = int(b.lstrip('0') or '0')
+                                if start <= end:
+                                    span = end - start + 1
+                                    if span <= 2000:
+                                        for n in range(start, end+1):
+                                            folios_a_eliminar.add(str(n))
+                                            folios_a_eliminar.add(n)
+                                            folios_a_eliminar.add(str(n).zfill(6))
+                            except Exception:
+                                continue
+                        posibles = re.findall(r"\d{1,6}", raw_str)
                         for p in posibles:
-                            folios_a_eliminar.add(str(int(p)))
-                            folios_a_eliminar.add(p.zfill(6))
-                            # algunas solicitudes pueden estar incluidas; añadir también como solicitud
-                            solicitudes_a_eliminar.add(p)
-                            solicitudes_a_eliminar.add(p.zfill(6))
+                            try:
+                                n = int(p.lstrip('0') or '0')
+                                folios_a_eliminar.add(str(n))
+                                folios_a_eliminar.add(p.zfill(6))
+                                # algunas solicitudes pueden estar incluidas; añadir también como solicitud
+                                solicitudes_a_eliminar.add(p)
+                                solicitudes_a_eliminar.add(p.zfill(6))
+                            except Exception:
+                                continue
                         # también intentar extraer solicitudes formateadas (ej '004227')
                         posibles_sol = re.findall(r"\b\d{4,8}\b", str(raw))
                         for s in posibles_sol:
@@ -3794,7 +3873,9 @@ class SistemaDictamenesVC(ctk.CTk):
                 # Ruta a data/Dictamenes (compatible con exe y desarrollo)
                 dicts_dir = os.path.join(APP_DIR, 'data', 'Dictamenes')
                 deleted_files = []
-                if os.path.exists(dicts_dir) and (folios_a_eliminar or solicitudes_a_eliminar):
+                # Siempre escanear `data/Dictamenes` para intentar localizar archivos
+                # relacionados con la visita aunque no tengamos `folios_a_eliminar`.
+                if os.path.exists(dicts_dir):
                     for fn in os.listdir(dicts_dir):
                         if not fn.lower().endswith('.json'):
                             continue
@@ -3865,6 +3946,16 @@ class SistemaDictamenesVC(ctk.CTk):
                                 if match:
                                     break
                         if match:
+                            # Si encontramos coincidencia, asegurar que el folio del archivo
+                            # queda registrado en `folios_a_eliminar` para posible recuperación
+                            try:
+                                if fol_file_digits:
+                                    n = int(fol_file_digits.lstrip('0') or '0')
+                                    folios_a_eliminar.add(str(n))
+                                    folios_a_eliminar.add(n)
+                                    folios_a_eliminar.add(str(n).zfill(6))
+                            except Exception:
+                                pass
                             # Evitar borrar archivos claramente no relacionados (ej. nombres que contengan 'style')
                             if 'style' in fn.lower():
                                 continue
@@ -3873,11 +3964,321 @@ class SistemaDictamenesVC(ctk.CTk):
                                 deleted_files.append(fn)
                             except Exception:
                                 continue
+                        else:
+                            # Si no hubo match pero tenemos el folio de visita, intentar
+                            # emparejar por presencia de ese valor en el nombre o cadena.
+                            try:
+                                if folio_borrado:
+                                    # Evitar confundirse con el identificador de visita (ej. 'CP000001')
+                                    fb_digits = ''.join([c for c in str(folio_borrado) if c.isdigit()])
+                                    fb_norm = fb_digits.lstrip('0') or '0'
+                                    # Solo usar la heurística de subcadena numérica si tiene al menos 3 dígitos
+                                    if fb_norm and len(fb_norm) >= 3 and (fb_digits in fn or fb_digits in cadena):
+                                        # registrar este folio también (solo si el folio del archivo parece un folio de documento)
+                                        try:
+                                            if fol_file_digits and len(fol_file_digits.lstrip('0') or '') >= 3:
+                                                n = int(fol_file_digits.lstrip('0') or '0')
+                                                folios_a_eliminar.add(str(n))
+                                                folios_a_eliminar.add(n)
+                                                folios_a_eliminar.add(str(n).zfill(6))
+                                        except Exception:
+                                            pass
+                                        try:
+                                            os.remove(fp)
+                                            deleted_files.append(fn)
+                                        except Exception:
+                                            pass
+                                        # mark match to avoid double-handling
+                                        match = True
+                                    else:
+                                        # Si fb_digits es corto (p.ej. '1' de CP000001), buscar el prefijo completo
+                                        try:
+                                            if isinstance(folio_borrado, str) and folio_borrado.lower() in fn.lower():
+                                                if fol_file_digits and len(fol_file_digits.lstrip('0') or '') >= 3:
+                                                    try:
+                                                        n = int(fol_file_digits.lstrip('0') or '0')
+                                                        folios_a_eliminar.add(str(n))
+                                                        folios_a_eliminar.add(n)
+                                                        folios_a_eliminar.add(str(n).zfill(6))
+                                                    except Exception:
+                                                        pass
+                                                try:
+                                                    os.remove(fp)
+                                                    deleted_files.append(fn)
+                                                except Exception:
+                                                    pass
+                                                match = True
+                                        except Exception:
+                                            pass
+                            except Exception:
+                                pass
 
-                # Intentar eliminar también el archivo folios_{folio}.json asociado
+                # NOTA: no eliminar aquí el archivo folios_{folio}.json; se eliminará
+                # después de intentar recalcular y persistir el contador para
+                # que podamos usar su contenido como fuente autoritativa.
+
+                # Intentar devolver folios al contador: calcular el máximo folio
+                # existente tras el borrado y ajustar el contador a ese valor
                 try:
-                    if os.path.exists(os.path.join(self.folios_visita_path, f"folios_{folio_borrado}.json")):
-                        os.remove(os.path.join(self.folios_visita_path, f"folios_{folio_borrado}.json"))
+                    import re
+                    try:
+                        import folio_manager
+                    except Exception:
+                        folio_manager = None
+
+                    existing = set()
+                    # Escanear data/Dictamenes
+                    try:
+                        dicts_dir = os.path.join(APP_DIR, 'data', 'Dictamenes')
+                        if os.path.exists(dicts_dir):
+                            for fn in os.listdir(dicts_dir):
+                                if not fn.lower().endswith('.json'):
+                                    continue
+                                fp = os.path.join(dicts_dir, fn)
+                                try:
+                                    with open(fp, 'r', encoding='utf-8') as jf:
+                                        d = json.load(jf)
+                                    ident = d.get('identificacion') or {}
+                                    fol_file = str(ident.get('folio') or '').strip()
+                                    digits = ''.join([c for c in fol_file if c.isdigit()])
+                                    if digits:
+                                        existing.add(int(digits.lstrip('0') or '0'))
+                                except Exception:
+                                    # fallback: extraer dígitos del nombre de archivo
+                                    for g in re.findall(r"\d{3,7}", fn):
+                                        try:
+                                            existing.add(int(g.lstrip('0') or '0'))
+                                        except Exception:
+                                            pass
+                    except Exception:
+                        pass
+
+                    # Escanear data/folios_visitas
+                    try:
+                        fv_dir = os.path.join(APP_DIR, 'data', 'folios_visitas')
+                        if os.path.exists(fv_dir):
+                            for ffn in os.listdir(fv_dir):
+                                if not ffn.lower().endswith('.json'):
+                                    continue
+                                try:
+                                    with open(os.path.join(fv_dir, ffn), 'r', encoding='utf-8') as fjs:
+                                        arr = json.load(fjs) or []
+                                except Exception:
+                                    continue
+                                for entry in arr:
+                                    try:
+                                        fol = entry.get('FOLIOS') or entry.get('FOLIO') or ''
+                                        s = ''.join([c for c in str(fol) if c.isdigit()])
+                                        if s:
+                                            existing.add(int(s.lstrip('0') or '0'))
+                                    except Exception:
+                                        continue
+                    except Exception:
+                        pass
+
+                    # NOTA: no añadir aquí `folios_a_eliminar` a `existing` porque
+                    # esos folios pertenecen a la visita que estamos borrando;
+                    # en su lugar los excluiremos explícitamente más abajo tras
+                    # leer `assigned_nums` desde el archivo correspondiente.
+
+                    try:
+                        curr = int(folio_manager.get_last() or 0) if folio_manager is not None else 0
+                    except Exception:
+                        curr = 0
+
+                    # Construir lista ordenada de folios detectados para esta visita.
+                    # Priorizar el archivo `data/folios_visitas/folios_<visita>.json` si existe.
+                    # Si ya leímos `assigned_nums` al inicio, no sobrescribirlo.
+                    try:
+                        if 'assigned_nums' not in locals() or not assigned_nums:
+                            assigned_nums = set()
+                            fv_file = os.path.join(self.folios_visita_path, f"folios_{folio_borrado}.json")
+                            if os.path.exists(fv_file):
+                                try:
+                                    with open(fv_file, 'r', encoding='utf-8') as _ff:
+                                        _arr = json.load(_ff) or []
+                                    for _rec in _arr:
+                                        fol = _rec.get('FOLIOS') or _rec.get('FOLIO') or ''
+                                        digs = ''.join([c for c in str(fol) if c.isdigit()])
+                                        if digs:
+                                            assigned_nums.add(int(digs.lstrip('0') or '0'))
+                                except Exception:
+                                    pass
+                    except Exception:
+                        assigned_nums = set()
+                    # Si no hubo archivo o no pudo leerse, usar folios_a_eliminar recopilados antes
+                    if not assigned_nums:
+                        try:
+                            for f in folios_a_eliminar:
+                                s = ''.join([c for c in str(f) if c.isdigit()])
+                                if s:
+                                    assigned_nums.add(int(s.lstrip('0') or '0'))
+                        except Exception:
+                            assigned_nums = set()
+
+                    # Si no se detectaron folios desde archivos, intentar parsear el campo
+                    # `folios_utilizados` del registro (ej. "000857 - 000865").
+                    if not assigned_nums:
+                        try:
+                            raw = visita_a_borrar.get('folios_utilizados') or visita_a_borrar.get('folios') or ''
+                            if raw:
+                                import re as _re
+                                rngs = _re.findall(r"(\d{1,6})\s*-\s*(\d{1,6})", str(raw))
+                                for a,b in rngs:
+                                    a_i = int(a.lstrip('0') or '0')
+                                    b_i = int(b.lstrip('0') or '0')
+                                    if a_i <= b_i:
+                                        for n in range(a_i, b_i+1):
+                                            assigned_nums.add(n)
+                                # also collect standalone numbers
+                                for m in _re.findall(r"\d{1,6}", str(raw)):
+                                    try:
+                                        assigned_nums.add(int(m.lstrip('0') or '0'))
+                                    except Exception:
+                                        pass
+                        except Exception:
+                            pass
+
+                    set_ok = False
+                    dbg_messages = []
+
+                    # Strategy 0: forced restore from the visit's file (automatic)
+                    # If we have assigned folios from the visit file, prefer restoring
+                    # the counter to min(assigned)-1 so those folios return to pool.
+                    try:
+                        if assigned_nums:
+                            candidate = max(0, min(assigned_nums) - 1)
+                            try:
+                                if folio_manager is not None:
+                                    # Only lower the counter (never increase)
+                                    curr_check = int(folio_manager.get_last() or 0)
+                                else:
+                                    curr_check = None
+                            except Exception:
+                                curr_check = None
+                            if curr_check is None or candidate < curr_check:
+                                try:
+                                    if folio_manager is not None:
+                                        folio_manager.set_last(candidate)
+                                        set_ok = True
+                                        dbg_messages.append(f"forced_restore_from_file: candidate={candidate}")
+                                except Exception as e:
+                                    dbg_messages.append(f"forced_restore failed: {e}")
+                    except Exception:
+                        pass
+
+                    # Strategy 1: if the deleted visit used the top-most folios (contiguous ending at current),
+                    # decrement by the contiguous count.
+                    if assigned_nums and max(assigned_nums) == curr:
+                        try:
+                            cnt = 0
+                            n = curr
+                            while n in assigned_nums:
+                                cnt += 1
+                                n -= 1
+                            new_last = curr - cnt
+                            if folio_manager is not None:
+                                folio_manager.set_last(new_last)
+                                set_ok = True
+                                dbg_messages.append(f"top_contiguous rollback: curr={curr} cnt={cnt} new_last={new_last}")
+                        except Exception as e:
+                            dbg_messages.append(f"top_contiguous failed: {e}")
+
+                    # Strategy 2: fallback to scanning remaining files and set to max existing
+                    if not set_ok:
+                        try:
+                            # Excluir folios asignados a la visita borrada
+                            try:
+                                if assigned_nums:
+                                    existing = {x for x in existing if x not in assigned_nums}
+                            except Exception:
+                                pass
+
+                            max_existing = max(existing) if existing else 0
+                            # If there are no remaining files but we have assigned folios,
+                            # fallback to set the counter to just before the smallest
+                            # assigned folio (min(assigned)-1). This restores those folios
+                            # to the pool when the visit consumed the top block.
+                            if (not existing) and assigned_nums:
+                                try:
+                                    new_last_candidate = max(0, min(assigned_nums) - 1)
+                                    max_existing = new_last_candidate
+                                except Exception:
+                                    pass
+                            else:
+                                # ensure assigned numbers are considered (in case files were removed)
+                                if assigned_nums:
+                                    max_assigned = max(assigned_nums)
+                                    if max_assigned > max_existing:
+                                        # if files were removed but assigned contained higher folios,
+                                        # treat those as candidates to reduce the counter
+                                        max_existing = max_assigned
+                            if max_existing < curr:
+                                new_last = max_existing
+                                try:
+                                    if folio_manager is not None:
+                                        folio_manager.set_last(new_last)
+                                        set_ok = True
+                                        dbg_messages.append(f"scan_max rollback: curr={curr} max_existing={max_existing} new_last={new_last}")
+                                except Exception:
+                                    set_ok = False
+                                if not set_ok:
+                                    try:
+                                        fc_dir = os.path.join(APP_DIR, 'data')
+                                        os.makedirs(fc_dir, exist_ok=True)
+                                        tmp_path = os.path.join(fc_dir, 'folio_counter.json.tmp')
+                                        real_path = os.path.join(fc_dir, 'folio_counter.json')
+                                        with open(tmp_path, 'w', encoding='utf-8') as tf:
+                                            json.dump({"last": int(new_last)}, tf)
+                                        try:
+                                            os.replace(tmp_path, real_path)
+                                            set_ok = True
+                                            dbg_messages.append(f"atomic write fallback: set to {new_last}")
+                                        except Exception:
+                                            try:
+                                                if os.path.exists(tmp_path):
+                                                    os.remove(tmp_path)
+                                            except Exception:
+                                                pass
+                                    except Exception as e:
+                                        dbg_messages.append(f"atomic write failed: {e}")
+                        except Exception as e:
+                            dbg_messages.append(f"scan_max failed: {e}")
+
+                    # Write debug log entries
+                    try:
+                        dbg_dir = os.path.join(APP_DIR, 'data')
+                        os.makedirs(dbg_dir, exist_ok=True)
+                        dbg_path = os.path.join(dbg_dir, 'hist_borrar_debug.log')
+                        with open(dbg_path, 'a', encoding='utf-8') as dbgf:
+                            from datetime import datetime as _dt
+                            # Compute current persisted last for accurate reporting
+                            try:
+                                persisted_last = int(folio_manager.get_last() or 0) if folio_manager is not None else None
+                            except Exception:
+                                persisted_last = None
+                            dbgf.write(f"[{_dt.now().isoformat()}] hist_borrar id={folio_borrado} curr={curr} assigned={sorted(list(assigned_nums))[:200]} existing_sample={sorted(list(existing))[:200]} deleted_files={deleted_files} set_ok={set_ok} persisted_last={persisted_last} msgs={dbg_messages}\n")
+                    except Exception:
+                        pass
+
+                    # Intentar eliminar ahora el archivo folios_{folio}.json asociado
+                    # sólo después de haber usado su contenido para la recuperación.
+                    try:
+                        fv_file = os.path.join(self.folios_visita_path, f"folios_{folio_borrado}.json")
+                        if os.path.exists(fv_file):
+                            try:
+                                os.remove(fv_file)
+                                deleted_files.append(os.path.basename(fv_file))
+                            except Exception:
+                                pass
+                    except Exception:
+                        pass
+
+                    if set_ok:
+                        try:
+                            resumen = (resumen if 'resumen' in locals() else '') + f"\nSe recuperaron folios (contador actualizado)."
+                        except Exception:
+                            pass
                 except Exception:
                     pass
 
@@ -4877,7 +5278,7 @@ class SistemaDictamenesVC(ctk.CTk):
         footer_frame = ctk.CTkFrame(main_frame, fg_color="transparent")
         footer_frame.pack(fill="x", pady=(20, 0))
         
-    def guardar_folios_visita(self, folio_visita, datos_tabla, persist_counter=False):
+    def guardar_folios_visita(self, folio_visita, datos_tabla, persist_counter=True):
         """Guarda los folios de una visita en un archivo JSON con formato 6 dígitos.
 
         Args:
@@ -5029,9 +5430,24 @@ class SistemaDictamenesVC(ctk.CTk):
             
             # Crear archivo JSON
             archivo_folios = os.path.join(self.folios_visita_path, f"folios_{folio_visita}.json")
-            
+
+            # Capturar contador actual antes de persistir (meta) para poder
+            # restaurarlo si la visita se elimina posteriormente.
+            try:
+                try:
+                    current_counter = int(folio_manager.get_last() or 0)
+                except Exception:
+                    current_counter = 0
+            except Exception:
+                current_counter = 0
+
+            data_to_write = {
+                "_meta": {"counter_before": int(current_counter)},
+                "folios": folios_data
+            }
+
             with open(archivo_folios, 'w', encoding='utf-8') as f:
-                json.dump(folios_data, f, ensure_ascii=False, indent=2)
+                json.dump(data_to_write, f, ensure_ascii=False, indent=2)
             
             print(f"✅ Folios guardados para visita {folio_visita}: {len(folios_data)} registros")
             # Actualizar contador legacy `folio_counter.json` con el mayor folio
@@ -5119,9 +5535,13 @@ class SistemaDictamenesVC(ctk.CTk):
                 messagebox.showinfo("Sin datos", f"No se encontró archivo de folios para la visita {folio_visita}.")
                 return
             
-            # Cargar los datos
+            # Cargar los datos (aceptar ambos formatos: lista antigua o dict nuevo)
             with open(archivo_folios, 'r', encoding='utf-8') as f:
-                folios_data = json.load(f)
+                obj = json.load(f)
+                if isinstance(obj, dict) and 'folios' in obj:
+                    folios_data = obj.get('folios') or []
+                else:
+                    folios_data = obj or []
             
             if not folios_data:
                 messagebox.showinfo("Sin datos", f"No hay datos de folios para la visita {folio_visita}.")
@@ -6724,7 +7144,29 @@ class SistemaDictamenesVC(ctk.CTk):
             
             if not confirmacion:
                 return
-            
+
+            # Intentar leer meta de folios antes de eliminar archivos (para
+            # poder restaurar el contador). Debemos leer *antes* porque
+            # _eliminar_archivos_asociados_folio borra el archivo.
+            meta_counter_before = None
+            try:
+                folios_visita_file = os.path.join(self.folios_visita_path, f"folios_{folio}.json")
+                if os.path.exists(folios_visita_file):
+                    try:
+                        with open(folios_visita_file, 'r', encoding='utf-8') as rf:
+                            obj = json.load(rf)
+                            if isinstance(obj, dict):
+                                meta = obj.get('_meta') or {}
+                                if isinstance(meta, dict) and 'counter_before' in meta:
+                                    try:
+                                        meta_counter_before = int(meta.get('counter_before') or 0)
+                                    except Exception:
+                                        meta_counter_before = None
+                    except Exception:
+                        meta_counter_before = None
+            except Exception:
+                meta_counter_before = None
+
             # Eliminar archivos asociados de forma segura (folios file + backups)
             resultados = self._eliminar_archivos_asociados_folio(folio, registro)
 
@@ -6760,22 +7202,77 @@ class SistemaDictamenesVC(ctk.CTk):
                     try:
                         with open(folios_visita_file, 'r', encoding='utf-8') as f:
                             fv = json.load(f)
+                            # Compatibilidad: el archivo podía ser una lista (antiguo formato)
                             if isinstance(fv, list):
                                 for v in fv:
                                     try:
-                                        folios_asociados.add(int(v))
+                                        # v puede ser dict con 'FOLIOS' o simple string
+                                        if isinstance(v, dict):
+                                            fol = v.get('FOLIOS') or v.get('FOLIO') or ''
+                                            digits = ''.join([c for c in str(fol) if c.isdigit()])
+                                            if digits:
+                                                folios_asociados.add(int(digits))
+                                        else:
+                                            digits = ''.join([c for c in str(v) if c.isdigit()])
+                                            if digits:
+                                                folios_asociados.add(int(digits))
                                     except Exception:
                                         pass
+                            elif isinstance(fv, dict):
+                                # Nuevo formato: {'_meta': {'counter_before': ...}, 'folios': [ ... ]}
+                                try:
+                                    meta = fv.get('_meta') or {}
+                                    if isinstance(meta, dict) and 'counter_before' in meta:
+                                        try:
+                                            meta_counter_before = int(meta.get('counter_before') or 0)
+                                        except Exception:
+                                            meta_counter_before = None
+                                except Exception:
+                                    meta_counter_before = None
+
+                                fl = fv.get('folios') or []
+                                if isinstance(fl, list):
+                                    for entry in fl:
+                                        try:
+                                            fol = ''
+                                            if isinstance(entry, dict):
+                                                fol = entry.get('FOLIOS') or entry.get('FOLIO') or ''
+                                            else:
+                                                fol = entry
+                                            digits = ''.join([c for c in str(fol) if c.isdigit()])
+                                            if digits:
+                                                folios_asociados.add(int(digits))
+                                        except Exception:
+                                            pass
                     except Exception as e:
                         resultados['errores'].append(f"Error leyendo folios de {folios_visita_file}: {e}")
                 # Fallback: extraer números del campo 'folios_utilizados' del registro
+                # Ignorar números que correspondan al folio de visita (CP) o folio de acta (AC).
                 if not folios_asociados:
                     posibles = []
                     raw = registro.get('folios_utilizados', '')
                     import re
                     posibles = re.findall(r"\d{1,6}", str(raw))
+
+                    # Obtener dígitos del folio de la visita (CP) para excluirlos
+                    try:
+                        cp_digits = ''.join([c for c in str(folio) if c.isdigit()])
+                    except Exception:
+                        cp_digits = ''
+                    # Intentar obtener folio de acta si existe
+                    try:
+                        acta = registro.get('folio_acta') or registro.get('folio_acta_visita') or ''
+                        acta_digits = ''.join([c for c in str(acta) if c.isdigit()])
+                    except Exception:
+                        acta_digits = ''
+
                     for p in posibles:
                         try:
+                            # Excluir coincidencias que sean el CP/AC de la visita
+                            if cp_digits and str(p).lstrip('0') == str(int(cp_digits)).lstrip('0'):
+                                continue
+                            if acta_digits and str(p).lstrip('0') == str(int(acta_digits)).lstrip('0'):
+                                continue
                             folios_asociados.add(int(p))
                         except Exception:
                             pass
@@ -6890,19 +7387,31 @@ class SistemaDictamenesVC(ctk.CTk):
                                 pathf = os.path.join(dirp, fn)
                                 try:
                                     with open(pathf, 'r', encoding='utf-8') as fh:
-                                        arr = json.load(fh) or []
+                                        obj = json.load(fh) or []
+                                        # aceptar ambos formatos: lista antigua o dict nuevo
+                                        if isinstance(obj, dict) and 'folios' in obj:
+                                            arr = obj.get('folios') or []
+                                        else:
+                                            arr = obj
                                         for entry in arr:
-                                            fol = entry.get('FOLIOS') or entry.get('FOLIOS', '')
-                                            if not fol:
+                                            try:
+                                                fol = ''
+                                                if isinstance(entry, dict):
+                                                    fol = entry.get('FOLIOS') or entry.get('FOLIO') or ''
+                                                else:
+                                                    fol = entry
+                                                if not fol:
+                                                    continue
+                                                digits = ''.join([c for c in str(fol) if c.isdigit()])
+                                                if digits:
+                                                    try:
+                                                        n = int(digits)
+                                                        if n > max_remain:
+                                                            max_remain = n
+                                                    except Exception:
+                                                        pass
+                                            except Exception:
                                                 continue
-                                            digits = ''.join([c for c in str(fol) if c.isdigit()])
-                                            if digits:
-                                                try:
-                                                    n = int(digits)
-                                                    if n > max_remain:
-                                                        max_remain = n
-                                                except Exception:
-                                                    pass
                                 except Exception:
                                     continue
                 except Exception:
@@ -6927,13 +7436,27 @@ class SistemaDictamenesVC(ctk.CTk):
                 except Exception:
                     pass
 
-                # Ajustar el contador si el mayor restante es menor que el guardado
-                if max_remain < last_counter:
-                    try:
-                        folio_manager.set_last(int(max_remain))
-                        resultados['eliminados'].append(f"folio_counter.json ajustado a {int(max_remain):06d}")
-                    except Exception as e:
-                        resultados['errores'].append(f"No se pudo ajustar folio_counter: {e}")
+                # Determinar valor final deseado: si hay meta 'counter_before' lo
+                # usamos como valor restaurado (restablecer exactamente al valor
+                # previo a la creación de la visita). Si no hay meta, usar el
+                # mayor folio restante.
+                try:
+                    if meta_counter_before is not None:
+                        desired = int(meta_counter_before)
+                    else:
+                        desired = max_remain
+
+                    # Aplicar cambio solo si realmente disminuye el contador.
+                    if desired < last_counter:
+                        try:
+                            folio_manager.set_last(int(desired))
+                            resultados['eliminados'].append(f"folio_counter.json ajustado a {int(desired):06d}")
+                        except Exception as e:
+                            resultados['errores'].append(f"No se pudo ajustar folio_counter: {e}")
+                except Exception:
+                    pass
+            except Exception:
+                pass
             except Exception:
                 pass
             
