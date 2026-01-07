@@ -139,10 +139,37 @@ def buscar_destino(ruta_base, destino):
                 return "imagen", os.path.join(ruta_base, archivo)
 
     nombre_base = base if ext.lower() in IMG_EXTS else destino
+    # Buscar coincidencias de nombre base, incluyendo variantes tipo "1234(2)", "1234-2", "1234_2"
+    matches = []
     for archivo in os.listdir(ruta_base):
         archivo_base, archivo_ext = os.path.splitext(archivo)
-        if archivo_base.lower() == nombre_base.lower() and archivo_ext.lower() in IMG_EXTS:
-            return "imagen", os.path.join(ruta_base, archivo)
+        if archivo_ext.lower() not in IMG_EXTS:
+            continue
+        ab = archivo_base.strip().lower()
+        nb = nombre_base.strip().lower()
+        if ab == nb:
+            matches.append(os.path.join(ruta_base, archivo))
+            continue
+        # permitir sufijos de continuación: (N), -N, _N
+        try:
+            import re
+            m = re.match(rf"^{re.escape(nb)}(?:\s*\(\d+\)|[-_]\d+)$", ab, flags=re.IGNORECASE)
+            if m:
+                matches.append(os.path.join(ruta_base, archivo))
+        except Exception:
+            # fallback: si empieza con nb and remainder is digits/paren, accept
+            if ab.startswith(nb):
+                rem = ab[len(nb):].strip()
+                if rem.startswith('(') and rem.endswith(')') and rem[1:-1].isdigit():
+                    matches.append(os.path.join(ruta_base, archivo))
+                elif (rem.startswith('-') or rem.startswith('_')) and rem[1:].isdigit():
+                    matches.append(os.path.join(ruta_base, archivo))
+
+    if matches:
+        # Si hay múltiples coincidencias, devolver la lista para que el llamador inserte todas
+        if len(matches) == 1:
+            return "imagen", matches[0]
+        return "imagen", matches
 
     carpeta_buscada = nombre_base
     for item in os.listdir(ruta_base):
@@ -184,8 +211,14 @@ def procesar_doc_con_indice_docx(ruta_doc, ruta_imagenes, indice):
                 _log_index(f"buscar_destino -> tipo={tipo} ruta={ruta}")
 
                 if tipo == "imagen":
-                    insertar_imagen_con_transparencia(run, ruta)
-                    imagenes_insertadas += 1
+                    # `ruta` puede ser una lista (varios archivos con misma base)
+                    if isinstance(ruta, (list, tuple)):
+                        for rp in ruta:
+                            insertar_imagen_con_transparencia(run, rp)
+                            imagenes_insertadas += 1
+                    else:
+                        insertar_imagen_con_transparencia(run, ruta)
+                        imagenes_insertadas += 1
 
                 elif tipo == "carpeta":
                     for archivo in os.listdir(ruta):
@@ -234,8 +267,14 @@ def procesar_doc_con_indice_pdf(ruta_doc, ruta_imagenes, indice):
         _log_index(f"buscar_destino -> tipo={tipo} ruta={ruta}")
 
         if tipo == "imagen":
-            rutas_imagenes.append(ruta)
-            imagenes_insertadas += 1
+            # ruta puede ser lista
+            if isinstance(ruta, (list, tuple)):
+                for rp in ruta:
+                    rutas_imagenes.append(rp)
+                    imagenes_insertadas += 1
+            else:
+                rutas_imagenes.append(ruta)
+                imagenes_insertadas += 1
 
         elif tipo == "carpeta":
             for archivo in os.listdir(ruta):

@@ -2094,6 +2094,40 @@ class SistemaDictamenesVC(ctk.CTk):
             print(f"❌ Error cargando último folio: {e}")
             self.current_folio = "000001"
 
+    def _folio_visita_exists(self, folio_visita, exclude_id=None):
+        """Devuelve True si `folio_visita` ya existe en el historial en disco.
+        Opción `exclude_id` permite omitir un registro por su _id al validar (útil en actualizaciones).
+        Comparación es insensible a mayúsculas y espacios.
+        """
+        try:
+            if not folio_visita:
+                return False
+            fv = str(folio_visita).strip().lower()
+            hist_path = getattr(self, 'historial_path', None) or os.path.join(DATA_DIR, 'historial_visitas.json')
+            visitas = []
+            if os.path.exists(hist_path):
+                try:
+                    with open(hist_path, 'r', encoding='utf-8') as hf:
+                        hobj = json.load(hf) or {}
+                        visitas = hobj.get('visitas', []) if isinstance(hobj, dict) else (hobj or [])
+                except Exception:
+                    visitas = self.historial.get('visitas', []) or []
+            else:
+                visitas = self.historial.get('visitas', []) or []
+
+            for rec in (visitas or []):
+                try:
+                    if exclude_id and (rec.get('_id') == exclude_id or rec.get('id') == exclude_id):
+                        continue
+                    other = str(rec.get('folio_visita','') or '').strip().lower()
+                    if other and other == fv:
+                        return True
+                except Exception:
+                    continue
+            return False
+        except Exception:
+            return False
+
     def crear_nueva_visita(self):
         """Prepara el formulario para una nueva visita"""
         try:
@@ -2293,33 +2327,32 @@ class SistemaDictamenesVC(ctk.CTk):
             except Exception:
                 pass
 
-            # Guardar visita
-            # Validar unicidad leyendo la versión en disco del historial (evita duplicados entre procesos)
-            try:
-                new_fv = str(payload.get('folio_visita','') or '').strip()
-                new_fa = str(payload.get('folio_acta','') or '').strip()
-                latest_visitas = []
+            # Guardar visita: validar unicidad de folio de visita y folio de acta
+            new_fv = str(payload.get('folio_visita','') or '').strip()
+            new_fa = str(payload.get('folio_acta','') or '').strip()
+            if new_fv and self._folio_visita_exists(new_fv):
+                messagebox.showwarning("Folio duplicado", f"El folio de visita {new_fv} ya está registrado en el historial. Elimine el registro existente para volver a usarlo.")
+                return
+            # Para folio de acta reutilizar la validación previa (comprobar en disco)
+            if new_fa:
+                # Buscar AC duplicada en disco
                 try:
                     hist_path = getattr(self, 'historial_path', None) or os.path.join(DATA_DIR, 'historial_visitas.json')
                     if os.path.exists(hist_path):
                         with open(hist_path, 'r', encoding='utf-8') as hf:
                             hobj = json.load(hf) or {}
                             latest_visitas = hobj.get('visitas', []) if isinstance(hobj, dict) else (hobj or [])
+                    else:
+                        latest_visitas = self.historial.get('visitas', []) or []
                 except Exception:
                     latest_visitas = self.historial.get('visitas', []) or []
-
                 for v in (latest_visitas or []):
                     try:
-                        if new_fv and str(v.get('folio_visita','') or '').strip().lower() == new_fv.lower():
-                            messagebox.showwarning("Folio duplicado", f"El folio de visita {new_fv} ya está en uso. No se puede duplicar CP.")
-                            return
                         if new_fa and str(v.get('folio_acta','') or '').strip().lower() == new_fa.lower():
                             messagebox.showwarning("Folio duplicado", f"El folio de acta {new_fa} ya está en uso. No se puede duplicar AC.")
                             return
                     except Exception:
                         continue
-            except Exception:
-                pass
 
             self.hist_create_visita(payload, show_notification=False)
             # Forzar actualización inmediata de la etiqueta de siguiente folio
@@ -7646,17 +7679,10 @@ class SistemaDictamenesVC(ctk.CTk):
                             disk_visitas = self.historial.get('visitas', []) or []
 
                         if new_fv:
-                            for idx2, vv in enumerate(disk_visitas or []):
-                                try:
-                                    # permitir reemplazo si es el mismo índice existente
-                                    if idx2 == existing_idx:
-                                        continue
-                                    other_fv = str(vv.get('folio_visita', '') or '').strip()
-                                    if other_fv and other_fv.lower() == new_fv.lower():
-                                        messagebox.showwarning("Folio duplicado", f"El folio de visita {new_fv} ya está en uso. No se puede duplicar CP.")
-                                        return
-                                except Exception:
-                                    continue
+                            # Utilizar helper centralizado que chequea historial en disco
+                            if self._folio_visita_exists(new_fv, exclude_id=None if existing_idx is None else self.historial.get('visitas', [])[existing_idx].get('_id')):
+                                messagebox.showwarning("Folio duplicado", f"El folio de visita {new_fv} ya está en uso. No se puede duplicar CP.")
+                                return
                         if new_fa:
                             for idx2, vv in enumerate(disk_visitas or []):
                                 try:
@@ -8004,16 +8030,18 @@ class SistemaDictamenesVC(ctk.CTk):
                         except Exception:
                             disk_visitas = visitas
 
+                        # Usar helper para validar folio de visita (excluir el registro actual por _id)
+                        exclude_id = actualizado.get('_id') or None
+                        if new_fv and self._folio_visita_exists(new_fv, exclude_id=exclude_id):
+                            messagebox.showwarning("Folio duplicado", f"El folio de visita {new_fv} ya está en uso por otro registro. No se puede duplicar CP.")
+                            return
+
                         for j, other in enumerate(disk_visitas or []):
                             try:
                                 # si es el mismo índice ignorar
                                 if j == i:
                                     continue
-                                ofv = str(other.get('folio_visita','') or '').strip()
                                 ofa = str(other.get('folio_acta','') or '').strip()
-                                if new_fv and ofv and ofv.lower() == new_fv.lower():
-                                    messagebox.showwarning("Folio duplicado", f"El folio de visita {new_fv} ya está en uso por otro registro. No se puede duplicar CP.")
-                                    return
                                 if new_fa and ofa and ofa.lower() == new_fa.lower():
                                     messagebox.showwarning("Folio duplicado", f"El folio de acta {new_fa} ya está en uso por otro registro. No se puede duplicar AC.")
                                     return

@@ -15,6 +15,45 @@ from plantillaPDF import cargar_tabla_relacion
 from registro_fallos import registrar_fallo, limpiar_registro, mostrar_registro, LOG_FILE
 
 
+def buscar_imagen_index_all(index, codigo_canonico, usadas_paths, usadas_bases):
+    """Devuelve una lista de rutas de imagen en el índice que correspondan
+    al código dado, incluyendo variantes como '1234(2)', '1234-2', '1234_2'.
+    Respeta `usadas_paths` y `usadas_bases` para evitar duplicados.
+    """
+    code = normalizar_cadena_alnum_mayus(codigo_canonico)
+    if not code:
+        return []
+
+    matches = []
+
+    # Buscar coincidencias exactas y parciales
+    for it in index:
+        try:
+            bn = it.get('base_norm') or ''
+            path_key = norm_path_key(it.get('path') or '')
+            if not bn or path_key in usadas_paths or bn in usadas_bases:
+                continue
+            if bn == code:
+                matches.append(it['path'])
+                continue
+            # coincidencias parciales: incluir variantes donde bn contiene code
+            if code in bn or bn.startswith(code) or bn.endswith(code):
+                matches.append(it['path'])
+        except Exception:
+            continue
+
+    # Deduplicado y mantener orden
+    seen = set()
+    out = []
+    for p in matches:
+        k = norm_path_key(p)
+        if k in seen:
+            continue
+        seen.add(k)
+        out.append(p)
+    return out
+
+
 def procesar_simple():
     limpiar_registro()
 
@@ -74,13 +113,17 @@ def procesar_simple():
                     run = p.add_run()
 
                     for codigo in codigos:
-                        img_path = buscar_imagen_index(index, codigo, usadas_paths, usadas_bases)
-                        if img_path:
-                            usadas_paths.add(norm_path_key(img_path))
-                            usar_base = normalizar_cadena_alnum_mayus(os.path.splitext(os.path.basename(img_path))[0])
-                            usadas_bases.add(usar_base)
-                            insertar_imagen_con_transparencia(run, img_path)
-                            imagen_insertada = True
+                        img_paths = buscar_imagen_index_all(index, codigo, usadas_paths, usadas_bases)
+                        if img_paths:
+                            for img_path in img_paths:
+                                kp = norm_path_key(img_path)
+                                if kp in usadas_paths:
+                                    continue
+                                usadas_paths.add(kp)
+                                usar_base = normalizar_cadena_alnum_mayus(os.path.splitext(os.path.basename(img_path))[0])
+                                usadas_bases.add(usar_base)
+                                insertar_imagen_con_transparencia(run, img_path)
+                                imagen_insertada = True
 
                     break
 
@@ -124,12 +167,16 @@ def procesar_simple():
             usadas_bases = set()
 
             for codigo in codigos:
-                img_path = buscar_imagen_index(index, codigo, usadas_paths, usadas_bases)
-                if img_path:
-                    rutas_imagenes.append(img_path)
-                    usadas_paths.add(norm_path_key(img_path))
-                    usar_base = normalizar_cadena_alnum_mayus(os.path.splitext(os.path.basename(img_path))[0])
-                    usadas_bases.add(usar_base)
+                img_paths = buscar_imagen_index_all(index, codigo, usadas_paths, usadas_bases)
+                if img_paths:
+                    for img_path in img_paths:
+                        kp = norm_path_key(img_path)
+                        if kp in usadas_paths:
+                            continue
+                        rutas_imagenes.append(img_path)
+                        usadas_paths.add(kp)
+                        usar_base = normalizar_cadena_alnum_mayus(os.path.splitext(os.path.basename(img_path))[0])
+                        usadas_bases.add(usar_base)
 
             if not rutas_imagenes:
                 registrar_fallo(archivo)
