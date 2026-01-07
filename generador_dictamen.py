@@ -952,16 +952,23 @@ def generar_dictamenes_completos(directorio_destino, cliente_manual=None, rfc_ma
             for carpeta in lst:
                 try:
                     for root, _, files in os.walk(carpeta):
-                        for nombre in files:
-                            base, ext = os.path.splitext(nombre)
-                            if ext.lower() not in IMG_EXTS:
-                                continue
-                            path = os.path.join(root, nombre)
-                            key = _normalizar(base)
-                            if not key:
-                                continue
-                            index.setdefault(key, []).append(path)
-                            total += 1
+                            for nombre in files:
+                                base, ext = os.path.splitext(nombre)
+                                if ext.lower() not in IMG_EXTS:
+                                    continue
+                                path = os.path.join(root, nombre)
+                                # Extraer core del nombre eliminando sufijos tipo ' (2)', '-2', '_2'
+                                try:
+                                    import re
+                                    core = re.sub(r"[\s\-_]*\(\s*\d+\s*\)$", "", base)
+                                    core = re.sub(r"[\s\-_]+\d+$", "", core)
+                                except Exception:
+                                    core = base
+                                key = _normalizar(core)
+                                if not key:
+                                    continue
+                                index.setdefault(key, []).append(path)
+                                total += 1
                 except Exception:
                     continue
         return index, total
@@ -1250,7 +1257,8 @@ def generar_dictamenes_completos(directorio_destino, cliente_manual=None, rfc_ma
                     if key in indice_evidencias_global:
                         lst = indice_evidencias_global.get(key) or []
                         if lst:
-                            return lst[0]
+                            # devolver todas las rutas para esa clave
+                            return list(lst)
 
                     # 2) coincidencias parciales en las claves (key dentro de clave o viceversa)
                     candidatos = [k for k in indice_evidencias_global.keys() if key in k or k in key]
@@ -1260,7 +1268,7 @@ def generar_dictamenes_completos(directorio_destino, cliente_manual=None, rfc_ma
                         primera = candidatos[0]
                         lst = indice_evidencias_global.get(primera) or []
                         if lst:
-                            return lst[0]
+                            return list(lst)
 
                     # 3) fallback: buscar claves que contienen la mayor secuencia numérica del código
                     import re as _re
@@ -1271,7 +1279,7 @@ def generar_dictamenes_completos(directorio_destino, cliente_manual=None, rfc_ma
                             candidatos2.sort(key=lambda k: (abs(len(k) - len(dig)), k))
                             lst = indice_evidencias_global.get(candidatos2[0]) or []
                             if lst:
-                                return lst[0]
+                                return list(lst)
 
                     # No encontrado
                     return None
@@ -1280,15 +1288,22 @@ def generar_dictamenes_completos(directorio_destino, cliente_manual=None, rfc_ma
                 if codigos_a_buscar:
                     print(f"   🔎 Buscando evidencias para códigos: {codigos_a_buscar}")
                     for codigo in codigos_a_buscar:
-                        p = _buscar_imagen(codigo)
-                        print(f"      → {codigo} => {p}")
-                        if p:
-                            rutas_encontradas.append(p)
-                            # Si etiquetas son dicts, anexar la ruta a la etiqueta correspondiente
-                            if etiquetas and isinstance(etiquetas[0], dict):
-                                for e in etiquetas:
-                                    if str(e.get('codigo')) == str(codigo) or str(e.get('ean')) == str(codigo):
-                                        e['imagen_path'] = p
+                        ps = _buscar_imagen(codigo)
+                        print(f"      → {codigo} => {ps}")
+                        if not ps:
+                            continue
+                        # _buscar_imagen puede devolver una lista de rutas; anexar todas
+                        if isinstance(ps, (list, tuple)):
+                            rutas_encontradas.extend(ps)
+                            first_p = ps[0] if ps else None
+                        else:
+                            rutas_encontradas.append(ps)
+                            first_p = ps
+                        # Si etiquetas son dicts, anexar la primera ruta a la etiqueta correspondiente
+                        if first_p and etiquetas and isinstance(etiquetas[0], dict):
+                            for e in etiquetas:
+                                if str(e.get('codigo')) == str(codigo) or str(e.get('ean')) == str(codigo):
+                                    e['imagen_path'] = first_p
 
                 if rutas_encontradas:
                     datos['evidencias_lista'] = rutas_encontradas

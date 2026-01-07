@@ -30,14 +30,16 @@ def buscar_imagen_index_all(index, codigo_canonico, usadas_paths, usadas_bases):
     for it in index:
         try:
             bn = it.get('base_norm') or ''
+            bcore = it.get('base_core_norm') or ''
             path_key = norm_path_key(it.get('path') or '')
             if not bn or path_key in usadas_paths or bn in usadas_bases:
                 continue
-            if bn == code:
+            # aceptar coincidencia si base_norm o base_core_norm empata
+            if bn == code or bcore == code:
                 matches.append(it['path'])
                 continue
             # coincidencias parciales: incluir variantes donde bn contiene code
-            if code in bn or bn.startswith(code) or bn.endswith(code):
+            if code in bn or bn.startswith(code) or bn.endswith(code) or code in bcore or bcore.startswith(code) or bcore.endswith(code):
                 matches.append(it['path'])
         except Exception:
             continue

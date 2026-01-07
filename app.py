@@ -2591,6 +2591,17 @@ class SistemaDictamenesVC(ctk.CTk):
             except Exception:
                 pass
 
+            # Validar que existan firmas/inspectores que cubran las normas requeridas
+            try:
+                ok = self._validate_tabla_normas(records)
+                if not ok:
+                    # Bloquear la continuación hasta que el usuario agregue/seleccione firma(s)
+                    self.after(0, self.mostrar_error, "La tabla de relación requiere firmas para todas las normas. Por favor agregue la(s) firma(s) necesarias desde el catálogo de supervisores.")
+                    return
+            except Exception:
+                # Si falla la validación no evitar la conversión, pero informar en consola
+                print("⚠️ Error validando firmas de la tabla (continuando):", sys.exc_info()[0])
+
             # GUARDAR FOLIOS PARA VISITA ACTUAL (no persistir contador aquí)
             # Nota: No crear backups automáticos de `tabla_de_relacion` en esta etapa
             # para evitar que tablas cargadas y luego descartadas parezcan consumir folios.
@@ -2723,6 +2734,126 @@ class SistemaDictamenesVC(ctk.CTk):
                 "total_folios_numericos": 0,
                 "mensaje": f"Error: {str(e)}"
             }
+
+    def _extract_normas_from_records(self, records):
+        """Intento heurístico para extraer el conjunto de normas requeridas desde la tabla de relación."""
+        try:
+            import re
+            posibles = ['NORMA','Norma','norma','NORMAS','Normas','normas','REQUISITOS','REQUERIMIENTOS','REQUISITO','requisito']
+            normas = set()
+            if not records:
+                return normas
+            for r in records:
+                if not isinstance(r, dict):
+                    continue
+                for k in posibles:
+                    if k in r and r.get(k):
+                        v = r.get(k)
+                        if isinstance(v, (list, tuple, set)):
+                            for it in v:
+                                for part in re.split(r'[;,/\\|]', str(it)):
+                                    p = part.strip()
+                                    if p:
+                                        normas.add(p)
+                        else:
+                            for part in re.split(r'[;,/\\|]', str(v)):
+                                p = part.strip()
+                                if p:
+                                    normas.add(p)
+                        break
+            # Normalizar espacios
+            normas = set([n.strip() for n in normas if n and str(n).strip()])
+            return normas
+        except Exception:
+            return set()
+
+    def _load_supervisores_catalog(self):
+        """Carga el catálogo de supervisores/firmas desde `DATA_DIR/Firmas.json` si existe."""
+        path = os.path.join(DATA_DIR, 'Firmas.json')
+        if not os.path.exists(path):
+            return []
+        try:
+            with open(path, 'r', encoding='utf-8') as f:
+                arr = json.load(f) or []
+            # Normalizar esquema mínimo
+            cleaned = []
+            for s in arr:
+                if not isinstance(s, dict):
+                    continue
+                nombre = s.get('nombre') or s.get('Nombre') or s.get('nombre_supervisor') or ''
+                normas_field = s.get('normas') or s.get('Normas') or s.get('NORMAS') or s.get('lista_normas') or ''
+                normas_set = set()
+                if isinstance(normas_field, (list, tuple, set)):
+                    for n in normas_field:
+                        if n:
+                            normas_set.add(str(n).strip())
+                else:
+                    import re
+                    for p in re.split(r'[;,/\\|]', str(normas_field)):
+                        if p and p.strip():
+                            normas_set.add(p.strip())
+                cleaned.append({'nombre': nombre, 'normas': sorted(normas_set)})
+            return cleaned
+        except Exception:
+            return []
+
+    def _save_supervisores_catalog(self, arr):
+        try:
+            path = os.path.join(DATA_DIR, 'Firmas.json')
+            with open(path, 'w', encoding='utf-8') as f:
+                json.dump(arr, f, ensure_ascii=False, indent=2)
+            return True
+        except Exception:
+            return False
+
+    def _validate_tabla_normas(self, records):
+        """Valida que el catálogo de supervisores cubra las normas encontradas en la tabla.
+        Si faltan normas, solicita al usuario agregar un supervisor que las cubra.
+        Devuelve True si la validación queda satisfecha (se encontró o se agregó supervisor).
+        Devuelve False si el usuario cancela.
+        """
+        try:
+            needed = self._extract_normas_from_records(records)
+            if not needed:
+                return True
+
+            supervisors = self._load_supervisores_catalog()
+            covered = set()
+            for s in supervisors:
+                for n in (s.get('normas') or []):
+                    if n:
+                        covered.add(str(n).strip())
+
+            missing = set(n for n in needed if n not in covered)
+            if not missing:
+                return True
+
+            # Informar al usuario y ofrecer agregar un supervisor que cubra las normas faltantes
+            msg = "Se requieren firmas para las normas:\n\n" + "\n".join(sorted(missing))
+            msg += "\n\n¿Desea agregar un supervisor que cubra estas normas ahora?"
+            abrir = messagebox.askyesno("Faltan firmas", msg)
+            if not abrir:
+                return False
+
+            # Pedir nombre y normas (prellenar con las faltantes)
+            nombre = simpledialog.askstring("Añadir supervisor", "Ingrese el nombre del supervisor que cubrirá las normas:", initialvalue="")
+            if not nombre or not str(nombre).strip():
+                return False
+            import re
+            normas_input = simpledialog.askstring("Normas", "Ingrese las normas separadas por comas", initialvalue=", ".join(sorted(missing)))
+            if not normas_input:
+                return False
+
+            normas_list = [p.strip() for p in re.split(r'[;,/\\|]', normas_input) if p and p.strip()]
+            new = {'nombre': str(nombre).strip(), 'normas': normas_list}
+            # Añadir al catálogo y guardar
+            supervisors.append(new)
+            self._save_supervisores_catalog(supervisors)
+            messagebox.showinfo("Supervisor agregado", f"Se agregó el supervisor '{new['nombre']}' con normas: {', '.join(new['normas'])}.")
+            return True
+        except Exception as e:
+            print("⚠️ Error en validación de normas:", e)
+            return False
 
     def verificar_datos_folios_existentes(self):
         """Verifica y repara datos de folios existentes para asegurar consistencia"""

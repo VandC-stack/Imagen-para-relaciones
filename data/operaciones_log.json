@@ -979,6 +979,48 @@
       "folio": "CP000002",
       "status": "exitosa",
       "detalles": "Archivos: 7, Errores: 0"
+    },
+    {
+      "timestamp": "2026-01-07T12:03:07.878325",
+      "tipo": "eliminar_registro",
+      "folio": "CP000001",
+      "status": "exitosa",
+      "detalles": "Archivos: 13, Errores: 0"
+    },
+    {
+      "timestamp": "2026-01-07T12:03:11.237005",
+      "tipo": "eliminar_registro",
+      "folio": "CP000002",
+      "status": "exitosa",
+      "detalles": "Archivos: 7, Errores: 0"
+    },
+    {
+      "timestamp": "2026-01-07T12:03:13.848720",
+      "tipo": "eliminar_registro",
+      "folio": "CP000006",
+      "status": "exitosa",
+      "detalles": "Archivos: 7, Errores: 0"
+    },
+    {
+      "timestamp": "2026-01-07T12:03:16.301981",
+      "tipo": "eliminar_registro",
+      "folio": "CP000005",
+      "status": "exitosa",
+      "detalles": "Archivos: 7, Errores: 0"
+    },
+    {
+      "timestamp": "2026-01-07T12:03:18.610549",
+      "tipo": "eliminar_registro",
+      "folio": "CP000004",
+      "status": "exitosa",
+      "detalles": "Archivos: 7, Errores: 0"
+    },
+    {
+      "timestamp": "2026-01-07T12:03:20.562845",
+      "tipo": "eliminar_registro",
+      "folio": "CP000003",
+      "status": "exitosa",
+      "detalles": "Archivos: 16, Errores: 0"
     }
   ]
 }
