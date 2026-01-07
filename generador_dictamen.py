@@ -285,8 +285,27 @@ class PDFGeneratorConDatos(PDFGenerator):
     # ---------------- páginas ----------------
     def agregar_primera_pagina_con_datos(self):
         print("   📄 Construyendo primera página...")
+        # Preferir fecha de entrada (tabla) en múltiples variantes antes de
+        # usar la fecha de verificación. Esto cubre nombres de columna variados
+        # que provienen de la tabla de relación.
+        # Preferir la fecha de entrada que `preparar_datos_familia` coloca en
+        # `femision` (fecha corta). Luego probar otras variantes conocidas.
+        fecha_entrada = (
+            self.datos.get('femision') or self.datos.get('fentradalarga') or
+            self.datos.get('fentrada') or self.datos.get('fecha_entrada') or
+            self.datos.get('FECHA DE ENTRADA') or self.datos.get('fverificacion') or ''
+        )
+
+        # Fecha de inspección: usar la fecha de verificación proveniente de la tabla
+        # (`preparar_datos_familia` la expone como `fverificacion`).
         texto_fecha_inspeccion = f"<b>Fecha de Inspección:</b> {str(self.datos.get('fverificacion',''))}"
-        texto_fecha_emision = f"<b>Fecha de Emisión:</b> {str(self.datos.get('femision',''))}"
+        # Fecha de emisión: preferir la fecha de creación de la visita si está disponible
+        # (ej. `fecha_inicio` en `historial_visitas.json`), si no usar la fecha actual.
+        fecha_emision_visita = (
+            self.datos.get('fecha_inicio') or self.datos.get('fecha_creacion') or
+            self.datos.get('fecha_emision') or datetime.now().strftime("%d/%m/%Y")
+        )
+        texto_fecha_emision = f"<b>Fecha de Emisión:</b> {str(fecha_emision_visita)}"
         self.elements.append(Paragraph(texto_fecha_inspeccion, self.normal_style))
         self.elements.append(Paragraph(texto_fecha_emision, self.normal_style))
         self.elements.append(Spacer(1, 0.2 * inch))
@@ -306,7 +325,7 @@ class PDFGeneratorConDatos(PDFGenerator):
             "modificaciones; esta Unidad de Inspección a solicitud de la persona moral denominada "
             f"<b>{str(self.datos.get('cliente',''))}</b> dictamina el Producto: <b>{str(self.datos.get('producto',''))}</b>; "
             f"que la mercancía importada bajo el pedimento aduanal No. <b>{str(self.datos.get('pedimento',''))}</b> "
-            f"de fecha <b>{str(self.datos.get('fverificacionlarga',''))}</b>, fue etiquetada conforme a los requisitos "
+            f"de fecha <b>{str(fecha_entrada)}</b>, fue etiquetada conforme a los requisitos "
             f"de Información Comercial en el capítulo <b>{str(self.datos.get('capitulo',''))}</b> "
             f"de la Norma Oficial Mexicana <b>{str(self.datos.get('norma',''))}</b> <b>{str(self.datos.get('normades',''))}</b>. "
             "Cualquier otro requisito establecido en la norma referida es responsabilidad del titular de este Dictamen."
@@ -800,10 +819,20 @@ def convertir_dictamen_a_json(datos):
             "capitulo": datos.get("capitulo", "")
         },
         "fechas": {
-            "verificacion": datos.get("fverificacion", ""),
-            "verificacion_larga": datos.get("fverificacionlarga", ""),
-            "emision": datos.get("femision", "")
-        },
+                # Mostrar la fecha de ENTRADA (tabla_de_relacion) en lugar de la
+                # fecha de verificación. Soportar varios nombres de campo por
+                # compatibilidad con distintas transformaciones previas.
+                "verificacion": (
+                    # Mostrar la fecha de verificación primaria (`fverificacion`) cuando exista;
+                    # si no, caer a variantes largas o a la fecha de entrada como último recurso.
+                    datos.get("fverificacion") or datos.get("fentradalarga") or datos.get("femision") or
+                    datos.get("fentrada") or datos.get("fecha_entrada") or datos.get("FECHA DE ENTRADA") or ""
+                ),
+                "verificacion_larga": datos.get("fentradalarga", ""),
+                # Guardar la fecha de emisión real del dictamen: preferir `fecha_inicio`
+                # (creación de la visita) si está presente, si no dejar la fecha de entrada.
+                "emision": datos.get("fecha_inicio") or datos.get("fecha_creacion") or datos.get("femision", "")
+            },
         "cliente": {
             "nombre": datos.get("cliente", ""),
             "rfc": datos.get("rfc", "")

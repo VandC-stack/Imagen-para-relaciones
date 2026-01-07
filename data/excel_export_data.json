@@ -1,5 +1,24 @@
 {
-  "ema": [],
+  "ema": [
+    {
+      "NUMERO_SOLICITUD": "008224/25",
+      "CLIENTE": "",
+      "NUMERO_CONTRATO": "24049UCS000023",
+      "RFC": "24049UCS000023",
+      "CURP": "N/A",
+      "PRODUCTO_VERIFICADO": "ALIMENTO VEGETAL UNTABLE",
+      "MARCAS": "COUNTRY CROCK",
+      "NOM": 51,
+      "TIPO_DOCUMENTO": "D",
+      "DOCUMENTO_EMITIDO": "008224/25",
+      "FECHA_DOCUMENTO_EMITIDO": "2026-01-07",
+      "VERIFICADOR": "",
+      "PEDIMENTO_IMPORTACION": "25 24 1725 5003639",
+      "FECHA_DESADUANAMIENTO": "2025-12-16",
+      "MODELOS": 84169402,
+      "FOLIO_EMA": "000019"
+    }
+  ],
   "anual": [],
-  "generated_at": "2026-01-07T12:04:21.952704"
+  "generated_at": "2026-01-07T13:20:07.398692"
 }

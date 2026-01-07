@@ -3046,6 +3046,13 @@ class SistemaDictamenesVC(ctk.CTk):
         except Exception:
             return 1
 
+
+
+
+
+
+
+
     def _update_siguiente_folio_label(self):
         try:
             # Si hay un archivo cargado y se extrajo la lista de folios usados
@@ -3071,10 +3078,29 @@ class SistemaDictamenesVC(ctk.CTk):
             if hasattr(self, 'lbl_siguiente_folio_doc'):
                 try:
                     self.lbl_siguiente_folio_doc.configure(text=txt)
+                    # Forzar refresco inmediato del GUI para que el cambio se vea al instante
+                    try:
+                        self.update_idletasks()
+                    except Exception:
+                        try:
+                            self.update()
+                        except Exception:
+                            pass
                 except Exception:
                     pass
         except Exception:
             pass
+
+
+
+
+
+
+
+
+
+
+
 
     def limpiar_archivo(self):
         self.archivo_excel_cargado = None
@@ -3944,6 +3970,10 @@ class SistemaDictamenesVC(ctk.CTk):
 
             # Recalcular el folio actual (buscar el siguiente disponible)
             self.cargar_ultimo_folio()
+            try:
+                self._update_siguiente_folio_label()
+            except Exception:
+                pass
             # Además de borrar el registro en el historial, eliminar archivos JSON
             # de dictámenes que correspondan a los folios asociados a esta visita.
             try:
