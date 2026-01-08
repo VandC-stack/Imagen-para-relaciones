@@ -67,7 +67,6 @@ def obtener_ruta_recurso(ruta_relativa):
 
     return os.path.join(os.path.abspath('.'), ruta_relativa)
 
-
 # ---------------- Folio counter (reserva atómica) ----------------
 def _get_folio_paths():
     carpeta = obtener_ruta_recurso('data')
@@ -677,7 +676,7 @@ class PDFGeneratorConDatos(PDFGenerator):
     def agregar_encabezado_pie_pagina(self, canvas, doc):
         canvas.saveState()
         
-        image_path = obtener_ruta_recurso("img/Fondo.jpeg")
+        image_path = obtener_ruta_recurso("img/Fondo.jpg")
         if os.path.exists(image_path):
             try:
                 canvas.drawImage(image_path, 0, 0, width=8.5*inch, height=11*inch)
@@ -1656,3 +1655,4 @@ if __name__ == "__main__":
         print(f"\n🎉 {mensaje}")
     else:
         print(f"\n❌ {mensaje}")
+

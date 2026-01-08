@@ -209,21 +209,6 @@ class ConstanciaPDFGenerator:
         x = 25 * mm
         right_x = self.width - 25 * mm
 
-        # Norma y nombre (línea superior, en negritas) — permitir wrap si no cabe en una línea
-        norma = str(self.datos.get('norma', '') or '').strip()
-        nombre_norma = str(self.datos.get('nombre_norma', '') or '').strip()
-        encabezado_norma = (f"{norma} - {nombre_norma}").strip(' -')
-        c.setFont('Helvetica-Bold', 10)
-        if encabezado_norma:
-            max_w = right_x - x
-            lines = _dividir_texto(c, encabezado_norma, max_w, font_name='Helvetica-Bold', font_size=10)
-            for ln in lines:
-                c.drawString(x, self.cursor_y, ln)
-                self.cursor_y -= 12
-        else:
-            # mantener la posición si no hay norma
-            pass
-
         # No. de contrato (valor en negritas)
         no_contrato = str(self.datos.get('no_contrato', '') or self.datos.get('no_de_contrato', ''))
         c.setFont('Helvetica', 9)
@@ -243,23 +228,19 @@ class ConstanciaPDFGenerator:
         # Fecha de emisión (ahora después de la fecha de contrato)
         fecha_emision = str(self.datos.get('fecha_emision', '') or '')
         fecha_larga = _formato_fecha_larga(fecha_emision)
-        c.setFont('Helvetica', 9)
-        # Dibujar la etiqueta en la misma línea
-        c.drawRightString(right_x, self.cursor_y, 'Fecha de Emisión:')
-        # Dibujar el valor justo debajo de la etiqueta para evitar empalmes; soporta wrap
-        if fecha_larga:
-            c.setFont('Helvetica-Bold', 9)
-            max_w_val = right_x - (x + 10 * mm)
-            val_lines = _dividir_texto(c, fecha_larga, max_w_val, font_name='Helvetica-Bold', font_size=9)
-            # comenzar a dibujar el primer valor una línea por debajo de la etiqueta
-            y_val = self.cursor_y - 10
-            for ln in val_lines:
-                c.drawRightString(right_x, y_val, ln)
-                y_val -= 10
-            # ajustar cursor al final del bloque de fecha
-            self.cursor_y = y_val - 4
-        else:
-            self.cursor_y -= 12
+        # Construir la línea completa: 'Fecha de Emisión: jueves 8 de enero de 2026'
+        combined = f"Fecha de Emisión: {fecha_larga}" if fecha_larga else 'Fecha de Emisión:'
+        # Determinar ancho máximo disponible y ajustar tamaño si es necesario
+        c.setFont('Helvetica-Bold', 9)
+        max_w = right_x - (x + 10 * mm)
+        text_w = c.stringWidth(combined, 'Helvetica-Bold', 9)
+        if text_w > max_w:
+            # reducir ligeramente la fuente para intentar que quepa en una línea
+            c.setFont('Helvetica-Bold', 8)
+            text_w = c.stringWidth(combined, 'Helvetica-Bold', 8)
+        # Dibujar la línea completa alineada a la derecha en `right_x`
+        c.drawRightString(right_x, self.cursor_y, combined)
+        self.cursor_y -= 12
 
     def dibujar_cuerpo_legal(self, c: canvas.Canvas) -> None:
         x = 25 * mm
@@ -299,10 +280,11 @@ class ConstanciaPDFGenerator:
 
         # Preparar contenido
         self.cursor_y = title_y - 12
+        producto = str(self.datos.get('producto', '') or '').strip()
         condiciones = [
             '1. Este documento sólo ampara la información contenida en el producto cuya etiqueta muestra se presenta en esta Constancia.',
             '2. Cualquier modificación a la etiqueta debe ser sometida a la consideración de la Unidad de Inspección Acreditada y Aprobada en los términos de la Ley de Infraestructura de la Calidad, para que inspeccione su cumplimiento con la Norma Oficial Mexicana aplicable.',
-            f"3. Esta Constancia sólo ampara el cumplimiento con la Norma Oficial Mexicana {self.datos.get('norma','')} ({self.datos.get('nombre_norma','')})."
+            f"3. Esta Constancia sólo ampara el cumplimiento con la Norma Oficial Mexicana {self.datos.get('norma','')} ({self.datos.get('nombre_norma','')}) para el producto: {producto}."
         ]
         c.setFont('Helvetica', 9)
         for cond in condiciones:
@@ -326,70 +308,70 @@ class ConstanciaPDFGenerator:
         c.drawString(x + 40 * mm, self.cursor_y, prod)
         self.cursor_y -= 20
 
+
+
+
     def dibujar_tabla_relacion(self, c: canvas.Canvas) -> None:
-        # Nuevo diseño compacto y con todos los bordes visibles
-        margin_x = 28 * mm
-        total_w = self.width - 2 * margin_x
-        x = margin_x
+        # Nuevo diseño: título en caja full-width y tabla de 3 columnas
+        # Aumentamos los márgenes para reducir el ancho total de la tabla
+        margin_x = 48 * mm
+        left = margin_x
+        right = self.width - margin_x
+        total_w = right - left
+        x = left
 
-        # Column widths compactas
-        col1 = 34 * mm
-        col2 = 46 * mm
-        col3 = total_w - col1 - col2
-
-        title_h = 9 * mm
-        header_h = 8 * mm
-        row_h = 10 * mm
-
-        table_top = self.cursor_y
-        table_height = title_h + header_h + row_h + 4 * mm
-
+        # Título en caja completa
         c.setLineWidth(0.9)
-        # Caja externa que engloba todo
-        c.rect(x, table_top - table_height, total_w, table_height, stroke=1, fill=0)
+        title_box_h = 8 * mm
+        top_y = self.cursor_y
+        c.rect(x, top_y - title_box_h, total_w, title_box_h, stroke=1, fill=0)
+        c.setFont('Helvetica-Bold', 9)
+        # Centrar el texto dentro de la caja (ligero ajuste vertical)
+        c.drawCentredString(self.width / 2, top_y - title_box_h / 2 + 2, 'RELACIÓN CORRESPONDIENTE')
 
-        # Banda superior con título (rellena ligeramente)
-        c.setFillColor(colors.whitesmoke)
-        c.rect(x + 1 * mm, table_top - title_h + 1 * mm, total_w - 2 * mm, title_h - 2 * mm, stroke=0, fill=1)
-        c.setFillColor(colors.black)
-        c.setFont('Helvetica-Bold', 10)
-        c.drawCentredString(x + total_w / 2, table_top - title_h / 2 + 1, 'RELACIÓN CORRESPONDIENTE')
+        # Avanzar cursor debajo del título con pequeño espacio
+        self.cursor_y = top_y - title_box_h - 4 * mm
 
-        # Línea separadora bajo título
-        top_y = table_top - title_h
-        c.line(x, top_y, x + total_w, top_y)
+        # Tabla con 3 columnas: CODIGO | MEDIDAS | CONTENIDO NETO
+        # Hacemos la tabla ligeramente más pequeña (márgenes mayores) y una sola fila de contenido
+        cols = 3
+        col_w = total_w / cols
+        header_h = 7 * mm
+        row_h = 10 * mm
+        rows = 1
+        table_h = header_h + rows * row_h
+        table_top = self.cursor_y
 
-        # Encabezado de columnas (con fondo gris claro)
-        c.setFillColor(colors.HexColor('#efefef'))
-        c.rect(x, top_y - header_h, total_w, header_h, stroke=0, fill=1)
-        c.setFillColor(colors.black)
-        # Dibujar separadores verticales del encabezado
-        bottom_y = top_y - header_h - row_h
-        c.line(x + col1, top_y, x + col1, bottom_y)
-        c.line(x + col1 + col2, top_y, x + col1 + col2, bottom_y)
+        # Caja externa de la tabla
+        c.rect(x, table_top - table_h, total_w, table_h, stroke=1, fill=0)
 
-        # Encabezados
+        # Líneas verticales entre columnas
+        for i in range(1, cols):
+            xpos = x + i * col_w
+            c.line(xpos, table_top, xpos, table_top - table_h)
+
+        # Línea separadora entre header y contenido
+        c.line(x, table_top - header_h, x + total_w, table_top - header_h)
+
+        # Encabezados (centrados sobre cada columna) con fuente más pequeña
+        padding = 3 * mm
         c.setFont('Helvetica-Bold', 8)
-        c.drawCentredString(x + col1 / 2, top_y - header_h / 2 - 2, 'CÓDIGO')
-        c.drawCentredString(x + col1 + col2 / 2, top_y - header_h / 2 - 2, 'MEDIDAS')
-        c.drawCentredString(x + col1 + col2 + col3 / 2, top_y - header_h / 2 - 2, 'CONTENIDO NETO')
+        c.drawCentredString(x + col_w * 0.5, table_top - header_h + 2, 'CODIGO')
+        c.drawCentredString(x + col_w * 1.5, table_top - header_h + 2, 'MEDIDAS')
+        c.drawCentredString(x + col_w * 2.5, table_top - header_h + 2, 'CONTENIDO NETO')
 
-        # Dibujar bordes de la fila de datos (siempre visibles)
-        c.rect(x, bottom_y, col1, row_h, stroke=1, fill=0)
-        c.rect(x + col1, bottom_y, col2, row_h, stroke=1, fill=0)
-        c.rect(x + col1 + col2, bottom_y, col3, row_h, stroke=1, fill=0)
+        # Filas vacías (espacio para contenido) - dejamos visualmente en blanco
 
-        # Rellenar fila de datos (ejemplo o reales) en negritas
-        codigo = str(self.datos.get('codigo', '')).strip() or '7 503049 695501'
-        medida = str(self.datos.get('medida', '')).strip() or '17 cm de ancho x 15.35 cm de alto'
-        contenido = str(self.datos.get('contenido_neto', '')).strip() or '355 ml'
-        c.setFont('Helvetica-Bold', 8)
-        c.drawString(x + 3 * mm, bottom_y + row_h / 2 - 4, codigo)
-        c.drawString(x + col1 + 3 * mm, bottom_y + row_h / 2 - 4, medida)
-        c.drawRightString(x + total_w - 4 * mm, bottom_y + row_h / 2 - 4, contenido)
+        # Actualizar cursor por debajo de la tabla
+        self.cursor_y = table_top - table_h - 8
 
-        # Actualizar cursor
-        self.cursor_y = bottom_y - 8 * mm
+
+
+
+
+
+
+
 
     def dibujar_observaciones(self, c: canvas.Canvas) -> None:
         x = 25 * mm
@@ -662,7 +644,6 @@ class ConstanciaPDFGenerator:
 
         self.cursor_y = margin_y
 
-
 def _dividir_texto(c: canvas.Canvas, texto: str, max_width: float, font_name: str = 'Helvetica', font_size: int = 10):
     palabras = texto.split()
     lineas = []
@@ -678,7 +659,6 @@ def _dividir_texto(c: canvas.Canvas, texto: str, max_width: float, font_name: st
     if actual:
         lineas.append(actual)
     return lineas
-
 
 def _formato_fecha_larga(fecha_str: str) -> str:
     """Intenta convertir una fecha corta (dd/mm/YYYY, YYYY-mm-dd, etc.)
@@ -712,7 +692,6 @@ def _formato_fecha_larga(fecha_str: str) -> str:
             pass
     return s
 
-
 def _cargar_clientes(path: str) -> dict:
     clientes = {}
     try:
@@ -731,7 +710,6 @@ def _cargar_clientes(path: str) -> dict:
     except Exception:
         pass
     return clientes
-
 
 def _cargar_normas(path: str) -> dict:
     normas = {}
@@ -752,7 +730,6 @@ def _cargar_normas(path: str) -> dict:
     except Exception:
         pass
     return normas
-
 
 def _actualizar_tabla_relacion(path: str) -> None:
     if not os.path.exists(path):
@@ -778,7 +755,6 @@ def _actualizar_tabla_relacion(path: str) -> None:
                 json.dump(data, f, ensure_ascii=False, indent=2)
     except Exception:
         pass
-
 
 def generar_constancia_desde_visita(folio_visita: str | None = None, salida: str | None = None) -> str:
     base = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
@@ -850,7 +826,6 @@ def generar_constancia_desde_visita(folio_visita: str | None = None, salida: str
     gen = ConstanciaPDFGenerator(datos, base_dir=base)
     return gen.generar(salida)
 
-
 if __name__ == '__main__':
     # demo rápido
     datos_demo = {
@@ -867,3 +842,5 @@ if __name__ == '__main__':
     out = os.path.join(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')), 'Plantillas PDF', 'Constancia_demo.pdf')
     os.makedirs(os.path.dirname(out), exist_ok=True)
     ConstanciaPDFGenerator(datos_demo).generar(out)
+
+

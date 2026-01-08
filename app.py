@@ -3023,24 +3023,35 @@ class SistemaDictamenesVC(ctk.CTk):
             except Exception:
                 pass
 
-            # Además, leer el contador legacy `folio_counter.json` si existe y
-            # tomar como referencia el mayor entre ambos (archivos por visita
-            # vs contador). De esta forma el UI recuerda hasta dónde se
-            # avanzó aunque no haya archivos en `folios_visitas/`.
+            # Además, consultar el contador maestro a través de `folio_manager`
+            # (usa `FOLIO_DATA_DIR` cuando esté definido). Esto evita que la
+            # UI lea un archivo distinto al que usa el proceso que reserva
+            # folios (por ejemplo, al ejecutar en .exe con rutas embebidas).
             try:
-                data_dir = os.path.dirname(self.historial_path)
-                contador_path = os.path.join(data_dir, "folio_counter.json")
-                if os.path.exists(contador_path):
-                    try:
-                        with open(contador_path, 'r', encoding='utf-8') as cf:
-                            j = json.load(cf) or {}
-                            last = int(j.get('last', 0))
-                            if last > maxf:
-                                maxf = last
-                    except Exception:
-                        pass
+                import folio_manager
+                try:
+                    last = int(folio_manager.get_last() or 0)
+                    if last > maxf:
+                        maxf = last
+                except Exception:
+                    pass
             except Exception:
-                pass
+                # Fallback: mantener comportamiento anterior si folio_manager
+                # no está disponible por alguna razón.
+                try:
+                    data_dir = os.path.dirname(self.historial_path)
+                    contador_path = os.path.join(data_dir, "folio_counter.json")
+                    if os.path.exists(contador_path):
+                        try:
+                            with open(contador_path, 'r', encoding='utf-8') as cf:
+                                j = json.load(cf) or {}
+                                last = int(j.get('last', 0))
+                                if last > maxf:
+                                    maxf = last
+                        except Exception:
+                            pass
+                except Exception:
+                    pass
 
             return maxf + 1
         except Exception:
