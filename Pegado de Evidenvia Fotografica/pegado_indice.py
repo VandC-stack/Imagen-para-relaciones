@@ -40,6 +40,23 @@ def seleccionar_excel():
     )
 
 
+# Caché simple de listados de directorio para evitar os.listdir repetidos
+_listdir_cache = {}
+def _cached_listdir(path):
+    try:
+        key = os.path.normcase(os.path.abspath(path))
+    except Exception:
+        key = path
+    if key in _listdir_cache:
+        return _listdir_cache[key]
+    try:
+        items = os.listdir(path)
+    except Exception:
+        items = []
+    _listdir_cache[key] = items
+    return items
+
+
 def construir_indice_desde_excel(ruta_excel):
     ext = os.path.splitext(ruta_excel)[1].lower()
     engine = "pyxlsb" if ext == ".xlsb" else None
@@ -167,14 +184,14 @@ def buscar_destino(ruta_base, destino):
     base, ext = os.path.splitext(destino)
 
     if ext.lower() in IMG_EXTS:
-        for archivo in os.listdir(ruta_base):
+        for archivo in _cached_listdir(ruta_base):
             if archivo.lower() == destino.lower():
                 return "imagen", os.path.join(ruta_base, archivo)
 
     nombre_base = base if ext.lower() in IMG_EXTS else destino
     # Buscar coincidencias de nombre base, incluyendo variantes tipo "1234(2)", "1234-2", "1234_2"
     matches = []
-    for archivo in os.listdir(ruta_base):
+    for archivo in _cached_listdir(ruta_base):
         archivo_base, archivo_ext = os.path.splitext(archivo)
         if archivo_ext.lower() not in IMG_EXTS:
             continue
@@ -205,7 +222,7 @@ def buscar_destino(ruta_base, destino):
         return "imagen", matches
 
     carpeta_buscada = nombre_base
-    for item in os.listdir(ruta_base):
+    for item in _cached_listdir(ruta_base):
         if os.path.isdir(os.path.join(ruta_base, item)) and item.lower() == carpeta_buscada.lower():
             return "carpeta", os.path.join(ruta_base, item)
 
@@ -254,7 +271,7 @@ def procesar_doc_con_indice_docx(ruta_doc, ruta_imagenes, indice):
                         imagenes_insertadas += 1
 
                 elif tipo == "carpeta":
-                    for archivo in os.listdir(ruta):
+                    for archivo in _cached_listdir(ruta):
                         if os.path.splitext(archivo)[1].lower() in IMG_EXTS:
                             insertar_imagen_con_transparencia(run, os.path.join(ruta, archivo))
                             imagenes_insertadas += 1
@@ -310,7 +327,7 @@ def procesar_doc_con_indice_pdf(ruta_doc, ruta_imagenes, indice):
                 imagenes_insertadas += 1
 
         elif tipo == "carpeta":
-            for archivo in os.listdir(ruta):
+            for archivo in _cached_listdir(ruta):
                 if os.path.splitext(archivo)[1].lower() in IMG_EXTS:
                     rutas_imagenes.append(os.path.join(ruta, archivo))
                     imagenes_insertadas += 1
@@ -354,7 +371,7 @@ def procesar_indice():
     print("Índice generado correctamente.")
 
     archivos = [
-        f for f in os.listdir(ruta_docs)
+        f for f in _cached_listdir(ruta_docs)
         if (f.endswith(".docx") or f.endswith(".pdf")) and not f.startswith("~$")
     ]
 

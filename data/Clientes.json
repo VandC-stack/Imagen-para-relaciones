@@ -1118,6 +1118,21 @@
     "CP": 54769,
     "SERVICIO": "DICTAMEN"
   },
+
+  {
+    "RFC": "RME220426NV6",
+    "CLIENTE": "REALTURF MEXICO SAPI DE CV",
+    "NÚMERO_DE_CONTRATO": "26049UCS000001",
+    "ACTIVIDAD": "NUEVO",
+    "CURP": "",
+    "CALLE Y NO": "Libramiento Sur Poniente 27,315 Interior 3 y 4",
+    "COLONIA O POBLACION": "Tlacote el Bajo",
+    "MUNICIPIO O ALCADIA": "Villa Corregidora Querétaro",
+    "CIUDAD O ESTADO": "Querétaro",
+    "CP": 76229,
+    "SERVICIO": "DICTAMEN"
+  },
+
   {
     "RFC": "ROV730726UY0",
     "CLIENTE": "SPECTRUM BRANDS DE MÉXICO SA DE CV",

@@ -80,8 +80,12 @@ def procesar_simple():
     index = indexar_imagenes(ruta_imgs)
 
     # Ahora modo simple procesa Word y PDF
+    try:
+        docs_entries = os.listdir(ruta_docs)
+    except Exception:
+        docs_entries = []
     archivos = [
-        f for f in os.listdir(ruta_docs)
+        f for f in docs_entries
         if (f.lower().endswith(".docx") or f.lower().endswith(".pdf")) and not f.startswith("~$")
     ]
 

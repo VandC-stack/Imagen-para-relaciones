@@ -379,8 +379,8 @@ class SistemaDictamenesVC(ctk.CTk):
         # Botón Reportes
         self.btn_reportes = ctk.CTkButton(
             botones_frame,
-            text="📑 Reportes",
-            command=self.mostrar_reportes,
+            text="📑Clientes",
+            command=self.mostrar_clientes,
             font=("Inter", 14, "bold"),
             fg_color=STYLE["surface"],
             hover_color=STYLE["primario"],
@@ -520,7 +520,7 @@ class SistemaDictamenesVC(ctk.CTk):
             except Exception:
                 pass
 
-    def mostrar_reportes(self):
+    def mostrar_clientes(self):
         """Muestra la sección de reportes y oculta las demás"""
         # Ocultar todos los frames primero
         self.frame_principal.pack_forget()
@@ -1293,6 +1293,24 @@ class SistemaDictamenesVC(ctk.CTk):
             width=40, height=25, corner_radius=6,
             fg_color=STYLE["advertencia"], text_color=STYLE["surface"]
         ).pack(side="left")
+        # Botones de generación rápidos en la parte superior (derecha)
+        try:
+            gen_top = ctk.CTkFrame(linea_busqueda, fg_color='transparent')
+            gen_top.pack(side='right')
+            ctk.CTkButton(
+                gen_top, text="📊 Generar EMA",
+                command=self.descargar_excel_ema,
+                height=28, width=120, corner_radius=8,
+                fg_color=("#2E7D32", "#1B5E20"), text_color=STYLE["secundario"], font=("Inter", 11, "bold")
+            ).pack(side='right', padx=(6,0))
+            ctk.CTkButton(
+                gen_top, text="📈 Generar Anual",
+                command=self.descargar_excel_anual,
+                height=28, width=120, corner_radius=8,
+                fg_color=("#1976D2", "#0D47A1"), text_color=STYLE["secundario"], font=("Inter", 11, "bold")
+            ).pack(side='right')
+        except Exception:
+            pass
 
         # Espaciador para empujar todo a la izquierda (opcional)
         # ctk.CTkFrame(linea_busqueda, fg_color="transparent").pack(side="left", expand=True)
@@ -1419,6 +1437,8 @@ class SistemaDictamenesVC(ctk.CTk):
         footer_content = ctk.CTkFrame(footer, fg_color="transparent")
         footer_content.pack(expand=True, fill="both", padx=12, pady=10)
 
+        # (Los botones de generación se insertan en el subframe derecho de paginación más abajo)
+
         # --- Estructura de paginación: columnas izquierda/central/derecha ---
         # Creamos subframes con ancho fijo a izquierda/derecha para asegurar
         # que los botones queden pegados a los bordes, y el centro expande.
@@ -1463,6 +1483,8 @@ class SistemaDictamenesVC(ctk.CTk):
             fg_color=STYLE["secundario"], text_color=STYLE["surface"],
             hover_color="#1a1a1a"
         )
+        # Generación de reportes: botones movidos al área superior de búsqueda
+
         self.btn_hist_next.pack(side='right', anchor='e', padx=(0,6))
 
         # Note: los botones de EMA/Anual y Backup se muestran en la pestaña "Reportes".
@@ -1477,6 +1499,14 @@ class SistemaDictamenesVC(ctk.CTk):
         except Exception:
             pass
 
+
+
+
+
+
+
+
+
     def _construir_tab_reportes(self, parent):
         """Construye la pestaña 'Reportes' con botones EMA y Anual y Backup en la esquina superior derecha."""
         cont = ctk.CTkFrame(parent, fg_color=STYLE["surface"], corner_radius=8)
@@ -1487,7 +1517,7 @@ class SistemaDictamenesVC(ctk.CTk):
         barra.pack(fill="x", pady=(0, 10))
         barra.pack_propagate(False)
 
-        ctk.CTkLabel(barra, text="📑 Reportes", font=FONT_SUBTITLE, text_color=STYLE["texto_oscuro"]).pack(side="left", padx=12)
+       
 
         # Nota: el botón de Backup se gestiona desde la barra de navegación
         # (evitar duplicarlo aquí para que solo exista una instancia).
@@ -1499,19 +1529,82 @@ class SistemaDictamenesVC(ctk.CTk):
         btn_frame = ctk.CTkFrame(contenido, fg_color="transparent")
         btn_frame.pack(expand=True)
 
-        ctk.CTkButton(
-            btn_frame, text="📈 Generar Anual",
-            command=self.descargar_excel_anual,
-            height=60, width=220, corner_radius=10,
-            fg_color=("#1976D2", "#0D47A1"), text_color=STYLE["secundario"], font=("Inter", 14, "bold")
-        ).pack(side="left", padx=20, pady=40)
+        # (Los botones de generación Anual/EMA se muestran en la pestaña Historial)
 
-        ctk.CTkButton(
-            btn_frame, text="📊 Generar EMA",
-            command=self.descargar_excel_ema,
-            height=60, width=220, corner_radius=10,
-            fg_color=("#2E7D32", "#1B5E20"), text_color=STYLE["secundario"], font=("Inter", 14, "bold")
-        ).pack(side="left", padx=20, pady=40)
+        # ===== Sección: Clientes - formulario + tabla =====
+        clientes_frame = ctk.CTkFrame(contenido, fg_color="transparent")
+        clientes_frame.pack(fill="both", expand=True, padx=10, pady=(10,0))
+
+        # Layout: formulario a la izquierda, tabla a la derecha
+        clientes_frame.grid_columnconfigure(0, weight=3)
+        clientes_frame.grid_columnconfigure(1, weight=5)
+
+        form_frame = ctk.CTkFrame(clientes_frame, fg_color=STYLE["surface"], corner_radius=8)
+        form_frame.grid(row=0, column=0, sticky="nsew", padx=(0,10), pady=5)
+
+        ctk.CTkLabel(form_frame, text="Agregar nuevo cliente", font=FONT_SUBTITLE, text_color=STYLE["texto_oscuro"]).pack(anchor="w", padx=12, pady=(8,6))
+
+        # Campos mínimos sugeridos
+        self.cliente_campos = {}
+        campos = [
+            ("RFC", 30), ("CLIENTE", 40), ("NÚMERO_DE_CONTRATO", 30), ("ACTIVIDAD", 20),
+            ("CURP", 18), ("CALLE Y NO", 40), ("COLONIA O POBLACION", 30), ("MUNICIPIO O ALCADIA", 30),
+            ("CIUDAD O ESTADO", 25), ("CP", 8), ("SERVICIO", 20)
+        ]
+
+        for k, w in campos:
+            frame_k = ctk.CTkFrame(form_frame, fg_color="transparent")
+            frame_k.pack(fill="x", padx=12, pady=(4,4))
+            ctk.CTkLabel(frame_k, text=f"{k}:", font=FONT_SMALL, width=140, anchor="w", text_color=STYLE["texto_oscuro"]).pack(side="left")
+            ent = ctk.CTkEntry(frame_k, placeholder_text=k, font=FONT_SMALL, height=30)
+            ent.pack(side="left", fill="x", expand=True)
+            self.cliente_campos[k] = ent
+
+        btns_frame = ctk.CTkFrame(form_frame, fg_color="transparent")
+        btns_frame.pack(fill="x", padx=12, pady=(8,12))
+        ctk.CTkButton(btns_frame, text="Guardar cliente", command=self._guardar_cliente_desde_form, fg_color=STYLE["primario"]).pack(side="left")
+        ctk.CTkButton(btns_frame, text="Limpiar", command=lambda: [e.delete(0, 'end') for e in self.cliente_campos.values()]).pack(side="left", padx=(8,0))
+
+        # Tabla de clientes
+        tabla_frame = ctk.CTkFrame(clientes_frame, fg_color=STYLE["surface"], corner_radius=8)
+        tabla_frame.grid(row=0, column=1, sticky="nsew", padx=(10,0), pady=5)
+        ctk.CTkLabel(tabla_frame, text="Clientes registrados", font=FONT_SUBTITLE, text_color=STYLE["texto_oscuro"]).pack(anchor="w", padx=12, pady=(8,6))
+
+        # Usar ttk.Treeview para tabla (más flexible)
+        cols = ("RFC","CLIENTE","NÚMERO_DE_CONTRATO","ACTIVIDAD","CP","SERVICIO")
+        tree_container = tk.Frame(tabla_frame)
+        tree_container.pack(fill="both", expand=True, padx=12, pady=(0,12))
+        self.tree_clientes = ttk.Treeview(tree_container, columns=cols, show='headings', selectmode='browse')
+        for c in cols:
+            self.tree_clientes.heading(c, text=c)
+            self.tree_clientes.column(c, width=120, anchor='w')
+        vsb = ttk.Scrollbar(tree_container, orient="vertical", command=self.tree_clientes.yview)
+        hsb = ttk.Scrollbar(tree_container, orient="horizontal", command=self.tree_clientes.xview)
+        self.tree_clientes.configure(yscrollcommand=vsb.set, xscrollcommand=hsb.set)
+        self.tree_clientes.pack(side="left", fill="both", expand=True)
+        vsb.pack(side="right", fill="y")
+        hsb.pack(side="bottom", fill="x")
+
+        # Botones de gestión de tabla
+        tbl_btns = ctk.CTkFrame(tabla_frame, fg_color="transparent")
+        tbl_btns.pack(fill="x", padx=12, pady=(0,10))
+        ctk.CTkButton(tbl_btns, text="Refrescar", command=self._refrescar_tabla_clientes).pack(side="left")
+        ctk.CTkButton(tbl_btns, text="Eliminar seleccionado", fg_color=STYLE["peligro"], command=self._eliminar_cliente_seleccionado).pack(side="left", padx=8)
+
+        # Poblar la tabla inicialmente
+        try:
+            self._refrescar_tabla_clientes()
+        except Exception:
+            pass
+
+
+
+
+
+
+
+
+
 
     def _formatear_hora_12h(self, hora_str):
         """Convierte hora de formato 24h a formato 12h con AM/PM de forma consistente"""
@@ -1667,6 +1760,140 @@ class SistemaDictamenesVC(ctk.CTk):
         try:
             self.combo_cliente.configure(values=valores)
             self.combo_cliente.set('Seleccione un cliente...')
+        except Exception:
+            pass
+
+    def _guardar_cliente_desde_form(self):
+        """Lee los campos del formulario de Reportes y guarda un nuevo cliente en Clientes.json"""
+        nuevo = {}
+        for k, ent in (self.cliente_campos or {}).items():
+            try:
+                v = ent.get().strip()
+            except Exception:
+                try:
+                    v = ent.get() or ""
+                except Exception:
+                    v = ""
+            # Convertir CP a entero si es posible
+            if k == 'CP' and v != "":
+                try:
+                    nuevo[k] = int(v)
+                except Exception:
+                    nuevo[k] = v
+            else:
+                nuevo[k] = v
+
+        # Ruta objetivo
+        ruta = os.path.join(DATA_DIR, 'Clientes.json')
+        datos = []
+        try:
+            if os.path.exists(ruta):
+                with open(ruta, 'r', encoding='utf-8') as f:
+                    datos = json.load(f) or []
+        except Exception:
+            datos = []
+
+        # Añadir nuevo cliente y persistir
+        datos.append(nuevo)
+        try:
+            with open(ruta, 'w', encoding='utf-8') as f:
+                json.dump(datos, f, ensure_ascii=False, indent=2)
+            messagebox.showinfo('Cliente guardado', 'El cliente se ha guardado en Clientes.json')
+        except Exception as e:
+            messagebox.showerror('Error', f'No se pudo guardar el cliente: {e}')
+            return
+
+        # Refrescar cache y UI
+        try:
+            self.cargar_clientes_desde_json()
+        except Exception:
+            pass
+        try:
+            self._refrescar_tabla_clientes()
+        except Exception:
+            pass
+
+        # Limpiar formulario
+        for ent in (self.cliente_campos or {}).values():
+            try:
+                ent.delete(0, 'end')
+            except Exception:
+                pass
+
+    def _refrescar_tabla_clientes(self):
+        """Carga `Clientes.json` y muestra los registros en la tabla Treeview."""
+        ruta = os.path.join(DATA_DIR, 'Clientes.json')
+        datos = []
+        try:
+            if os.path.exists(ruta):
+                with open(ruta, 'r', encoding='utf-8') as f:
+                    datos = json.load(f) or []
+        except Exception:
+            datos = []
+
+        # Limpiar tabla
+        try:
+            for r in self.tree_clientes.get_children():
+                self.tree_clientes.delete(r)
+        except Exception:
+            pass
+
+        # Insertar filas
+        for c in datos:
+            try:
+                rfc = c.get('RFC') or c.get('R.F.C') or ''
+                nombre = c.get('CLIENTE') or c.get('RAZÓN SOCIAL ') or c.get('RAZON SOCIAL') or ''
+                contrato = c.get('NÚMERO_DE_CONTRATO') or c.get('No. DE CONTRATO') or ''
+                actividad = c.get('ACTIVIDAD') or ''
+                cp = c.get('CP') or ''
+                servicio = c.get('SERVICIO') or ''
+                self.tree_clientes.insert('', 'end', values=(rfc, nombre, contrato, actividad, cp, servicio))
+            except Exception:
+                continue
+
+    def _eliminar_cliente_seleccionado(self):
+        sel = None
+        try:
+            sel = self.tree_clientes.selection()[0]
+        except Exception:
+            messagebox.showwarning('Eliminar', 'No hay ningún cliente seleccionado')
+            return
+
+        vals = self.tree_clientes.item(sel, 'values')
+        if not vals:
+            return
+
+        rfc_sel = vals[0]
+        ruta = os.path.join(DATA_DIR, 'Clientes.json')
+        try:
+            with open(ruta, 'r', encoding='utf-8') as f:
+                datos = json.load(f) or []
+        except Exception:
+            datos = []
+
+        # Eliminar por RFC (si está vacío, por nombre)
+        nuevos = []
+        for c in datos:
+            try:
+                if rfc_sel and c.get('RFC') and str(c.get('RFC')) == str(rfc_sel):
+                    continue
+                nombre = c.get('CLIENTE') or c.get('RAZÓN SOCIAL ') or c.get('RAZON SOCIAL') or ''
+                if not rfc_sel and nombre == vals[1]:
+                    continue
+                nuevos.append(c)
+            except Exception:
+                nuevos.append(c)
+
+        try:
+            with open(ruta, 'w', encoding='utf-8') as f:
+                json.dump(nuevos, f, ensure_ascii=False, indent=2)
+        except Exception as e:
+            messagebox.showerror('Error', f'No se pudo eliminar: {e}')
+            return
+
+        messagebox.showinfo('Eliminado', 'Cliente eliminado correctamente')
+        try:
+            self._refrescar_tabla_clientes()
         except Exception:
             pass
 
@@ -5780,24 +6007,6 @@ class SistemaDictamenesVC(ctk.CTk):
             print(f"❌ Error guardando folios para visita {folio_visita}: {e}")
             return False
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
     def descargar_folios_visita(self, registro):
         """Descarga los folios de una visita en formato Excel con columnas personalizadas"""
         try:
@@ -6065,28 +6274,6 @@ class SistemaDictamenesVC(ctk.CTk):
                 
         except Exception as e:
             messagebox.showerror("Error", f"No se pudieron descargar los folios:\n{str(e)}")
-    
-    
-    
-    
-    
-    
-    
-    
-
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
     
     # ----------------- FOLIOS PENDIENTES (UI helpers) -----------------
     def _get_folios_pendientes(self):
