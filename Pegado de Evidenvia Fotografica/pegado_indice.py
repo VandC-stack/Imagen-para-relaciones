@@ -65,10 +65,43 @@ def construir_indice_desde_excel(ruta_excel):
     except Exception:
         valid_codes = None
 
+    # Detectar columnas de código y destino por encabezado si es posible
+    code_col = None
+    dest_col = None
+    try:
+        cols = list(df.columns)
+        # Normalizar encabezados para detección
+        def _norm_col(c):
+            return re.sub(r"[^A-Za-z0-9]", "", str(c or "")).upper()
+
+        norm = {c: _norm_col(c) for c in cols}
+        # Buscar columna de código
+        for c, nc in norm.items():
+            if any(k in nc for k in ("CODIGO", "CODIGOS", "CODE", "SKU", "EAN", "UPC", "ESTILO")):
+                code_col = c
+                break
+
+        # Buscar columna de destino/asignación (columna B esperada: ASIGNACIÓN/ASIG/DESTINO)
+        for c, nc in norm.items():
+            if any(k in nc for k in ("ASIG", "ASIGN", "ASIGNACION", "DESTINO", "NOMBRE", "EVIDENCIA")):
+                dest_col = c
+                break
+
+        # Log columns chosen
+        _log_index(f"construir_indice: detected cols code_col={code_col} dest_col={dest_col} cols={cols}")
+    except Exception:
+        code_col = None
+        dest_col = None
+
     for _, row in df.iterrows():
         try:
-            codigo = str(row.iloc[0]).strip()
-            destino = str(row.iloc[1]).strip()
+            if code_col is not None and dest_col is not None:
+                codigo = str(row.get(code_col, "")).strip()
+                destino = str(row.get(dest_col, "")).strip()
+            else:
+                # Fallback antiguo: columna A -> código, columna B -> destino
+                codigo = str(row.iloc[0]).strip()
+                destino = str(row.iloc[1]).strip()
         except Exception:
             continue
 
@@ -112,17 +145,17 @@ def extraer_codigos_tabla(doc):
                 if not texto:
                     continue
 
+                # Normalizar a sólo caracteres alfanuméricos para la clave
                 canon = "".join(ch for ch in texto if ch.isalnum())
                 if not canon:
                     continue
 
-                tiene_letras = any(c.isalpha() for c in canon)
-                tiene_digitos = any(c.isdigit() for c in canon)
-
-                if not (tiene_letras and tiene_digitos):
-                    continue
-
+                # Aceptar códigos numéricos, alfabéticos o mixtos.
+                # Antes se requería que tuvieran letras y dígitos; eso descartaba
+                # SKUs numéricos (p. ej. columna A en algunos Excel). Ahora
+                # añadimos cualquier valor alfanumérico no vacío.
                 codigos.append(texto)
+                _log_index(f"extraer_codigos_tabla: encontrado -> original='{texto}' canon='{canon}'")
 
             break
     return codigos
@@ -332,3 +365,6 @@ def procesar_indice():
 
     if os.path.exists(LOG_FILE):
         os.startfile(LOG_FILE)
+
+
+        

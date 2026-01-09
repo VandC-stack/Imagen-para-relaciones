@@ -9896,7 +9896,7 @@ class SistemaDictamenesVC(ctk.CTk):
 
         # Preguntar por el archivo Excel que contiene la hoja 'CONCENTRADO'
         excel_path = filedialog.askopenfilename(
-            title="Seleccionar archivo Excel con hoja CONCENTRADO (columnas A,B,C)",
+            title="Seleccionar archivo Excel con hoja CONCENTRADO",
             filetypes=[("Excel Files", "*.xlsx *.xlsm *.xls *.xlsb")]
         )
 

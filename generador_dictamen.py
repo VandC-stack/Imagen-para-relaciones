@@ -1341,16 +1341,142 @@ def generar_dictamenes_completos(directorio_destino, cliente_manual=None, rfc_ma
                     # No encontrado
                     return None
 
+                def _map_code_to_assignment(code):
+                    """Intentar mapear un código (EAN/UPC/SKU) a la columna de asignación
+                    presente en `tabla_datos` (tabla de relación). Devuelve el valor
+                    de asignación si se encuentra, o None si no.
+                    """
+                    try:
+                        if tabla_datos is None or tabla_datos.empty:
+                            return None
+
+                        s = str(code).strip()
+                        if not s:
+                            return None
+
+                        # Normalizar nombres de columnas: quitar caracteres no alfanuméricos y uppercase
+                        def _colnorm(c):
+                            return re.sub(r"[^A-Z0-9]", "", str(c).upper())
+
+                        cols = list(tabla_datos.columns)
+                        norm_map = {c: _colnorm(c) for c in cols}
+                        # Depuración: mostrar columnas detectadas y su normalización
+                        try:
+                            print(f"   🐞 tabla_de_relacion columns: {cols}")
+                            print(f"   🐞 normalized columns: {norm_map}")
+                        except Exception:
+                            pass
+
+                        possible_code_keys = set()
+                        for c, nc in norm_map.items():
+                            if any(k in nc for k in ("UPC", "EAN", "CODIGO", "SKU", "ESTILO")):
+                                possible_code_keys.add(c)
+
+                        possible_asign_keys = [c for c, nc in norm_map.items() if any(k in nc for k in ("ASIG", "ASIGN", "ASIGNACION"))]
+
+                        # If none found, attempt looser heuristics
+                        if not possible_code_keys:
+                            for c, nc in norm_map.items():
+                                # columnas que son mayormente numéricas pueden ser códigos
+                                if nc.isdigit() or any(ch.isdigit() for ch in nc):
+                                    possible_code_keys.add(c)
+
+                        try:
+                            print(f"   🐞 possible_code_keys: {possible_code_keys}")
+                            print(f"   🐞 possible_asign_keys: {possible_asign_keys}")
+                        except Exception:
+                            pass
+
+                        # Comparación directa: intentar coincidencia exacta en las columnas de código
+                        for col in possible_code_keys:
+                            try:
+                                series = tabla_datos[col].astype(str).str.strip()
+                                # comparar tanto como string como números (ignorar no dígitos)
+                                mask = series == s
+                                if not mask.any():
+                                    # intentar comparar sólo dígitos
+                                    digits_s = ''.join(ch for ch in s if ch.isdigit())
+                                    if digits_s:
+                                        series_digits = series.apply(lambda x: ''.join(ch for ch in str(x) if ch.isdigit()))
+                                        mask = series_digits == digits_s
+
+                                if mask.any():
+                                    idx = mask.idxmax()
+                                    row = tabla_datos.loc[idx]
+                                    try:
+                                        print(f"   🐞 matched row idx={idx} row={{}}".format(row.to_dict()))
+                                    except Exception:
+                                        pass
+                                    # Preferir columna de asignación si existe
+                                    for ac in possible_asign_keys:
+                                        try:
+                                            v = row.get(ac)
+                                            if v is not None and str(v).strip() != "":
+                                                return str(v).strip()
+                                        except Exception:
+                                            continue
+                                    # Si no hay columna de asignación conocida, devolver la columna 'ASIGNACION' con acento alternativa
+                                    for ac in cols:
+                                        if _colnorm(ac).startswith(('ASIG','ASIGN')):
+                                            v = row.get(ac)
+                                            if v is not None and str(v).strip() != "":
+                                                return str(v).strip()
+                                    # No hay asignación clara -> return None
+                                    return None
+                            except Exception:
+                                continue
+
+                        # Último recurso: buscar en todo el dataframe coincidencias exactas y devolver columna B (segunda columna)
+                        for _, row in tabla_datos.iterrows():
+                            for col in cols:
+                                try:
+                                    if str(row.get(col, "")).strip() == s:
+                                        # devolver la segunda columna (si existe) como la asignación esperada
+                                        if len(cols) >= 2:
+                                            val = row.get(cols[1])
+                                            try:
+                                                print(f"   🐞 fallback: matched in col={col}, returning cols[1]={cols[1]} value={val}")
+                                            except Exception:
+                                                pass
+                                            if val and str(val).strip():
+                                                return str(val).strip()
+                                        return None
+                                except Exception:
+                                    continue
+
+                    except Exception:
+                        return None
+                    return None
+
                 rutas_encontradas = []
                 mapping_codes = {}
                 if codigos_a_buscar:
                     print(f"   🔎 Buscando evidencias para códigos: {codigos_a_buscar}")
                     for codigo in codigos_a_buscar:
+                        ps = None
                         try:
-                            ps = _buscar_imagen(codigo)
+                            # 1) intentar mapear el código a la columna de asignación (columna B)
+                            asign = _map_code_to_assignment(codigo)
+                            if asign:
+                                print(f"      🔁 Código {codigo} mapeado a asignación: {asign} (tabla_de_relacion)")
+                                try:
+                                    ps = _buscar_imagen(asign)
+                                except Exception as _e:
+                                    print(f"   ⚠️ Error buscando evidencias para asignación {asign}: {_e}")
+                                    ps = None
+
+                            # 2) si no se encontró por asignación, intentar búsqueda directa por el código
+                            if not ps:
+                                try:
+                                    ps = _buscar_imagen(codigo)
+                                except Exception as _e:
+                                    print(f"   ⚠️ Error buscando evidencias para {codigo}: {_e}")
+                                    ps = None
+
                         except Exception as _e:
-                            print(f"   ⚠️ Error buscando evidencias para {codigo}: {_e}")
+                            print(f"   ⚠️ Error procesando código {codigo}: {_e}")
                             ps = None
+
                         print(f"      → {codigo} => {ps}")
                         mapping_codes[str(codigo)] = ps
                         if not ps:
