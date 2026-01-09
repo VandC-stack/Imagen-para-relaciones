@@ -1,6 +1,6 @@
 """Plantilla: Constancia de Conformidad
 
-Esta plantilla genera una constancia en PDF usando img/Fondo.jpeg como fondo
+Esta plantilla genera una constancia en PDF usando img/Fondo.jpg como fondo
 y carga datos desde data/Clientes.json y data/Normas.json. También ofrece una
 función para leer tabla_de_relacion.json y actualizar "TIPO DE DOCUMENTO" D->C.
 """
@@ -15,6 +15,38 @@ from reportlab.lib.pagesizes import letter
 from reportlab.lib.units import mm
 from reportlab.lib.utils import ImageReader
 from reportlab.lib import colors
+
+
+# Canvas personalizado para numerar páginas como "Página X de Y"
+class NumberedCanvas(canvas.Canvas):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._saved_page_states = []
+
+    def showPage(self):
+        self._saved_page_states.append(dict(self.__dict__))
+        self._startPage()
+
+    def save(self):
+        # añadir estado de la última página
+        self._saved_page_states.append(dict(self.__dict__))
+        page_count = len(self._saved_page_states)
+        for state in self._saved_page_states:
+            self.__dict__.update(state)
+            self.draw_page_number(page_count)
+            canvas.Canvas.showPage(self)
+        canvas.Canvas.save(self)
+
+    def draw_page_number(self, page_count: int) -> None:
+        try:
+            self.setFont('Helvetica', 8)
+            text = f"Página {self._pageNumber} de {page_count}"
+            # dibujar en la esquina superior derecha, con un pequeño margen
+            x = self._pagesize[0] - 30
+            y = self._pagesize[1] - 40
+            self.drawRightString(x, y, text)
+        except Exception:
+            pass
 try:
     from plantillaPDF import cargar_firmas
 except Exception:
@@ -51,11 +83,11 @@ class ConstanciaPDFGenerator:
         self.cursor_y = self.height - 90
 
     def _fondo_path(self) -> str | None:
-        p = os.path.join(self.base_dir, 'img', 'Fondo.jpeg')
+        p = os.path.join(self.base_dir, 'img', 'Fondo.jpg')
         if os.path.exists(p):
             return p
-        if os.path.exists('img/Fondo.jpeg'):
-            return 'img/Fondo.jpeg'
+        if os.path.exists('img/Fondo.jpg'):
+            return 'img/Fondo.jpg'
         return None
 
     def dibujar_fondo(self, c: canvas.Canvas) -> None:
@@ -185,9 +217,8 @@ class ConstanciaPDFGenerator:
         # Right-aligned codes and page number similar to sample
         c.setFont('Helvetica', 8)
         right_x = self.width - 30
+        # Código de formato en la parte superior derecha (la numeración "Página X de Y" la dibuja NumberedCanvas)
         c.drawRightString(right_x, self.height - 30, self.datos.get('formato_codigo', 'PT-F-208C-00-1'))
-        pagina_txt = self.datos.get('pagina_text', 'Página 1')
-        c.drawRightString(right_x, self.height - 40, pagina_txt)
 
     def dibujar_footer(self, c: canvas.Canvas) -> None:
         # Yellow band at bottom with organization info (similar to sample)
@@ -507,7 +538,11 @@ class ConstanciaPDFGenerator:
             safe = fol.replace('/', '_').replace(' ', '_') or datetime.now().strftime('%Y%m%d_%H%M%S')
             salida = os.path.join(const_dir, f'Constancia_{safe}.pdf')
 
-        c = canvas.Canvas(salida, pagesize=letter)
+        # Use NumberedCanvas so we can print "Página X de Y" after all pages are created
+        try:
+            c = NumberedCanvas(salida, pagesize=letter)
+        except Exception:
+            c = canvas.Canvas(salida, pagesize=letter)
         self.cursor_y = self.height - 40
         try:
             # Preparar datos: construir cadena identificadora y cargar catálogos
@@ -826,21 +861,132 @@ def generar_constancia_desde_visita(folio_visita: str | None = None, salida: str
     gen = ConstanciaPDFGenerator(datos, base_dir=base)
     return gen.generar(salida)
 
+
+def generar_json_constancias_desde_historial(salida_dir: str | None = None, max_items: int | None = None) -> list:
+    """Lee `data/historial_visitas.json` y genera un JSON con los datos de constancia
+    para cada visita encontrada. Guarda los JSON en `data/Constancias` o en `salida_dir`.
+
+    Devuelve la lista de rutas de los JSON creados.
+    """
+    base = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+    data_dir = os.path.join(base, 'data')
+    hist = os.path.join(data_dir, 'historial_visitas.json')
+    tabla = os.path.join(data_dir, 'tabla_de_relacion.json')
+    clientes_p = os.path.join(data_dir, 'Clientes.json')
+    normas_p = os.path.join(data_dir, 'Normas.json')
+
+    if not os.path.exists(hist):
+        raise FileNotFoundError(hist)
+    with open(hist, 'r', encoding='utf-8') as f:
+        historial = json.load(f)
+    visitas = historial.get('visitas', []) if isinstance(historial, dict) else historial
+    if not visitas:
+        return []
+
+    clientes = _cargar_clientes(clientes_p)
+    normas = _cargar_normas(normas_p)
+
+    # actualizar tabla de relacion si es necesario
+    _actualizar_tabla_relacion(tabla)
+
+    # cargar primer registro de tabla_de_relacion si existe (usado como ejemplo)
+    producto = marca = modelo = ''
+    if os.path.exists(tabla):
+        try:
+            with open(tabla, 'r', encoding='utf-8') as f:
+                t = json.load(f)
+                if isinstance(t, list) and t:
+                    r = t[0]
+                    producto = r.get('DESCRIPCION','')
+                    marca = r.get('MARCA','')
+                    modelo = r.get('MODELO','')
+        except Exception:
+            pass
+
+    out_dir = salida_dir or os.path.join(data_dir, 'Constancias')
+    os.makedirs(out_dir, exist_ok=True)
+    created = []
+    count = 0
+    for v in visitas:
+        if max_items is not None and count >= max_items:
+            break
+        try:
+            norma_str = ''
+            if v.get('norma'):
+                norma_str = v.get('norma').split(',')[0].strip()
+            nombre_norma = normas.get(norma_str, '')
+
+            cliente = v.get('cliente','')
+            rfc = (clientes.get(cliente.upper(), {}) or {}).get('RFC','')
+
+            fecha = v.get('fecha_termino') or v.get('fecha') or datetime.now().strftime('%d/%m/%Y')
+
+            fol = (v.get('folio_visita') or v.get('folio') or '')
+            safe_fol = str(fol).replace('/','_').replace(' ', '_') or f'visita_{count+1}'
+
+            datos = {
+                'folio_constancia': fol,
+                'fecha_emision': fecha,
+                'cliente': cliente,
+                'rfc': rfc,
+                'norma': norma_str,
+                'nombre_norma': nombre_norma,
+                'producto': producto,
+                'marca': marca,
+                'modelo': modelo,
+                'origen_visita': v,
+            }
+
+            out_path = os.path.join(out_dir, f'Constancia_{safe_fol}.json')
+            with open(out_path, 'w', encoding='utf-8') as jf:
+                json.dump(datos, jf, ensure_ascii=False, indent=2)
+            created.append(out_path)
+            count += 1
+        except Exception:
+            continue
+
+    return created
+
 if __name__ == '__main__':
-    # demo rápido
-    datos_demo = {
-        'folio_constancia': 'UCC-DEMO-0001',
-        'fecha_emision': datetime.now().strftime('%d/%m/%Y'),
-        'cliente': 'CLIENTE DEMO',
-        'rfc': 'XAXX010101000',
-        'norma': 'NOM-XXX-XXXX',
-        'nombre_norma': 'Nombre de la norma demo',
-        'producto': 'PRODUCTO DEMO',
-        'marca': 'MARCA DEMO',
-        'modelo': 'MODELO DEMO',
-    }
-    out = os.path.join(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')), 'Plantillas PDF', 'Constancia_demo.pdf')
-    os.makedirs(os.path.dirname(out), exist_ok=True)
-    ConstanciaPDFGenerator(datos_demo).generar(out)
+    # Generador integrado de ejemplos: crea JSON en data/Constancias y genera PDFs
+    def generar_ejemplos_integrados(count: int = 3) -> None:
+        base = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+        data_dir = os.path.join(base, 'data')
+        const_dir = os.path.join(data_dir, 'Constancias')
+        os.makedirs(const_dir, exist_ok=True)
+
+        for i in range(1, count + 1):
+            fecha = (datetime.now()).strftime('%d/%m/%Y')
+            folio = f'UCC-DEMO-{i:04d}'
+            datos = {
+                'folio_constancia': folio,
+                'fecha_emision': fecha,
+                'cliente': f'CLIENTE DEMO {i}',
+                'rfc': f'XAXX01010{i:03d}',
+                'norma': f'NOM-00{i}-XXXX',
+                'nombre_norma': f'Nombre de la norma demo {i}',
+                'producto': f'PRODUCTO DEMO {i}',
+                'marca': f'MARCA DEMO {i}',
+                'modelo': f'MODELO DEMO {i}',
+            }
+            # Guardar JSON
+            json_path = os.path.join(const_dir, f'constancia_demo_{i}.json')
+            try:
+                with open(json_path, 'w', encoding='utf-8') as jf:
+                    json.dump(datos, jf, ensure_ascii=False, indent=2)
+                print('Wrote', json_path)
+            except Exception as e:
+                print('Error writing JSON', json_path, e)
+
+            # Generar PDF (se guarda en data/Constancias por defecto)
+            try:
+                gen = ConstanciaPDFGenerator(datos, base_dir=base)
+                out = gen.generar(None)
+                print('Generated PDF:', out)
+            except Exception as e:
+                print('Error generating PDF for', json_path, e)
+
+    # Ejecutar generador integrado al invocar este script
+    generar_ejemplos_integrados(3)
 
 

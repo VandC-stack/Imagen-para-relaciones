@@ -924,7 +924,7 @@ class SistemaDictamenesVC(ctk.CTk):
         # Tres botones para modos de pegado (siempre están visibles en la card de pegado)
         self.boton_pegado_simple = ctk.CTkButton(
             pegado_botones_frame,
-            text="🖼️ Pegado Simple",
+            text="🖼️ Una sola Carpeta",
             command=self.handle_pegado_simple,
             font=("Inter", 11, "bold"),
             fg_color=STYLE["primario"],
@@ -937,7 +937,7 @@ class SistemaDictamenesVC(ctk.CTk):
 
         self.boton_pegado_carpetas = ctk.CTkButton(
             pegado_botones_frame,
-            text="📁 Pegado Carpetas",
+            text="📁 Carpetas con más carpetas",
             command=self.handle_pegado_carpetas,
             font=("Inter", 11, "bold"),
             fg_color=STYLE["primario"],
@@ -950,7 +950,7 @@ class SistemaDictamenesVC(ctk.CTk):
 
         self.boton_pegado_indice = ctk.CTkButton(
             pegado_botones_frame,
-            text="📑 Pegado Índice",
+            text="📑 Índice en excel y cargar carpeta",
             command=self.handle_pegado_indice,
             font=("Inter", 11, "bold"),
             fg_color=STYLE["primario"],

@@ -26,7 +26,8 @@ def buscar_imagen_index_all(index, codigo_canonico, usadas_paths, usadas_bases):
 
     matches = []
 
-    # Buscar coincidencias exactas y parciales
+    # Buscar coincidencias exactas y parcialmente permitidas (solo sufijos numéricos/continuaciones)
+    import re
     for it in index:
         try:
             bn = it.get('base_norm') or ''
@@ -38,8 +39,20 @@ def buscar_imagen_index_all(index, codigo_canonico, usadas_paths, usadas_bases):
             if bn == code or bcore == code:
                 matches.append(it['path'])
                 continue
-            # coincidencias parciales: incluir variantes donde bn contiene code
-            if code in bn or bn.startswith(code) or bn.endswith(code) or code in bcore or bcore.startswith(code) or bcore.endswith(code):
+            # coincidencias permitidas: el resto del nombre tras el código debe ser
+            # una continuación numérica o formato (N), -N, _N
+            def allowed_suffix(base, code):
+                if base == code:
+                    return True
+                if not base.startswith(code) and not base.endswith(code) and code not in base:
+                    return False
+                # quitar primera aparición
+                rem = base.replace(code, '', 1)
+                rem = rem.strip()
+                # Aceptar '', '(N)', '-N', '_N', o solo dígitos
+                return bool(re.fullmatch(r"(?:\s*\(\d+\)|[-_]\d+|\d+)?", rem))
+
+            if allowed_suffix(bn, code) or allowed_suffix(bcore, code):
                 matches.append(it['path'])
         except Exception:
             continue
