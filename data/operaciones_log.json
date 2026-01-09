@@ -1,3 +1,46 @@
 {
-  "operaciones": []
+  "operaciones": [
+    {
+      "timestamp": "2026-01-08T21:25:32.460538",
+      "tipo": "eliminar_registro",
+      "folio": "CP000001",
+      "status": "exitosa",
+      "detalles": "Archivos: 16, Errores: 0"
+    },
+    {
+      "timestamp": "2026-01-08T21:33:59.842575",
+      "tipo": "eliminar_registro",
+      "folio": "CP000001",
+      "status": "exitosa",
+      "detalles": "Archivos: 30, Errores: 0"
+    },
+    {
+      "timestamp": "2026-01-08T21:34:02.356725",
+      "tipo": "eliminar_registro",
+      "folio": "CP000002",
+      "status": "exitosa",
+      "detalles": "Archivos: 5, Errores: 0"
+    },
+    {
+      "timestamp": "2026-01-08T21:34:05.113966",
+      "tipo": "eliminar_registro",
+      "folio": "CP000003",
+      "status": "exitosa",
+      "detalles": "Archivos: 5, Errores: 0"
+    },
+    {
+      "timestamp": "2026-01-08T21:37:26.097962",
+      "tipo": "eliminar_registro",
+      "folio": "CP000001",
+      "status": "exitosa",
+      "detalles": "Archivos: 16, Errores: 0"
+    },
+    {
+      "timestamp": "2026-01-08T21:43:34.460307",
+      "tipo": "eliminar_registro",
+      "folio": "CP000001",
+      "status": "exitosa",
+      "detalles": "Archivos: 16, Errores: 0"
+    }
+  ]
 }

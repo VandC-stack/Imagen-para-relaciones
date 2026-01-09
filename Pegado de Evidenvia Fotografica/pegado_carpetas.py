@@ -104,11 +104,20 @@ def procesar_carpetas():
                         for carpeta_codigo in carpetas:
                             for archivo_img in os.listdir(carpeta_codigo):
                                 ext_img = os.path.splitext(archivo_img)[1].lower()
-                                if ext_img in IMG_EXTS:
-                                    img_path = os.path.join(carpeta_codigo, archivo_img)
-                                    insertar_imagen_con_transparencia(run, img_path)
-                                    imagen_insertada = True
-                                    print(f"  Imagen insertada: {img_path}")
+                                if ext_img not in IMG_EXTS:
+                                    continue
+
+                                # Solo aceptar imágenes cuyo nombre base normalizado
+                                # coincida exactamente con la clave del código.
+                                base = os.path.splitext(archivo_img)[0]
+                                if normalizar_cadena_alnum_mayus(base) != clave:
+                                    # Ignorar imágenes que no coincidan exactamente
+                                    continue
+
+                                img_path = os.path.join(carpeta_codigo, archivo_img)
+                                insertar_imagen_con_transparencia(run, img_path)
+                                imagen_insertada = True
+                                print(f"  Imagen insertada: {img_path}")
 
                     break
 
@@ -157,10 +166,18 @@ def procesar_carpetas():
                     print(f"  No se encontró carpeta para código '{codigo}' (clave '{clave}').")
                     continue
 
-                for carpeta_codigo in carpetas:
-                    for archivo_img in os.listdir(carpeta_codigo):
-                        ext_img = os.path.splitext(archivo_img)[1].lower()
-                        if ext_img in IMG_EXTS:
+                    for carpeta_codigo in carpetas:
+                        for archivo_img in os.listdir(carpeta_codigo):
+                            ext_img = os.path.splitext(archivo_img)[1].lower()
+                            if ext_img not in IMG_EXTS:
+                                continue
+
+                            # Solo aceptar imágenes cuyo nombre base normalizado
+                            # coincida exactamente con la clave del código.
+                            base = os.path.splitext(archivo_img)[0]
+                            if normalizar_cadena_alnum_mayus(base) != clave:
+                                continue
+
                             img_path = os.path.join(carpeta_codigo, archivo_img)
                             rutas_imagenes.append(img_path)
                             imagen_insertada = True

@@ -996,6 +996,16 @@ def generar_dictamenes_completos(directorio_destino, cliente_manual=None, rfc_ma
                                 if not key:
                                     continue
                                 index.setdefault(key, []).append(path)
+                                # Además indexar por el nombre de la carpeta padre normalizado.
+                                try:
+                                    parent = os.path.basename(root or "")
+                                    parent_core = re.sub(r"[\s\-_]*\(\s*\d+\s*\)$", "", parent)
+                                    parent_core = re.sub(r"[\s\-_]+\d+$", "", parent_core)
+                                    parent_key = _normalizar(parent_core)
+                                    if parent_key and parent_key != key:
+                                        index.setdefault(parent_key, []).append(path)
+                                except Exception:
+                                    pass
                                 total += 1
                 except Exception:
                     continue
@@ -1288,8 +1298,27 @@ def generar_dictamenes_completos(directorio_destino, cliente_manual=None, rfc_ma
                             # devolver todas las rutas para esa clave
                             return list(lst)
 
-                    # 2) coincidencias parciales en las claves (key dentro de clave o viceversa)
-                    candidatos = [k for k in indice_evidencias_global.keys() if key in k or k in key]
+                    # 2) coincidencias parciales: aceptar solo sufijos/prefijos plausibles
+                    def _allowed_suffix_name(name, code):
+                        # name and code are already normalized (alnum upper)
+                        if not name or not code:
+                            return False
+                        if name == code:
+                            return True
+                        # Si name empieza por code, verificar que lo que sigue sea
+                        # un sufijo numérico o formato '(N)', '-N', '_N'
+                        if name.startswith(code):
+                            rem = name[len(code):]
+                        elif name.endswith(code):
+                            rem = name[:-len(code)]
+                        else:
+                            return False
+                        rem = rem.strip()
+                        if rem == "":
+                            return True
+                        return bool(re.fullmatch(r"(?:\s*\(\d+\)|[-_]\d+|\d+)", rem))
+
+                    candidatos = [k for k in indice_evidencias_global.keys() if _allowed_suffix_name(k, key) or _allowed_suffix_name(key, k)]
                     if candidatos:
                         # ordenar por diferencia de longitud (más cercano) y lexicográficamente
                         candidatos.sort(key=lambda k: (abs(len(k) - len(key)), k))
@@ -1313,11 +1342,17 @@ def generar_dictamenes_completos(directorio_destino, cliente_manual=None, rfc_ma
                     return None
 
                 rutas_encontradas = []
+                mapping_codes = {}
                 if codigos_a_buscar:
                     print(f"   🔎 Buscando evidencias para códigos: {codigos_a_buscar}")
                     for codigo in codigos_a_buscar:
-                        ps = _buscar_imagen(codigo)
+                        try:
+                            ps = _buscar_imagen(codigo)
+                        except Exception as _e:
+                            print(f"   ⚠️ Error buscando evidencias para {codigo}: {_e}")
+                            ps = None
                         print(f"      → {codigo} => {ps}")
+                        mapping_codes[str(codigo)] = ps
                         if not ps:
                             continue
                         # _buscar_imagen puede devolver una lista de rutas; anexar todas
@@ -1333,9 +1368,23 @@ def generar_dictamenes_completos(directorio_destino, cliente_manual=None, rfc_ma
                                 if str(e.get('codigo')) == str(codigo) or str(e.get('ean')) == str(codigo):
                                     e['imagen_path'] = first_p
 
+                # Imprimir resumen del mapeo código -> rutas (incluso si vacío)
+                try:
+                    print(f"   🔗 Mapeo códigos->evidencias: {mapping_codes}")
+                except Exception:
+                    pass
+
                 if rutas_encontradas:
                     datos['evidencias_lista'] = rutas_encontradas
                     print(f"   ✅ Evidencias asignadas: {rutas_encontradas}")
+                else:
+                    # Si no se asignaron evidencias, mostrar pistas útiles
+                    print(f"   ⚠️ No se asignaron evidencias para los códigos provistos.")
+                    try:
+                        sample_keys = list(indice_evidencias_global.keys())[:20]
+                        print(f"   ℹ️ Claves indexadas (muestra): {sample_keys}")
+                    except Exception:
+                        pass
             except Exception:
                 pass
 
