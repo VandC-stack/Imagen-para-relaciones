@@ -90,7 +90,6 @@
           "SERVICIO": "DICTAMEN"
       }
     ]
-    
   },
 
   {
@@ -127,7 +126,6 @@
           "SERVICIO": "DICTAMEN"
       }
     ]
-    
   },
 
   {
@@ -146,7 +144,6 @@
           "SERVICIO": "DICTAMEN"
       }
     ]
-    
   },
 
   {
@@ -243,52 +240,72 @@
     "NÚMERO_DE_CONTRATO": "21049UCS000071",
     "ACTIVIDAD": "ACTIVO",
     "CURP": "",
-    "CALLE Y NO": "PASEO DE LA REFORMA 105",
-    "COLONIA O POBLACION": "LOMAS DE CHAPULTEPEC III SECCIÓN",
-    "MUNICIPIO O ALCADIA": "MIGUEL HIDALGO",
-    "CIUDAD O ESTADO": "CIUDAD DE MÉXICO",
-    "CP": 11000,
-    "SERVICIO": "CONSTANCIA"
+    "DIRECCIONES": [
+      {
+          "CALLE Y NO": "PASEO DE LA REFORMA 105",
+          "COLONIA O POBLACION": "LOMAS DE CHAPULTEPEC III SECCIÓN",
+          "MUNICIPIO O ALCADIA": "MIGUEL HIDALGO",
+          "CIUDAD O ESTADO": "CIUDAD DE MÉXICO",
+          "CP": 11000,
+          "SERVICIO": "CONSTANCIA"
+      }
+    ]
   },
+
   {
     "RFC": "ADD150727S34",
     "CLIENTE": "ARTICULOS DEPORTIVOS DECATHLON SA DE CV",
     "NÚMERO_DE_CONTRATO": "20049UCS000002",
     "ACTIVIDAD": "ACTIVO",
     "CURP": "",
-    "CALLE Y NO": "Parque industrial advance II",
-    "COLONIA O POBLACION": "Capula",
-    "MUNICIPIO O ALCADIA": "Tepotzotlán",
-    "CIUDAD O ESTADO": "Estado de México",
-    "CP": 54603,
-    "SERVICIO": "DICTAMEN "
+    "DIRECCIONES": [
+      {
+          "CALLE Y NO": "Parque industrial advance II",
+          "COLONIA O POBLACION": "Capula",
+          "MUNICIPIO O ALCADIA": "Tepotzotlán",
+          "CIUDAD O ESTADO": "Estado de México",
+          "CP": 54603,
+          "SERVICIO": "DICTAMEN "
+      }
+    ]
   },
+
   {
     "RFC": "AHI100108Q39",
     "CLIENTE": "AUTOPARTES HIDRAULICAS SA DE CV",
     "NÚMERO_DE_CONTRATO": "20049UCS000020",
     "ACTIVIDAD": "ACTIVO",
     "CURP": "",
-    "CALLE Y NO": "PLATEROS 103B",
-    "COLONIA O POBLACION": "PARQUE INDUSTRIAL FRESNILLO",
-    "MUNICIPIO O ALCADIA": "FRESNILLO",
-    "CIUDAD O ESTADO": "Zacatecas",
-    "CP": 99056,
-    "SERVICIO": "DICTAMEN "
+    "DIRECCIONES": [
+      {
+          "CALLE Y NO": "PLATEROS 103B",
+          "COLONIA O POBLACION": "PARQUE INDUSTRIAL FRESNILLO",
+          "MUNICIPIO O ALCADIA": "FRESNILLO",
+          "CIUDAD O ESTADO": "Zacatecas",
+          "CP": 99056,
+          "SERVICIO": "DICTAMEN"
+      }
+    ]
   },
+
   {
     "RFC": "AJE010718ET5",
     "CLIENTE": "AJEMEX SA DE CV",
     "NÚMERO_DE_CONTRATO": "23049UCS000001",
     "ACTIVIDAD": "ACTIVO",
     "CURP": "",
-    "CALLE Y NO": "Manzana “A” Lote 7",
-    "COLONIA O POBLACION": "Parque Industrial San Miguel",
-    "MUNICIPIO O ALCADIA": "Huejotzingo",
-    "CIUDAD O ESTADO": "Puebla",
-    "CP": 86010,
-    "SERVICIO": "CONSTANCIA"
+    "DIRECCIONES":[
+      {
+          "CALLE Y NO": "Manzana “A” Lote 7",
+          "COLONIA O POBLACION": "Parque Industrial San Miguel",
+          "MUNICIPIO O ALCADIA": "Huejotzingo",
+          "CIUDAD O ESTADO": "Puebla",
+          "CP": 86010,
+          "SERVICIO": "CONSTANCIA"
+      }
+    ]
   },
+
   {
     "RFC": "AOP160912UD7",
     "CLIENTE": "AUTOS ORIENTALES PICACHO SAPI DE CV",
@@ -463,7 +480,6 @@
         "SERVICIO": "DICTAMEN"
       }
     ]
-    
   },
 
   {
@@ -482,7 +498,6 @@
           "SERVICIO": "DICTAMEN"
       }
     ]
-    
   },
 
   {
@@ -501,7 +516,6 @@
           "SERVICIO": "DICTAMEN"
       }
     ]
-    
   },
 
   {
@@ -546,50 +560,69 @@
     "NÚMERO_DE_CONTRATO": "21049UCS000019",
     "ACTIVIDAD": "ACTIVO",
     "CURP": "",
-    "CALLE Y NO": "AUTOPISTA MEXICO-QUERETARO 26.5 KM",
-    "COLONIA O POBLACION": "LOMAS BOULEVARES",
-    "MUNICIPIO O ALCADIA": "TLALNEPANTLA DE BAZ",
-    "CIUDAD O ESTADO": "Estado de Mexico",
-    "CP": 54020,
-    "SERVICIO": "DICTAMEN"
+    "DIRECCIONES":[
+      {
+          "CALLE Y NO": "AUTOPISTA MEXICO-QUERETARO 26.5 KM",
+          "COLONIA O POBLACION": "LOMAS BOULEVARES",
+          "MUNICIPIO O ALCADIA": "TLALNEPANTLA DE BAZ",
+          "CIUDAD O ESTADO": "Estado de Mexico",
+          "CP": 54020,
+          "SERVICIO": "DICTAMEN"
+      }
+    ]
   },
+
   {
     "RFC": "DBR101013N47",
     "CLIENTE": "DERMA BRANDS S DE RL DE CV",
     "NÚMERO_DE_CONTRATO": "20049UCS000061",
     "CURP": "",
-    "CALLE Y NO": "MORELOS 019",
-    "COLONIA O POBLACION": "PROGRESO TIZAPAN",
-    "MUNICIPIO O ALCADIA": "ALVARO OBREGON",
-    "CIUDAD O ESTADO": "CIUDAD DE MEXICO",
-    "CP": "01080",
-    "SERVICIO": "DICTAMEN"
+    "DIRECCIONES":[
+      {
+          "CALLE Y NO": "MORELOS 019",
+          "COLONIA O POBLACION": "PROGRESO TIZAPAN",
+          "MUNICIPIO O ALCADIA": "ALVARO OBREGON",
+          "CIUDAD O ESTADO": "CIUDAD DE MEXICO",
+          "CP": "01080",
+          "SERVICIO": "DICTAMEN"
+      }
+    ]
   },
+
   {
     "RFC": "DGU090619AD3",
     "CLIENTE": "DOWNTOWN GURÚ SA DE CV",
     "NÚMERO_DE_CONTRATO": "24049UCS000026",
     "ACTIVIDAD": "ACTIVO",
     "CURP": "",
-    "CALLE Y NO": "Av. José López Portillo 4889",
-    "COLONIA O POBLACION": "San Pedro Barrientos",
-    "MUNICIPIO O ALCADIA": "Tlalnepantla",
-    "CIUDAD O ESTADO": "Estado de México",
-    "CP": 54015,
-    "SERVICIO": "DICTAMEN"
+    "DIRECCIONES":[
+      {
+          "CALLE Y NO": "Av. José López Portillo 4889",
+          "COLONIA O POBLACION": "San Pedro Barrientos",
+          "MUNICIPIO O ALCADIA": "Tlalnepantla",
+          "CIUDAD O ESTADO": "Estado de México",
+          "CP": 54015,
+          "SERVICIO": "DICTAMEN"
+      }
+    ]
   },
+
   {
     "RFC": "DME761202CP9",
     "CLIENTE": "DANONE DE MÉXICO SA DE CV",
     "NÚMERO_DE_CONTRATO": "15049UCS000002",
     "ACTIVIDAD": "ACTIVO",
     "CURP": "",
-    "CALLE Y NO": "Av. Irapuato 2475",
-    "COLONIA O POBLACION": "Ciudad Industrial Irapuato",
-    "MUNICIPIO O ALCADIA": "Irapuato",
-    "CIUDAD O ESTADO": "Guanajuato",
-    "CP": 36514,
-    "SERVICIO": "DICTAMEN"
+    "DIRECCIONES":[
+      {
+          "CALLE Y NO": "Av. Irapuato 2475",
+          "COLONIA O POBLACION": "Ciudad Industrial Irapuato",
+          "MUNICIPIO O ALCADIA": "Irapuato",
+          "CIUDAD O ESTADO": "Guanajuato",
+          "CP": 36514,
+          "SERVICIO": "DICTAMEN"
+      }
+    ]
   },
 
   {
@@ -640,14 +673,18 @@
     "NÚMERO_DE_CONTRATO": "21049UCS000005",
     "ACTIVIDAD": "ACTIVO",
     "CURP": "",
-    "CALLE Y NO": "DE LOS ASTEROIDES 21",
-    "COLONIA O POBLACION": "PARQUE INDUSTRIAL",
-    "MUNICIPIO O ALCADIA": "HERMOSILLO",
-    "CIUDAD O ESTADO": "Sonora",
-    "CP": 83299,
-    "SERVICIO": "DICTAMEN "
+    "DIRECCIONES": [
+      {
+        "CALLE Y NO": "DE LOS ASTEROIDES 21",
+        "COLONIA O POBLACION": "PARQUE INDUSTRIAL",
+        "MUNICIPIO O ALCADIA": "HERMOSILLO",
+        "CIUDAD O ESTADO": "Sonora",
+        "CP": 83299,
+        "SERVICIO": "DICTAMEN "
+      }
+    ]
   },
-
+   
   {
     "RFC": "ECM141105GC8",
     "CLIENTE": "EAST COAST MODA  SA DE CV",
@@ -729,12 +766,16 @@
     "CLIENTE": "GRUPO AZOR MÉXICO SAPI DE CV",
     "NÚMERO_DE_CONTRATO": "15049UCS000001",
     "CURP": "",
-    "CALLE Y NO": "Cerrada de Francisco I. Madero S/N",
-    "COLONIA O POBLACION": "San José Puente de Vigas",
-    "MUNICIPIO O ALCADIA": "Tlalnepantla",
-    "CIUDAD O ESTADO": "Estado de México",
-    "CP": 54090,
-    "SERVICIO": "DICTAMEN"
+    "DIRECCIONES": [
+      {
+        "CALLE Y NO": "Cerrada de Francisco I. Madero S/N",
+        "COLONIA O POBLACION": "San José Puente de Vigas",
+        "MUNICIPIO O ALCADIA": "Tlalnepantla",
+        "CIUDAD O ESTADO": "Estado de México",
+        "CP": 54090,
+        "SERVICIO": "DICTAMEN"
+      }
+    ]
   },
 
   {
@@ -784,24 +825,33 @@
     "CLIENTE": "GRUPO KEVALA SA DE CV",
     "NÚMERO_DE_CONTRATO": "21049UCS000032",
     "CURP": "",
-    "CALLE Y NO": "1RO DE MAYO 3901",
-    "COLONIA O POBLACION": "BURÓCRATAS DEL ESTADO",
-    "MUNICIPIO O ALCADIA": "Monterrey",
-    "CIUDAD O ESTADO": "Nuevo León",
-    "CP": 64380,
-    "SERVICIO": "DICTAMEN"
+    "DIRECCIONES": [
+      {
+          "CALLE Y NO": "1RO DE MAYO 3901",
+          "COLONIA O POBLACION": "BURÓCRATAS DEL ESTADO",
+          "MUNICIPIO O ALCADIA": "Monterrey",
+          "CIUDAD O ESTADO": "Nuevo León",
+          "CP": 64380,
+          "SERVICIO": "DICTAMEN"
+      }
+    ]
   },
+  
   {
     "RFC": "HAN990126TA3",
     "CLIENTE": "HANSEATIK SA DE CV",
     "NÚMERO_DE_CONTRATO": "20049UCS000138",
     "CURP": "",
-    "CALLE Y NO": "CALLE 7 NORTE ",
-    "COLONIA O POBLACION": "PARQUE INDUSTRIAL TOLUCA 2000",
-    "MUNICIPIO O ALCADIA": "TOLUCA",
-    "CIUDAD O ESTADO": "ESTADO DE MÉXICO",
-    "CP": 50233,
-    "SERVICIO": "CONSTANCIA"
+    "DIRECCIONES": [
+      {
+        "CALLE Y NO": "CALLE 7 NORTE ",
+        "COLONIA O POBLACION": "PARQUE INDUSTRIAL TOLUCA 2000",
+        "MUNICIPIO O ALCADIA": "TOLUCA",
+        "CIUDAD O ESTADO": "ESTADO DE MÉXICO",
+        "CP": 50233,
+        "SERVICIO": "CONSTANCIA"
+      }
+    ]
   },
 
   {
@@ -836,12 +886,16 @@
     "NÚMERO_DE_CONTRATO": "21049UCS000011",
     "ACTIVIDAD": "ACTIVO",
     "CURP": "",
-    "CALLE Y NO": "Anillo Periférico 5000",
-    "COLONIA O POBLACION": "Insurgentes Cuicuilco",
-    "MUNICIPIO O ALCADIA": "Coyoacán, Boulevard Adolfo Lopez Mateos ",
-    "CIUDAD O ESTADO": "CIUDAD DE MEXICO",
-    "CP": "04530",
-    "SERVICIO": "CONSTANCIA "
+    "DIRECCIONES": [
+      {
+        "CALLE Y NO": "Anillo Periférico 5000",
+        "COLONIA O POBLACION": "Insurgentes Cuicuilco",
+        "MUNICIPIO O ALCADIA": "Coyoacán, Boulevard Adolfo Lopez Mateos ",
+        "CIUDAD O ESTADO": "CIUDAD DE MEXICO",
+        "CP": "04530",
+        "SERVICIO": "CONSTANCIA "
+      }
+    ]
   },
 
   {
@@ -1070,152 +1124,213 @@
     "NÚMERO_DE_CONTRATO": "25049UCS000010",
     "ACTIVIDAD": "ACTIVO",
     "CURP": "",
-    "CALLE Y NO": "Av Raudal 194 INT 2",
-    "COLONIA O POBLACION": "Ampliación Alpes",
-    "MUNICIPIO O ALCADIA": "Álvaro Obregón",
-    "CIUDAD O ESTADO": "Ciudad de México",
-    "CP": "01710",
-    "SERVICIO": "DICTAMEN"
+    "DIRECCIONES": [
+      {
+          "CALLE Y NO": "Av Raudal 194 INT 2",
+          "COLONIA O POBLACION": "Ampliación Alpes",
+          "MUNICIPIO O ALCADIA": "Álvaro Obregón",
+          "CIUDAD O ESTADO": "Ciudad de México",
+          "CP": "01710",
+          "SERVICIO": "DICTAMEN"
+      }
+    ]
   },
+
   {
     "RFC": "PCA160707FY9",
     "CLIENTE": "PRODUCTOS CAMBAT SA DE CV",
     "NÚMERO_DE_CONTRATO": "24049UCS000002",
     "ACTIVIDAD": "ACTIVO",
     "CURP": "",
-    "CALLE Y NO": "CALLE 4 PONIENTE No. 1504-D",
-    "COLONIA O POBLACION": "CENTRO",
-    "MUNICIPIO O ALCADIA": "Puebla",
-    "CIUDAD O ESTADO": "Puebla",
-    "CP": 72000,
-    "SERVICIO": "DICTAMEN"
+    "DIRECCIONES":[
+      {
+          "CALLE Y NO": "CALLE 4 PONIENTE No. 1504-D",
+          "COLONIA O POBLACION": "CENTRO",
+          "MUNICIPIO O ALCADIA": "Puebla",
+          "CIUDAD O ESTADO": "Puebla",
+          "CP": 72000,
+          "SERVICIO": "DICTAMEN"
+      }
+    ]
   },
+
   {
     "RFC": "PLA0602035L1",
     "CLIENTE": "PLANTECNIA SA DE CV",
     "NÚMERO_DE_CONTRATO": "20049UCS000105",
     "ACTIVIDAD": "ACTIVO",
     "CURP": "",
-    "CALLE Y NO": "TIMOTEO LOZANO 134",
-    "COLONIA O POBLACION": "SAN MIGUEL",
-    "MUNICIPIO O ALCADIA": "LEON",
-    "CIUDAD O ESTADO": "Guanajuato",
-    "CP": 37390,
-    "SERVICIO": "DICTAMEN"
+    "DIRECCIONES": [
+      {
+          "CALLE Y NO": "TIMOTEO LOZANO 134",
+          "COLONIA O POBLACION": "SAN MIGUEL",
+          "MUNICIPIO O ALCADIA": "LEON",
+          "CIUDAD O ESTADO": "Guanajuato",
+          "CP": 37390,
+          "SERVICIO": "DICTAMEN"
+      }
+    ]
   },
+  
   {
     "RFC": "PME091021SK2",
     "CLIENTE": "PEDROLLO DE MEXICO SA DE CV",
     "NÚMERO_DE_CONTRATO": "21049UCS000057",
     "ACTIVIDAD": "ACTIVO",
-    "CALLE Y NO": "CIRCUITO EL MARQUES NORTE 9",
-    "COLONIA O POBLACION": "PARQUE INDUSTRIAL EL MARQUES, EL MARQUES,EL COLORADO",
-    "MUNICIPIO O ALCADIA": "El Marques",
-    "CIUDAD O ESTADO": "Queretaro",
-    "CP": 76246,
-    "SERVICIO": "DICTAMEN"
+    "CURP": "",
+    "DIRECCIONES": [
+      {
+          "CALLE Y NO": "CIRCUITO EL MARQUES NORTE 9",
+          "COLONIA O POBLACION": "PARQUE INDUSTRIAL EL MARQUES, EL MARQUES,EL COLORADO",
+          "MUNICIPIO O ALCADIA": "El Marques",
+          "CIUDAD O ESTADO": "Queretaro",
+          "CP": 76246,
+          "SERVICIO": "DICTAMEN"
+      }
+    ]
   },
+
   {
     "RFC": "ORC210324HV3",
     "CLIENTE": "OSOJI ROBOTICS CORPORATION MEXICO",
     "NÚMERO_DE_CONTRATO": "22049UCS000001",
     "ACTIVIDAD": "ACTIVO",
     "CURP": "",
-    "CALLE Y NO": "AUTOPISTA MEXICO-QUERETARO 26.5 Km",
-    "COLONIA O POBLACION": "LOMA BOULEVARES",
-    "MUNICIPIO O ALCADIA": "TLALNEPANTLA DE BAZ",
-    "CIUDAD O ESTADO": "Estado de México",
-    "CP": 54020,
-    "SERVICIO": "DICTAMEN"
+    "DIRECCIONES": [
+      {
+          "CALLE Y NO": "AUTOPISTA MEXICO-QUERETARO 26.5 Km",
+          "COLONIA O POBLACION": "LOMA BOULEVARES",
+          "MUNICIPIO O ALCADIA": "TLALNEPANTLA DE BAZ",
+          "CIUDAD O ESTADO": "Estado de México",
+          "CP": 54020,
+          "SERVICIO": "DICTAMEN"
+      }
+    ]
   },
+
   {
     "RFC": "PAAO870523QZ",
     "CLIENTE": "OMAR ALEJANDRO PADILLA ACEVES",
     "NÚMERO_DE_CONTRATO": "25049UCS000008",
     "ACTIVIDAD": "NUEVO",
     "CURP": "",
-    "CALLE Y NO": "CIRCUITO VALLE DE SAN ISIDRO 44 INT 63",
-    "COLONIA O POBLACION": "VALLE DE SAN ISIDRO",
-    "MUNICIPIO O ALCADIA": "ZAPOPAN",
-    "CIUDAD O ESTADO": "Jalisco",
-    "CP": 45133,
-    "SERVICIO": "DICTAMEN"
+    "DIRECCIONES": [
+      {
+          "CALLE Y NO": "CIRCUITO VALLE DE SAN ISIDRO 44 INT 63",
+          "COLONIA O POBLACION": "VALLE DE SAN ISIDRO",
+          "MUNICIPIO O ALCADIA": "ZAPOPAN",
+          "CIUDAD O ESTADO": "Jalisco",
+          "CP": 45133,
+          "SERVICIO": "DICTAMEN"
+      }
+    ]
   },
+
   {
     "RFC": "PME150702F87",
     "CLIENTE": "PAGNIFIQUE MEXICANA SA DE CV",
     "NÚMERO_DE_CONTRATO": "20049UCS00001",
     "ACTIVIDAD": "ACTIVO",
     "CURP": "",
-    "CALLE Y NO": "Avenida de la Industria 1",
-    "COLONIA O POBLACION": "El Trébol",
-    "MUNICIPIO O ALCADIA": "Tepotzotlán",
-    "CIUDAD O ESTADO": "Estado de México",
-    "CP": 54614,
-    "SERVICIO": "CONSTANCIA"
+    "DIRECCIONES": [
+      {
+          "CALLE Y NO": "AVENIDA INDUSTRIA NO. 1",
+          "COLONIA O POBLACION": "EL TREBOL",
+          "MUNICIPIO O ALCADIA": "TEPOTZOTLAN",
+          "CIUDAD O ESTADO": "ESTADO DE MEXICO",
+          "CP": 54614,
+          "SERVICIO": "CONSTANCIA"
+      }
+    ]
   },
+
   {
     "RFC": "PSA091030M97",
     "CLIENTE": "PROVEEDOR DE SOLDADURAS Y ALEACIONES SA DE CV",
     "NÚMERO_DE_CONTRATO": "20049UCS000101",
     "CURP": "",
-    "CALLE Y NO": "CARRETERA SAN JUAN CHICO S/N",
-    "COLONIA O POBLACION": "FRACCIONAMIENTO PARQUE INDUSTRIAL",
-    "MUNICIPIO O ALCADIA": "Jalisco",
-    "CIUDAD O ESTADO": "Jalisco",
-    "CP": 47829,
-    "SERVICIO": "DICTAMEN"
+    "DIRECCIONES": [
+      {
+          "CALLE Y NO": "CARRETERA SAN JUAN CHICO S/N",
+          "COLONIA O POBLACION": "FRACCIONAMIENTO PARQUE INDUSTRIAL",
+          "MUNICIPIO O ALCADIA": "Jalisco",
+          "CIUDAD O ESTADO": "Jalisco",
+          "CP": 47829,
+          "SERVICIO": "DICTAMEN"
+      }
+    ]
+
   },
+
   {
     "RFC": "RAU111207E77",
     "CLIENTE": "RODATECH AUTOMOTIVE SA DE CV",
     "NÚMERO_DE_CONTRATO": "20049UCS000017",
     "ACTIVIDAD": "ACTIVO",
     "CURP": "",
-    "CALLE Y NO": "DE PLATEROS 103",
-    "COLONIA O POBLACION": "PARQUE INDUSTRIAL FRESNILLO",
-    "MUNICIPIO O ALCADIA": "Fresnillo",
-    "CIUDAD O ESTADO": "Zacatecas",
-    "CP": 99056,
-    "SERVICIO": "DICTAMEN"
+    "DIRECCIONES": [
+      {
+          "CALLE Y NO": "DE PLATEROS 103",
+          "COLONIA O POBLACION": "PARQUE INDUSTRIAL FRESNILLO",
+          "MUNICIPIO O ALCADIA": "Fresnillo",
+          "CIUDAD O ESTADO": "Zacatecas",
+          "CP": 99056,
+          "SERVICIO": "DICTAMEN"
+      }
+    ]
   },
+
   {
     "RFC": "RBO910102QJ9",
     "CLIENTE": "ROBERT BOSCH S DE RL DE CV",
     "NÚMERO_DE_CONTRATO": "15049UCS000007",
     "ACTIVIDAD": "ACTIVO",
     "CURP": "",
-    "CALLE Y NO": "AV. TEJOCOTES S/N LOTE 2",
-    "COLONIA O POBLACION": "Parque industrial San Martin Obispo",
-    "MUNICIPIO O ALCADIA": "Cuautitlan Izcalli",
-    "CIUDAD O ESTADO": "Estado de México",
-    "CP": 54769,
-    "SERVICIO": "DICTAMEN"
+    "DIRECCIONES": [
+      {
+          "CALLE Y NO": "AV. TEJOCOTES S/N LOTE 2",
+          "COLONIA O POBLACION": "Parque industrial San Martin Obispo",
+          "MUNICIPIO O ALCADIA": "Cuautitlan Izcalli",
+          "CIUDAD O ESTADO": "Estado de México",
+          "CP": 54769,
+          "SERVICIO": "DICTAMEN"
+      }
+    ]
   },
+
   {
     "RFC": "RGG100528JX5",
     "CLIENTE": "REPRESENTACIONES GG SA DE CV",
     "NÚMERO_DE_CONTRATO": "20049UCS000069",
     "CURP": "",
-    "CALLE Y NO": "AV. TEJOCOTES S/N LOTE 2",
-    "COLONIA O POBLACION": "Parque industrial San Martin Obispo",
-    "MUNICIPIO O ALCADIA": "Cuautitlan Izcalli",
-    "CIUDAD O ESTADO": "Estado de México",
-    "CP": 54769,
-    "SERVICIO": "DICTAMEN"
+    "DIRECCIONES": [
+      {
+          "CALLE Y NO": "AV. TEJOCOTES S/N LOTE 2",
+          "COLONIA O POBLACION": "Parque industrial San Martin Obispo",
+          "MUNICIPIO O ALCADIA": "Cuautitlan Izcalli",
+          "CIUDAD O ESTADO": "Estado de México",
+          "CP": 54769,
+          "SERVICIO": "DICTAMEN"
+      }
+    ]
   },
+
   {
     "RFC": "RME220426NV6",
     "CLIENTE": "REALTURF MEXICO SAPI DE CV",
     "NÚMERO_DE_CONTRATO": "26049UCS000001",
     "ACTIVIDAD": "NUEVO",
     "CURP": "",
-    "CALLE Y NO": "Libramiento Sur Poniente 27,315 Interior 3 y 4",
-    "COLONIA O POBLACION": "Tlacote el Bajo",
-    "MUNICIPIO O ALCADIA": "Villa Corregidora Querétaro",
-    "CIUDAD O ESTADO": "Querétaro",
-    "CP": 76229,
-    "SERVICIO": "DICTAMEN"
+    "DIRECCIONES": [
+      {
+          "CALLE Y NO": "Libramiento Sur Poniente 27,315 Interior 3 y 4",
+          "COLONIA O POBLACION": "Tlacote el Bajo",
+          "MUNICIPIO O ALCADIA": "Villa Corregidora Querétaro",
+          "CIUDAD O ESTADO": "Querétaro",
+          "CP": 76229,
+          "SERVICIO": "DICTAMEN"
+      }
+    ]
   },
 
   {
@@ -1258,12 +1373,16 @@
     "NÚMERO_DE_CONTRATO": "22049UCS000007",
     "ACTIVIDAD": "NUEVO",
     "CURP": "",
-    "CALLE Y NO": "BLVD.CORDOBA-FORTIN KM.335 S/N",
-    "COLONIA O POBLACION": "SAN NICOLAS",
-    "MUNICIPIO O ALCADIA": "CORDOBA",
-    "CIUDAD O ESTADO": "Veracruz de Ignacio de la Llave",
-    "CP": 94540,
-    "SERVICIO": "DICTAMEN"
+    "DIRECCIONES": [
+      {
+          "CALLE Y NO": "CARRETERA FEDERAL CORDOBA-FORTIN KM. 335 S/N",
+          "COLONIA O POBLACION": "SAN NICOLAS",
+          "MUNICIPIO O ALCADIA": "CORDOBA",
+          "CIUDAD O ESTADO": "Veracruz de Ignacio de la Llave",
+          "CP": 94540,
+          "SERVICIO": "DICTAMEN"
+      }
+    ]
   },
 
   {
@@ -1313,129 +1432,178 @@
     "NÚMERO_DE_CONTRATO": "12049UCS000006",
     "ACTIVIDAD": "ACTIVO",
     "CURP": "",
-    "CALLE Y NO": "Paseo de los Tamarindos No.400 Local 106",
-    "COLONIA O POBLACION": "Bosques de las Lomas",
-    "MUNICIPIO O ALCADIA": "Cuajimalpa de Morelos",
-    "CIUDAD O ESTADO": "Ciudad de México",
-    "CP": "05120",
-    "SERVICIO": "CONSTANCIA"
+    "DIRECCIONES": [
+      {
+          "CALLE Y NO": "Paseo de los Tamarindos No.400 Local 106",
+          "COLONIA O POBLACION": "Bosques de las Lomas",
+          "MUNICIPIO O ALCADIA": "Cuajimalpa de Morelos",
+          "CIUDAD O ESTADO": "Ciudad de México",
+          "CP": "05120",
+          "SERVICIO": "CONSTANCIA"
+      }
+    ]
   },
+
   {
     "RFC": "SFU210218Q38",
     "CLIENTE": "SALT FURNITURE SAPI DE CV",
     "NÚMERO_DE_CONTRATO": "23049UCS000017",
     "ACTIVIDAD": "ACTIVO",
     "CURP": "",
-    "CALLE Y NO": "EDGAR ALLAN POE 91",
-    "COLONIA O POBLACION": "POLANCO III SECCIÓN",
-    "MUNICIPIO O ALCADIA": "MIGUEL HIDALGO",
-    "CIUDAD O ESTADO": "Ciudad de México",
-    "CP": 11540,
-    "SERVICIO": "DICTAMEN"
+    "DIRECCIONES": [
+      {
+          "CALLE Y NO": "EDGAR ALLAN POE 91",
+          "COLONIA O POBLACION": "POLANCO III SECCIÓN",
+          "MUNICIPIO O ALCADIA": "MIGUEL HIDALGO",
+          "CIUDAD O ESTADO": "Ciudad de México",
+          "CP": 11540,
+          "SERVICIO": "DICTAMEN"
+      }
+    ]
   },
+
   {
     "RFC": "SMB1601197F6",
     "CLIENTE": "SOLUCIONES MEX BUY SA DE CV",
     "NÚMERO_DE_CONTRATO": "20049UCS000069",
     "ACTIVIDAD": "ACTIVO",
     "CURP": "",
-    "CALLE Y NO": "Parque Industrial San Martín Obispo 1 Avenida Tejocotes No. 77-A",
-    "COLONIA O POBLACION": "San Martín Obispo Tepetlixpa",
-    "MUNICIPIO O ALCADIA": "Cuautitlán Izcalli",
-    "CIUDAD O ESTADO": "Estado de México",
-    "CP": 54763,
-    "SERVICIO": "DICTAMEN"
+    "DIRECCIONES": [
+      {
+          "CALLE Y NO": "Parque Industrial San Martín Obispo 1 Avenida Tejocotes No. 77-A",
+          "COLONIA O POBLACION": "San Martín Obispo Tepetlixpa",
+          "MUNICIPIO O ALCADIA": "Cuautitlán Izcalli",
+          "CIUDAD O ESTADO": "Estado de México",
+          "CP": 54763,
+          "SERVICIO": "DICTAMEN"
+      }
+    ]
   },
+
   {
     "RFC": "SME150122MC1",
     "CLIENTE": "SMEG MEXICO SA DE CV",
     "NÚMERO_DE_CONTRATO": "21049UCS000022",
     "ACTIVIDAD": "ACTIVO",
     "CURP": "",
-    "CALLE Y NO": "AUTOPISTA MÉXICO-QUERÉTARO KM 26.5",
-    "COLONIA O POBLACION": "LOMAS DE BOULEVARES",
-    "MUNICIPIO O ALCADIA": "TLALNEPANTLA",
-    "CIUDAD O ESTADO": "Estado de México",
-    "CP": 54020,
-    "SERVICIO": "DICTAMEN"
+    "DIRECCIONES": [
+      {
+          "CALLE Y NO": "AUTOPISTA MÉXICO-QUERÉTARO KM 26.5",
+          "COLONIA O POBLACION": "LOMAS DE BOULEVARES",
+          "MUNICIPIO O ALCADIA": "TLALNEPANTLA",
+          "CIUDAD O ESTADO": "Estado de México",
+          "CP": 54020,
+          "SERVICIO": "DICTAMEN"
+      }
+    ]
   },
+
   {
     "RFC": "SME181113EZ2",
     "CLIENTE": "SUPORTIKA DE MEXICO SA DE CV",
     "NÚMERO_DE_CONTRATO": "21049UCS000068",
     "ACTIVIDAD": "ACTIVO",
     "CURP": "",
-    "CALLE Y NO": "AVENIDA SONORA 4",
-    "COLONIA O POBLACION": "ROMA NORTE",
-    "MUNICIPIO O ALCADIA": "CUAUHTEMOC",
-    "CIUDAD O ESTADO": "Ciudad de México",
-    "CP": 11590,
-    "SERVICIO": "DICTAMEN"
+    "DIRECCIONES": [
+      {
+          "CALLE Y NO": "AVENIDA SONORA 4",
+          "COLONIA O POBLACION": "ROMA NORTE",
+          "MUNICIPIO O ALCADIA": "CUAUHTEMOC",
+          "CIUDAD O ESTADO": "Ciudad de México",
+          "CP": 11590,
+          "SERVICIO": "DICTAMEN"
+      }
+    ]
   },
+
   {
     "RFC": "SME7811306Z7",
     "CLIENTE": "SIKA MEXICANA SA DE CV",
     "NÚMERO_DE_CONTRATO": "21049UCS000036",
     "ACTIVIDAD": "ACTIVO",
     "CURP": "",
-    "CALLE Y NO": "Km 8.5 carretera Libre a Celaya",
-    "COLONIA O POBLACION": "FRACC. INDUSTRIAL BALVANERA",
-    "MUNICIPIO O ALCADIA": "CORREGIDORA",
-    "CIUDAD O ESTADO": "Queretaro",
-    "CP": 76920,
-    "SERVICIO": "DICTAMEN"
+    "DIRECCIONES": [
+      {
+          "CALLE Y NO": "Km 8.5 carretera Libre a Celaya",
+          "COLONIA O POBLACION": "FRACC. INDUSTRIAL BALVANERA",
+          "MUNICIPIO O ALCADIA": "CORREGIDORA",
+          "CIUDAD O ESTADO": "Queretaro",
+          "CP": 76920,
+          "SERVICIO": "DICTAMEN"
+      }
+    ]
   },
+
   {
     "RFC": "SMM950911V10",
     "CLIENTE": "TEMPUR SEALY MEXICO S DE RL DE CV",
     "NÚMERO_DE_CONTRATO": "21049UCS000058",
     "ACTIVIDAD": "ACTIVO",
     "CURP": "",
-    "CALLE Y NO": "CIRCUITO ALFONSO GOMEZ DE OROZCO 113",
-    "COLONIA O POBLACION": "PARQUE INDUSTRIAL EXPORTEC Il",
-    "MUNICIPIO O ALCADIA": "TOLUCA",
-    "CIUDAD O ESTADO": "Estado de México",
-    "CP": 50223,
-    "SERVICIO": "DICTAMEN"
+    "DIRECCIONES": [
+      {
+          "CALLE Y NO": "CIRCUITO ALFONSO GOMEZ DE OROZCO 113",
+          "COLONIA O POBLACION": "PARQUE INDUSTRIAL EXPORTEC Il",
+          "MUNICIPIO O ALCADIA": "TOLUCA",
+          "CIUDAD O ESTADO": "Estado de México",
+          "CP": 50223,
+          "SERVICIO": "DICTAMEN"
+      }
+    ]
   },
+
   {
     "RFC": "SMS8803076NA",
     "CLIENTE": "SERVICIOS MÚLTIPLES DEL SURESTE SA DE CV",
     "NÚMERO_DE_CONTRATO": "22049UCS000021",
     "ACTIVIDAD": "ACTIVO",
     "CURP": "",
-    "CALLE Y NO": "CALLE 13 NO 1619",
-    "COLONIA O POBLACION": "Pocitos y Rivera",
-    "MUNICIPIO O ALCADIA": "Veracruz",
-    "CIUDAD O ESTADO": "Veracruz",
-    "CP": 91729,
-    "SERVICIO": "DICTAMEN"
+    "DIRECCIONES": [
+      {
+          "CALLE Y NO": "CALLE 13 NO 1619",
+          "COLONIA O POBLACION": "Pocitos y Rivera",
+          "MUNICIPIO O ALCADIA": "Veracruz",
+          "CIUDAD O ESTADO": "Veracruz",
+          "CP": 91729,
+          "SERVICIO": "DICTAMEN"
+      }
+    ]
   },
+
   {
     "RFC": "TCI891220FC2",
     "CLIENTE": "TODO COMERCIO INTERNACIONAL SA DE CV",
     "NÚMERO_DE_CONTRATO": "22049UCS000022",
     "ACTIVIDAD": "ACTIVO",
     "CURP": "",
-    "CALLE Y NO": "AV.BENITO JUAREZ, N° 501 INT. BODEGA A B C",
-    "COLONIA O POBLACION": "FRANCISCO VILLA",
-    "MUNICIPIO O ALCADIA": "Veracruz",
-    "CIUDAD O ESTADO": "Veracruz",
-    "CP": 91960,
-    "SERVICIO": "DICTAMEN"
+    "DIRECCIONES": [
+      {
+          "CALLE Y NO": "AV.BENITO JUAREZ, N° 501 INT. BODEGA A B C",
+          "COLONIA O POBLACION": "FRANCISCO VILLA",
+          "MUNICIPIO O ALCADIA": "Veracruz",
+          "CIUDAD O ESTADO": "Veracruz",
+          "CP": 91960,
+          "SERVICIO": "DICTAMEN"
+      }
+    ]
   },
+
   {
     "RFC": "TDI1210195V4",
     "CLIENTE": "TG DISTRIBUCIONES SA DE CV",
     "NÚMERO_DE_CONTRATO": "20049UCS000018",
     "ACTIVIDAD": "ACTIVO",
     "CURP": "",
-    "CALLE Y NO": "PLATEROS 103A",
-    "COLONIA O POBLACION": "PARQUE INDUSTRIAL FRESNILLO",
-    "MUNICIPIO O ALCADIA": "FRESNILLO",
-    "CIUDAD O ESTADO": "ZACATECAS",
-    "CP": 99056,
-    "SERVICIO": "DICTAMEN"
+    "DIRECCIONES": [
+      {
+          "CALLE Y NO": "DE PLATEROS 103A",
+          "COLONIA O POBLACION": "PARQUE INDUSTRIAL FRESNILLO",
+          "MUNICIPIO O ALCADIA": "FRESNILLO",
+          "CIUDAD O ESTADO": "ZACATECAS",
+          "CP": 99056,
+          "SERVICIO": "DICTAMEN"
+      }
+    ]
   },
 
   {
@@ -1462,38 +1630,52 @@
     "NÚMERO_DE_CONTRATO": "25049UCS000019",
     "ACTIVIDAD": "NUEVO",
     "CURP": "",
-    "CALLE Y NO": "",
-    "COLONIA O POBLACION": "",
-    "MUNICIPIO O ALCADIA": "",
-    "CIUDAD O ESTADO": "",
-    "CP": "",
-    "SERVICIO": "DICTAMEN"
+    "DIRECCIONES": [
+      {
+          "CALLE Y NO": "",
+          "COLONIA O POBLACION": "",
+          "MUNICIPIO O ALCADIA": "",
+          "CIUDAD O ESTADO": "",
+          "CP": "",
+          "SERVICIO": "DICTAMEN"
+      }
+    ]
   },
+
   {
     "RFC": "TMT141030820",
     "CLIENTE": "TYSON MEXICO TRADING COMPANY S DE RL DE CV",
     "NÚMERO_DE_CONTRATO": "18049UCS000003",
     "ACTIVIDAD": "ACTIVO",
     "CURP": "",
-    "CALLE Y NO": "Estación Lagrange 201",
-    "COLONIA O POBLACION": "Col Unidad Laboral",
-    "MUNICIPIO O ALCADIA": "San Nicolas de los Garza",
-    "CIUDAD O ESTADO": "Nuevo León",
-    "CP": 66440,
-    "SERVICIO": "DICTAMEN"
+    "DIRECCIONES": [
+      {
+          "CALLE Y NO": "Estación Lagrange 201",
+          "COLONIA O POBLACION": "Col Unidad Laboral",
+          "MUNICIPIO O ALCADIA": "San Nicolas de los Garza",
+          "CIUDAD O ESTADO": "Nuevo León",
+          "CP": 66440,
+          "SERVICIO": "DICTAMEN"
+      }
+    ]
   },
+
   {
     "RFC": "TNM040730HS6",
     "CLIENTE": "TODO NEUMÁTICOS Y MAS SAPI DE CV",
     "NÚMERO_DE_CONTRATO": "20049UCS000102",
     "ACTIVIDAD": "ACTIVO",
     "CURP": "",
-    "CALLE Y NO": "PARCELA 1 EJIDO LOS ANGELES SU 52 Z",
-    "COLONIA O POBLACION": "CASTILLO",
-    "MUNICIPIO O ALCADIA": "APASEO EL GRANDE",
-    "CIUDAD O ESTADO": "GUANAJUATO",
-    "CP": 38180,
-    "SERVICIO": "DICTAMEN"
+    "DIRECCIONES": [
+      {
+          "CALLE Y NO": "PARCELA 1 EJIDO LOS ANGELES SU 52 Z",
+          "COLONIA O POBLACION": "CASTILLO",
+          "MUNICIPIO O ALCADIA": "APASEO EL GRANDE",
+          "CIUDAD O ESTADO": "GUANAJUATO",
+          "CP": 38180,
+          "SERVICIO": "DICTAMEN"
+      }
+    ]
   },
 
   {
@@ -1527,38 +1709,52 @@
     "NÚMERO_DE_CONTRATO": "25049UCS000013",
     "ACTIVIDAD": "ACTIVO",
     "CURP": "",
-    "CALLE Y NO": "Avenida Vía Morelos 60, Bodega 9",
-    "COLONIA O POBLACION": "Rustica Xalostoc",
-    "MUNICIPIO O ALCADIA": "Ecatepec de Morelos",
-    "CIUDAD O ESTADO": "Estado de México",
-    "CP": 55340,
-    "SERVICIO": "DICTAMEN"
+    "DIRECCIONES": [
+      {
+          "CALLE Y NO": "Avenida Vía Morelos 60, Bodega 9",
+          "COLONIA O POBLACION": "Rustica Xalostoc",
+          "MUNICIPIO O ALCADIA": "Ecatepec de Morelos",
+          "CIUDAD O ESTADO": "Estado de México",
+          "CP": 55340,
+          "SERVICIO": "DICTAMEN"
+      }
+    ]
   },
+
   {
     "RFC": "TTR011211EA2",
     "CLIENTE": "TR TRADERS SA DE CV",
     "NÚMERO_DE_CONTRATO": "22049UCS000008",
     "ACTIVIDAD": "ACTIVO",
     "CURP": "",
-    "CALLE Y NO": "Gomez Farias 13",
-    "COLONIA O POBLACION": "Altica",
-    "MUNICIPIO O ALCADIA": "Zacatlán",
-    "CIUDAD O ESTADO": "Puebla",
-    "CP": 73310,
-    "SERVICIO": "DICTAMEN"
+    "DIRECCIONES": [
+      {
+          "CALLE Y NO": "Gomez Farias 13",
+          "COLONIA O POBLACION": "Altica",
+          "MUNICIPIO O ALCADIA": "Zacatlán",
+          "CIUDAD O ESTADO": "Puebla",
+          "CP": 73310,
+          "SERVICIO": "DICTAMEN"
+      }
+    ]
   },
+  
   {
     "RFC": "UBE240126GIA",
     "CLIENTE": "ULTA BEAUTY SAPI DE CV",
     "NÚMERO_DE_CONTRATO": "24049UCS000027",
     "ACTIVIDAD": "ACTIVO",
     "CURP": "",
-    "CALLE Y NO": "Carretera Libramiento Sur No. 6 Edificio 2a",
-    "COLONIA O POBLACION": "Texcacoa",
-    "MUNICIPIO O ALCADIA": "Tepotzotlán",
-    "CIUDAD O ESTADO": "Estado de México",
-    "CP": 54605,
-    "SERVICIO": "DICTAMEN"
+    "DIRECCIONES": [
+      {
+          "CALLE Y NO": "Carretera Libramiento Sur No. 6 Edificio 2a",
+          "COLONIA O POBLACION": "Texcacoa",
+          "MUNICIPIO O ALCADIA": "Tepotzotlán",
+          "CIUDAD O ESTADO": "Estado de México",
+          "CP": 54605,
+          "SERVICIO": "DICTAMEN"
+      }
+    ]
   },
 
   {
@@ -1609,26 +1805,34 @@
     "NÚMERO_DE_CONTRATO": "22049UCS000020",
     "ACTIVIDAD": "ACTIVO",
     "CURP": "",
-    "CALLE Y NO": "PORTALES 68",
-    "COLONIA O POBLACION": "METROPOLITANA 3A SECCION",
-    "MUNICIPIO O ALCADIA": "NEZAHUALCOYOTL",
-    "CIUDAD O ESTADO": "ESTADO DE MEXICO",
-    "CP": 57750,
-    "SERVICIO": "CONSTANCIA"
+    "DIRECCIONES": [
+      {
+        "CALLE Y NO": "PORTALES 68",
+        "COLONIA O POBLACION": "METROPOLITANA 3A SECCION",
+        "MUNICIPIO O ALCADIA": "NEZAHUALCOYOTL",
+        "CIUDAD O ESTADO": "ESTADO DE MEXICO",
+        "CP": 57750,
+        "SERVICIO": "CONSTANCIA"
+      }
+    ]
   },
+
   {
     "RFC": "VIM990605M8A",
     "CLIENTE": "VAZLO COMERCIAL SA DE CV",
     "NÚMERO_DE_CONTRATO": "25049UCS000003",
     "ACTIVIDAD": "NUEVO",
     "CURP": "",
-
-    "CALLE Y NO": "CIRCUITO FRESNILLO NORTE 6",
-    "COLONIA O POBLACION": "PARQUE INDUSTRIAL FRESNILLO",
-    "MUNICIPIO O ALCADIA": "FRESNILLO",
-    "CIUDAD O ESTADO": "ZACATECAS",
-    "CP": 99056,
-    "SERVICIO": "DICTAMEN"
+    "DIRECCIONES": [
+      {
+          "CALLE Y NO": "CIRCUITO FRESNILLO NORTE 6",
+          "COLONIA O POBLACION": "PARQUE INDUSTRIAL FRESNILLO",
+          "MUNICIPIO O ALCADIA": "FRESNILLO",
+          "CIUDAD O ESTADO": "ZACATECAS",
+          "CP": 99056,
+          "SERVICIO": "DICTAMEN"
+      }
+    ]
   },
 
   {
