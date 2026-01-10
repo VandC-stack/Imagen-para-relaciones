@@ -1,8 +1,26 @@
 # -- SISTEMA V&C - GENERADOR DE DICTÁMENES -- #
-import os, sys, uuid, shutil
+import os
+import sys
+import uuid
+import shutil
 import json
 import pandas as pd
 import customtkinter as ctk
+from tkinter import filedialog, messagebox, simpledialog
+from tkinter import ttk
+import tkinter as tk
+import tkinter.font as tkfont
+import threading
+import subprocess
+import importlib
+import importlib.util
+from datetime import datetime
+import folio_manager
+from plantillaPDF import cargar_tabla_relacion
+import unicodedata
+import time
+import platform
+from datetime import datetime
 from tkinter import filedialog, messagebox, simpledialog
 from tkinter import ttk
 import tkinter as tk
@@ -103,6 +121,8 @@ class SistemaDictamenesVC(ctk.CTk):
         self.cliente_seleccionado = None
         self.domicilio_seleccionado = None
         self.archivo_etiquetado_json = None
+        # Flag para edición de clientes desde el formulario de Reportes
+        self.editing_cliente_rfc = None
 
         # Variables para nueva visita
         self.current_folio = "000001"
@@ -221,11 +241,8 @@ class SistemaDictamenesVC(ctk.CTk):
                 except Exception:
                     w.pack(side='left', padx=(2, 2), pady=2)
 
-            # Bindings para mostrar/ocultar y reposicionar el overlay
-            self.hist_tree.bind('<Motion>', self._on_tree_motion)
-            self.hist_tree.bind('<Leave>', lambda e: self._hide_actions_overlay())
-            self.hist_tree.bind('<Button-1>', self._on_tree_click)
-            self.hist_tree.bind('<MouseWheel>', lambda e: self._hide_actions_overlay())
+            # Overlay bindings removed to disable hover animation showing action buttons
+            # (kept functions for compatibility but not bound)
         except Exception:
             pass
 
@@ -334,13 +351,13 @@ class SistemaDictamenesVC(ctk.CTk):
 
     def crear_navegacion(self):
         """Crea la barra de navegación con botones mejorados"""
-        nav_frame = ctk.CTkFrame(self, fg_color=STYLE["surface"], height=60)
-        nav_frame.pack(fill="x", padx=20, pady=(15, 0))
+        nav_frame = ctk.CTkFrame(self, fg_color=STYLE["surface"], height=48)
+        nav_frame.pack(fill="x", padx=20, pady=(0, 0))
         nav_frame.pack_propagate(False)
         
         # Contenedor para los botones
         botones_frame = ctk.CTkFrame(nav_frame, fg_color="transparent")
-        botones_frame.pack(expand=True, fill="both", padx=20, pady=12)
+        botones_frame.pack(expand=True, fill="both", padx=20, pady=2)
         
         # Botón Principal con estilo mejorado
         self.btn_principal = ctk.CTkButton(
@@ -421,7 +438,7 @@ class SistemaDictamenesVC(ctk.CTk):
         """Crea el área de contenido donde se muestran las secciones"""
         # Frame contenedor del contenido
         self.contenido_frame = ctk.CTkFrame(self, fg_color="transparent")
-        self.contenido_frame.pack(fill="both", expand=True, padx=20, pady=(0, 15))
+        self.contenido_frame.pack(fill="both", expand=True, padx=20, pady=(0, 0))
         
         # Frame para el contenido principal
         self.frame_principal = ctk.CTkFrame(self.contenido_frame, fg_color="transparent")
@@ -435,7 +452,7 @@ class SistemaDictamenesVC(ctk.CTk):
         # Construir el contenido de cada sección
         self._construir_tab_principal(self.frame_principal)
         self._construir_tab_historial(self.frame_historial)
-        self._construir_tab_reportes(self.frame_reportes)
+        self._construir_tab_clientes(self.frame_reportes)
         
         # Mostrar la sección principal por defecto
         self.mostrar_principal()
@@ -1229,7 +1246,7 @@ class SistemaDictamenesVC(ctk.CTk):
 
     def _construir_tab_historial(self, parent):
         cont = ctk.CTkFrame(parent, fg_color=STYLE["surface"], corner_radius=8)
-        cont.pack(fill="both", expand=True, padx=10, pady=10)
+        cont.pack(fill="both", expand=True, padx=10, pady=(0,5))
 
         # ===========================================================
         # BARRA SUPERIOR EN UNA SOLA LÍNEA (COMO EN LA IMAGEN)
@@ -1301,13 +1318,13 @@ class SistemaDictamenesVC(ctk.CTk):
                 gen_top, text="📊 Generar EMA",
                 command=self.descargar_excel_ema,
                 height=28, width=120, corner_radius=8,
-                fg_color=("#2E7D32", "#1B5E20"), text_color=STYLE["secundario"], font=("Inter", 11, "bold")
+                fg_color=STYLE["primario"], hover_color="#D4BF22", text_color=STYLE["secundario"], font=("Inter", 11, "bold")
             ).pack(side='right', padx=(6,0))
             ctk.CTkButton(
                 gen_top, text="📈 Generar Anual",
                 command=self.descargar_excel_anual,
                 height=28, width=120, corner_radius=8,
-                fg_color=("#1976D2", "#0D47A1"), text_color=STYLE["secundario"], font=("Inter", 11, "bold")
+                fg_color=STYLE["primario"], hover_color="#D4BF22", text_color=STYLE["secundario"], font=("Inter", 11, "bold")
             ).pack(side='right')
         except Exception:
             pass
@@ -1355,12 +1372,14 @@ class SistemaDictamenesVC(ctk.CTk):
                 style.theme_use('clam')
             except Exception:
                 pass
-
-            style.configure("mystyle.Treeview", font=("Inter", 10), rowheight=28,
+            style.configure('clientes.Treeview', font=("Inter", 10), rowheight=22,
                             background=STYLE["surface"], fieldbackground=STYLE["surface"], foreground=STYLE["texto_oscuro"]) 
-            style.configure("mystyle.Treeview.Heading", font=("Inter", 10, "bold"), background=STYLE["secundario"], foreground=STYLE["surface"], relief='flat')
-            # Ajustes del mapa para que el heading mantenga color al interactuar
-            style.map('mystyle.Treeview.Heading', background=[('active', STYLE['secundario'])], foreground=[('active', STYLE['surface'])])
+            style.configure('clientes.Treeview.Heading', font=("Inter", 10, "bold"), background=STYLE["secundario"], foreground=STYLE["surface"], relief='flat')
+            style.map('clientes.Treeview.Heading', background=[('active', STYLE['secundario'])], foreground=[('active', STYLE['surface'])])
+            # Selección menos intrusiva para mantener legibilidad
+            style.map('clientes.Treeview', background=[('selected', '#d9f0ff')], foreground=[('selected', STYLE['texto_oscuro'])])
+            # Scrollbar neutral para no abusar del color primario
+            style.configure('Vertical.TScrollbar', troughcolor=STYLE['surface'], background=STYLE['borde'], arrowcolor=STYLE['texto_oscuro'])
         except Exception:
             pass
 
@@ -1369,7 +1388,7 @@ class SistemaDictamenesVC(ctk.CTk):
         tree_container.pack(fill="both", expand=True)
 
         cols = [f"c{i}" for i in range(len(column_widths))]
-        self.hist_tree = ttk.Treeview(tree_container, columns=cols, show='headings', style='mystyle.Treeview')
+        self.hist_tree = ttk.Treeview(tree_container, columns=cols, show='headings', style='clientes.Treeview')
         # Configurar encabezados y anchos (permitir estirar columnas excepto la de Acciones)
         last_idx = len(headers) - 1
         for i, h in enumerate(headers):
@@ -1394,16 +1413,32 @@ class SistemaDictamenesVC(ctk.CTk):
                 pass
 
         # Scrollbars: vertical y horizontal — usar grid para posicionar correctamente
-        vsb = ttk.Scrollbar(tree_container, orient="vertical", command=self.hist_tree.yview)
-        hsb = ttk.Scrollbar(tree_container, orient="horizontal", command=self.hist_tree.xview)
-        self.hist_tree.configure(yscrollcommand=vsb.set, xscrollcommand=hsb.set)
+        try:
+            vsb = ctk.CTkScrollbar(tree_container, orientation="vertical", command=self.hist_tree.yview)
+            # CTkScrollbar uses theme colors; set appearance if supported
+            try:
+                vsb.configure(button_color=STYLE['borde'], fg_color=STYLE['borde'])
+            except Exception:
+                pass
+            self.hist_tree.configure(yscrollcommand=vsb.set)
+        except Exception:
+            # Fallback to ttk if CTkScrollbar not available
+            vsb = ttk.Scrollbar(tree_container, orient="vertical", command=self.hist_tree.yview, style='Vertical.TScrollbar')
+            try:
+                style.configure('Vertical.TScrollbar', troughcolor=STYLE['surface'], background=STYLE['borde'], arrowcolor=STYLE['texto_oscuro'])
+            except Exception:
+                pass
+            try:
+                vsb.configure(background=STYLE['borde'], troughcolor=STYLE['surface'], activebackground=STYLE['borde'])
+            except Exception:
+                pass
+            self.hist_tree.configure(yscrollcommand=vsb.set)
 
         # Layout con grid: tree en (0,0), vsb en (0,1), hsb en (1,0) colspan 2
         tree_container.grid_rowconfigure(0, weight=1)
         tree_container.grid_columnconfigure(0, weight=1)
         self.hist_tree.grid(row=0, column=0, sticky='nsew')
         vsb.grid(row=0, column=1, sticky='ns')
-        hsb.grid(row=1, column=0, sticky='ew', columnspan=2)
 
         # Crear overlay de acciones (botones) y enlazarlo al Treeview
         try:
@@ -1507,49 +1542,41 @@ class SistemaDictamenesVC(ctk.CTk):
 
 
 
-    def _construir_tab_reportes(self, parent):
-        """Construye la pestaña 'Reportes' con botones EMA y Anual y Backup en la esquina superior derecha."""
+    def _construir_tab_clientes(self, parent):
+        """Consulta de clientes y agregar nuevos clientes"""
         cont = ctk.CTkFrame(parent, fg_color=STYLE["surface"], corner_radius=8)
-        cont.pack(fill="both", expand=True, padx=10, pady=10)
+        # Permitir que el contenedor principal expanda verticalmente para
+        # dar más espacio a la tabla y al formulario.
+        cont.pack(fill="both", expand=True, padx=10, pady=(0,0), side="top", anchor="n")
 
-        # Barra superior: título y backup a la derecha
-        barra = ctk.CTkFrame(cont, fg_color="transparent", height=50)
-        barra.pack(fill="x", pady=(0, 10))
-        barra.pack_propagate(False)
-
-       
-
-        # Nota: el botón de Backup se gestiona desde la barra de navegación
-        # (evitar duplicarlo aquí para que solo exista una instancia).
-
-        # Contenido central con dos botones grandes: Anual y EMA
         contenido = ctk.CTkFrame(cont, fg_color="transparent")
-        contenido.pack(fill="both", expand=True, pady=(10,0))
-
-        btn_frame = ctk.CTkFrame(contenido, fg_color="transparent")
-        btn_frame.pack(expand=True)
-
-        # (Los botones de generación Anual/EMA se muestran en la pestaña Historial)
+        # Permitir que el contenido central expanda para aprovechar todo el alto
+        contenido.pack(fill="both", expand=True, pady=(0,0), side="top", anchor="n")
 
         # ===== Sección: Clientes - formulario + tabla =====
         clientes_frame = ctk.CTkFrame(contenido, fg_color="transparent")
-        clientes_frame.pack(fill="both", expand=True, padx=10, pady=(10,0))
+        clientes_frame.pack(fill="both", expand=True, padx=10, pady=(0,0))
+     
+        clientes_frame.grid_columnconfigure(0, weight=6, minsize=600)
+        clientes_frame.grid_columnconfigure(1, weight=6)
+        clientes_frame.grid_rowconfigure(0, weight=1)
+        
+        form_frame = ctk.CTkScrollableFrame(
+            clientes_frame,
+            fg_color=STYLE["surface"],
+            corner_radius=8,
+            scrollbar_button_color=STYLE["borde"],
+            scrollbar_button_hover_color=STYLE["borde"]
+        )
+        form_frame.grid(row=0, column=0, sticky="nsew", padx=(0,8), pady=(1,1))
 
-        # Layout: formulario a la izquierda, tabla a la derecha
-        clientes_frame.grid_columnconfigure(0, weight=3)
-        clientes_frame.grid_columnconfigure(1, weight=5)
-
-        form_frame = ctk.CTkFrame(clientes_frame, fg_color=STYLE["surface"], corner_radius=8)
-        form_frame.grid(row=0, column=0, sticky="nsew", padx=(0,10), pady=5)
-
-        ctk.CTkLabel(form_frame, text="Agregar nuevo cliente", font=FONT_SUBTITLE, text_color=STYLE["texto_oscuro"]).pack(anchor="w", padx=12, pady=(8,6))
+        ctk.CTkLabel(form_frame, text="Agregar nuevo cliente", font=FONT_SUBTITLE, text_color=STYLE["texto_oscuro"]).pack(anchor="w", padx=10, pady=(4,4))
 
         # Campos mínimos sugeridos
         self.cliente_campos = {}
         campos = [
-            ("RFC", 30), ("CLIENTE", 40), ("NÚMERO_DE_CONTRATO", 30), ("ACTIVIDAD", 20),
-            ("CURP", 18), ("CALLE Y NO", 40), ("COLONIA O POBLACION", 30), ("MUNICIPIO O ALCADIA", 30),
-            ("CIUDAD O ESTADO", 25), ("CP", 8), ("SERVICIO", 20)
+            ("RFC", 25), ("CLIENTE", 35), ("No. CONTRATO", 30), ("ACTIVIDAD", 20),
+            ("CURP", 18)
         ]
 
         for k, w in campos:
@@ -1560,36 +1587,190 @@ class SistemaDictamenesVC(ctk.CTk):
             ent.pack(side="left", fill="x", expand=True)
             self.cliente_campos[k] = ent
 
+        # ===== Domicilios de almacén (seleccione 0,1 o 2 y rellene formularios) =====
+        dom_frame = ctk.CTkFrame(form_frame, fg_color="transparent")
+        dom_frame.pack(fill="x", padx=12, pady=(6,6))
+        ctk.CTkLabel(dom_frame, text="Número de domicilios de almacén:", font=FONT_SMALL, text_color=STYLE["texto_oscuro"]).pack(anchor="w")
+
+        dom_select_frame = ctk.CTkFrame(dom_frame, fg_color="transparent")
+        dom_select_frame.pack(fill="x", pady=(6,4))
+        ctk.CTkLabel(dom_select_frame, text="Domicilios de almacén (puede agregar varios):", font=FONT_SMALL, text_color=STYLE["texto_oscuro"]).pack(anchor="w")
+
+        controls = ctk.CTkFrame(dom_frame, fg_color="transparent")
+        controls.pack(fill="x", pady=(6,4))
+        # Contenedor donde se añadirán subformularios dinámicos
+        self.dom_container = ctk.CTkFrame(dom_frame, fg_color="transparent")
+        self.dom_container.pack(fill="both", pady=(4,4))
+
+        # Lista de campos por domicilio
+        self.dom_fields = []
+        self.max_domicilios = 20
+
+        def _crear_subform(parent, idx):
+            frame = ctk.CTkFrame(parent, fg_color=STYLE["surface"], corner_radius=6)
+            frame.pack(fill="x", pady=(6,6), padx=6)
+            campos_dom = {}
+            campos = [
+                ("CALLE Y No", 'CALLE_Y_NO'),
+                ("COLONIA O POBLACION", 'COLONIA_O_POBLACION'),
+                ("MUNICIPIO O ALCADIA", 'MUNICIPIO_O_ALCADIA'),
+                ("CIUDAD O ESTADO", 'CIUDAD_O_ESTADO'),
+                ("CP", 'CP')
+            ]
+            for label_text, key in campos:
+                f = ctk.CTkFrame(frame, fg_color="transparent")
+                f.pack(fill="x", padx=6, pady=(4,2))
+                ctk.CTkLabel(f, text=f"{label_text}:", font=FONT_SMALL, width=140, anchor="w", text_color=STYLE["texto_oscuro"]).pack(side="left")
+                e = ctk.CTkEntry(f, placeholder_text=label_text, font=FONT_SMALL, height=30)
+                e.pack(side="left", fill="x", expand=True)
+                campos_dom[key] = e
+            svc_f = ctk.CTkFrame(frame, fg_color="transparent")
+            svc_f.pack(fill="x", padx=6, pady=(4,6))
+            ctk.CTkLabel(svc_f, text="SERVICIO:", font=FONT_SMALL, width=140, anchor="w", text_color=STYLE["texto_oscuro"]).pack(side="left")
+            svc = ctk.CTkComboBox(svc_f, values=["DICTAMEN","CONSTANCIA"], font=FONT_SMALL, dropdown_font=FONT_SMALL, state="readonly", height=30)
+            svc.set("DICTAMEN")
+            svc.pack(side="left", fill="x", expand=True)
+            campos_dom['SERVICIO'] = svc
+            # Botón para quitar este subform
+            btn_rm = ctk.CTkButton(frame, text="Quitar domicilio", fg_color=STYLE["peligro"], hover_color=STYLE["peligro"], text_color=STYLE["surface"], font=("Inter", 11, "bold"), command=lambda f=frame: self._remove_domicilio_by_frame(f))
+            btn_rm.pack(anchor="e", padx=6, pady=(0,6))
+            return frame, campos_dom
+
+        # Botones agregar/remover globales
+        self.btn_add_domicilio = ctk.CTkButton(controls, text="Añadir domicilio", fg_color=STYLE["primario"], hover_color=STYLE["primario"], text_color=STYLE["secundario"], font=("Inter", 11, "bold"), command=self._add_domicilio)
+        self.btn_add_domicilio.pack(side="left")
+        self.lbl_dom_count = ctk.CTkLabel(controls, text="0 domicilios", font=FONT_SMALL, text_color=STYLE["texto_oscuro"])
+        self.lbl_dom_count.pack(side="left", padx=(8,0))
+
+        # store creator for use
+        self._crear_domicilio_subform = _crear_subform
+
         btns_frame = ctk.CTkFrame(form_frame, fg_color="transparent")
         btns_frame.pack(fill="x", padx=12, pady=(8,12))
-        ctk.CTkButton(btns_frame, text="Guardar cliente", command=self._guardar_cliente_desde_form, fg_color=STYLE["primario"]).pack(side="left")
-        ctk.CTkButton(btns_frame, text="Limpiar", command=lambda: [e.delete(0, 'end') for e in self.cliente_campos.values()]).pack(side="left", padx=(8,0))
+        # Guardar/Actualizar (se actualiza dinámicamente cuando se edita)
+        self.btn_guardar_cliente = ctk.CTkButton(btns_frame, text="Guardar cliente", command=self._guardar_cliente_desde_form, fg_color=STYLE["primario"], hover_color=STYLE["primario"], text_color=STYLE["secundario"], font=("Inter", 11, "bold"), height=34, corner_radius=8)
+        self.btn_guardar_cliente.pack(side="left")
+        self.btn_limpiar_cliente = ctk.CTkButton(btns_frame, text="Limpiar", command=self._limpiar_formulario_cliente, fg_color=STYLE["advertencia"], hover_color=STYLE["advertencia"], text_color=STYLE["surface"], font=("Inter", 11, "bold"), height=34, corner_radius=8)
+        self.btn_limpiar_cliente.pack(side="left", padx=(8,0))
 
         # Tabla de clientes
         tabla_frame = ctk.CTkFrame(clientes_frame, fg_color=STYLE["surface"], corner_radius=8)
-        tabla_frame.grid(row=0, column=1, sticky="nsew", padx=(10,0), pady=5)
-        ctk.CTkLabel(tabla_frame, text="Clientes registrados", font=FONT_SUBTITLE, text_color=STYLE["texto_oscuro"]).pack(anchor="w", padx=12, pady=(8,6))
+        tabla_frame.grid(row=0, column=1, sticky="nsew", padx=(10,0), pady=(0,5))
+        # Aumentar ligeramente la altura mínima de la tabla para mejor visibilidad
+        tabla_frame.grid_rowconfigure(0, weight=1, minsize=420)
+        header_frame = ctk.CTkFrame(tabla_frame, fg_color="transparent")
+        header_frame.pack(fill='x', padx=12, pady=(8,6))
+        ctk.CTkLabel(header_frame, text="Clientes registrados", font=FONT_SUBTITLE, text_color=STYLE["texto_oscuro"]).pack(side='left')
+        self.lbl_total_clientes = ctk.CTkLabel(header_frame, text="Total: 0", font=FONT_SMALL, text_color=STYLE["texto_oscuro"]) 
+        self.lbl_total_clientes.pack(side='right')
 
         # Usar ttk.Treeview para tabla (más flexible)
-        cols = ("RFC","CLIENTE","NÚMERO_DE_CONTRATO","ACTIVIDAD","CP","SERVICIO")
+        # Quitar columna CP: no mostrar CP en la tabla para simplificar vista
+        # Añadir columna de ACCIONES para permitir botón/acción por fila (ver domicilios)
+        cols = ("RFC","CLIENTE","NÚMERO DE CONTRATO","ACTIVIDAD","SERVICIO","ACCIONES")
+
+        # Barra de búsqueda para la tabla de clientes
+        search_frame = ctk.CTkFrame(tabla_frame, fg_color="transparent")
+        search_frame.pack(fill="x", padx=12, pady=(4,6))
+        self.entry_buscar_cliente = ctk.CTkEntry(search_frame, placeholder_text="Buscar por cliente, RFC, servicio o contrato", font=FONT_SMALL, height=30)
+        self.entry_buscar_cliente.pack(side="left", fill="x", expand=True)
+        ctk.CTkButton(search_frame, text="Buscar", command=self._buscar_clientes, fg_color=STYLE["primario"], hover_color=STYLE["primario"], text_color=STYLE["secundario"], font=("Inter", 11, "bold"), height=32, corner_radius=8).pack(side="left", padx=(8,0))
+        ctk.CTkButton(search_frame, text="Limpiar", command=self._limpiar_busqueda_clientes, fg_color=STYLE["advertencia"], hover_color=STYLE["advertencia"], text_color=STYLE["surface"], font=("Inter", 11, "bold"), height=32, corner_radius=8).pack(side="left", padx=(8,0))
+
         tree_container = tk.Frame(tabla_frame)
-        tree_container.pack(fill="both", expand=True, padx=12, pady=(0,12))
-        self.tree_clientes = ttk.Treeview(tree_container, columns=cols, show='headings', selectmode='browse')
+        # Exponer contenedor para poder ajustar columnas al cambiar tamaño
+        self.tree_clientes_container = tree_container
+        # Ajustar espacio para que la tabla ocupe la mayor parte del panel
+        tree_container.pack(fill="both", expand=True, padx=12, pady=(0,0))
+
+        # Estilo similar al historial
+        style = ttk.Style()
+        try:
+            style.theme_use('clam')
+        except Exception:
+            pass
+        try:
+            style.configure('clientes.Treeview', background=STYLE["surface"], foreground=STYLE["texto_oscuro"], rowheight=22, fieldbackground=STYLE["surface"])
+            style.configure('clientes.Treeview.Heading', background=STYLE["secundario"], foreground=STYLE["surface"], font=("Inter", 10, "bold"))
+            # Selección menos intrusiva: color claro para destacar sin ocultar texto
+            style.map('clientes.Treeview', background=[('selected', '#d9f0ff')], foreground=[('selected', STYLE['texto_oscuro'])])
+            # Evitar usar el color primario en el scrollbar para no abusar del color
+            style.configure('Vertical.TScrollbar', troughcolor=STYLE['surface'], background=STYLE['borde'], arrowcolor=STYLE['texto_oscuro'])
+        except Exception:
+            pass
+
+        self.tree_clientes = ttk.Treeview(tree_container, columns=cols, show='headings', selectmode='browse', style='clientes.Treeview')
+        # Establecer anchos más estrechos por columna para reducir el ancho total
+        col_widths = {
+            'RFC': 110,
+            'CLIENTE': 220,
+            'NÚMERO DE CONTRATO': 180,
+            'ACTIVIDAD': 120,
+            'SERVICIO': 120,
+            'ACCIONES': 120
+        }
         for c in cols:
             self.tree_clientes.heading(c, text=c)
-            self.tree_clientes.column(c, width=120, anchor='w')
-        vsb = ttk.Scrollbar(tree_container, orient="vertical", command=self.tree_clientes.yview)
-        hsb = ttk.Scrollbar(tree_container, orient="horizontal", command=self.tree_clientes.xview)
-        self.tree_clientes.configure(yscrollcommand=vsb.set, xscrollcommand=hsb.set)
-        self.tree_clientes.pack(side="left", fill="both", expand=True)
-        vsb.pack(side="right", fill="y")
-        hsb.pack(side="bottom", fill="x")
+            try:
+                w = col_widths.get(c, 120)
+                self.tree_clientes.column(c, width=w, anchor='w')
+            except Exception:
+                self.tree_clientes.column(c, width=120, anchor='w')
+
+        # Bind para detectar clicks en la columna de acciones (última columna)
+        try:
+            self.tree_clientes.bind('<Button-1>', self._on_client_tree_click)
+        except Exception:
+            pass
+        # Ajustar columnas al redimensionar el contenedor para mantener ACCIONES visible
+        try:
+            self.tree_clientes_container.bind('<Configure>', lambda e: self._adjust_clientes_columns())
+        except Exception:
+            pass
+
+        # Vertical scrollbar con color primario; quitar scrollbar horizontal externa
+        try:
+            vsb = ctk.CTkScrollbar(tree_container, orientation="vertical", command=self.tree_clientes.yview)
+            try:
+                vsb.configure(button_color=STYLE['borde'], fg_color=STYLE['borde'])
+            except Exception:
+                pass
+            self.tree_clientes.configure(yscrollcommand=vsb.set)
+            self.tree_clientes.pack(side="left", fill="both", expand=True)
+            vsb.pack(side="right", fill="y")
+        except Exception:
+            vsb = ttk.Scrollbar(tree_container, orient="vertical", command=self.tree_clientes.yview, style='Vertical.TScrollbar')
+            try:
+                style.configure('Vertical.TScrollbar', troughcolor=STYLE['surface'], background=STYLE['borde'], arrowcolor=STYLE['texto_oscuro'])
+            except Exception:
+                pass
+            self.tree_clientes.configure(yscrollcommand=vsb.set)
+            self.tree_clientes.pack(side="left", fill="both", expand=True)
+            vsb.pack(side="right", fill="y")
 
         # Botones de gestión de tabla
         tbl_btns = ctk.CTkFrame(tabla_frame, fg_color="transparent")
         tbl_btns.pack(fill="x", padx=12, pady=(0,10))
-        ctk.CTkButton(tbl_btns, text="Refrescar", command=self._refrescar_tabla_clientes).pack(side="left")
-        ctk.CTkButton(tbl_btns, text="Eliminar seleccionado", fg_color=STYLE["peligro"], command=self._eliminar_cliente_seleccionado).pack(side="left", padx=8)
+        # Subframes para separar botones: left, center (expand), right
+        left_actions = ctk.CTkFrame(tbl_btns, fg_color="transparent")
+        center_actions = ctk.CTkFrame(tbl_btns, fg_color="transparent")
+        right_actions = ctk.CTkFrame(tbl_btns, fg_color="transparent")
+        left_actions.pack(side="left")
+        center_actions.pack(side="left", expand=True, fill="both")
+        right_actions.pack(side="right")
+
+        # Botón Refrescar a la izquierda
+        ctk.CTkButton(left_actions, text="Refrescar", command=self._refrescar_tabla_clientes, fg_color=STYLE["exito"], hover_color=STYLE["exito"], text_color=STYLE["surface"], font=("Inter", 11, "bold"), height=32, corner_radius=8).pack(side="left")
+
+        # Botones centrales (centrados) con espacio entre ellos
+        ctk.CTkButton(center_actions, text="Editar seleccionado", fg_color=STYLE["primario"], hover_color="#D4BF22", text_color=STYLE["secundario"], height=32, corner_radius=8, command=self._editar_cliente_seleccionado).pack(side="left", padx=12)
+        ctk.CTkButton(center_actions, text="Eliminar seleccionado", fg_color=STYLE["peligro"], hover_color="#c84a3d", text_color=STYLE["surface"], height=32, corner_radius=8, command=self._eliminar_cliente_seleccionado).pack(side="left", padx=12)
+
+        # Botón para exportar todo el catálogo de clientes a Excel (derecha)
+        try:
+            ctk.CTkButton(right_actions, text="Catálogo de clientes", fg_color=STYLE['exito'], hover_color=STYLE['exito'], text_color=STYLE['surface'], height=36, corner_radius=8, font=("Inter", 11, "bold"), command=self._export_catalogo_clientes).pack(side="right")
+        except Exception:
+            pass
 
         # Poblar la tabla inicialmente
         try:
@@ -1783,6 +1964,29 @@ class SistemaDictamenesVC(ctk.CTk):
             else:
                 nuevo[k] = v
 
+        # Recopilar domicilios desde los subformularios dinámicos
+        try:
+            doms = []
+            for rec in (self.dom_fields or []):
+                try:
+                    d = {}
+                    fields = rec.get('fields')
+                    for k, e in (fields or {}).items():
+                        try:
+                            if k == 'SERVICIO':
+                                d[k] = e.get() if hasattr(e, 'get') else ''
+                            else:
+                                d[k] = e.get().strip()
+                        except Exception:
+                            d[k] = ''
+                    doms.append(d)
+                except Exception:
+                    continue
+            if doms:
+                nuevo['DOMICILIOS'] = doms
+        except Exception:
+            pass
+
         # Ruta objetivo
         ruta = os.path.join(DATA_DIR, 'Clientes.json')
         datos = []
@@ -1793,12 +1997,29 @@ class SistemaDictamenesVC(ctk.CTk):
         except Exception:
             datos = []
 
-        # Añadir nuevo cliente y persistir
-        datos.append(nuevo)
+        # Si estamos en modo edición, intentar reemplazar el registro existente
+        actualizado = False
         try:
+            if getattr(self, 'editing_cliente_rfc', None):
+                busc_rfc = str(self.editing_cliente_rfc)
+                for i, c in enumerate(datos):
+                    try:
+                        if str(c.get('RFC', '')) == busc_rfc:
+                            datos[i] = nuevo
+                            actualizado = True
+                            break
+                    except Exception:
+                        continue
+            if not actualizado:
+                datos.append(nuevo)
+
             with open(ruta, 'w', encoding='utf-8') as f:
                 json.dump(datos, f, ensure_ascii=False, indent=2)
-            messagebox.showinfo('Cliente guardado', 'El cliente se ha guardado en Clientes.json')
+
+            if actualizado:
+                messagebox.showinfo('Cliente actualizado', 'El cliente se ha actualizado en Clientes.json')
+            else:
+                messagebox.showinfo('Cliente guardado', 'El cliente se ha guardado en Clientes.json')
         except Exception as e:
             messagebox.showerror('Error', f'No se pudo guardar el cliente: {e}')
             return
@@ -1819,6 +2040,42 @@ class SistemaDictamenesVC(ctk.CTk):
                 ent.delete(0, 'end')
             except Exception:
                 pass
+        # Si veníamos editando, resetear estado del botón
+        try:
+            if getattr(self, 'editing_cliente_rfc', None):
+                self.editing_cliente_rfc = None
+                try:
+                    self.btn_guardar_cliente.configure(text="Guardar cliente")
+                except Exception:
+                    pass
+        except Exception:
+            pass
+
+    def _limpiar_formulario_cliente(self):
+        """Limpia los campos del formulario de cliente y elimina subformularios de domicilios."""
+        try:
+            for ent in (self.cliente_campos or {}).values():
+                try:
+                    ent.delete(0, 'end')
+                except Exception:
+                    pass
+        except Exception:
+            pass
+        # quitar subformularios de domicilios
+        try:
+            for idx, rec in enumerate(list(self.dom_fields)):
+                frm = rec.get('frame')
+                try:
+                    frm.destroy()
+                except Exception:
+                    pass
+            self.dom_fields = []
+            try:
+                self.lbl_dom_count.configure(text="0 domicilios")
+            except Exception:
+                pass
+        except Exception:
+            pass
 
     def _refrescar_tabla_clientes(self):
         """Carga `Clientes.json` y muestra los registros en la tabla Treeview."""
@@ -1845,11 +2102,112 @@ class SistemaDictamenesVC(ctk.CTk):
                 nombre = c.get('CLIENTE') or c.get('RAZÓN SOCIAL ') or c.get('RAZON SOCIAL') or ''
                 contrato = c.get('NÚMERO_DE_CONTRATO') or c.get('No. DE CONTRATO') or ''
                 actividad = c.get('ACTIVIDAD') or ''
+                # Si no hay CP/SERVICIO a nivel cliente, intentar usar el primer domicilio
+                # CP se omite para la vista; aún lo extraemos por compatibilidad
                 cp = c.get('CP') or ''
                 servicio = c.get('SERVICIO') or ''
-                self.tree_clientes.insert('', 'end', values=(rfc, nombre, contrato, actividad, cp, servicio))
+                try:
+                    if (not cp or not servicio) and isinstance(c.get('DOMICILIOS'), (list, tuple)) and len(c.get('DOMICILIOS'))>0:
+                        primera = c.get('DOMICILIOS')[0]
+                        if not cp:
+                            cp = primera.get('CP') or primera.get('cp') or ''
+                        if not servicio:
+                            servicio = primera.get('SERVICIO') or primera.get('SERVICIO'.upper()) or primera.get('servicio') or ''
+                except Exception:
+                    pass
+                # Insertar sin la columna CP; añadir texto en ACCIONES para permitir interacción
+                self.tree_clientes.insert('', 'end', values=(rfc, nombre, contrato, actividad, servicio, 'Ver domicilios'))
             except Exception:
                 continue
+
+        # Auto-ajustar columnas según el contenido recién cargado
+        try:
+            self._auto_resize_tree_columns(self.tree_clientes)
+        except Exception:
+            pass
+
+        # Asegurar que la columna ACCIONES permanezca visible ajustando anchos
+        try:
+            self._adjust_clientes_columns()
+        except Exception:
+            pass
+        # Actualizar contador de clientes
+        try:
+            total = len(datos) if isinstance(datos, (list, tuple)) else 0
+            try:
+                self.lbl_total_clientes.configure(text=f"Total: {total}")
+            except Exception:
+                pass
+        except Exception:
+            pass
+
+    def _buscar_clientes(self):
+        """Busca clientes por texto en RFC, CLIENTE, NÚMERO DE CONTRATO o SERVICIO."""
+        q = ''
+        try:
+            q = (self.entry_buscar_cliente.get() or '').strip().lower()
+        except Exception:
+            q = ''
+
+        ruta = os.path.join(DATA_DIR, 'Clientes.json')
+        datos = []
+        try:
+            if os.path.exists(ruta):
+                with open(ruta, 'r', encoding='utf-8') as f:
+                    datos = json.load(f) or []
+        except Exception:
+            datos = []
+
+        # Limpiar tabla
+        try:
+            for r in self.tree_clientes.get_children():
+                self.tree_clientes.delete(r)
+        except Exception:
+            pass
+
+        if not q:
+            # si no hay query, recargar todo
+            try:
+                self._refrescar_tabla_clientes()
+            except Exception:
+                pass
+            return
+
+        for c in datos:
+            try:
+                rfc = (c.get('RFC') or c.get('R.F.C') or '')
+                nombre = (c.get('CLIENTE') or c.get('RAZÓN SOCIAL ') or c.get('RAZON SOCIAL') or '')
+                contrato = (c.get('NÚMERO_DE_CONTRATO') or c.get('No. DE CONTRATO') or '')
+                servicio = (c.get('SERVICIO') or '')
+                actividad = c.get('ACTIVIDAD') or ''
+                cp = c.get('CP') or ''
+                hay = False
+                # Buscar en campos relevantes (omitimos CP de la lista de búsqueda visible)
+                for field in (rfc, nombre, contrato, servicio, actividad):
+                    try:
+                        if q in str(field).lower():
+                            hay = True
+                            break
+                    except Exception:
+                        continue
+                if hay:
+                    self.tree_clientes.insert('', 'end', values=(rfc, nombre, contrato, actividad, servicio, 'Ver domicilios'))
+            except Exception:
+                continue
+
+    def _limpiar_busqueda_clientes(self):
+        """Limpia la caja de búsqueda de clientes y recarga la tabla."""
+        try:
+            self.entry_buscar_cliente.delete(0, tk.END)
+        except Exception:
+            try:
+                self.entry_buscar_cliente.delete(0, 'end')
+            except Exception:
+                pass
+        try:
+            self._refrescar_tabla_clientes()
+        except Exception:
+            pass
 
     def _eliminar_cliente_seleccionado(self):
         sel = None
@@ -1884,6 +2242,21 @@ class SistemaDictamenesVC(ctk.CTk):
             except Exception:
                 nuevos.append(c)
 
+        # Confirmación fuerte: primero confirmar intención
+        try:
+            confirmar = messagebox.askyesno('Confirmar eliminación', f"¿Está seguro que desea eliminar al cliente '{vals[1]}'? Esta acción no se puede deshacer.")
+            if not confirmar:
+                return
+            # Solicitar que escriba la palabra ELIMINAR para evitar borrados accidentales
+            respuesta = simpledialog.askstring('Autenticación', "Escriba ELIMINAR para confirmar la eliminación:", parent=self)
+            if not respuesta or respuesta.strip().upper() != 'ELIMINAR':
+                messagebox.showinfo('Cancelado', 'Eliminación cancelada. No se escribieron las credenciales correctas.')
+                return
+        except Exception:
+            # Si falla el diálogo, cancelar por seguridad
+            messagebox.showwarning('Eliminar', 'No se pudo completar la confirmación. Cancelando eliminación.')
+            return
+
         try:
             with open(ruta, 'w', encoding='utf-8') as f:
                 json.dump(nuevos, f, ensure_ascii=False, indent=2)
@@ -1894,6 +2267,427 @@ class SistemaDictamenesVC(ctk.CTk):
         messagebox.showinfo('Eliminado', 'Cliente eliminado correctamente')
         try:
             self._refrescar_tabla_clientes()
+        except Exception:
+            pass
+
+    def _editar_cliente_seleccionado(self):
+        """Carga el cliente seleccionado en el formulario para su edición."""
+        sel = None
+        try:
+            sel = self.tree_clientes.selection()[0]
+        except Exception:
+            messagebox.showwarning('Editar', 'No hay ningún cliente seleccionado')
+            return
+
+        vals = self.tree_clientes.item(sel, 'values')
+        if not vals:
+            return
+
+        rfc_sel = vals[0]
+        ruta = os.path.join(DATA_DIR, 'Clientes.json')
+        datos = []
+        try:
+            if os.path.exists(ruta):
+                with open(ruta, 'r', encoding='utf-8') as f:
+                    datos = json.load(f) or []
+        except Exception:
+            datos = []
+
+        # Buscar registro completo por RFC (si no hay RFC, por nombre)
+        registro = None
+        for c in datos:
+            try:
+                if rfc_sel and str(c.get('RFC', '')) == str(rfc_sel):
+                    registro = c
+                    break
+                nombre = c.get('CLIENTE') or c.get('RAZÓN SOCIAL ') or c.get('RAZON SOCIAL') or ''
+                if not rfc_sel and nombre == vals[1]:
+                    registro = c
+                    break
+            except Exception:
+                continue
+
+        if not registro:
+            messagebox.showwarning('Editar', 'No se encontró el registro completo para edición')
+            return
+
+        # Llenar formulario con datos del registro
+        for k, ent in (self.cliente_campos or {}).items():
+            try:
+                # Construir lista de posibles claves en el JSON para este campo
+                candidates = []
+                candidates.append(k)
+                candidates.append(k.replace(' ', '_'))
+                candidates.append(k.upper())
+                candidates.append(k.replace('.', ''))
+                candidates.append(k.replace('.', '').replace(' ', '_').upper())
+                # Casos específicos mapeados
+                if k.strip().lower().startswith('no') or 'contrato' in k.lower():
+                    candidates = ['NÚMERO_DE_CONTRATO', 'NÚMERO DE CONTRATO', 'No. DE CONTRATO', 'No. CONTRATO', 'NUMERO_DE_CONTRATO', 'NUMERO DE CONTRATO'] + candidates
+                # Buscar el primer valor existente
+                v = ''
+                for key in candidates:
+                    try:
+                        if key in registro and registro.get(key) is not None:
+                            v = registro.get(key)
+                            break
+                    except Exception:
+                        continue
+                # Fallback: intentar buscar por coincidencia ignorando mayúsculas/minúsculas y signos
+                if (v is None or v == '') and isinstance(registro, dict):
+                    lk = k.replace('_', ' ').strip().lower()
+                    for rk in registro.keys():
+                        try:
+                            if str(rk).strip().lower() == lk or str(rk).strip().lower().replace('.', '') == lk.replace('.', ''):
+                                v = registro.get(rk)
+                                break
+                        except Exception:
+                            continue
+
+                try:
+                    ent.delete(0, 'end')
+                except Exception:
+                    pass
+                if v is None:
+                    v = ''
+                try:
+                    ent.insert(0, str(v))
+                except Exception:
+                    pass
+            except Exception:
+                try:
+                    ent.delete(0, 'end')
+                except Exception:
+                    pass
+
+        # Llenar subformularios dinámicos de domicilios si existen
+        try:
+            # Aceptar varias claves posibles para domicilios: DIRECCIONES, DOMICILIOS, DOMICILIO
+            domicilios = registro.get('DIRECCIONES') or registro.get('DOMICILIOS') or registro.get('DOMICILIO') or []
+            if not isinstance(domicilios, (list, tuple)):
+                domicilios = []
+            # eliminar subformularios existentes
+            try:
+                for rec in list(self.dom_fields):
+                    try:
+                        rec.get('frame').destroy()
+                    except Exception:
+                        pass
+                self.dom_fields = []
+            except Exception:
+                pass
+            # crear subformularios y rellenar
+            for i, ddata in enumerate(domicilios):
+                try:
+                    if len(self.dom_fields) >= self.max_domicilios:
+                        break
+                    frm, fields = self._crear_domicilio_subform(self.dom_container, len(self.dom_fields))
+                    self.dom_fields.append({'frame': frm, 'fields': fields})
+                    # Mapear claves variantes del JSON a los campos internos del subformulario
+                    key_variants = {
+                        'CALLE_Y_NO': ['CALLE Y NO', 'CALLE_Y_NO', 'CALLE Y No', 'CALLEYNO', 'CALLE'],
+                        'COLONIA_O_POBLACION': ['COLONIA O POBLACION', 'COLONIA_O_POBLACION', 'COLONIA', 'POBLACION'],
+                        'MUNICIPIO_O_ALCADIA': ['MUNICIPIO O ALCADIA', 'MUNICIPIO_O_ALCADIA', 'MUNICIPIO', 'ALCADIA'],
+                        'CIUDAD_O_ESTADO': ['CIUDAD O ESTADO', 'CIUDAD_O_ESTADO', 'CIUDAD', 'ESTADO'],
+                        'CP': ['CP', 'cp', 'Codigo Postal', 'C.P.'],
+                        'SERVICIO': ['SERVICIO', 'servicio']
+                    }
+                    for k, widget in (fields or {}).items():
+                        try:
+                            val = ''
+                            if isinstance(ddata, dict):
+                                # buscar por variantes de llave
+                                variants = key_variants.get(k, [k, k.replace('_', ' '), k.lower()])
+                                for key in variants:
+                                    if key in ddata and ddata.get(key) is not None:
+                                        val = ddata.get(key)
+                                        break
+                                # también probar claves con distintos capitalizations
+                                if val == '':
+                                    for key in list(ddata.keys()):
+                                        if key.strip().lower() == k.replace('_', ' ').strip().lower():
+                                            val = ddata.get(key)
+                                            break
+                            # Asignar al widget: combo -> set(), entry -> insert
+                            try:
+                                if hasattr(widget, 'set'):
+                                    try:
+                                        widget.set(str(val))
+                                    except Exception:
+                                        pass
+                                else:
+                                    try:
+                                        widget.delete(0, 'end')
+                                    except Exception:
+                                        pass
+                                    if val is not None:
+                                        try:
+                                            widget.insert(0, str(val))
+                                        except Exception:
+                                            pass
+                            except Exception:
+                                pass
+                        except Exception:
+                            pass
+                except Exception:
+                    continue
+            try:
+                self.lbl_dom_count.configure(text=f"{len(self.dom_fields)} domicilios")
+            except Exception:
+                pass
+        except Exception:
+            pass
+
+        # Marcar modo edición
+        try:
+            self.editing_cliente_rfc = registro.get('RFC') or ''
+            try:
+                self.btn_guardar_cliente.configure(text="Actualizar cliente")
+            except Exception:
+                pass
+        except Exception:
+            pass
+
+    def _on_client_tree_click(self, event):
+        """Detecta clicks en la columna de ACCIONES y muestra domicilios del cliente."""
+        try:
+            col = self.tree_clientes.identify_column(event.x)
+            iid = self.tree_clientes.identify_row(event.y)
+            if not iid:
+                return
+            last_col = f"#{len(self.tree_clientes['columns'])}"
+            if col == last_col:
+                vals = self.tree_clientes.item(iid, 'values')
+                if not vals:
+                    return
+                rfc = vals[0]
+                try:
+                    self._mostrar_domicilios_cliente(rfc)
+                except Exception:
+                    pass
+                return "break"
+        except Exception:
+            pass
+
+    def _mostrar_domicilios_cliente(self, rfc_or_name):
+        """Abre una ventana modal mostrando los domicilios del cliente identificado por RFC o nombre."""
+        ruta = os.path.join(DATA_DIR, 'Clientes.json')
+        datos = []
+        try:
+            if os.path.exists(ruta):
+                with open(ruta, 'r', encoding='utf-8') as f:
+                    datos = json.load(f) or []
+        except Exception:
+            datos = []
+
+        registro = None
+        for c in datos:
+            try:
+                if rfc_or_name and c.get('RFC') and str(c.get('RFC')) == str(rfc_or_name):
+                    registro = c
+                    break
+                nombre = c.get('CLIENTE') or c.get('RAZÓN SOCIAL ') or c.get('RAZON SOCIAL') or ''
+                if (not registro) and str(nombre) == str(rfc_or_name):
+                    registro = c
+                    break
+            except Exception:
+                continue
+
+        if not registro:
+            messagebox.showwarning('Domicilios', 'No se encontró el cliente o no tiene domicilios registrados.')
+            return
+
+        domicilios = registro.get('DIRECCIONES') or registro.get('DOMICILIOS') or registro.get('DOMICILIO') or []
+        if not isinstance(domicilios, (list, tuple)):
+            domicilios = []
+
+        # Crear ventana modal
+        win = ctk.CTkToplevel(self)
+        win.title(f"Domicilios - {registro.get('CLIENTE') or registro.get('RFC')}")
+        win.geometry('640x420')
+        win.transient(self)
+        win.grab_set()
+
+        frame = ctk.CTkFrame(win, fg_color=STYLE['surface'])
+        frame.pack(fill='both', expand=True, padx=12, pady=12)
+
+        hdr = ctk.CTkLabel(frame, text=f"Domicilios de {registro.get('CLIENTE') or registro.get('RFC')}", font=FONT_SUBTITLE, text_color=STYLE['texto_oscuro'])
+        hdr.pack(anchor='w', pady=(0,8))
+
+        scroll = ctk.CTkScrollableFrame(frame, fg_color='transparent')
+        scroll.pack(fill='both', expand=True)
+
+        if not domicilios:
+            ctk.CTkLabel(scroll, text='No hay domicilios registrados.', text_color=STYLE['texto_oscuro']).pack(anchor='w', pady=6)
+        else:
+            for i, d in enumerate(domicilios, start=1):
+                box = ctk.CTkFrame(scroll, fg_color=STYLE['surface'], corner_radius=6)
+                box.pack(fill='x', pady=6, padx=6)
+                ctk.CTkLabel(box, text=f"Domicilio {i}", font=("Inter", 12, "bold"), text_color=STYLE['texto_oscuro']).pack(anchor='w', padx=8, pady=(6,2))
+                # Mostrar campos relevantes y soportar claves con espacios/variantes
+                field_variants = [
+                    ('CALLE Y NO', ['CALLE Y NO', 'CALLE_Y_NO', 'CALLE Y No', 'CALLEYNO']),
+                    ('COLONIA O POBLACION', ['COLONIA O POBLACION', 'COLONIA_O_POBLACION', 'COLONIA']),
+                    ('MUNICIPIO O ALCADIA', ['MUNICIPIO O ALCADIA', 'MUNICIPIO_O_ALCADIA', 'MUNICIPIO']),
+                    ('CIUDAD O ESTADO', ['CIUDAD O ESTADO', 'CIUDAD_O_ESTADO', 'ESTADO']),
+                    ('CP', ['CP', 'cp']),
+                    ('SERVICIO', ['SERVICIO', 'servicio'])
+                ]
+                for label, variants in field_variants:
+                    try:
+                        val = ''
+                        if isinstance(d, dict):
+                            for key in variants:
+                                if key in d and d.get(key) is not None:
+                                    val = d.get(key)
+                                    break
+                        ctk.CTkLabel(box, text=f"{label}: {val}", text_color=STYLE['texto_oscuro']).pack(anchor='w', padx=12, pady=2)
+                    except Exception:
+                        continue
+
+        ctk.CTkButton(frame, text='Cerrar', command=win.destroy, fg_color=STYLE['secundario'], hover_color=STYLE['secundario'], text_color=STYLE['surface']).pack(pady=(8,0))
+
+    def _export_catalogo_clientes(self):
+        """Exporta `data/Clientes.json` a un archivo Excel seleccionado por el usuario.
+        Cada domicilio del cliente se exporta como una fila separada con columnas:
+        RFC, CLIENTE, CALLE Y NO, COLONIA O POBLACION, MUNICIPIO O ALCADIA, CIUDAD O ESTADO, CP, SERVICIO
+        """
+        ruta = os.path.join(DATA_DIR, 'Clientes.json')
+        datos = []
+        try:
+            if os.path.exists(ruta):
+                with open(ruta, 'r', encoding='utf-8') as f:
+                    datos = json.load(f) or []
+        except Exception as e:
+            messagebox.showerror('Exportar', f'No se pudo leer Clientes.json: {e}')
+            return
+
+        if not datos:
+            messagebox.showinfo('Exportar', 'No hay datos para exportar.')
+            return
+
+        rows = []
+        for c in datos:
+            try:
+                rfc = c.get('RFC') or c.get('R.F.C') or ''
+                cliente = c.get('CLIENTE') or c.get('RAZÓN SOCIAL ') or c.get('RAZON SOCIAL') or ''
+                domicilios = c.get('DIRECCIONES') or c.get('DOMICILIOS') or c.get('DOMICILIO') or []
+                if not isinstance(domicilios, (list, tuple)):
+                    domicilios = []
+                if domicilios:
+                    for d in domicilios:
+                        try:
+                            # extraer campos con variantes de nombre
+                            def g(obj, *keys):
+                                for k in keys:
+                                    if isinstance(obj, dict) and k in obj and obj.get(k) is not None:
+                                        return obj.get(k)
+                                return ''
+                            calle = g(d, 'CALLE Y NO', 'CALLE_Y_NO', 'CALLE Y No', 'CALLEYNO')
+                            colonia = g(d, 'COLONIA O POBLACION', 'COLONIA_O_POBLACION', 'COLONIA')
+                            municipio = g(d, 'MUNICIPIO O ALCADIA', 'MUNICIPIO_O_ALCADIA', 'MUNICIPIO')
+                            ciudad = g(d, 'CIUDAD O ESTADO', 'CIUDAD_O_ESTADO', 'ESTADO')
+                            cp = g(d, 'CP', 'cp')
+                            servicio = g(d, 'SERVICIO', 'servicio')
+                            rows.append({
+                                'RFC': rfc,
+                                'CLIENTE': cliente,
+                                'CALLE Y NO': calle,
+                                'COLONIA O POBLACION': colonia,
+                                'MUNICIPIO O ALCADIA': municipio,
+                                'CIUDAD O ESTADO': ciudad,
+                                'CP': cp,
+                                'SERVICIO': servicio
+                            })
+                        except Exception:
+                            continue
+                else:
+                    rows.append({
+                        'RFC': rfc,
+                        'CLIENTE': cliente,
+                        'CALLE Y NO': '',
+                        'COLONIA O POBLACION': '',
+                        'MUNICIPIO O ALCADIA': '',
+                        'CIUDAD O ESTADO': '',
+                        'CP': '',
+                        'SERVICIO': ''
+                    })
+            except Exception:
+                continue
+
+        # Preguntar ubicación de guardado
+        try:
+            save_path = filedialog.asksaveasfilename(defaultextension='.xlsx', filetypes=[('Excel','*.xlsx')], title='Guardar catálogo de clientes')
+            if not save_path:
+                return
+            df = pd.DataFrame(rows, columns=['RFC','CLIENTE','CALLE Y NO','COLONIA O POBLACION','MUNICIPIO O ALCADIA','CIUDAD O ESTADO','CP','SERVICIO'])
+            try:
+                # Intentar ajustar anchos en Excel usando openpyxl si está disponible
+                with pd.ExcelWriter(save_path, engine='openpyxl') as writer:
+                    df.to_excel(writer, index=False, sheet_name='Catalogo')
+                    try:
+                        ws = writer.sheets['Catalogo']
+                        # Ajustar anchos de columna en base al contenido (simple heurística)
+                        from openpyxl.utils import get_column_letter
+                        for i, col in enumerate(df.columns, 1):
+                            col_letter = get_column_letter(i)
+                            try:
+                                max_len = max(df[col].astype(str).map(len).max(), len(col)) + 2
+                                ws.column_dimensions[col_letter].width = max_len
+                            except Exception:
+                                pass
+                    except Exception:
+                        pass
+            except Exception:
+                df.to_excel(save_path, index=False)
+
+            messagebox.showinfo('Exportar', f'Catálogo exportado correctamente a:\n{save_path}')
+        except Exception as e:
+            messagebox.showerror('Exportar', f'Error al exportar: {e}')
+
+    # Handlers para los subformularios de domicilios
+    def _on_change_num_domicilios(self, valor):
+        """Muestra u oculta los subformularios de domicilios según el número seleccionado."""
+        # deprecated (now using dynamic add/remove). keep for safety
+        return
+
+    def _add_domicilio(self):
+        """Añade un subformulario de domicilio si no supera el máximo."""
+        try:
+            if len(self.dom_fields) >= self.max_domicilios:
+                messagebox.showwarning('Máximo', f'Solo se permiten hasta {self.max_domicilios} domicilios')
+                return
+            frm, fields = self._crear_domicilio_subform(self.dom_container, len(self.dom_fields))
+            self.dom_fields.append({'frame': frm, 'fields': fields})
+            try:
+                self.lbl_dom_count.configure(text=f"{len(self.dom_fields)} domicilios")
+            except Exception:
+                pass
+        except Exception:
+            pass
+
+    def _remove_domicilio_by_frame(self, frame):
+        """Elimina el subform asociado al frame y actualiza el contador."""
+        try:
+            found = None
+            for rec in self.dom_fields:
+                if rec.get('frame') == frame:
+                    found = rec
+                    break
+            if not found:
+                return
+            try:
+                found.get('frame').destroy()
+            except Exception:
+                pass
+            try:
+                self.dom_fields.remove(found)
+            except Exception:
+                pass
+            try:
+                self.lbl_dom_count.configure(text=f"{len(self.dom_fields)} domicilios")
+            except Exception:
+                pass
         except Exception:
             pass
 
@@ -5795,6 +6589,8 @@ class SistemaDictamenesVC(ctk.CTk):
         try:
             if not datos_tabla:
                 print(f"⚠️ No hay datos de folios para guardar en la visita {folio_visita}")
+
+            
                 return False
             
             # Preparar datos para el archivo JSON
@@ -10215,6 +11011,110 @@ class SistemaDictamenesVC(ctk.CTk):
             self.pegado_status_label.configure(text=text, text_color=color)
             try:
                 self.pegado_path_loaded_var.set(bool(loaded))
+            except Exception:
+                pass
+        except Exception:
+            pass
+# Método auxiliar: auto-ajustar columnas del Treeview
+    def _auto_resize_tree_columns(self, tree):
+        """Ajusta el ancho de las columnas del Treeview según el contenido y encabezados."""
+        try:
+            font_obj = tkfont.Font()
+        except Exception:
+            try:
+                font_obj = tkfont.Font(family="Inter", size=10)
+            except Exception:
+                font_obj = None
+
+        for col in tree["columns"]:
+            try:
+                # empezar con el ancho del encabezado
+                max_w = font_obj.measure(col) + 12 if font_obj else 100
+            except Exception:
+                max_w = 100
+            for iid in tree.get_children():
+                try:
+                    val = tree.set(iid, col)
+                    w = font_obj.measure(str(val)) + 12 if font_obj else 100
+                    if w > max_w:
+                        max_w = w
+                except Exception:
+                    continue
+            # Establecer un mínimo razonable
+            if max_w < 80:
+                max_w = 80
+            try:
+                tree.column(col, width=max_w)
+            except Exception:
+                pass
+
+    def _adjust_clientes_columns(self):
+        """Ajusta anchos de columnas en `self.tree_clientes` para asegurar que
+        la columna 'ACCIONES' permanezca visible dentro del ancho del contenedor.
+        Se distribuye el espacio disponible entre las otras columnas con mínimos.
+        """
+        try:
+            tree = getattr(self, 'tree_clientes', None)
+            cont = getattr(self, 'tree_clientes_container', None)
+            if not tree or not cont:
+                return
+            total_w = cont.winfo_width() or tree.winfo_width()
+            if not total_w or total_w < 100:
+                return
+
+            padding = 8
+            acc_min = 120
+            cols = list(tree['columns'])
+            if 'ACCIONES' not in cols:
+                return
+            other_cols = [c for c in cols if c != 'ACCIONES']
+
+            # mínimos sugeridos por columna
+            desired_mins = {
+                'RFC': 90,
+                'CLIENTE': 200,
+                'NÚMERO DE CONTRATO': 140,
+                'ACTIVIDAD': 100,
+                'SERVICIO': 100
+            }
+
+            # espacio disponible para las columnas distintas de ACCIONES
+            available = max(50, total_w - acc_min - padding)
+
+            # suma de mínimos (solo para las columnas presentes)
+            sum_mins = sum(desired_mins.get(c, 80) for c in other_cols)
+
+            new_widths = {}
+            if sum_mins <= available:
+                # Asignar al menos el mínimo y expandir CLIENTE si sobra
+                extra = available - sum_mins
+                for c in other_cols:
+                    base = desired_mins.get(c, 80)
+                    add = 0
+                    if c == 'CLIENTE' and extra > 0:
+                        add = extra
+                    new_widths[c] = max(60, int(base + add))
+            else:
+                # No hay espacio suficiente: escalar proporcionalmente pero respetar un mínimo duro
+                min_hard = 60
+                total_weight = sum(desired_mins.get(c, 80) for c in other_cols)
+                for c in other_cols:
+                    weight = desired_mins.get(c, 80)
+                    w = int(max(min_hard, available * (weight / total_weight)))
+                    new_widths[c] = w
+
+            # Aplicar anchos calculados
+            try:
+                for c, w in new_widths.items():
+                    try:
+                        tree.column(c, width=w)
+                    except Exception:
+                        pass
+                # ACCIONES fijo al mínimo
+                try:
+                    tree.column('ACCIONES', width=acc_min)
+                except Exception:
+                    pass
             except Exception:
                 pass
         except Exception:

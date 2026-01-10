@@ -32,9 +32,10 @@
       }
     ]
   },
+
   {
     "RFC": "24049UCS000023",
-    "RAZÓN SOCIAL ": "CHPS MÉXICO SA DE CV",
+    "CLIENTE": "CHPS MÉXICO SA DE CV",
     "NÚMERO_DE_CONTRATO": "24049UCS000023",
     "ACTIVIDAD": "ACTIVO",
     "DIRECCIONES": [
@@ -72,58 +73,82 @@
       }
     ]
   },
+
   {
     "RFC": "PIM810710R32",
     "CLIENTE": "MEXICO PRODUCTOS INTERNACIONALES MABE SA DE CV",
     "NÚMERO_DE_CONTRATO": "25049UCS000011",
     "ACTIVIDAD": "ACTIVO",
     "CURP": "",
-    "CALLE Y NO": "BLVD. ATLIXCAYOTL 3192, PISO 3 (303 - 304)",
-    "COLONIA O POBLACION": "SAN MARTINITO",
-    "MUNICIPIO O ALCADIA": "SAN ANDRES CHOLULA",
-    "CIUDAD O ESTADO": "Puebla",
-    "CP": 72825,
-    "SERVICIO": "DICTAMEN"
+    "DIRECCIONES":[
+      {
+          "CALLE Y NO": "BLVD. ATLIXCAYOTL 3192, PISO 3 (303 - 304)",
+          "COLONIA O POBLACION": "SAN MARTINITO",
+          "MUNICIPIO O ALCADIA": "SAN ANDRES CHOLULA",
+          "CIUDAD O ESTADO": "Puebla",
+          "CP": 72825,
+          "SERVICIO": "DICTAMEN"
+      }
+    ]
+    
   },
+
   {
     "RFC": "SGS220323LU2",
     "CLIENTE": "SELECCIONES GILBERT SIORDIA",
     "NÚMERO_DE_CONTRATO": "25049UCS000006",
     "ACTIVIDAD": "NUEVO",
     "CURP": "",
-    "CALLE Y NO": "TINOCO Y PALACIO 2",
-    "COLONIA O POBLACION": "REFORMA",
-    "MUNICIPIO O ALCADIA": "OAXACA",
-    "CIUDAD O ESTADO": "OAXACA",
-    "CP": 68050,
-    "SERVICIO": "CONSTANCIA"
+    "DIRECCIONES": [
+      {
+          "CALLE Y NO": "TINOCO Y PALACIO 2",
+          "COLONIA O POBLACION": "REFORMA",
+          "MUNICIPIO O ALCADIA": "OAXACA",
+          "CIUDAD O ESTADO": "OAXACA",
+          "CP": 68050,
+          "SERVICIO": "CONSTANCIA"
+      }
+    ]
   },
+
   {
     "RFC": "IBB060425DI8",
     "CLIENTE": "SEAL AND FOAM DE MEXICO S DE RL DE CV",
     "NÚMERO_DE_CONTRATO": "22049UCS000004",
     "ACTIVIDAD": "ACTIVO",
     "CURP": "",
-    "CALLE Y NO": "CALLE DE LOS PINOS S/N BODEGA 1 Y 2",
-    "COLONIA O POBLACION": "LA ERA",
-    "MUNICIPIO O ALCADIA": "TEOLOYUCAN",
-    "CIUDAD O ESTADO": "Estado de México",
-    "CP": 54786,
-    "SERVICIO": "DICTAMEN"
+    "DIRECCIONES":[
+      {
+          "CALLE Y NO": "CALLE DE LOS PINOS S/N BODEGA 1 Y 2",
+          "COLONIA O POBLACION": "LA ERA",
+          "MUNICIPIO O ALCADIA": "TEOLOYUCAN",
+          "CIUDAD O ESTADO": "Estado de México",
+          "CP": 54786,
+          "SERVICIO": "DICTAMEN"
+      }
+    ]
+    
   },
+
   {
     "RFC": "AIM201208C5A",
     "CLIENTE": "SAN YOU SA DE CV",
     "NÚMERO_DE_CONTRATO": "25049UCS000001",
     "ACTIVIDAD": "NUEVO",
     "CURP": "",
-    "CALLE Y NO": "PRESIDENTE MASARIK 513",
-    "COLONIA O POBLACION": "POLANCO II SECCION",
-    "MUNICIPIO O ALCADIA": "MIGUEL HIDALGO",
-    "CIUDAD O ESTADO": "Ciudad de México",
-    "CP": 11530,
-    "SERVICIO": "DICTAMEN"
+    "DIRECCIONES": [
+      {
+          "CALLE Y NO": "PRESIDENTE MASARIK 513",
+          "COLONIA O POBLACION": "POLANCO II SECCION",
+          "MUNICIPIO O ALCADIA": "MIGUEL HIDALGO",
+          "CIUDAD O ESTADO": "Ciudad de México",
+          "CP": 11530,
+          "SERVICIO": "DICTAMEN"
+      }
+    ]
+    
   },
+
   {
     "RFC": "GEP1202175Q6",
     "CLIENTE": "IMPORTADORA BBBMEX S DE RL DE CV",
@@ -149,6 +174,7 @@
       }
     ]
   },
+
   {
     "RFC": "SSI180409GN7",
     "CLIENTE": "FLORA FOOD SALES MÉXICO S DE RL DE CV",
@@ -174,32 +200,43 @@
       }
     ]
   },
+
   {
     "RFC": "DIC881125G65",
     "CLIENTE": "DICEX SA DE CV",
     "NÚMERO_DE_CONTRATO": "20049UCS000069",
     "ACTIVIDAD": "ACTIVO",
     "CURP": "",
-    "CALLE Y NO": "Belisario Domínguez",
-    "COLONIA O POBLACION": "Obispado",
-    "MUNICIPIO O ALCADIA": "Monterrey",
-    "CIUDAD O ESTADO": "Nuevo León",
-    "CP": 64060,
-    "SERVICIO": "CONSTANCIA"
+    "DIRECCIONES": [
+      {
+          "CALLE Y NO": "Belisario Domínguez",
+          "COLONIA O POBLACION": "Obispado",
+          "MUNICIPIO O ALCADIA": "Monterrey",
+          "CIUDAD O ESTADO": "Nuevo León",
+          "CP": 64060,
+          "SERVICIO": "CONSTANCIA"
+      }
+    ]
   },
+
   {
     "RFC": "AAP180712HQ6",
     "CLIENTE": "ALIMAR ACUACULTURA Y PESCA SA DE CV",
     "NÚMERO_DE_CONTRATO": "23049UCS000005",
     "ACTIVIDAD": "ACTIVO",
     "CURP": "",
-    "CALLE Y NO": "Avenida Oxígeno No. 28 Bodega No. 1",
-    "COLONIA O POBLACION": "Ciudad Industrial III",
-    "MUNICIPIO O ALCADIA": "Villahermosa",
-    "CIUDAD O ESTADO": "Tabasco",
-    "CP": 86010,
-    "SERVICIO": "DICTAMEN"
+    "DIRECCIONES": [
+      {
+          "CALLE Y NO": "Avenida Oxígeno No. 28 Bodega No. 1",
+          "COLONIA O POBLACION": "Ciudad Industrial III",
+          "MUNICIPIO O ALCADIA": "Villahermosa",
+          "CIUDAD O ESTADO": "Tabasco",
+          "CP": 86010,
+          "SERVICIO": "DICTAMEN"
+      }
+    ]
   },
+
   {
     "RFC": "ACA18073096A",
     "CLIENTE": "VECEGEA SC",
@@ -265,6 +302,7 @@
     "CP": 54020,
     "SERVICIO": "DICTAMEN "
   },
+
   {
     "RFC": "AUT230904JAA",
     "CLIENTE": "AUTRICA COMPANY SA DE CV",
@@ -290,6 +328,7 @@
       }
     ]
   },
+
   {
     "RFC": "BAS0108275N9",
     "CLIENTE": "BASECO SAPI DE CV",
@@ -331,6 +370,7 @@
       }
     ]
   },
+
   {
     "RFC": "BST1410212R8",
     "CLIENTE": "BLUE STRIPES SA DE CV",
@@ -372,6 +412,7 @@
       }
     ]
   },
+
   {
     "RFC": "CBI170127RDA",
     "CLIENTE": "CASCADA BIENESTAR SAPI DE CV",
@@ -405,71 +446,100 @@
       }
     ]
   },
+
   {
     "RFC": "CCE520101TC7",
     "CLIENTE": "THE COCA COLA EXPORT CORPORATION",
     "NÚMERO_DE_CONTRATO": "21049UCS000016",
     "ACTIVIDAD": "ACTIVO",
     "CURP": "",
-    "CALLE Y NO": "Rubén Dario 115",
-    "COLONIA O POBLACION": "Colonia Bosque de Chapultepec",
-    "MUNICIPIO O ALCADIA": "Miguel Hidalg",
-    "CIUDAD O ESTADO": "CIUDAD DE MEXICO",
-    "CP": 11580,
-    "SERVICIO": "DICTAMEN"
+    "DIRECCIONES": [
+      {
+        "CALLE Y NO": "Rubén Dario 115",
+        "COLONIA O POBLACION": "Colonia Bosque de Chapultepec",
+        "MUNICIPIO O ALCADIA": "Miguel Hidalg",
+        "CIUDAD O ESTADO": "CIUDAD DE MEXICO",
+        "CP": 11580,
+        "SERVICIO": "DICTAMEN"
+      }
+    ]
+    
   },
+
   {
     "RFC": "CME961115NRA",
     "CLIENTE": "CEYS MEXICANA SA DE CV",
     "NÚMERO_DE_CONTRATO": "21049UCS000020",
     "ACTIVIDAD": "ACTIVO",
     "CURP": "",
-    "CALLE Y NO": "AUTOPISTA MEXICO-QUERETARO 26.5 KM",
-    "COLONIA O POBLACION": "LOMA BOULEVARES",
-    "MUNICIPIO O ALCADIA": "Tlalnepantla de Baz",
-    "CIUDAD O ESTADO": "Estado de México",
-    "CP": 54020,
-    "SERVICIO": "DICTAMEN"
+    "DIRECCIONES": [
+      {
+          "CALLE Y NO": "AUTOPISTA MEXICO-QUERETARO 26.5 KM",
+          "COLONIA O POBLACION": "LOMA BOULEVARES",
+          "MUNICIPIO O ALCADIA": "Tlalnepantla de Baz",
+          "CIUDAD O ESTADO": "Estado de México",
+          "CP": 54020,
+          "SERVICIO": "DICTAMEN"
+      }
+    ]
+    
   },
+
   {
     "RFC": "CMO990329RZ6",
     "CLIENTE": "COMERCIAL MOFEG SA DE CV",
     "ACTIVIDAD": "ACTIVO",
     "NÚMERO_DE_CONTRATO": "20049UCS000064",
     "CURP": "",
-    "CALLE Y NO": "FRAILES 180",
-    "COLONIA O POBLACION": "LA DURAZNERA",
-    "MUNICIPIO O ALCADIA": "SAN PEDRO TLAQUEPAQUE",
-    "CIUDAD O ESTADO": "JALISCO",
-    "CP": 47829,
-    "SERVICIO": "DICTAMEN"
+    "DIRECCIONES":[
+      {
+          "CALLE Y NO": "FRAILES 180",
+          "COLONIA O POBLACION": "LA DURAZNERA",
+          "MUNICIPIO O ALCADIA": "SAN PEDRO TLAQUEPAQUE",
+          "CIUDAD O ESTADO": "JALISCO",
+          "CP": 47829,
+          "SERVICIO": "DICTAMEN"
+      }
+    ]
+    
   },
+
   {
     "RFC": "CRA-940715-H52",
     "CLIENTE": "COMERCIALIZADORA DE RODAMIENTOS Y AUTOPARTES SA DE CV",
     "NÚMERO_DE_CONTRATO": "20049UCS000094",
     "ACTIVIDAD": "ACTIVO",
     "CURP": "",
-    "CALLE Y NO": "Bernardo Reyes Nte. 4329",
-    "COLONIA O POBLACION": "Niño Artillero",
-    "MUNICIPIO O ALCADIA": "Nuevo Leon",
-    "CIUDAD O ESTADO": "Monterrey",
-    "CP": 64280,
-    "SERVICIO": "DICTAMEN"
+    "DIRECCIONES":[
+      {
+          "CALLE Y NO": "Bernardo Reyes Nte. 4329",
+          "COLONIA O POBLACION": "Niño Artillero",
+          "MUNICIPIO O ALCADIA": "Nuevo Leon",
+          "CIUDAD O ESTADO": "Monterrey",
+          "CP": 64280,
+          "SERVICIO": "DICTAMEN"
+      }
+    ]
   },
+
   {
     "RFC": "CRM030626EY5",
     "CLIENTE": "CAJAS Y REMOLQUES MUÑOZ SA DE CV",
     "ACTIVIDAD": "ACTIVO",
     "NÚMERO_DE_CONTRATO": "25049UCS000004",
     "CURP": "",
-    "CALLE Y NO": "Avenida los pinos 4",
-    "COLONIA O POBLACION": "El Lencero",
-    "MUNICIPIO O ALCADIA": "Emiliano Zapata",
-    "CIUDAD O ESTADO": "Veracruz",
-    "CP": 91640,
-    "SERVICIO": "DICTAMEN"
+    "DIRECCIONES":[
+      {
+          "CALLE Y NO": "Avenida los pinos 4",
+          "COLONIA O POBLACION": "El Lencero",
+          "MUNICIPIO O ALCADIA": "Emiliano Zapata",
+          "CIUDAD O ESTADO": "Veracruz",
+          "CP": 91640,
+          "SERVICIO": "DICTAMEN"
+      }
+    ]
   },
+
   {
     "RFC": "DEA1807195ZA",
     "CLIENTE": "DISTRIBUCIÓN EUROPEA AA SRL DE CV",
@@ -521,6 +591,7 @@
     "CP": 36514,
     "SERVICIO": "DICTAMEN"
   },
+
   {
     "RFC": "DSD130612MK2",
     "CLIENTE": "DEIMOS SERVICIOS DE CONSULTORIA SC",
@@ -562,6 +633,7 @@
       }
     ]
   },
+
   {
     "RFC": "DSS060705UA5",
     "CLIENTE": "EL DORADO SISTEMAS DE SINERGIA SA DE CV",
@@ -575,6 +647,7 @@
     "CP": 83299,
     "SERVICIO": "DICTAMEN "
   },
+
   {
     "RFC": "ECM141105GC8",
     "CLIENTE": "EAST COAST MODA  SA DE CV",
@@ -616,6 +689,7 @@
       }
     ]
   },
+
   {
     "RFC": "FME0108226QA",
     "CLIENTE": "FERRAGAMO MEXICO S DE RL DE CV",
@@ -649,6 +723,7 @@
       }
     ]
   },
+
   {
     "RFC": "GAM570702EH2",
     "CLIENTE": "GRUPO AZOR MÉXICO SAPI DE CV",
@@ -661,6 +736,7 @@
     "CP": 54090,
     "SERVICIO": "DICTAMEN"
   },
+
   {
     "RFC": "GGU060301LX4",
     "CLIENTE": "GRUPO GUESS S DE RL DE CV",
@@ -702,6 +778,7 @@
       }
     ]
   },
+
   {
     "RFC": "GKE0911116J5",
     "CLIENTE": "GRUPO KEVALA SA DE CV",
@@ -726,6 +803,7 @@
     "CP": 50233,
     "SERVICIO": "CONSTANCIA"
   },
+
   {
     "RFC": "HMM9612234Y9",
     "CLIENTE": "HERMAN MILLER MEXICO SA DE CV",
@@ -751,6 +829,7 @@
       }
     ]
   },
+
   {
     "RFC": "HUT941102HPA",
     "CLIENTE": "HUT INTERNACIONAL SA DE CV",
@@ -764,6 +843,7 @@
     "CP": "04530",
     "SERVICIO": "CONSTANCIA "
   },
+
   {
     "RFC": "INF090331SZ2",
     "CLIENTE": "I NOSTRI FRATELLI S DE RL DE CV",
@@ -805,6 +885,7 @@
       }
     ]
   },
+
   {
     "RFC": "IPL020125FN6",
     "CLIENTE": "INTER PRICE LOGISTICA SA DE CV",
@@ -830,6 +911,7 @@
       }
     ]
   },
+
   {
     "RFC": "LME0305095Y8",
     "CLIENTE": "LEDERY MEXICO SA DE CV",
@@ -871,6 +953,7 @@
       }
     ]
   },
+
   {
     "RFC": "MAP001218US9",
     "CLIENTE": "MAPERGO SA DE CV",
@@ -895,6 +978,7 @@
       }
     ]
   },
+
   {
     "RFC": "MOS150123565",
     "CLIENTE": "MULTIBRAND OUTLET STORES SAPI DE CV",
@@ -937,6 +1021,7 @@
       }
     ]
   },
+
   {
     "RFC": "MRA061023142",
     "CLIENTE": "MODA RAPSODIA SA DE CV",
@@ -978,6 +1063,7 @@
       }
     ]
   },
+
   {
     "RFC": "MWC1512213K5",
     "CLIENTE": "MEXICO WINE CONSULTING SA DE CV",
@@ -1118,7 +1204,6 @@
     "CP": 54769,
     "SERVICIO": "DICTAMEN"
   },
-
   {
     "RFC": "RME220426NV6",
     "CLIENTE": "REALTURF MEXICO SAPI DE CV",
@@ -1166,6 +1251,7 @@
       }
     ]
   },
+
   {
     "RFC": "RHE1105123L3",
     "CLIENTE": "RIGO MEXICO S DE RL DE CV",
@@ -1179,6 +1265,7 @@
     "CP": 94540,
     "SERVICIO": "DICTAMEN"
   },
+
   {
     "RFC": "RST141127478",
     "CLIENTE": "RED STRIPES SA DE CV",
@@ -1219,6 +1306,7 @@
       }
     ]
   },
+
   {
     "RFC": "SCO0209188N9",
     "CLIENTE": "SINAX CORPORATION SA DE CV",
@@ -1349,6 +1437,7 @@
     "CP": 99056,
     "SERVICIO": "DICTAMEN"
   },
+
   {
     "RFC": "TEN2008275A0",
     "CLIENTE": "TENKABEST SA DE CV",
@@ -1366,6 +1455,7 @@
       }
     ]
   },
+
   {
     "RFC": "TLM050922MA5",
     "CLIENTE": "TEROMA SA DE CV",
@@ -1405,6 +1495,7 @@
     "CP": 38180,
     "SERVICIO": "DICTAMEN"
   },
+
   {
     "RFC": "TPR1501277I5",
     "CLIENTE": "TH PRO S DE RL DE CV",
@@ -1429,6 +1520,7 @@
       }
     ]
   },
+
   {
     "RFC": "TRO050210QS0",
     "CLIENTE": "TROPICOSMETICOS SA DE CV",
@@ -1468,6 +1560,7 @@
     "CP": 54605,
     "SERVICIO": "DICTAMEN"
   },
+
   {
     "RFC": "UMA011214255",
     "CLIENTE": "UNILEVER MANUFACTURERA S DE RL DE CV",
@@ -1509,6 +1602,7 @@
       }
     ]
   },
+
   {
     "RFC": "VACY9212195GA",
     "CLIENTE": "YAEL EDUARDO VARGAS CID",
@@ -1528,6 +1622,7 @@
     "NÚMERO_DE_CONTRATO": "25049UCS000003",
     "ACTIVIDAD": "NUEVO",
     "CURP": "",
+
     "CALLE Y NO": "CIRCUITO FRESNILLO NORTE 6",
     "COLONIA O POBLACION": "PARQUE INDUSTRIAL FRESNILLO",
     "MUNICIPIO O ALCADIA": "FRESNILLO",
@@ -1535,45 +1630,61 @@
     "CP": 99056,
     "SERVICIO": "DICTAMEN"
   },
+
   {
     "RFC": "LOG960102UK8",
     "CLIENTE": "COMPAÑIA LOGISTICA S DE RL DE CV",
     "NÚMERO_DE_CONTRATO": "23049UCS000013",
     "ACTIVIDAD": "ACTIVO",
     "CURP": "",
-    "CALLE Y NO": "AV. MAXIMINO MONTIEL OLMOS MANZANA 18 LOTE 2",
-    "COLONIA O POBLACION": "PARQUE INDUSTRIAL ATLACOMULCO",
-    "MUNICIPIO O ALCADIA": "ATLACOMULCO",
-    "CIUDAD O ESTADO": "ESTADO DE MEXICO",
-    "CP": 50450,
-    "SERVICIO": "DICTAMEN"
+    "DIRECCIONES":[
+      {
+        "CALLE Y NO": "AV. MAXIMINO MONTIEL OLMOS MANZANA 18 LOTE 2",
+        "COLONIA O POBLACION": "PARQUE INDUSTRIAL ATLACOMULCO",
+        "MUNICIPIO O ALCADIA": "ATLACOMULCO",
+        "CIUDAD O ESTADO": "ESTADO DE MEXICO",
+        "CP": 50450,
+        "SERVICIO": "DICTAMEN"
+      }
+    ]   
   },
+
   {
     "RFC": "GPL860521FW8",
     "CLIENTE": "GANADEROS PRODUCTORES DE LECHE PURA SAPI DE CV",
     "NÚMERO_DE_CONTRATO": "25049UCS000018",
     "ACTIVIDAD": "ACTIVO",
     "CURP": "",
-    "CALLE Y NO": "Autopista México – Querétaro km. 34.7",
-    "COLONIA O POBLACION": "Industrial Cuamatla",
-    "MUNICIPIO O ALCADIA": "Cuautitlán Izcalli",
-    "CIUDAD O ESTADO": "Estado de México",
-    "CP": 54720,
-    "SERVICIO": "CONSTANCIA"
+    "DIRECCIONES": [
+      {
+        "CALLE Y NO": "Autopista México – Querétaro km. 34.7",
+        "COLONIA O POBLACION": "Industrial Cuamatla",
+        "MUNICIPIO O ALCADIA": "Cuautitlán Izcalli",
+        "CIUDAD O ESTADO": "Estado de México",
+        "CP": 54720,
+        "SERVICIO": "CONSTANCIA"
+      }
+    ]
   },
+
   {
     "RFC": "25049UCS000016",
     "CLIENTE": "GRUPO PEREDO SA DE CV",
     "NÚMERO_DE_CONTRATO": "GPE000210AH8",
     "ACTIVIDAD": "ACTIVO",
     "CURP": "",
-    "CALLE Y NO": "Fortunato Ronzon 52",
-    "COLONIA O POBLACION": "Pacho Viejo",
-    "MUNICIPIO O ALCADIA": "Coatepec",
-    "CIUDAD O ESTADO": "Veracruz",
-    "CP": 91602,
-    "SERVICIO": "DICTAMEN"
+    "DIRECCIONES": [
+      {
+        "CALLE Y NO": "Fortunato Ronzon 52",
+        "COLONIA O POBLACION": "Pacho Viejo",
+        "MUNICIPIO O ALCADIA": "Coatepec",
+        "CIUDAD O ESTADO": "Veracruz",
+        "CP": 91602,
+        "SERVICIO": "DICTAMEN"
+      }
+    ]
   },
+
   {
     "RFC": "24049UCS000016",
     "CLIENTE": "LT FASHION SA DE CV",
@@ -1615,4 +1726,5 @@
       }
     ]
   }
+
 ]

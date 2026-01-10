@@ -1,5 +1,15 @@
 {
   "ema": [],
-  "anual": [],
-  "generated_at": "2026-01-09T13:56:57.713696"
+  "anual": [
+    {
+      "FECHA_VISITA": "09/01/2026",
+      "FOLIO_VISITA": "CP000001",
+      "CLIENTE": "BANDANA PRODUCTS S DE RL DE CV",
+      "SOLICITUD": "",
+      "FOLIOS_USADOS": "",
+      "NUM_SOLICITUDES": "",
+      "NORMAS": ""
+    }
+  ],
+  "generated_at": "2026-01-09T20:44:17.846120"
 }
