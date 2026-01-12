@@ -4377,10 +4377,12 @@ class SistemaDictamenesVC(ctk.CTk):
                 # en caso de errores en la validación, continuar con confirmación normal
                 pass
 
+            tipo_sel = (self.combo_tipo_documento.get().strip() if hasattr(self, 'combo_tipo_documento') else 'Dictamen')
+            titulo_confirm = f"Generar {tipo_sel}s" if tipo_sel else "Generar Documentos"
             confirmacion = messagebox.askyesno(
-                "Generar Dictámenes",
-                f"¿Está seguro de que desea generar los dictámenes PDF?\n\n"
-                f"📄 Archivo: {os.path.basename(self.archivo_json_generado)}\n"
+                titulo_confirm,
+                f"¿Está seguro de que desea generar {tipo_sel.lower()}s?\n\n"
+                f"📄 Archivo: {os.path.basename(self.archivo_json_generado) if getattr(self, 'archivo_json_generado', None) else 'N/A'}\n"
                 f"👤 Cliente: {self.cliente_seleccionado['CLIENTE']}\n"
                 f"📋 RFC: {self.cliente_seleccionado.get('RFC', 'No disponible')}\n"
                 f"📊 Total de folios: {len(folios_ordenados)}"
@@ -4445,6 +4447,308 @@ class SistemaDictamenesVC(ctk.CTk):
             if not self.winfo_exists():
                 return
                 
+            # Seleccionar flujo según tipo de documento
+            tipo_sel = (self.combo_tipo_documento.get().strip() if hasattr(self, 'combo_tipo_documento') else 'Dictamen')
+            tipo_upper = tipo_sel.upper() if tipo_sel else 'DICTAMEN'
+
+            if 'CONSTANCIA' in tipo_upper:
+                # Generar JSONs de constancias en data/Constancias (siempre)
+                # Para los PDFs: abrir diálogo para que el usuario elija carpeta destino (si cancela: no se guardan PDFs)
+                try:
+                    import importlib.util, time
+                    const_file = os.path.join(BASE_DIR, 'Documentos Inspeccion', 'Constancia.py')
+                    if os.path.exists(const_file):
+                        spec = importlib.util.spec_from_file_location('Constancia', const_file)
+                        if spec and getattr(spec, 'loader', None):
+                            mod = importlib.util.module_from_spec(spec)
+                            sys.modules['Constancia'] = mod
+                            spec.loader.exec_module(mod)
+                        else:
+                            mod = None
+                    else:
+                        mod = None
+                except Exception:
+                    mod = None
+
+                created = []
+                errores = []
+                try:
+                    tabla_path = os.path.join(DATA_DIR, 'tabla_de_relacion.json')
+                    tabla_data = []
+                    if os.path.exists(tabla_path):
+                        with open(tabla_path, 'r', encoding='utf-8') as tf:
+                            tabla_data = json.load(tf) or []
+
+                    folios_sel = set(getattr(self, 'folios_utilizados_actual', []) or [])
+                    filas = []
+                    if tabla_data:
+                        for r in tabla_data:
+                            try:
+                                f = r.get('FOLIO')
+                                if f is None:
+                                    filas.append(r)
+                                    continue
+                                if folios_sel:
+                                    if (str(f).isdigit() and int(f) in folios_sel) or (str(f) in map(str, folios_sel)):
+                                        filas.append(r)
+                                else:
+                                    filas.append(r)
+                            except Exception:
+                                continue
+
+                    grupos = {}
+                    for r in filas:
+                        lista = r.get('LISTA') or r.get('Lista') or r.get('lista') or '0'
+                        grupos.setdefault(str(lista), []).append(r)
+
+                    try:
+                        sys.path.append(BASE_DIR)
+                        import generador_dictamen as gd
+                        limpiar_nombre = getattr(gd, 'limpiar_nombre_archivo', lambda n: n.replace('/', '_'))
+                    except Exception:
+                        limpiar_nombre = lambda n: n.replace('/', '_')
+
+                    ConstGen = getattr(mod, 'ConstanciaPDFGenerator', None) if mod is not None else None
+
+                    # Directorio para JSONs (siempre dentro de data/Constancias)
+                    out_base_json = os.path.join(DATA_DIR, 'Constancias')
+                    os.makedirs(out_base_json, exist_ok=True)
+
+                    # Solicitar al usuario la carpeta destino para los PDFs (se ejecuta en hilo UI)
+                    selected = {'done': False, 'path': None}
+                    def _askdir():
+                        try:
+                            p = filedialog.askdirectory(initialdir=DATA_DIR, title='Seleccionar carpeta destino para Constancias')
+                        except Exception:
+                            p = ''
+                        selected['path'] = p or ''
+                        selected['done'] = True
+
+                    # Llamar en thread principal
+                    if self.winfo_exists():
+                        self.after(0, _askdir)
+
+                    # esperar hasta que el usuario seleccione o cancele (timeout razonable)
+                    timeout = 60.0
+                    waited = 0.0
+                    while not selected['done'] and waited < timeout:
+                        time.sleep(0.05)
+                        waited += 0.05
+
+                    out_base_pdf = selected['path'] or None
+
+                    # Crear carpeta raíz timestamp una sola vez para todas las listas
+                    carpeta_raiz = None
+                    if out_base_pdf:
+                        dt_now_root = datetime.now()
+                        carpeta_raiz = os.path.join(out_base_pdf, f"Constancia_{dt_now_root.strftime('%Y%m%d_%H%M%S')}")
+                        os.makedirs(carpeta_raiz, exist_ok=True)
+
+                    for lista, filas_grp in grupos.items():
+                        try:
+                            solicitud_raw = ''
+                            if filas_grp:
+                                solicitud_raw = str(filas_grp[0].get('SOLICITUD') or '').strip()
+                            sol_no = ''
+                            sol_year = ''
+                            if '/' in solicitud_raw:
+                                parts = solicitud_raw.split('/')
+                                sol_no = parts[0].strip()
+                                sol_year = parts[1].strip() if len(parts) > 1 else ''
+                            else:
+                                sol_no = solicitud_raw
+
+                            folio_vis = (self.entry_folio_visita.get().strip() if hasattr(self, 'entry_folio_visita') else '') or str(filas_grp[0].get('FOLIO',''))
+                            fecha_em = (self.entry_fecha_termino.get().strip() if hasattr(self, 'entry_fecha_termino') else '') or datetime.now().strftime('%d/%m/%Y')
+                            cliente_name = self.cliente_seleccionado['CLIENTE'] if getattr(self, 'cliente_seleccionado', None) else ''
+                            rfc = (self.cliente_seleccionado.get('RFC','') if getattr(self, 'cliente_seleccionado', None) else '')
+                            no_contrato = (self.cliente_seleccionado.get('NÚMERO_DE_CONTRATO','') if getattr(self, 'cliente_seleccionado', None) else '')
+
+                            # Resolver norma y nombre de la norma consultando data/Normas.json cuando sea posible
+                            norma_raw = filas_grp[0].get('NORMA','') or filas_grp[0].get('NORMA UVA','') or filas_grp[0].get('NORMA_UVA','') or ''
+                            norma_val = str(norma_raw).strip()
+                            nombre_norma = ''
+                            try:
+                                normas_path = os.path.join(DATA_DIR, 'Normas.json')
+                                if os.path.exists(normas_path):
+                                    with open(normas_path, 'r', encoding='utf-8') as nf:
+                                        normas_raw = json.load(nf) or []
+                                        # soportar dos formatos: lista de objetos [{"NOM":..., "NOMBRE":...}] o dict {"NOM-...": {...}}
+                                        if isinstance(normas_raw, list):
+                                            for entry in normas_raw:
+                                                try:
+                                                    nom_code = (entry.get('NOM') or entry.get('NOMINA') or '')
+                                                    nom_name = entry.get('NOMBRE') or entry.get('NOMBRE DE NORMA') or ''
+                                                    if not nom_code:
+                                                        continue
+                                                    if norma_val and norma_val.isdigit():
+                                                        if norma_val.zfill(3) in nom_code or nom_code in norma_val:
+                                                            norma_val = nom_code
+                                                            nombre_norma = nom_name
+                                                            break
+                                                    else:
+                                                        if norma_val and (norma_val in nom_code or nom_code in norma_val):
+                                                            norma_val = nom_code
+                                                            nombre_norma = nom_name
+                                                            break
+                                                except Exception:
+                                                    # continuar con la siguiente entrada si hay datos inesperados
+                                                    continue
+                                            # fallback: si no se encontró y norma_val coincide exactamente con algún NOM
+                                            if not nombre_norma:
+                                                for entry in normas_raw:
+                                                    nom_code = entry.get('NOM') or ''
+                                                    if nom_code == norma_val:
+                                                        nombre_norma = entry.get('NOMBRE') or ''
+                                                        break
+                                        elif isinstance(normas_raw, dict):
+                                            normas_map = normas_raw
+                                            if norma_val and norma_val.isdigit():
+                                                search = norma_val.zfill(3)
+                                                for k, v in normas_map.items():
+                                                    if search in k or k in norma_val:
+                                                        if isinstance(v, dict):
+                                                            nombre_norma = v.get('NOMBRE', '') or v.get('NOMBRE DE NORMA', '') or ''
+                                                        else:
+                                                            nombre_norma = str(v)
+                                                        norma_val = k
+                                                        break
+                                            else:
+                                                for k, v in normas_map.items():
+                                                    if norma_val and (norma_val in k or k in norma_val):
+                                                        if isinstance(v, dict):
+                                                            nombre_norma = v.get('NOMBRE', '') or v.get('NOMBRE DE NORMA', '') or ''
+                                                        else:
+                                                            nombre_norma = str(v)
+                                                        norma_val = k
+                                                        break
+                                            if not nombre_norma and norma_val in normas_map:
+                                                v = normas_map.get(norma_val)
+                                                if isinstance(v, dict):
+                                                    nombre_norma = v.get('NOMBRE', '') or v.get('NOMBRE DE NORMA', '') or ''
+                                                else:
+                                                    nombre_norma = str(v)
+                            except Exception:
+                                pass
+
+                            datos_const = {
+                                'folio_constancia': folio_vis,
+                                'fecha_emision': fecha_em,
+                                'cliente': cliente_name,
+                                'rfc': rfc,
+                                'no_contrato': no_contrato,
+                                'fecha_contrato': '',
+                                'norma': norma_val,
+                                'normades': nombre_norma,
+                                'nombre_norma': nombre_norma,
+                                'producto': filas_grp[0].get('DESCRIPCION',''),
+                                'marca': filas_grp[0].get('MARCA',''),
+                                'modelo': filas_grp[0].get('MODELO',''),
+                                'tabla_relacion': filas_grp,
+                                'lista': lista
+                            }
+
+                            folio_num = str(filas_grp[0].get('FOLIO','') or '').strip()
+                            folio_for_name = folio_num
+
+                            # Crear una carpeta raíz `Constancias` dentro de la carpeta elegida por el usuario
+                            nombre_pdf = f"Constancia_Lista_{lista}_{folio_for_name}_{sol_no}_{sol_year}.pdf"
+                            nombre_pdf = limpiar_nombre(nombre_pdf)
+
+                            ruta_pdf = None
+                            if out_base_pdf and carpeta_raiz:
+                                # Crear subcarpeta por solicitud (usar solicitud_raw saneado)
+                                sol_folder_name = solicitud_raw or f"Solicitud_{lista}"
+                                try:
+                                    sol_folder_name = limpiar_nombre(sol_folder_name)
+                                except Exception:
+                                    sol_folder_name = f"Solicitud_{lista}"
+                                carpeta_solicitud = os.path.join(carpeta_raiz, sol_folder_name)
+                                os.makedirs(carpeta_solicitud, exist_ok=True)
+                                ruta_pdf = os.path.join(carpeta_solicitud, nombre_pdf)
+
+                            pdf_ok = False
+                            try:
+                                if ruta_pdf and ConstGen:
+                                    gen_inst = ConstGen(datos_const, base_dir=BASE_DIR)
+                                    ruta_generada = gen_inst.generar(ruta_pdf)
+                                    pdf_ok = True if ruta_generada and os.path.exists(ruta_generada) else False
+                                elif ruta_pdf and mod is not None:
+                                    try:
+                                        ruta_generada = getattr(mod, 'generar_constancia_desde_visita')(folio_vis, salida=ruta_pdf)
+                                        pdf_ok = True if ruta_generada and os.path.exists(ruta_generada) else False
+                                    except Exception:
+                                        pdf_ok = False
+                                else:
+                                    # Usuario canceló selección de carpeta para PDFs -> no generar PDF
+                                    pdf_ok = False
+                            except Exception:
+                                pdf_ok = False
+
+                            # Guardar JSON auxiliar dentro de data/Constancias (raíz)
+                            try:
+                                json_name = f"Constancia_Lista_{lista}_{folio_for_name}_{sol_no}_{sol_year}.json"
+                                json_name = limpiar_nombre(json_name)
+                                json_path = os.path.join(out_base_json, json_name)
+                                with open(json_path, 'w', encoding='utf-8') as jf:
+                                    json.dump(datos_const, jf, ensure_ascii=False, indent=2)
+                            except Exception:
+                                pass
+
+                            if pdf_ok:
+                                created.append(ruta_pdf)
+                            else:
+                                # sólo registrar error si intentó generar y falló
+                                if ruta_pdf:
+                                    errores.append(lista)
+
+                        except Exception as e:
+                            errores.append((lista, str(e)))
+
+                except Exception as e:
+                    created = []
+                    errores.append(str(e))
+
+                # Preparar resultado y notificar
+                try:
+                    mensaje_final = f"✅ Se generaron {len(created)} constancias (PDF).\n"
+                    if out_base_pdf:
+                        mensaje_final += f"\n📁 Ubicación PDFs: {out_base_pdf}"
+                    else:
+                        mensaje_final += "\nℹ️ No se guardaron PDFs (usuario no seleccionó carpeta)."
+
+                    mensaje_final += f"\n\n📁 JSONs guardados en: {out_base_json}"
+
+                    if errores:
+                        mensaje_final += f"\n\n⚠️ Errores en listas: {errores}"
+
+                    if self.winfo_exists():
+                        self.after(0, lambda: messagebox.showinfo("Generación Completada", mensaje_final) if self.winfo_exists() else None)
+
+                    resultado = {
+                        'directorio': out_base_pdf or out_base_json,
+                        'total_generados': len(created),
+                        'total_familias': len(grupos),
+                        'dictamenes_fallidos': len(errores),
+                        'folios_utilizados': getattr(self, 'folios_utilizados_actual', [])
+                    }
+                    try:
+                        resultado['folios_utilizados_info'] = getattr(self, 'folios_utilizados_actual', [])
+                        self.registrar_visita_automatica(resultado)
+                    except Exception:
+                        pass
+
+                    # Abrir carpeta seleccionada por el usuario (si existe)
+                    try:
+                        if out_base_pdf and os.path.exists(out_base_pdf) and self.winfo_exists():
+                            self.after(1000, lambda: self._abrir_carpeta(out_base_pdf) if self.winfo_exists() else None)
+                    except Exception:
+                        pass
+                except Exception:
+                    pass
+                return
+
+            # flujo por defecto: dictámenes
             sys.path.append(BASE_DIR)
             from generador_dictamen import generar_dictamenes_gui
             
@@ -4633,6 +4937,8 @@ class SistemaDictamenesVC(ctk.CTk):
         except Exception as e:
             # No bloquear la aplicación por errores en esta actualización
             print(f"Error actualizando tipo de documento UI: {e}")
+
+        
 
         # Refrescar lista de folios pendientes en el combobox (si existe)
         try:
@@ -8307,6 +8613,75 @@ class SistemaDictamenesVC(ctk.CTk):
                                 resultados['errores'].append(f"Error eliminando dictamen {fn}: {e}")
             except Exception as e:
                 resultados['errores'].append(f"Error eliminando dictámenes asociados: {e}")
+
+            # 7) Eliminar constancias en data/Constancias que coincidan
+            try:
+                const_dir = os.path.join(APP_DIR, 'data', 'Constancias')
+                if os.path.exists(const_dir) and (folios_a_eliminar or solicitudes_a_eliminar or folio):
+                    for fn in os.listdir(const_dir):
+                        if not fn.lower().endswith('.json'):
+                            continue
+                        if 'style' in fn.lower():
+                            continue
+                        fp = os.path.join(const_dir, fn)
+                        try:
+                            with open(fp, 'r', encoding='utf-8') as jf:
+                                cdata = json.load(jf)
+                        except Exception:
+                            continue
+
+                        match = False
+                        # Revisar campo 'folio_constancia'
+                        try:
+                            fol_file = str(cdata.get('folio_constancia') or '').strip()
+                            if fol_file:
+                                fol_file_digits = ''.join([c for c in fol_file if c.isdigit()])
+                                # comparar con folios_a_eliminar
+                                for f_candidate in folios_a_eliminar:
+                                    f_c = ''.join([c for c in str(f_candidate) if c.isdigit()]) or str(f_candidate)
+                                    if f_c and (f_c == fol_file_digits.lstrip('0') or f_c == fol_file_digits or f_c == fol_file_digits.zfill(6) or f_c == fol_file):
+                                        match = True
+                                        break
+                                if not match:
+                                    if fol_file == str(folio):
+                                        match = True
+                        except Exception:
+                            pass
+
+                        # Revisar campo 'origen_visita' para folio_visita u otros identificadores
+                        if not match:
+                            try:
+                                ov = cdata.get('origen_visita') or {}
+                                if isinstance(ov, dict):
+                                    ov_candidates = [ov.get('folio_visita'), ov.get('folio'), ov.get('folio_acta'), ov.get('folio_acta_visita')]
+                                else:
+                                    ov_candidates = [ov]
+                                for oc in ov_candidates:
+                                    try:
+                                        if not oc:
+                                            continue
+                                        oc_str = str(oc).strip()
+                                        oc_digits = ''.join([c for c in oc_str if c.isdigit()])
+                                        for f_candidate in folios_a_eliminar:
+                                            f_c = ''.join([c for c in str(f_candidate) if c.isdigit()]) or str(f_candidate)
+                                            if f_c and (f_c == oc_digits.lstrip('0') or f_c == oc_digits or f_c == oc_digits.zfill(6) or f_c == oc_str):
+                                                match = True
+                                                break
+                                        if match:
+                                            break
+                                    except Exception:
+                                        continue
+                            except Exception:
+                                pass
+
+                        if match:
+                            try:
+                                os.remove(fp)
+                                resultados['eliminados'].append(f"Constancia eliminada: {fn}")
+                            except Exception as e:
+                                resultados['errores'].append(f"Error eliminando constancia {fn}: {e}")
+            except Exception as e:
+                resultados['errores'].append(f"Error eliminando constancias asociadas: {e}")
 
         except Exception as e:
             resultados['errores'].append(f"Error general en eliminación: {str(e)}")

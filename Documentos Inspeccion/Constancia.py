@@ -12,9 +12,10 @@ import re
 
 from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import letter
-from reportlab.lib.units import mm
+from reportlab.lib.units import mm, inch
 from reportlab.lib.utils import ImageReader
 from reportlab.lib import colors
+import tempfile
 
 
 # Canvas personalizado para numerar páginas como "Página X de Y"
@@ -26,6 +27,24 @@ class NumberedCanvas(canvas.Canvas):
     def showPage(self):
         self._saved_page_states.append(dict(self.__dict__))
         self._startPage()
+        # Si se definió un encabezado, dibujarlo inmediatamente en la nueva página
+        try:
+            # título en la posición alta (misma que usa la plantilla)
+            if hasattr(self, 'header_title') and self.header_title:
+                try:
+                    self.setFont('Helvetica-Bold', 11)
+                    self.drawCentredString(self._pagesize[0] / 2, self._pagesize[1] - 70, self.header_title)
+                except Exception:
+                    pass
+            # cadena identificadora justo debajo del título (más arriba que antes)
+            if hasattr(self, 'header_chain') and self.header_chain:
+                try:
+                    self.setFont('Helvetica', 8)
+                    self.drawCentredString(self._pagesize[0] / 2, self._pagesize[1] - 58, self.header_chain)
+                except Exception:
+                    pass
+        except Exception:
+            pass
 
     def save(self):
         # añadir estado de la última página
@@ -47,6 +66,7 @@ class NumberedCanvas(canvas.Canvas):
             self.drawRightString(x, y, text)
         except Exception:
             pass
+
 try:
     from plantillaPDF import cargar_firmas
 except Exception:
@@ -72,6 +92,13 @@ try:
 except Exception:
     _cargar_clientes_ext = None
     _cargar_normas_ext = None
+try:
+    from plantillaPDF import cargar_tabla_relacion as _cargar_tabla_relacion_ext
+    from reportlab.platypus import Paragraph
+    from reportlab.lib.styles import ParagraphStyle
+    from reportlab.lib.enums import TA_JUSTIFY
+except Exception:
+    _cargar_tabla_relacion_ext = None
 
 
 class ConstanciaPDFGenerator:
@@ -152,7 +179,8 @@ class ConstanciaPDFGenerator:
         if not year:
             year = datetime.now().strftime('%Y')
 
-        norma = (self.datos.get('norma') or '').replace('-', '')
+        # conservar los guiones en la norma (ej. NOM-051-SCFI/SSA1-2010)
+        norma = (self.datos.get('norma') or '').strip()
 
         # folio_formateado: usar campo si existe, si no extraer dígitos del folio
         folio = str(self.datos.get('folio_constancia',''))
@@ -161,12 +189,56 @@ class ConstanciaPDFGenerator:
             nums = re.findall(r"\d+", folio)
             folio_formateado = nums[-1] if nums else folio
 
-        solicitud_formateado = self.datos.get('solicitud_formateado') or self.datos.get('solicitud') or folio_formateado
+        # Solicitud: preferir campo ya formateado; si no, intentar dividir "NNN.../YY" -> numero y año
+        solicitud_raw = str(
+            (self.datos.get('solicitud') or self.datos.get('Solicitud') or self.datos.get('SOLICITUD') or '')
+        ).strip()
+
+        # Si no viene en los datos principales, intentar extraer desde tabla_relacion (primera fila)
+        if not solicitud_raw:
+            try:
+                tr = self.datos.get('tabla_relacion') or []
+                if isinstance(tr, list) and tr:
+                    first = tr[0]
+                    solicitud_raw = str(first.get('SOLICITUD') or first.get('Solicitud') or first.get('solicitud') or '').strip()
+            except Exception:
+                solicitud_raw = solicitud_raw
+
+        solicitud_num = ''
+        solicitud_year_two = None
+        if solicitud_raw:
+            m = re.match(r"^\s*(\d+)(?:[\/-](\d{2,4}))?\s*$", solicitud_raw)
+            if m:
+                solicitud_num = m.group(1)
+                suf = m.group(2)
+                if suf:
+                    solicitud_year_two = suf[-2:]
+            else:
+                nums = re.findall(r"\d+", solicitud_raw)
+                solicitud_num = nums[0] if nums else solicitud_raw
+
+        # si el usuario pasó un campo de solicitud_formateado preferido, úsalo como número
+        if not solicitud_num:
+            solicitud_num = str(self.datos.get('solicitud_formateado') or '')
+
+        # preparar la lista
         lista = str(self.datos.get('lista', '1'))
 
-        cadena = f"{year}049UCC{norma}{folio_formateado} Solicitud de Servicio: {year}049UCC{norma}{solicitud_formateado}-{lista}"
+        # determinar año de la parte 'Solicitud de Servicio' (2 dígitos)
+        if solicitud_year_two:
+            sol_year_two = solicitud_year_two
+        else:
+            # extraer dos últimos dígitos del `year` principal (puede ser YYYY o YY)
+            sol_year_two = str(year)[-2:]
+
+        # asegurar formato de solicitud (6 dígitos cuando sea numérica)
+        solicitud_formatted = solicitud_num.zfill(6) if solicitud_num and solicitud_num.isdigit() else solicitud_num
+
+        cadena = f"{year}049UCC{norma}{folio_formateado} Solicitud de Servicio: {sol_year_two}049UCC{norma}{solicitud_formatted}-{lista}"
         self.datos['cadena'] = cadena
         return cadena
+
+
 
     def dibujar_encabezado(self, c: canvas.Canvas) -> None:
         # Logo (if present) at top-left (fallback to background watermark)
@@ -184,30 +256,62 @@ class ConstanciaPDFGenerator:
                     pass
 
         # Title
-        c.setFont('Helvetica-Bold', 14)
+        c.setFont('Helvetica-Bold', 12)
         c.drawCentredString(self.width / 2, self.cursor_y, 'CONSTANCIA DE CONFORMIDAD')
         self.cursor_y -= 10
 
-        # Cadena identificadora (cadena del dictamen/constancia) - muestra en la parte superior
+        # Mostrar fecha de contrato (desde `self.datos` o, como respaldo, desde data/Clientes.json)
+        try:
+            fecha_contrato = self.datos.get('fecha_contrato') or self.datos.get('fecha_de_contrato') or ''
+            if not fecha_contrato:
+                try:
+                    clientes_path = os.path.join(self.base_dir, 'data', 'Clientes.json')
+                    clientes_map = _cargar_clientes(clientes_path)
+                    cliente_name = (self.datos.get('cliente') or '').upper()
+                    fecha_contrato = (clientes_map.get(cliente_name, {}) or {}).get('FECHA_DE_CONTRATO', '')
+                except Exception:
+                    fecha_contrato = ''
+        except Exception:
+            pass
+        # Cadena identificadora (construida igual que en dictamen, sin mostrar CP)
         c.setFont('Helvetica', 8)
-        cadena = self.datos.get('cadena', '')
-        if not cadena and self.datos.get('folio_constancia'):
-            suffix = self.datos.get('cadena_suffix', '')
-            cadena = f"{self.datos.get('folio_constancia')} {suffix}".strip()
-        if cadena:
-            max_w = self.width - 60 * mm
-            y = self.cursor_y - 6
-            # Mostrar años con dos dígitos (2026 -> 26) en la cadena identificadora
+        try:
+            # Intentar construir la cadena identificadora oficial
+            cadena = ''
             try:
-                display_cadena = re.sub(r"(\d{4})(?=049)", lambda m: m.group(1)[-2:], cadena)
+                cadena = self.construir_cadena_identificacion() or ''
             except Exception:
-                display_cadena = cadena
-            # Centrar cada línea de la cadena identificadora bajo el título
-            for ln in _dividir_texto(c, display_cadena, max_w, font_name='Helvetica', font_size=8):
-                c.drawCentredString(self.width / 2, y, ln)
-                y -= 9
-            self.cursor_y = y - 6
-        else:
+                cadena = self.datos.get('cadena', '') or ''
+
+            if cadena:
+                # Mostrar años con dos dígitos (2026 -> 26) en la cadena identificadora
+                try:
+                    display_cadena = re.sub(r"(\d{4})(?=049)", lambda m: m.group(1)[-2:], cadena)
+                except Exception:
+                    display_cadena = cadena
+                # Dibujar la cadena completa en la posición fija usada por el dictamen (más arriba)
+                try:
+                    c.setFont('Helvetica', 8)
+                    c.drawCentredString(8.5 * inch / 2, 11 * inch - 50, display_cadena)
+                except Exception:
+                    # Fallback: centrar bajo el título si la posición fija falla
+                    try:
+                        max_w = self.width - 60 * mm
+                        lines = _dividir_texto(c, display_cadena, max_w, font_name='Helvetica', font_size=8)
+                        y = self.cursor_y - 6
+                        for ln in lines:
+                            c.drawCentredString(self.width / 2, y, ln)
+                            y -= 9
+                        self.cursor_y = y - 6
+                    except Exception:
+                        self.cursor_y -= 18
+                else:
+                    # Reservar espacio vertical equivalente bajo el encabezado
+                    self.cursor_y -= 28
+            else:
+                # No mostrar el folio/CP por defecto (el usuario pidió eliminar CP)
+                self.cursor_y -= 18
+        except Exception:
             self.cursor_y -= 18
 
         # small gap after header
@@ -240,6 +344,9 @@ class ConstanciaPDFGenerator:
         x = 25 * mm
         right_x = self.width - 25 * mm
 
+        # cliente usado para búsquedas en Clientes.json
+        cliente = (self.datos.get('cliente') or '').strip()
+
         # No. de contrato (valor en negritas)
         no_contrato = str(self.datos.get('no_contrato', '') or self.datos.get('no_de_contrato', ''))
         c.setFont('Helvetica', 9)
@@ -248,8 +355,16 @@ class ConstanciaPDFGenerator:
         c.drawString(x + 40 * mm, self.cursor_y, no_contrato)
         self.cursor_y -= 12
 
-        # Fecha de contrato (valor en negritas)
-        fecha_contrato = str(self.datos.get('fecha_contrato', '') or '')
+        # Fecha de contrato (valor en negritas). Si no viene en `datos`, intentar leer Clientes.json
+        fecha_contrato = self.datos.get('fecha_contrato') or self.datos.get('fecha_de_contrato') or ''
+        if not fecha_contrato:
+            try:
+                clientes_path = os.path.join(self.base_dir, 'data', 'Clientes.json')
+                clientes_map = _cargar_clientes(clientes_path)
+                fecha_contrato = (clientes_map.get(cliente.upper().strip(), {}) or {}).get('FECHA_DE_CONTRATO', '') or ''
+            except Exception:
+                fecha_contrato = ''
+        fecha_contrato = str(fecha_contrato or '')
         c.setFont('Helvetica', 9)
         c.drawString(x, self.cursor_y, 'Fecha de contrato:')
         c.setFont('Helvetica-Bold', 9)
@@ -315,13 +430,38 @@ class ConstanciaPDFGenerator:
         condiciones = [
             '1. Este documento sólo ampara la información contenida en el producto cuya etiqueta muestra se presenta en esta Constancia.',
             '2. Cualquier modificación a la etiqueta debe ser sometida a la consideración de la Unidad de Inspección Acreditada y Aprobada en los términos de la Ley de Infraestructura de la Calidad, para que inspeccione su cumplimiento con la Norma Oficial Mexicana aplicable.',
-            f"3. Esta Constancia sólo ampara el cumplimiento con la Norma Oficial Mexicana {self.datos.get('norma','')} ({self.datos.get('nombre_norma','')}) para el producto: {producto}."
         ]
+
+        # Dibujar las dos primeras condiciones con el método existente
         c.setFont('Helvetica', 9)
+        max_cond_w = (right - left) - 8 * mm
         for cond in condiciones:
-            self._dibujar_texto_justificado(c, left + 4 * mm, self.cursor_y, cond, (right - left) - 8 * mm, font_name='Helvetica', font_size=9, leading=11)
-            # _dibujar_texto_justificado atualiza self.cursor_y
+            self._dibujar_texto_justificado(c, left + 4 * mm, self.cursor_y, cond, max_cond_w, font_name='Helvetica', font_size=9, leading=11)
             self.cursor_y -= 4
+
+        # Tercera condición: norma y nombre de la norma en negritas usando Paragraph (soporta <b>...</b>)
+        try:
+
+            norma_text = str(self.datos.get('norma', '')).strip()
+            nombre_text = str(self.datos.get('nombre_norma', '')).strip()
+            tercero_html = (
+            "3. Esta Constancia sólo ampara el cumplimiento con la Norma Oficial Mexicana "
+            f"<b>{norma_text}</b> (<b>{nombre_text}</b>) para el producto: <b>{producto}</b>."
+            )
+
+            style = ParagraphStyle('cond3', fontName='Helvetica', fontSize=9, leading=11, alignment=TA_JUSTIFY)
+            p = Paragraph(tercero_html, style)
+            avail_w = max_cond_w
+            wrap_w, wrap_h = p.wrap(avail_w, self.cursor_y if self.cursor_y > 0 else 200 * mm)
+            # drawOn uses the lower-left corner, por eso restamos wrap_h
+            p.drawOn(c, left + 4 * mm, self.cursor_y - wrap_h)
+            self.cursor_y = self.cursor_y - wrap_h - 4
+        except Exception:
+            # Fallback: si Paragraph falla, dibujar la línea sin negritas
+            fallback = f"3. Esta Constancia sólo ampara el cumplimiento con la Norma Oficial Mexicana {self.datos.get('norma','')} ({self.datos.get('nombre_norma','')}) para el producto: {producto}."
+            self._dibujar_texto_justificado(c, left + 4 * mm, self.cursor_y, fallback, max_cond_w, font_name='Helvetica', font_size=9, leading=11)
+            self.cursor_y -= 4
+        # ya se dibujaron las dos primeras condiciones arriba; no volver a imprimir.
 
         # Línea inferior que cierra el bloque
         bottom_line_y = self.cursor_y - 6
@@ -340,11 +480,8 @@ class ConstanciaPDFGenerator:
         self.cursor_y -= 20
 
 
-
-
     def dibujar_tabla_relacion(self, c: canvas.Canvas) -> None:
-        # Nuevo diseño: título en caja full-width y tabla de 3 columnas
-        # Aumentamos los márgenes para reducir el ancho total de la tabla
+        # Nuevo diseño: tabla autoajustable a contenido (columnas y alturas dinámicas)
         margin_x = 48 * mm
         left = margin_x
         right = self.width - margin_x
@@ -352,57 +489,129 @@ class ConstanciaPDFGenerator:
         x = left
 
         # Título en caja completa
-        c.setLineWidth(0.9)
+        c.setLineWidth(0.6)
         title_box_h = 8 * mm
         top_y = self.cursor_y
         c.rect(x, top_y - title_box_h, total_w, title_box_h, stroke=1, fill=0)
         c.setFont('Helvetica-Bold', 9)
-        # Centrar el texto dentro de la caja (ligero ajuste vertical)
         c.drawCentredString(self.width / 2, top_y - title_box_h / 2 + 2, 'RELACIÓN CORRESPONDIENTE')
 
         # Avanzar cursor debajo del título con pequeño espacio
         self.cursor_y = top_y - title_box_h - 4 * mm
 
-        # Tabla con 3 columnas: CODIGO | MEDIDAS | CONTENIDO NETO
-        # Hacemos la tabla ligeramente más pequeña (márgenes mayores) y una sola fila de contenido
-        cols = 3
-        col_w = total_w / cols
+        # Preparar datos
+        filas = self.datos.get('tabla_relacion') or []
+        headers = ['CODIGO', 'MEDIDAS', 'CONTENIDO NETO']
+
+        # Medir ancho requerido por columna (sin wrapping)
+        font_name = 'Helvetica'
+        font_size = 8
+        padding = 4 * mm
+        col_need = [0, 0, 0]
+        # incluir encabezados en la medición
+        for idx, h in enumerate(headers):
+            w = c.stringWidth(h, font_name, font_size)
+            col_need[idx] = max(col_need[idx], w + padding)
+
+        # medir celdas
+        for row in filas:
+            try:
+                codigo = str(row.get('CODIGO') or row.get('codigo') or row.get('Codigo') or '')
+                medidas = str(row.get('MEDIDAS') or row.get('medidas') or row.get('Medidas') or '')
+                contenido = str(row.get('CONTENIDO') or row.get('CONTENIDO NETO') or row.get('CONTENIDO_NETO') or row.get('contenido') or '')
+            except Exception:
+                codigo = medidas = contenido = ''
+            col_need[0] = max(col_need[0], c.stringWidth(codigo, font_name, font_size) + padding)
+            col_need[1] = max(col_need[1], c.stringWidth(medidas, font_name, font_size) + padding)
+            col_need[2] = max(col_need[2], c.stringWidth(contenido, font_name, font_size) + padding)
+
+        sum_need = sum(col_need)
+        if sum_need == 0:
+            # fallback: dividir en tres columnas iguales
+            col_w = [total_w / 3.0] * 3
+        else:
+            if sum_need <= total_w:
+                # usar los anchos necesarios
+                col_w = col_need
+            else:
+                # escalar proporcionalmente
+                factor = total_w / sum_need
+                col_w = [w * factor for w in col_need]
+
+        # ahora calcular la altura por fila según wrapping
         header_h = 7 * mm
-        row_h = 10 * mm
-        rows = 1
-        table_h = header_h + rows * row_h
+        leading = 9  # points
+        row_heights = []
+        rows_cells = []
+        for row in filas:
+            try:
+                codigo = str(row.get('CODIGO') or row.get('codigo') or row.get('Codigo') or '')
+                medidas = str(row.get('MEDIDAS') or row.get('medidas') or row.get('Medidas') or '')
+                contenido = str(row.get('CONTENIDO') or row.get('CONTENIDO NETO') or row.get('CONTENIDO_NETO') or row.get('contenido') or '')
+            except Exception:
+                codigo = medidas = contenido = ''
+
+            # dividir texto por columna con el ancho disponible
+            lines0 = _dividir_texto(c, codigo, col_w[0], font_name=font_name, font_size=font_size)
+            lines1 = _dividir_texto(c, medidas, col_w[1], font_name=font_name, font_size=font_size)
+            lines2 = _dividir_texto(c, contenido, col_w[2], font_name=font_name, font_size=font_size)
+            max_lines = max(len(lines0), len(lines1), len(lines2), 1)
+            h = max_lines * leading + (4 * mm)
+            row_heights.append(h)
+            rows_cells.append((lines0, lines1, lines2))
+
+        table_h = header_h + sum(row_heights)
         table_top = self.cursor_y
 
-        # Caja externa de la tabla
+        # Dibujar caja externa
         c.rect(x, table_top - table_h, total_w, table_h, stroke=1, fill=0)
 
-        # Líneas verticales entre columnas
-        for i in range(1, cols):
-            xpos = x + i * col_w
-            c.line(xpos, table_top, xpos, table_top - table_h)
+        # Dibujar líneas verticales
+        cur_x = x
+        acc = x
+        for w in col_w[:-1]:
+            acc += w
+            c.line(acc, table_top, acc, table_top - table_h)
 
         # Línea separadora entre header y contenido
+        c.setLineWidth(0.8)
         c.line(x, table_top - header_h, x + total_w, table_top - header_h)
-
-        # Encabezados (centrados sobre cada columna) con fuente más pequeña
-        padding = 3 * mm
-        c.setFont('Helvetica-Bold', 8)
-        c.drawCentredString(x + col_w * 0.5, table_top - header_h + 2, 'CODIGO')
-        c.drawCentredString(x + col_w * 1.5, table_top - header_h + 2, 'MEDIDAS')
-        c.drawCentredString(x + col_w * 2.5, table_top - header_h + 2, 'CONTENIDO NETO')
-
-        # Filas vacías (espacio para contenido) - dejamos visualmente en blanco
-
-        # Actualizar cursor por debajo de la tabla
-        self.cursor_y = table_top - table_h - 8
+        c.setLineWidth(0.6)
 
 
+        # Encabezados
+        c.setFont('Helvetica-Bold', font_size)
+        cur_x = x
+        for i, h in enumerate(headers):
+            w = col_w[i]
+            cx = cur_x + w / 2
+            cy = table_top - (header_h / 2) - (font_size / 2)
+            c.drawCentredString(cx, cy, h)
+            cur_x += w
 
 
+        # Dibujar filas de contenido
+        y = table_top - header_h
+        c.setFont(font_name, font_size)
+        for ri, (lines0, lines1, lines2) in enumerate(rows_cells):
+            y -= row_heights[ri]
+            # dibujar línea horizontal que cierra la fila
+            c.line(x, y, x + total_w, y)
+            # dibujar cada celda
+            cell_x = x
+            for ci, lines in enumerate((lines0, lines1, lines2)):
+                tx = cell_x + (3 * mm)
+                ty = y + row_heights[ri] - leading - (3 * mm)
+                for ln in lines:
+                    try:
+                        c.drawString(tx, ty, ln)
+                    except Exception:
+                        pass
+                    ty += -leading
+                cell_x += col_w[ci]
 
-
-
-
+        # actualizar cursor_y al final de la tabla (agregar espacio extra antes de observaciones)
+        self.cursor_y = table_top - table_h - (8 * mm)
 
     def dibujar_observaciones(self, c: canvas.Canvas) -> None:
         x = 25 * mm
@@ -529,20 +738,40 @@ class ConstanciaPDFGenerator:
         self.cursor_y = y_after - 30
 
     def generar(self, salida: str) -> str:
-        # Si no se especifica salida, guardar en data/Constancias bajo el base_dir
+        # Si no se especifica salida, no guardar PDFs en data/Constancias por defecto.
+        # Usar un archivo temporal para evitar congestionar la carpeta `data/Constancias`.
         if not salida:
-            data_dir = os.path.join(self.base_dir, 'data')
-            const_dir = os.path.join(data_dir, 'Constancias')
-            os.makedirs(const_dir, exist_ok=True)
             fol = str(self.datos.get('folio_constancia') or '')
             safe = fol.replace('/', '_').replace(' ', '_') or datetime.now().strftime('%Y%m%d_%H%M%S')
-            salida = os.path.join(const_dir, f'Constancia_{safe}.pdf')
+            tmp_dir = tempfile.gettempdir()
+            salida = os.path.join(tmp_dir, f'Constancia_{safe}.pdf')
 
         # Use NumberedCanvas so we can print "Página X de Y" after all pages are created
         try:
             c = NumberedCanvas(salida, pagesize=letter)
         except Exception:
             c = canvas.Canvas(salida, pagesize=letter)
+        # Asegurar que el canvas tenga título/cadena para que se impriman en todas las páginas
+        try:
+            # construir cadena identificadora y su versión para mostrar (2 dígitos)
+            cadena = self.datos.get('cadena') or ''
+            if not cadena:
+                try:
+                    cadena = self.construir_cadena_identificacion() or ''
+                except Exception:
+                    cadena = ''
+            try:
+                display_cadena = re.sub(r"(\d{4})(?=049)", lambda m: m.group(1)[-2:], cadena)
+            except Exception:
+                display_cadena = cadena
+            # asignar valores al canvas para que NumberedCanvas los dibuje en showPage
+            try:
+                c.header_title = 'CONSTANCIA DE CONFORMIDAD'
+                c.header_chain = display_cadena
+            except Exception:
+                pass
+        except Exception:
+            pass
         self.cursor_y = self.height - 40
         try:
             # Preparar datos: construir cadena identificadora y cargar catálogos
@@ -822,45 +1051,157 @@ def generar_constancia_desde_visita(folio_visita: str | None = None, salida: str
     producto = marca = modelo = ''
     if os.path.exists(tabla):
         try:
-            with open(tabla, 'r', encoding='utf-8') as f:
-                t = json.load(f)
-                if isinstance(t, list) and t:
-                    r = t[0]
-                    producto = r.get('DESCRIPCION','')
-                    marca = r.get('MARCA','')
-                    modelo = r.get('MODELO','')
+            # Intentar cargar por medio de plantillaPDF.cargar_tabla_relacion (retorna DataFrame)
+            if _cargar_tabla_relacion_ext:
+                try:
+                    df = _cargar_tabla_relacion_ext(tabla)
+                    if not df.empty:
+                        first = df.iloc[0].to_dict()
+                        producto = first.get('DESCRIPCION','')
+                        marca = first.get('MARCA','')
+                        modelo = first.get('MODELO','')
+                except Exception:
+                    pass
+            # Fallback: leer JSON bruto
+            if not producto:
+                with open(tabla, 'r', encoding='utf-8') as f:
+                    t = json.load(f)
+                    if isinstance(t, list) and t:
+                        r = t[0]
+                        producto = r.get('DESCRIPCION','')
+                        marca = r.get('MARCA','')
+                        modelo = r.get('MODELO','')
         except Exception:
             pass
 
     norma_str = ''
+    nombre_norma = ''
     if visita.get('norma'):
-        norma_str = visita.get('norma').split(',')[0].strip()
-    nombre_norma = normas.get(norma_str, '')
+        norma_raw = str(visita.get('norma')).split(',')[0].strip()
+        # si viene numérico como '4', intentar mapear a NOM-004-... en Normas.json
+        if norma_raw.isdigit():
+            target = f"{int(norma_raw):03d}"
+            try:
+                # buscar entry en el archivo Normas.json que contenga el número
+                if os.path.exists(normas_p):
+                    with open(normas_p, 'r', encoding='utf-8') as nf:
+                        ndata = json.load(nf)
+                        if isinstance(ndata, list):
+                            for item in ndata:
+                                nom = str(item.get('NOM') or '')
+                                if f"-{target}-" in nom or f"{target}" in nom:
+                                    norma_str = nom
+                                    nombre_norma = item.get('NOMBRE') or ''
+                                    break
+            except Exception:
+                pass
+        # si no se resolvió como número, tomar como código directo
+        if not norma_str:
+            norma_str = norma_raw
+            nombre_norma = normas.get(norma_str, '')
 
     cliente = visita.get('cliente','')
     rfc = (clientes.get(cliente.upper(), {}) or {}).get('RFC','')
+    # Número de contrato (desde Clientes.json campo "NÚMERO_DE_CONTRATO")
+    no_contrato = (clientes.get(cliente.upper(), {}) or {}).get('NÚMERO_DE_CONTRATO', '')
+    # Fecha de contrato (desde Clientes.json campo "FECHA_DE_CONTRATO")
+    fecha_contrato = (clientes.get(cliente.upper(), {}) or {}).get('FECHA_DE_CONTRATO', '')
 
     fecha = visita.get('fecha_termino') or visita.get('fecha') or datetime.now().strftime('%d/%m/%Y')
 
-    fol = (visita.get('folio_visita') or visita.get('folio') or '').replace('UDC','UCC')
+    # Preferir folio de dictamen/familia si está presente; si no, usar folio_visita
+    fol = (visita.get('folio') or visita.get('folio_visita') or '').replace('UDC', 'UCC')
+    # Capturar solicitud de la visita en múltiples formatos posibles (ej. "000333/25")
+    solicitud_raw = str(visita.get('solicitud') or visita.get('Solicitud') or visita.get('SOLICITUD') or '').strip()
+    solicitud_num = ''
+    solicitud_year_full = None
+    if solicitud_raw:
+        m = re.match(r"^\s*(\d+)(?:[\/-](\d{2,4}))?\s*$", solicitud_raw)
+        if m:
+            solicitud_num = m.group(1)
+            suf = m.group(2)
+            if suf:
+                solicitud_year_full = ("20" + suf) if len(suf) == 2 else suf
+        else:
+            nums = re.findall(r"\d+", solicitud_raw)
+            solicitud_num = nums[0] if nums else solicitud_raw
+    # preparar solicitud_formateado (6 dígitos cuando es numérica)
+    solicitud_formateado = solicitud_num.zfill(6) if solicitud_num and solicitud_num.isdigit() else solicitud_num
+    # Cargar tabla_de_relacion y seleccionar filas relacionadas (CODIGO, MEDIDAS, CONTENIDO)
+    tabla_rows = []
+    if os.path.exists(tabla):
+        try:
+            with open(tabla, 'r', encoding='utf-8') as f:
+                t = json.load(f)
+                if isinstance(t, list) and t:
+                    # Normalizar búsqueda
+                    fol_clean = str(fol).strip()
+                    solicitud_vis = str(visita.get('solicitud','')).strip()
+                    cliente_upper = cliente.upper().strip()
+                    for row in t:
+                        if not isinstance(row, dict):
+                            continue
+                        if str(row.get('FOLIO','')).strip() == fol_clean:
+                            tabla_rows.append(row)
+                            continue
+                        if solicitud_vis and str(row.get('SOLICITUD','')).strip() == solicitud_vis:
+                            tabla_rows.append(row)
+                            continue
+                        # tratar coincidencias por cliente/marca
+                        if str(row.get('CLIENTE','')).strip().upper() == cliente_upper or str(row.get('MARCA','')).strip().upper() == cliente_upper:
+                            tabla_rows.append(row)
+                    # si no encontramos coincidencias, tomar los primeros 4 como ejemplo
+                    if not tabla_rows:
+                        tabla_rows = t[:4]
+        except Exception:
+            tabla_rows = []
+
+    # Si la visita no incluye campo 'solicitud', intentar obtenerlo desde la primera fila
+    # de la `tabla_relacion` (muchas veces la solicitud viene en esa columna).
+    if (not solicitud_num or not solicitud_raw) and tabla_rows:
+        try:
+            first = tabla_rows[0]
+            s = str(first.get('SOLICITUD') or first.get('Solicitud') or first.get('solicitud') or '').strip()
+            if s:
+                solicitud_raw = s
+                m2 = re.match(r"^\s*(\d+)(?:[\/-](\d{2,4}))?\s*$", solicitud_raw)
+                if m2:
+                    solicitud_num = m2.group(1)
+                    suf2 = m2.group(2)
+                    if suf2:
+                        solicitud_year_full = ("20" + suf2) if len(suf2) == 2 else suf2
+                else:
+                    nums2 = re.findall(r"\d+", solicitud_raw)
+                    solicitud_num = nums2[0] if nums2 else solicitud_raw
+                solicitud_formateado = solicitud_num.zfill(6) if solicitud_num and solicitud_num.isdigit() else solicitud_num
+        except Exception:
+            pass
+
     datos = {
         'folio_constancia': fol,
         'fecha_emision': fecha,
         'cliente': cliente,
         'rfc': rfc,
+        'no_contrato': no_contrato,
+        'fecha_contrato': fecha_contrato,
+        'solicitud': solicitud_raw,
+        'solicitud_formateado': solicitud_formateado,
         'norma': norma_str,
+        'normades': nombre_norma,
         'nombre_norma': nombre_norma,
         'producto': producto,
         'marca': marca,
         'modelo': modelo,
+        'tabla_relacion': tabla_rows,
     }
 
     if not salida:
-        salida = os.path.join(base, f'Constancia_{fol or "constancia"}.pdf')
+        tmp_dir = tempfile.gettempdir()
+        safe = str(fol or 'constancia').replace('/', '_').replace(' ', '_')
+        salida = os.path.join(tmp_dir, f'Constancia_{safe}.pdf')
 
     gen = ConstanciaPDFGenerator(datos, base_dir=base)
     return gen.generar(salida)
-
 
 def generar_json_constancias_desde_historial(salida_dir: str | None = None, max_items: int | None = None) -> list:
     """Lee `data/historial_visitas.json` y genera un JSON con los datos de constancia
@@ -921,6 +1262,10 @@ def generar_json_constancias_desde_historial(salida_dir: str | None = None, max_
 
             fecha = v.get('fecha_termino') or v.get('fecha') or datetime.now().strftime('%d/%m/%Y')
 
+            # Número y fecha de contrato desde Clientes.json
+            no_contrato = (clientes.get(cliente.upper(), {}) or {}).get('NÚMERO_DE_CONTRATO', '')
+            fecha_contrato = (clientes.get(cliente.upper(), {}) or {}).get('FECHA_DE_CONTRATO', '')
+
             fol = (v.get('folio_visita') or v.get('folio') or '')
             safe_fol = str(fol).replace('/','_').replace(' ', '_') or f'visita_{count+1}'
 
@@ -929,6 +1274,8 @@ def generar_json_constancias_desde_historial(salida_dir: str | None = None, max_
                 'fecha_emision': fecha,
                 'cliente': cliente,
                 'rfc': rfc,
+                'no_contrato': no_contrato,
+                'fecha_contrato': fecha_contrato,
                 'norma': norma_str,
                 'nombre_norma': nombre_norma,
                 'producto': producto,
@@ -988,5 +1335,3 @@ if __name__ == '__main__':
 
     # Ejecutar generador integrado al invocar este script
     generar_ejemplos_integrados(3)
-
-
