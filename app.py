@@ -4414,7 +4414,7 @@ class SistemaDictamenesVC(ctk.CTk):
             self.boton_generar_dictamen.configure(state="disabled")
             self.barra_progreso.set(0)
             self.etiqueta_progreso.configure(
-                text="⏳ Iniciando generación de dictámenes...",
+                text="⏳ Iniciando generación de documentos...",
                 text_color=STYLE["advertencia"]
             )
             self.update_idletasks()

@@ -9,6 +9,7 @@ import os
 import json
 from datetime import datetime
 import re
+import shutil
 
 from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import letter
@@ -32,15 +33,16 @@ class NumberedCanvas(canvas.Canvas):
             # título en la posición alta (misma que usa la plantilla)
             if hasattr(self, 'header_title') and self.header_title:
                 try:
-                    self.setFont('Helvetica-Bold', 11)
-                    self.drawCentredString(self._pagesize[0] / 2, self._pagesize[1] - 70, self.header_title)
+                    # título (más alto en la página)
+                    self.setFont('Helvetica-Bold', 12)
+                    self.drawCentredString(self._pagesize[0] / 2, self._pagesize[1] - 58, self.header_title)
                 except Exception:
                     pass
-            # cadena identificadora justo debajo del título (más arriba que antes)
+            # cadena identificadora justo debajo del título
             if hasattr(self, 'header_chain') and self.header_chain:
                 try:
                     self.setFont('Helvetica', 8)
-                    self.drawCentredString(self._pagesize[0] / 2, self._pagesize[1] - 58, self.header_chain)
+                    self.drawCentredString(self._pagesize[0] / 2, self._pagesize[1] - 74, self.header_chain)
                 except Exception:
                     pass
         except Exception:
@@ -52,6 +54,22 @@ class NumberedCanvas(canvas.Canvas):
         page_count = len(self._saved_page_states)
         for state in self._saved_page_states:
             self.__dict__.update(state)
+            # Redibujar encabezado (si existe) para cada página al reconstruir
+            try:
+                if hasattr(self, 'header_title') and self.header_title:
+                    try:
+                        self.setFont('Helvetica-Bold', 12)
+                        self.drawCentredString(self._pagesize[0] / 2, self._pagesize[1] - 58, self.header_title)
+                    except Exception:
+                        pass
+                if hasattr(self, 'header_chain') and self.header_chain:
+                    try:
+                        self.setFont('Helvetica', 8)
+                        self.drawCentredString(self._pagesize[0] / 2, self._pagesize[1] - 74, self.header_chain)
+                    except Exception:
+                        pass
+            except Exception:
+                pass
             self.draw_page_number(page_count)
             canvas.Canvas.showPage(self)
         canvas.Canvas.save(self)
@@ -99,6 +117,11 @@ try:
     from reportlab.lib.enums import TA_JUSTIFY
 except Exception:
     _cargar_tabla_relacion_ext = None
+
+try:
+    from plantillaPDF import validar_acreditacion_inspector as _validar_acreditacion_inspector
+except Exception:
+    _validar_acreditacion_inspector = None
 
 
 class ConstanciaPDFGenerator:
@@ -238,8 +261,6 @@ class ConstanciaPDFGenerator:
         self.datos['cadena'] = cadena
         return cadena
 
-
-
     def dibujar_encabezado(self, c: canvas.Canvas) -> None:
         # Logo (if present) at top-left (fallback to background watermark)
         logo_paths = [
@@ -247,18 +268,20 @@ class ConstanciaPDFGenerator:
             os.path.join(self.base_dir, 'img', 'VYC.png'),
             'img/Logo.png',
         ]
+        # Dibujar logo en la parte superior izquierda, coordenada fija respecto al tope
+        logo_y = self.height - 88
         for lp in logo_paths:
             if os.path.exists(lp):
                 try:
-                    c.drawImage(lp, 25 * mm, self.cursor_y - 8 * mm, width=35 * mm, preserveAspectRatio=True, mask='auto')
+                    c.drawImage(lp, 25 * mm, logo_y, width=35 * mm, preserveAspectRatio=True, mask='auto')
                     break
                 except Exception:
                     pass
 
-        # Title
-        c.setFont('Helvetica-Bold', 12)
-        c.drawCentredString(self.width / 2, self.cursor_y, 'CONSTANCIA DE CONFORMIDAD')
-        self.cursor_y -= 10
+        # # Title
+        # c.setFont('Helvetica-Bold', 12)
+        # c.drawCentredString(self.width / 2, self.cursor_y, 'CONSTANCIA DE CONFORMIDAD')
+        # self.cursor_y -= 10
 
         # Mostrar fecha de contrato (desde `self.datos` o, como respaldo, desde data/Clientes.json)
         try:
@@ -273,49 +296,9 @@ class ConstanciaPDFGenerator:
                     fecha_contrato = ''
         except Exception:
             pass
-        # Cadena identificadora (construida igual que en dictamen, sin mostrar CP)
-        c.setFont('Helvetica', 8)
-        try:
-            # Intentar construir la cadena identificadora oficial
-            cadena = ''
-            try:
-                cadena = self.construir_cadena_identificacion() or ''
-            except Exception:
-                cadena = self.datos.get('cadena', '') or ''
-
-            if cadena:
-                # Mostrar años con dos dígitos (2026 -> 26) en la cadena identificadora
-                try:
-                    display_cadena = re.sub(r"(\d{4})(?=049)", lambda m: m.group(1)[-2:], cadena)
-                except Exception:
-                    display_cadena = cadena
-                # Dibujar la cadena completa en la posición fija usada por el dictamen (más arriba)
-                try:
-                    c.setFont('Helvetica', 8)
-                    c.drawCentredString(8.5 * inch / 2, 11 * inch - 50, display_cadena)
-                except Exception:
-                    # Fallback: centrar bajo el título si la posición fija falla
-                    try:
-                        max_w = self.width - 60 * mm
-                        lines = _dividir_texto(c, display_cadena, max_w, font_name='Helvetica', font_size=8)
-                        y = self.cursor_y - 6
-                        for ln in lines:
-                            c.drawCentredString(self.width / 2, y, ln)
-                            y -= 9
-                        self.cursor_y = y - 6
-                    except Exception:
-                        self.cursor_y -= 18
-                else:
-                    # Reservar espacio vertical equivalente bajo el encabezado
-                    self.cursor_y -= 28
-            else:
-                # No mostrar el folio/CP por defecto (el usuario pidió eliminar CP)
-                self.cursor_y -= 18
-        except Exception:
-            self.cursor_y -= 18
-
-        # small gap after header
-        self.cursor_y -= 6
+        # El título y la cadena se dibujan en `generar()` y en el canvas final durante el guardado.
+        # Solo dejar un pequeño espacio antes del contenido siguiente.
+        self.cursor_y -= 8
 
     def dibujar_paginacion(self, c: canvas.Canvas) -> None:
         # Right-aligned codes and page number similar to sample
@@ -347,38 +330,37 @@ class ConstanciaPDFGenerator:
         # cliente usado para búsquedas en Clientes.json
         cliente = (self.datos.get('cliente') or '').strip()
 
-        # No. de contrato (valor en negritas)
-        no_contrato = str(self.datos.get('no_contrato', '') or self.datos.get('no_de_contrato', ''))
+        # Cliente (valor en negritas)
+        cliente_display = str(self.datos.get('cliente') or cliente or '')
         c.setFont('Helvetica', 9)
-        c.drawString(x, self.cursor_y, 'No. de contrato:')
+        c.drawString(x, self.cursor_y, 'Cliente:')
         c.setFont('Helvetica-Bold', 9)
-        c.drawString(x + 40 * mm, self.cursor_y, no_contrato)
+        c.drawString(x + 15 * mm, self.cursor_y, cliente_display)
         self.cursor_y -= 12
 
-        # Fecha de contrato (valor en negritas). Si no viene en `datos`, intentar leer Clientes.json
-        fecha_contrato = self.datos.get('fecha_contrato') or self.datos.get('fecha_de_contrato') or ''
-        if not fecha_contrato:
+        # RFC (valor en negritas). Si no viene en `datos`, intentar leer Clientes.json
+        rfc = str(self.datos.get('rfc') or '')
+        if not rfc:
             try:
                 clientes_path = os.path.join(self.base_dir, 'data', 'Clientes.json')
                 clientes_map = _cargar_clientes(clientes_path)
-                fecha_contrato = (clientes_map.get(cliente.upper().strip(), {}) or {}).get('FECHA_DE_CONTRATO', '') or ''
+                rfc = (clientes_map.get(cliente.upper().strip(), {}) or {}).get('RFC', '') or ''
             except Exception:
-                fecha_contrato = ''
-        fecha_contrato = str(fecha_contrato or '')
+                rfc = ''
         c.setFont('Helvetica', 9)
-        c.drawString(x, self.cursor_y, 'Fecha de contrato:')
+        c.drawString(x, self.cursor_y, 'RFC:')
         c.setFont('Helvetica-Bold', 9)
-        c.drawString(x + 40 * mm, self.cursor_y, fecha_contrato)
+        c.drawString(x + 15 * mm, self.cursor_y, rfc)
         self.cursor_y -= 12
 
-        # Fecha de emisión (ahora después de la fecha de contrato)
+        # Fecha de emisión (ahora después de RFC)
         fecha_emision = str(self.datos.get('fecha_emision', '') or '')
         fecha_larga = _formato_fecha_larga(fecha_emision)
         # Construir la línea completa: 'Fecha de Emisión: jueves 8 de enero de 2026'
         combined = f"Fecha de Emisión: {fecha_larga}" if fecha_larga else 'Fecha de Emisión:'
         # Determinar ancho máximo disponible y ajustar tamaño si es necesario
         c.setFont('Helvetica-Bold', 9)
-        max_w = right_x - (x + 10 * mm)
+        max_w = right_x - (x + 15 * mm)
         text_w = c.stringWidth(combined, 'Helvetica-Bold', 9)
         if text_w > max_w:
             # reducir ligeramente la fuente para intentar que quepa en una línea
@@ -386,7 +368,8 @@ class ConstanciaPDFGenerator:
             text_w = c.stringWidth(combined, 'Helvetica-Bold', 8)
         # Dibujar la línea completa alineada a la derecha en `right_x`
         c.drawRightString(right_x, self.cursor_y, combined)
-        self.cursor_y -= 12
+        # dejar un espacio extra entre la fecha de emisión y el siguiente párrafo
+        self.cursor_y -= 40
 
     def dibujar_cuerpo_legal(self, c: canvas.Canvas) -> None:
         x = 25 * mm
@@ -416,11 +399,11 @@ class ConstanciaPDFGenerator:
         right = self.width - 25 * mm
         line_y = self.cursor_y
         # líneas más gruesas según petición
-        c.setLineWidth(1.2)
+        c.setLineWidth(1)
         c.line(left, line_y, right, line_y)
 
-        # Título centrado
-        title_y = line_y - 8
+        # Título centrado (más separación respecto a la línea superior)
+        title_y = line_y - 14
         c.setFont('Helvetica-Bold', 11)
         c.drawCentredString(self.width / 2, title_y, 'Condiciones de la Constancia')
 
@@ -478,7 +461,6 @@ class ConstanciaPDFGenerator:
         c.setFont('Helvetica-Bold', 10)
         c.drawString(x + 40 * mm, self.cursor_y, prod)
         self.cursor_y -= 20
-
 
     def dibujar_tabla_relacion(self, c: canvas.Canvas) -> None:
         # Nuevo diseño: tabla autoajustable a contenido (columnas y alturas dinámicas)
@@ -621,13 +603,79 @@ class ConstanciaPDFGenerator:
         self._dibujar_texto_justificado(c, x, self.cursor_y, obs, max_w, font_name='Helvetica', font_size=8, leading=10)
         self.cursor_y -= 30
 
+    def dibujar_evidencia(self, c: canvas.Canvas) -> None:
+            """Crea una página para pegar evidencia fotográfica (2x2 cajas).
+
+            Esta implementación añade una única página con cuatro recuadros.
+            """
+            try:
+                c.showPage()
+            except Exception:
+                pass
+            self.cursor_y = self.height - 40
+            try:
+                self.dibujar_fondo(c)
+            except Exception:
+                pass
+
+            evidencias = self.datos.get('evidencias_lista', []) or []
+
+            # Si no hay evidencias, añadir placeholder ${IMAGEN} centrado
+            if not evidencias:
+                c.setFont('Helvetica-Bold', 14)
+                c.drawCentredString(self.width / 2, self.cursor_y - 70, '${IMAGEN}')
+                # dejar espacio y regresar para que las firmas se dibujen después
+                self.cursor_y -= 80
+                return
+
+            # Mostrar cada evidencia en su propia hoja, centrada y a mayor tamaño
+            margin_x = 25 * mm
+            margin_y_top = 40 * mm
+            margin_y_bottom = 40 * mm
+            total = len(evidencias)
+            for idx, path in enumerate(evidencias, start=1):
+                if idx > 1:
+                    try:
+                        c.showPage()
+                    except Exception:
+                        pass
+                    try:
+                        self.dibujar_fondo(c)
+                    except Exception:
+                        pass
+
+                # Dibujar imagen centrada y lo más grande posible dentro de márgenes
+                try:
+                    if path and os.path.exists(path):
+                        im = ImageReader(path)
+                        iw, ih = im.getSize()
+                        max_w = self.width - 2 * margin_x
+                        max_h = self.height - (margin_y_top + margin_y_bottom + 30 * mm)
+                        scale = min(max_w / iw, max_h / ih, 1)
+                        draw_w = iw * scale
+                        draw_h = ih * scale
+                        draw_x = (self.width - draw_w) / 2
+                        # subir la imagen ligeramente para que no quede demasiado baja
+                        draw_y = (self.height - margin_y_bottom - draw_h) / 2 + 10 * mm
+                        c.drawImage(im, draw_x, draw_y, width=draw_w, height=draw_h, preserveAspectRatio=True, mask='auto')
+                except Exception:
+                    pass
+
+            # ajustar cursor_y para que las firmas se dibujen en la siguiente página
+            self.cursor_y = margin_y_bottom
+
+
+
+
+
+
     def dibujar_firma(self, c: canvas.Canvas) -> None:
         # Imprimir firmas en página(s) final(es) con diseño de dos columnas similar al Dictamen
         try:
             c.showPage()
         except Exception:
             pass
-        self.cursor_y = self.height - 40
+        self.cursor_y = self.height - 150
         try:
             self.dibujar_fondo(c)
         except Exception:
@@ -640,12 +688,32 @@ class ConstanciaPDFGenerator:
         except Exception:
             firmas_map = {}
 
+        
+
         # Preparar datos: intentar obtener dos firmantes
         # Preferir nombres suministrados en self.datos
         nombre1 = self.datos.get('nfirma1') or ''
         nombre2 = self.datos.get('nfirma2') or ''
         img1 = None
         img2 = None
+        code1 = None
+        code2 = None
+
+        # Si la tabla_relacion especifica un código de firma en su primera fila,
+        # usar esa entrada preferente para la firma izquierda (como hace el dictamen).
+        try:
+            tr_tmp = list(self.datos.get('tabla_relacion') or [])
+            if tr_tmp:
+                first_row_pref = tr_tmp[0]
+                pref_code = (first_row_pref.get('FIRMA') or first_row_pref.get('firma') or '').strip()
+                if pref_code:
+                    pref_entry = firmas_map.get(pref_code) or firmas_map.get(pref_code.upper())
+                    if pref_entry:
+                        nombre1 = pref_entry.get('NOMBRE DE INSPECTOR') or pref_entry.get('nombre') or nombre1
+                        img1 = pref_entry.get('IMAGEN') or pref_entry.get('imagen') or img1
+                        code1 = pref_code or code1
+        except Exception:
+            pass
 
         # Si no hay nombres, intentar sacar de Firmas.json
         if not nombre1 or not nombre2:
@@ -654,9 +722,11 @@ class ConstanciaPDFGenerator:
                 if not nombre1 and 'Gabriel' in n:
                     nombre1 = nombre1 or n
                     img1 = v.get('IMAGEN') or v.get('imagen')
+                    code1 = k
                 if not nombre2 and ('Arturo' in n or 'AFLORES' in (k or '').upper()):
                     nombre2 = nombre2 or n
                     img2 = v.get('IMAGEN') or v.get('imagen')
+                    code2 = k
         # Fallbacks
         if not nombre1:
             nombre1 = 'Nombre del Inspector'
@@ -669,6 +739,64 @@ class ConstanciaPDFGenerator:
                 img2 = candidate
             elif os.path.exists('Firmas/AFLORES.png'):
                 img2 = 'Firmas/AFLORES.png'
+
+        # Validar acreditación de firmas: si no están acreditadas para la norma requerida, no imprimir
+        norma_req = str(self.datos.get('norma') or '').strip()
+        def _find_code_by_name(name):
+            if not name:
+                return None
+            for kk, vv in (firmas_map or {}).items():
+                n = vv.get('NOMBRE DE INSPECTOR') or vv.get('nombre') or vv.get('NOMBRE') or ''
+                if n and n.strip().upper() == name.strip().upper():
+                    return kk
+            return None
+
+        # Try to resolve codes if missing
+        if nombre1 and not code1:
+            code1 = _find_code_by_name(nombre1)
+        if nombre2 and not code2:
+            code2 = _find_code_by_name(nombre2)
+
+        # Use plantillaPDF validator if available
+        try:
+            if code1:
+                if _validar_acreditacion_inspector:
+                    _, img_from_map, ok = _validar_acreditacion_inspector(code1, norma_req, firmas_map)
+                    if not ok:
+                        nombre1 = ''
+                        img1 = None
+                    else:
+                        img1 = img1 or img_from_map
+                else:
+                    # fallback: check 'normas_acreditadas' field manually
+                    inspector = firmas_map.get(code1, {})
+                    normas_ac = inspector.get('Normas acreditadas') or inspector.get('normas_acreditadas') or inspector.get('Normas') or []
+                    if norma_req and normas_ac and (norma_req in normas_ac or any(norma_req in na for na in normas_ac)):
+                        img1 = img1 or inspector.get('IMAGEN') or inspector.get('imagen')
+                    else:
+                        nombre1 = ''
+                        img1 = None
+        except Exception:
+            pass
+        try:
+            if code2:
+                if _validar_acreditacion_inspector:
+                    _, img_from_map2, ok2 = _validar_acreditacion_inspector(code2, norma_req, firmas_map)
+                    if not ok2:
+                        nombre2 = ''
+                        img2 = None
+                    else:
+                        img2 = img2 or img_from_map2
+                else:
+                    inspector2 = firmas_map.get(code2, {})
+                    normas_ac2 = inspector2.get('Normas acreditadas') or inspector2.get('normas_acreditadas') or inspector2.get('Normas') or []
+                    if norma_req and normas_ac2 and (norma_req in normas_ac2 or any(norma_req in na for na in normas_ac2)):
+                        img2 = img2 or inspector2.get('IMAGEN') or inspector2.get('imagen')
+                    else:
+                        nombre2 = ''
+                        img2 = None
+        except Exception:
+            pass
 
         # Column coordinates
         left_x = 25 * mm
@@ -683,6 +811,22 @@ class ConstanciaPDFGenerator:
         sig_w2 = 50 * mm
 
         # Left signature
+        # Si en la tabla_relacion hay un código de firma preferido, usarlo (coincide con el armado de dictamen)
+        try:
+            tr = list(self.datos.get('tabla_relacion') or [])
+            if tr:
+                first_row = tr[0]
+                pref_code = (first_row.get('FIRMA') or first_row.get('firma') or '').strip()
+                if pref_code:
+                    # buscar en firmas_map
+                    pref_entry = firmas_map.get(pref_code) or firmas_map.get(pref_code.upper())
+                    if pref_entry:
+                        nombre1 = pref_entry.get('NOMBRE DE INSPECTOR') or pref_entry.get('nombre') or nombre1
+                        img1 = img1 or pref_entry.get('IMAGEN') or pref_entry.get('imagen')
+                        code1 = pref_code
+        except Exception:
+            pass
+
         if img1:
             try:
                 p1 = img1 if os.path.isabs(img1) or os.path.exists(img1) else os.path.join(self.base_dir, img1)
@@ -737,6 +881,12 @@ class ConstanciaPDFGenerator:
         c.drawString(right_x, y_after - 12, 'Responsable de Supervisión UI')
         self.cursor_y = y_after - 30
 
+
+
+
+
+
+
     def generar(self, salida: str) -> str:
         # Si no se especifica salida, no guardar PDFs en data/Constancias por defecto.
         # Usar un archivo temporal para evitar congestionar la carpeta `data/Constancias`.
@@ -760,6 +910,7 @@ class ConstanciaPDFGenerator:
                     cadena = self.construir_cadena_identificacion() or ''
                 except Exception:
                     cadena = ''
+            # Preparar la cadena para mostrar en encabezado: forzar año en 2 dígitos
             try:
                 display_cadena = re.sub(r"(\d{4})(?=049)", lambda m: m.group(1)[-2:], cadena)
             except Exception:
@@ -768,11 +919,23 @@ class ConstanciaPDFGenerator:
             try:
                 c.header_title = 'CONSTANCIA DE CONFORMIDAD'
                 c.header_chain = display_cadena
+                # Dibujar encabezado inmediatamente en la primera página (titulo arriba, cadena debajo)
+                try:
+                    c.setFont('Helvetica-Bold', 20)
+                    c.drawCentredString(self.width / 2, self.height - 58, c.header_title)
+                except Exception:
+                    pass
+                try:
+                    c.setFont('Helvetica', 8)
+                    c.drawCentredString(self.width / 2, self.height - 74, c.header_chain)
+                except Exception:
+                    pass
             except Exception:
                 pass
         except Exception:
             pass
-        self.cursor_y = self.height - 40
+        # Reservar más espacio vertical para contenido, dejando margen bajo el encabezado
+        self.cursor_y = self.height - 120
         try:
             # Preparar datos: construir cadena identificadora y cargar catálogos
             try:
@@ -844,6 +1007,110 @@ class ConstanciaPDFGenerator:
 
         # Añadir apartado para pegar evidencia fotográfica (páginas nuevas)
         try:
+            # Intentar localizar evidencias automáticamente usando data/evidence_paths.json
+            try:
+                evidencia_cfg = {}
+                cfg_path = os.path.join(self.base_dir, 'data', 'evidence_paths.json')
+                if os.path.exists(cfg_path):
+                    with open(cfg_path, 'r', encoding='utf-8') as ef:
+                        evidencia_cfg = json.load(ef) or {}
+
+                IMG_EXTS = {'.png', '.jpg', '.jpeg', '.bmp', '.tif', '.tiff', '.webp'}
+                def _normalizar(s):
+                    return re.sub(r"[^A-Za-z0-9]", "", str(s or "")).upper()
+
+                # construir índice simple: clave_normalizada -> [paths]
+                indice = {}
+                for grp, lst in (evidencia_cfg or {}).items():
+                    if not isinstance(lst, list):
+                        continue
+                    for carpeta in lst:
+                        try:
+                            # permitir rutas relativas guardadas en la configuración
+                            carpeta_path = carpeta
+                            try:
+                                if not os.path.isabs(carpeta_path):
+                                    carpeta_path = os.path.join(self.base_dir, carpeta_path)
+                            except Exception:
+                                carpeta_path = carpeta
+                            if not os.path.exists(carpeta_path):
+                                continue
+                            for root, _, files in os.walk(carpeta_path):
+                                for nombre in files:
+                                    base, ext = os.path.splitext(nombre)
+                                    if ext.lower() not in IMG_EXTS:
+                                        continue
+                                    path = os.path.join(root, nombre)
+                                    # extraer core y normalizar
+                                    try:
+                                        core = re.sub(r"[\s\-_]*\(\s*\d+\s*\)$", "", base)
+                                        core = re.sub(r"[\s\-_]+\d+$", "", core)
+                                    except Exception:
+                                        core = base
+                                    key = _normalizar(core)
+                                    if not key:
+                                        continue
+                                    indice.setdefault(key, []).append(path)
+                                    # indexar también por nombre de carpeta padre
+                                    try:
+                                        parent = os.path.basename(root or "")
+                                        parent_core = re.sub(r"[\s\-_]*\(\s*\d+\s*\)$", "", parent)
+                                        parent_core = re.sub(r"[\s\-_]+\d+$", "", parent_core)
+                                        parent_key = _normalizar(parent_core)
+                                        if parent_key and parent_key != key:
+                                            indice.setdefault(parent_key, []).append(path)
+                                    except Exception:
+                                        pass
+                        except Exception:
+                            continue
+
+                # claves a buscar: folio, solicitud, cliente y claves de tabla_relacion (CODIGO, DESCRIPCION, MARCA)
+                buscar = []
+                fol = str(self.datos.get('folio_constancia') or '')
+                if fol:
+                    buscar.append(_normalizar(fol))
+                sol = str(self.datos.get('solicitud_formateado') or self.datos.get('solicitud') or '')
+                if sol:
+                    buscar.append(_normalizar(sol))
+                cliente = str(self.datos.get('cliente') or '')
+                if cliente:
+                    buscar.append(_normalizar(cliente))
+                # añadir claves desde la tabla de relación para mejorar matching (como en dictamen)
+                try:
+                    tr = list(self.datos.get('tabla_relacion') or [])
+                    for row in tr:
+                        try:
+                            codigo = str(row.get('CODIGO') or row.get('codigo') or '')
+                            desc = str(row.get('DESCRIPCION') or row.get('descripcion') or row.get('Contenido') or row.get('CONTENIDO') or '')
+                            marca = str(row.get('MARCA') or row.get('marca') or '')
+                            if codigo:
+                                buscar.append(_normalizar(codigo))
+                            if desc:
+                                buscar.append(_normalizar(desc))
+                            if marca:
+                                buscar.append(_normalizar(marca))
+                        except Exception:
+                            continue
+                except Exception:
+                    pass
+
+                encontrados = []
+                for k in buscar:
+                    if not k:
+                        continue
+                    for ik, paths in indice.items():
+                        if k in ik or ik in k:
+                            for p in paths:
+                                if p not in encontrados and os.path.exists(p):
+                                    encontrados.append(p)
+
+                # conservar evidencias ya provistas en datos, y anteponer las encontradas
+                prov = list(self.datos.get('evidencias_lista') or [])
+                final_list = encontrados + [p for p in prov if p not in encontrados]
+                if final_list:
+                    self.datos['evidencias_lista'] = final_list
+            except Exception:
+                pass
             self.dibujar_evidencia(c)
         except Exception:
             pass
@@ -855,58 +1122,6 @@ class ConstanciaPDFGenerator:
             pass
         c.save()
         return salida
-
-    def dibujar_evidencia(self, c: canvas.Canvas) -> None:
-        """Crea una página para pegar evidencia fotográfica (2x2 cajas).
-
-        Esta implementación añade una única página con cuatro recuadros.
-        """
-        try:
-            c.showPage()
-        except Exception:
-            pass
-        self.cursor_y = self.height - 40
-        try:
-            self.dibujar_fondo(c)
-        except Exception:
-            pass
-
-        evidencias = self.datos.get('evidencias_lista', []) or []
-
-        # Si no hay evidencias, añadir placeholder ${IMAGEN} centrado
-        if not evidencias:
-            c.setFont('Helvetica-Bold', 14)
-            c.drawCentredString(self.width / 2, self.cursor_y - 40, '${IMAGEN}')
-            # dejar espacio y regresar para que las firmas se dibujen después
-            self.cursor_y -= 80
-            return
-
-        # Título
-        c.setFont('Helvetica-Bold', 12)
-        c.drawCentredString(self.width / 2, self.cursor_y, 'EVIDENCIA FOTOGRÁFICA')
-        self.cursor_y -= 20
-
-        # Márgenes y tamaños de caja (2x2)
-        margin_x = 25 * mm
-        margin_y = 30 * mm
-        gap = 10 * mm
-        box_w = (self.width - 2 * margin_x - gap) / 2
-        box_h = (self.height - self.cursor_y - margin_y - 40 * mm) / 2
-        if box_h <= 40 * mm:
-            box_h = 60 * mm
-
-        y_top = self.cursor_y
-        num = 1
-        for r in range(2):
-            y = y_top - r * (box_h + gap)
-            for ccol in range(2):
-                x = margin_x + ccol * (box_w + gap)
-                c.rect(x, y - box_h, box_w, box_h, stroke=1, fill=0)
-                c.setFont('Helvetica', 8)
-                c.drawCentredString(x + box_w / 2, y - box_h + 6 * mm, f'Evidencia {num}')
-                num += 1
-
-        self.cursor_y = margin_y
 
 def _dividir_texto(c: canvas.Canvas, texto: str, max_width: float, font_name: str = 'Helvetica', font_size: int = 10):
     palabras = texto.split()
@@ -999,6 +1214,16 @@ def _actualizar_tabla_relacion(path: str) -> None:
     if not os.path.exists(path):
         return
     try:
+        # siempre crear un respaldo timestamped en data/tabla_relacion_backups
+        try:
+            backups_dir = os.path.join(os.path.dirname(path), 'tabla_relacion_backups')
+            os.makedirs(backups_dir, exist_ok=True)
+            ts = datetime.now().strftime('%Y%m%d_%H%M%S')
+            backup_name = f"tabla_de_relacion_before_update_{ts}.json"
+            shutil.copy(path, os.path.join(backups_dir, backup_name))
+        except Exception:
+            pass
+
         with open(path, 'r', encoding='utf-8') as f:
             data = json.load(f)
         changed = False
@@ -1015,6 +1240,16 @@ def _actualizar_tabla_relacion(path: str) -> None:
                     json.dump(data, b, ensure_ascii=False, indent=2)
             except Exception:
                 pass
+                # Además crear un respaldo con timestamp en data/tabla_relacion_backups
+                try:
+                    backups_dir = os.path.join(os.path.dirname(path), 'tabla_relacion_backups')
+                    os.makedirs(backups_dir, exist_ok=True)
+                    ts = datetime.now().strftime('%Y%m%d_%H%M%S')
+                    backup_name = f"tabla_de_relacion_{ts}.json"
+                    with open(os.path.join(backups_dir, backup_name), 'w', encoding='utf-8') as bf:
+                        json.dump(data, bf, ensure_ascii=False, indent=2)
+                except Exception:
+                    pass
             with open(path, 'w', encoding='utf-8') as f:
                 json.dump(data, f, ensure_ascii=False, indent=2)
     except Exception:
@@ -1155,6 +1390,30 @@ def generar_constancia_desde_visita(folio_visita: str | None = None, salida: str
                         tabla_rows = t[:4]
         except Exception:
             tabla_rows = []
+
+    # Crear copia de respaldo completa de la tabla de relación en data/tabla_relacion_backups
+    try:
+        if os.path.exists(tabla):
+            backups_dir2 = os.path.join(data_dir, 'tabla_relacion_backups')
+            os.makedirs(backups_dir2, exist_ok=True)
+            ts2 = datetime.now().strftime('%Y%m%d_%H%M%S')
+            shutil.copy(tabla, os.path.join(backups_dir2, f"tabla_de_relacion_{ts2}.json"))
+    except Exception:
+        pass
+
+    # Si no existía el archivo fuente o no se pudo copiar, guardar al menos
+    # el extracto `tabla_rows` en el mismo directorio de backups para trazabilidad.
+    try:
+        if tabla_rows:
+            backups_dir3 = os.path.join(data_dir, 'tabla_relacion_backups')
+            os.makedirs(backups_dir3, exist_ok=True)
+            ts3 = datetime.now().strftime('%Y%m%d_%H%M%S')
+            safe_fol = str(fol).replace('/', '_') or 'nofolio'
+            out_name = f"tabla_relacion_extract_{safe_fol}_{ts3}.json"
+            with open(os.path.join(backups_dir3, out_name), 'w', encoding='utf-8') as bf:
+                json.dump(tabla_rows, bf, ensure_ascii=False, indent=2)
+    except Exception:
+        pass
 
     # Si la visita no incluye campo 'solicitud', intentar obtenerlo desde la primera fila
     # de la `tabla_relacion` (muchas veces la solicitud viene en esa columna).

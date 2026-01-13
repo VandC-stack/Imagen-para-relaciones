@@ -1,33 +1,4 @@
 {
   "last_folio_visita": 0,
-  "visitas": [
-    {
-      "folio_visita": "CP000003",
-      "folio_acta": "AC000003",
-      "fecha_inicio": "13/01/2026",
-      "fecha_termino": "13/01/2026",
-      "hora_inicio_24h": "10:51",
-      "hora_termino_24h": "18:00",
-      "hora_inicio": "10:51 AM",
-      "hora_termino": "6:00 PM",
-      "norma": "NOM-004-SE-2021, NOM-020-SCFI-1997, NOM-050-SCFI-2004, NOM-141-SSA1/SCFI-2012, NOM-189-SSA1/SCFI-2018",
-      "cliente": "BLUE STRIPES S.A. DE C.V.",
-      "nfirma1": "Marcos Uriel Flores Gomez",
-      "nfirma2": "",
-      "estatus": "Completada",
-      "tipo_documento": "Dictamen",
-      "folios_utilizados": "000032 - 000060",
-      "total_folios": 29,
-      "total_folios_numericos": 29,
-      "supervisores_tabla": "Marcos Uriel Flores Gomez",
-      "supervisor_formulario": "",
-      "_id": "192df5b3-9729-4aae-9cc4-3a671ced5f9f",
-      "direccion": "Av. José López Portillo 4889, San Pedro Barrientos, Tlalnepantla, Estado de México, C.P. 54015",
-      "calle_numero": "Av. José López Portillo 4889",
-      "colonia": "San Pedro Barrientos",
-      "municipio": "Tlalnepantla",
-      "ciudad_estado": "Estado de México",
-      "cp": "54015"
-    }
-  ]
+  "visitas": []
 }
