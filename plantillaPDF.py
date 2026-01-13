@@ -66,6 +66,48 @@ def cargar_tabla_relacion(ruta="data/tabla_de_relacion.json"):
         ruta_completa = obtener_ruta_recurso(ruta)
         with open(ruta_completa, "r", encoding="utf-8") as f:
             data = json.load(f)
+        # Detectar si el JSON cargado parece ser un "índice" (mapping code->destino)
+        is_index_like = False
+        try:
+            if isinstance(data, dict):
+                # verificar que todos los valores sean strings (destinos)
+                if all(isinstance(v, str) or v is None for v in data.values()):
+                    is_index_like = True
+        except Exception:
+            is_index_like = False
+
+        if is_index_like:
+            # Respaldar el archivo erróneo para análisis
+            try:
+                import shutil, time
+                backup_path = ruta_completa + f".index_error_backup_{int(time.time())}.json"
+                shutil.copy2(ruta_completa, backup_path)
+                print(f"⚠️ Atención: {ruta} contiene un índice (code->destino). Se creó respaldo en: {backup_path}")
+            except Exception:
+                print(f"⚠️ Atención: {ruta} parece contener un índice (code->destino). No se pudo crear respaldo automático.")
+
+            # Intentar restaurar desde el backup más reciente en data/tabla_relacion_backups/
+            try:
+                base_dir = os.path.dirname(ruta_completa)
+                backups_dir = os.path.join(base_dir, 'tabla_relacion_backups')
+                if os.path.isdir(backups_dir):
+                    files = [os.path.join(backups_dir, f) for f in os.listdir(backups_dir) if f.lower().endswith('.json')]
+                    if files:
+                        files.sort(key=lambda p: os.path.getmtime(p), reverse=True)
+                        latest = files[0]
+                        shutil.copy2(latest, ruta_completa)
+                        with open(ruta_completa, 'r', encoding='utf-8') as f2:
+                            data = json.load(f2)
+                        df = pd.DataFrame(data)
+                        print(f"✅ Restaurado backup desde {latest}. Tabla de relación cargada: {len(df)} registros")
+                        return df
+            except Exception as e:
+                print(f"⚠️ No se pudo restaurar backup automáticamente: {e}")
+
+            # Si no hay backup o no se pudo restaurar, devolver DataFrame vacío y notificar
+            print("❌ El archivo de tabla de relación parece incorrecto (índice). Por favor restaure el archivo correcto en 'data/tabla_de_relacion.json' o use la opción 'Cargar Tabla de Relación' con el archivo apropiado.")
+            return pd.DataFrame()
+
         df = pd.DataFrame(data)
         print(f"✅ Tabla de relación cargada: {len(df)} registros")
         return df

@@ -3428,6 +3428,25 @@ class SistemaDictamenesVC(ctk.CTk):
 
     def convertir_a_json(self, file_path):
         try:
+            # Detectar si el Excel tiene una hoja llamada CONCENTRADO (índice)
+            try:
+                xls = pd.ExcelFile(file_path)
+                sheets = [s.upper() for s in (xls.sheet_names or [])]
+            except Exception:
+                sheets = []
+
+            if 'CONCENTRADO' in sheets:
+                # Advertir al usuario: este archivo parece ser un índice, no la tabla principal
+                from tkinter import messagebox as _mb
+                confirmar = _mb.askyesno(
+                    "Archivo con hoja CONCENTRADO detectado",
+                    "El archivo seleccionado contiene una hoja llamada 'CONCENTRADO', que parece ser un índice para Pegado por Índice.\n\n¿Desea importarlo AHORA como 'Tabla de Relación' y sobrescribir data/tabla_de_relacion.json?\n\n(Si NO está seguro, use la opción 'Pegado por Índice' en la UI en lugar de 'Cargar Tabla de Relación')"
+                )
+                if not confirmar:
+                    # cancelar la conversión para evitar sobrescritura accidental
+                    self.after(0, self.mostrar_error, "Importación cancelada: el archivo parece ser un índice. Use 'Pegado por Índice' para importar índices.")
+                    return
+
             df = pd.read_excel(file_path)
             if df.empty:
                 self.mostrar_error("El archivo seleccionado no contiene datos.")

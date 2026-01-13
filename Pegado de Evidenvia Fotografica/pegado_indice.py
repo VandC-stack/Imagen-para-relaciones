@@ -76,8 +76,27 @@ def construir_indice_desde_excel(ruta_excel):
         valid_codes = set()
         for col in ("CODIGO","CODIGOS","CODE","SKU","CLAVE"):
             if col in df_rel.columns:
-                for v in df_rel[col].astype(str).fillna(""):
-                    valid_codes.add(normalizar_cadena_alnum_mayus(v))
+                # Normalizar valores numéricos leídos por pandas (evitar '28007960.0')
+                def _cell_to_str(v):
+                    try:
+                        import pandas as _pd
+                        if _pd.isna(v):
+                            return ""
+                    except Exception:
+                        pass
+                    # Si viene como float entero, convertir a int para quitar .0
+                    try:
+                        if isinstance(v, float) and v.is_integer():
+                            return str(int(v))
+                    except Exception:
+                        pass
+                    return str(v).strip()
+
+                for v in df_rel[col].tolist():
+                    s = _cell_to_str(v)
+                    if not s:
+                        continue
+                    valid_codes.add(normalizar_cadena_alnum_mayus(s))
                 break
     except Exception:
         valid_codes = None
@@ -110,15 +129,30 @@ def construir_indice_desde_excel(ruta_excel):
         code_col = None
         dest_col = None
 
+    # Helper: convertir celdas a string manejando floats con .0 y NaN
+    def _cell_str_from_row(val):
+        try:
+            import pandas as _pd
+            if _pd.isna(val):
+                return ""
+        except Exception:
+            pass
+        try:
+            if isinstance(val, float) and val.is_integer():
+                return str(int(val))
+        except Exception:
+            pass
+        return str(val).strip()
+
     for _, row in df.iterrows():
         try:
             if code_col is not None and dest_col is not None:
-                codigo = str(row.get(code_col, "")).strip()
-                destino = str(row.get(dest_col, "")).strip()
+                codigo = _cell_str_from_row(row.get(code_col, ""))
+                destino = _cell_str_from_row(row.get(dest_col, ""))
             else:
                 # Fallback antiguo: columna A -> código, columna B -> destino
-                codigo = str(row.iloc[0]).strip()
-                destino = str(row.iloc[1]).strip()
+                codigo = _cell_str_from_row(row.iloc[0])
+                destino = _cell_str_from_row(row.iloc[1])
         except Exception:
             continue
 
@@ -137,7 +171,7 @@ def construir_indice_desde_excel(ruta_excel):
 
     with open(INDEX_FILE, "w", encoding="utf-8") as f:
         json.dump(indice, f, ensure_ascii=False, indent=4)
-    _log_index(f"Indice construido: {len(indice)} entries; index_file={INDEX_FILE}")
+    _log_index(f"Indice construido: {len(indice)} entries; index_file={INDEX_FILE}; sample_keys={list(indice.keys())[:10]}")
 
     return indice
 
@@ -167,10 +201,6 @@ def extraer_codigos_tabla(doc):
                 if not canon:
                     continue
 
-                # Aceptar códigos numéricos, alfabéticos o mixtos.
-                # Antes se requería que tuvieran letras y dígitos; eso descartaba
-                # SKUs numéricos (p. ej. columna A en algunos Excel). Ahora
-                # añadimos cualquier valor alfanumérico no vacío.
                 codigos.append(texto)
                 _log_index(f"extraer_codigos_tabla: encontrado -> original='{texto}' canon='{canon}'")
 
@@ -247,7 +277,23 @@ def procesar_doc_con_indice_docx(ruta_doc, ruta_imagenes, indice):
         txt = (p.text or "")
         # Accept case-variants like ${IMAGEN} or ${imagen} (allow spaces inside braces)
         if re.search(r"\$\{\s*imagen\s*\}", txt, flags=re.IGNORECASE):
-            p.clear()
+            # Limpiar el párrafo de forma segura (python-docx no tiene `clear()` pública)
+            try:
+                for r in list(p.runs):
+                    try:
+                        p._element.remove(r._element)
+                    except Exception:
+                        # Si falla la eliminación directa, intentar borrar el texto
+                        try:
+                            r.text = ""
+                        except Exception:
+                            pass
+            except Exception:
+                try:
+                    p.text = ""
+                except Exception:
+                    pass
+            _log_index(f"placeholder encontrado en paragraph: {ruta_doc}")
             run = p.add_run()
 
             for codigo in codigos:

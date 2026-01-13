@@ -449,10 +449,6 @@ class PDFGeneratorConDatos(PDFGenerator):
             self.agregar_hoja_firmas()
             return
 
-        # Deduplicar evidencias: solo eliminar entradas idénticas por ruta
-        # normalizada; para imágenes en memoria (bytes/file-like) usar MD5
-        # completo para compararlas. Evitamos agrupar por basename/tamaño
-        # para no eliminar imágenes distintas que comparten nombre.
         try:
             import os as _os
             import hashlib
@@ -490,10 +486,6 @@ class PDFGeneratorConDatos(PDFGenerator):
                 try:
                     key = None
                     if isinstance(ev, str):
-                        # dedupe por ruta normalizada completa. No usar hash de
-                        # contenido aquí para evitar colapsar entradas que son
-                        # archivos copiados en distintas carpetas pero que el
-                        # usuario espera ver por separado.
                         try:
                             key = _os.path.normcase(_os.path.normpath(ev))
                         except Exception:
@@ -536,7 +528,6 @@ class PDFGeneratorConDatos(PDFGenerator):
                                     key = ('bytes', None)
 
                     else:
-                        # file-like or unknown object: try to hash contents
                         try:
                             if hasattr(ev, 'read'):
                                 pos = None
@@ -563,7 +554,6 @@ class PDFGeneratorConDatos(PDFGenerator):
                     if key in seen:
                         continue
 
-                    # Si se pidió deduplicación por contenido, calcular hash normalizado
                     if DEDUPE_CONTENT:
                         try:
                             pth = None
@@ -598,7 +588,7 @@ class PDFGeneratorConDatos(PDFGenerator):
         except Exception:
             pass
 
-        # Procesar evidencias y normalizarlas a flowables RLImage
+        
         from io import BytesIO
         from PIL import Image as PILImage
         import traceback
@@ -607,7 +597,6 @@ class PDFGeneratorConDatos(PDFGenerator):
         for idx, ev in enumerate(evidencias, start=1):
             try:
                 bio = None
-                # cadena = ruta en disco
                 if isinstance(ev, str):
                     ruta = os.path.normpath(ev)
                     if not os.path.exists(ruta):
@@ -679,7 +668,6 @@ class PDFGeneratorConDatos(PDFGenerator):
                 try:
                     img = RLImage(bio, width=3.4*inch, height=3.0*inch)
                 except Exception:
-                    # reintentar creando desde BytesIO copy
                     try:
                         tmp = BytesIO(bio.read() if hasattr(bio, 'read') else bio)
                         tmp.seek(0)
@@ -1172,6 +1160,26 @@ def generar_dictamenes_completos(directorio_destino, cliente_manual=None, rfc_ma
         grupo_muestras = {}
     print(f"🔎 Configuración de rutas de evidencias: {len(evidencia_cfg or {})} grupos, muestras: {grupo_muestras}")
 
+    # Intentar cargar índice externo generado por la herramienta de Pegado por Índice
+    index_indice = {}
+    try:
+        appdata = os.environ.get('APPDATA') or ''
+        if appdata:
+            idx_path = os.path.join(appdata, 'ImagenesVC', 'index_indice.json')
+            if os.path.exists(idx_path):
+                try:
+                    with open(idx_path, 'r', encoding='utf-8') as _f:
+                        index_indice = json.load(_f) or {}
+                except Exception:
+                    index_indice = {}
+    except Exception:
+        index_indice = {}
+    try:
+        sample_index_keys = list(index_indice.keys())[:10]
+    except Exception:
+        sample_index_keys = []
+    print(f"   🗂️ Índice externo (keys muestra): {sample_index_keys}")
+
     os.makedirs(directorio_destino, exist_ok=True)
     
     # Crear directorio para JSON dentro de 'data/Dictamenes' para centralizar los dictámenes
@@ -1467,12 +1475,45 @@ def generar_dictamenes_completos(directorio_destino, cliente_manual=None, rfc_ma
                                 for base in lst:
                                     try:
                                         carpeta_codigo = Path(base) / str(code_hint)
+                                        # Si la carpeta exacta no existe, intentar búsqueda insensible a mayúsculas
                                         if not carpeta_codigo.exists() or not carpeta_codigo.is_dir():
-                                            continue
+                                            carpeta_encontrada = None
+                                            try:
+                                                target = str(code_hint).lower()
+                                                for root, dirs, files in os.walk(base):
+                                                    for d in dirs:
+                                                        if d.lower() == target:
+                                                            carpeta_encontrada = Path(root) / d
+                                                            break
+                                                    if carpeta_encontrada:
+                                                        break
+                                            except Exception:
+                                                carpeta_encontrada = None
+
+                                            if carpeta_encontrada:
+                                                carpeta_codigo = carpeta_encontrada
+                                            else:
+                                                continue
+                                        found = []
                                         for ext in exts:
                                             candidato = carpeta_codigo / f"{str(key)}{ext}"
                                             if candidato.exists():
-                                                return [str(candidato)]
+                                                found.append(str(candidato))
+                                        # Si no encontramos archivo con nombre del código, devolver todas las imágenes en la carpeta
+                                        if not found:
+                                            try:
+                                                for f in carpeta_codigo.iterdir():
+                                                    if f.is_file() and f.suffix.lower() in exts:
+                                                        found.append(str(f))
+                                            except Exception:
+                                                pass
+                                        if found:
+                                            # Logear muestra
+                                            try:
+                                                print(f"         → Imágenes encontradas en {carpeta_codigo}: {found[:3]}")
+                                            except Exception:
+                                                pass
+                                            return found
                                     except Exception:
                                         continue
                             return None
@@ -1634,15 +1675,60 @@ def generar_dictamenes_completos(directorio_destino, cliente_manual=None, rfc_ma
                     for codigo in codigos_a_buscar:
                         ps = None
                         try:
-                            # 1) intentar mapear el código a la columna de asignación (columna B)
-                            asign = _map_code_to_assignment(codigo)
-                            if asign:
-                                print(f"      🔁 Código {codigo} mapeado a asignación: {asign} (tabla_de_relacion)")
+                            # 0) Intentar usar índice externo (Excel CONCENTRADO) si tiene una entrada para el código
+                            try:
+                                import re as _re
+                                canon_code = _re.sub(r"[^A-Za-z0-9]", "", str(codigo or "")).upper()
+                            except Exception:
+                                canon_code = str(codigo or "").strip()
+                            destino_idx = index_indice.get(canon_code)
+                            if destino_idx:
+                                print(f"      🔁 Código {codigo} -> destino por índice: {destino_idx}")
                                 try:
-                                    ps = _buscar_imagen(asign, codigo)
+                                    # Si destino_idx parece ser un nombre de archivo con extensión de imagen,
+                                    # buscar ese archivo EXACTO dentro de las rutas configuradas en evidencia_cfg.
+                                    dest_lower = str(destino_idx or "").lower()
+                                    found_paths = None
+                                    if any(dest_lower.endswith(ext) for ext in IMG_EXTS):
+                                        # Buscar filename en todas las bases (recursivo, pero limitado por filesystem)
+                                        cand_list = []
+                                        for grp, bases in (evidencia_cfg or {}).items():
+                                            for base in bases:
+                                                try:
+                                                    for root, _, files in os.walk(base):
+                                                        for fn in files:
+                                                            if fn.lower() == str(destino_idx).lower():
+                                                                cand_list.append(os.path.join(root, fn))
+                                                except Exception:
+                                                    continue
+                                        if cand_list:
+                                            found_paths = cand_list
+                                            print(f"         → Encontrado por nombre de archivo (índice): {found_paths[:3]}")
+                                        else:
+                                            print(f"         → No se encontró el archivo {destino_idx} en rutas de evidencia")
+                                    else:
+                                        # Tratar destino_idx como carpeta/nombre de base y usar la búsqueda existente
+                                        try:
+                                            found_paths = _buscar_imagen(codigo, destino_idx)
+                                        except Exception as _e:
+                                            print(f"   ⚠️ Error buscando evidencias usando índice como carpeta para {codigo}: {_e}")
+                                            found_paths = None
+
+                                    ps = found_paths
                                 except Exception as _e:
-                                    print(f"   ⚠️ Error buscando evidencias para asignación {asign}: {_e}")
+                                    print(f"   ⚠️ Error buscando evidencias usando índice para {codigo}: {_e}")
                                     ps = None
+
+                            # 1) si no se encontró por índice, intentar mapear el código a la columna de asignación (columna B)
+                            if not ps:
+                                asign = _map_code_to_assignment(codigo)
+                                if asign:
+                                    print(f"      🔁 Código {codigo} mapeado a asignación: {asign} (tabla_de_relacion)")
+                                    try:
+                                        ps = _buscar_imagen(asign, codigo)
+                                    except Exception as _e:
+                                        print(f"   ⚠️ Error buscando evidencias para asignación {asign}: {_e}")
+                                        ps = None
 
                             # 2) si no se encontró por asignación, intentar búsqueda directa por el código
                             if not ps:
