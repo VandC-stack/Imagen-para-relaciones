@@ -4716,6 +4716,32 @@ class SistemaDictamenesVC(ctk.CTk):
 
                             if pdf_ok:
                                 created.append(ruta_pdf)
+                                # --- Persistir folios y crear respaldo persistente de tabla_de_relacion
+                                try:
+                                    # Guardar folios específicos para esta visita (persistir contador)
+                                    try:
+                                        if filas_grp:
+                                            self.guardar_folios_visita(folio_vis, filas_grp, persist_counter=True)
+                                    except Exception:
+                                        pass
+
+                                    # Crear respaldo persistente de tabla_de_relacion para constancias
+                                    try:
+                                        tabla_relacion_path = os.path.join(DATA_DIR, 'tabla_de_relacion.json')
+                                        if os.path.exists(tabla_relacion_path):
+                                            backup_dir = os.path.join(DATA_DIR, 'tabla_relacion_backups')
+                                            os.makedirs(backup_dir, exist_ok=True)
+                                            ts = datetime.now().strftime('%Y%m%d%H%M%S')
+                                            dest_name = f"tabla_de_relacion_{folio_vis}_PERSIST_{ts}.json"
+                                            try:
+                                                shutil.copyfile(tabla_relacion_path, os.path.join(backup_dir, dest_name))
+                                                print(f"📦 Respaldo persistente creado para constancia: {dest_name}")
+                                            except Exception as e:
+                                                print(f"⚠️ No se pudo crear respaldo persistente de tabla_de_relacion para constancia: {e}")
+                                    except Exception:
+                                        pass
+                                except Exception:
+                                    pass
                             else:
                                 # sólo registrar error si intentó generar y falló
                                 if ruta_pdf:
