@@ -30,29 +30,41 @@ def buscar_imagen_index_all(index, codigo_canonico, usadas_paths, usadas_bases):
     import re
     for it in index:
         try:
-            bn = it.get('base_norm') or ''
-            bcore = it.get('base_core_norm') or ''
+            bn_raw = it.get('base_norm') or ''
+            bcore_raw = it.get('base_core_norm') or ''
             path_key = norm_path_key(it.get('path') or '')
-            if not bn or path_key in usadas_paths or bn in usadas_bases:
+
+            # Normalizar las bases quitando puntos, guiones, comas, etc.
+            bn = normalizar_cadena_alnum_mayus(bn_raw)
+            bcore = normalizar_cadena_alnum_mayus(bcore_raw)
+
+            # Evitar entradas sin base normalizada o ya usadas
+            if not bn and not bcore:
                 continue
-            # aceptar coincidencia si base_norm o base_core_norm empata
+            if path_key in usadas_paths:
+                continue
+            # Comparar contra el set de bases usadas (ya normalizadas)
+            if bn in usadas_bases or bcore in usadas_bases:
+                continue
+
+            # aceptar coincidencia si base_norm o base_core_norm empata exactamente
             if bn == code or bcore == code:
                 matches.append(it['path'])
                 continue
+
             # coincidencias permitidas: el resto del nombre tras el código debe ser
-            # una continuación numérica o formato (N), -N, _N
-            def allowed_suffix(base, code):
+            # una continuación numérica o formato (N), -N, _N (trabajamos sobre
+            # versiones normalizadas, sin puntos ni guiones)
+            def allowed_suffix_norm(base, code):
                 if base == code:
                     return True
-                if not base.startswith(code) and not base.endswith(code) and code not in base:
+                if code not in base:
                     return False
-                # quitar primera aparición
                 rem = base.replace(code, '', 1)
                 rem = rem.strip()
-                # Aceptar '', '(N)', '-N', '_N', o solo dígitos
-                return bool(re.fullmatch(r"(?:\s*\(\d+\)|[-_]\d+|\d+)?", rem))
+                return bool(re.fullmatch(r"(?:\(\d+\)|[-_]\d+|\d+)?", rem))
 
-            if allowed_suffix(bn, code) or allowed_suffix(bcore, code):
+            if allowed_suffix_norm(bn, code) or allowed_suffix_norm(bcore, code):
                 matches.append(it['path'])
         except Exception:
             continue

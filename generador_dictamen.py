@@ -1102,6 +1102,32 @@ def generar_dictamenes_completos(directorio_destino, cliente_manual=None, rfc_ma
     except Exception:
         evidencia_cfg = {}
 
+    try:
+        appdata = os.environ.get('APPDATA') or ''
+        if appdata:
+            cfg_path = os.path.join(appdata, 'ImagenesVC', 'config.json')
+            if os.path.exists(cfg_path):
+                try:
+                    with open(cfg_path, 'r', encoding='utf-8') as _cf:
+                        cfg_json = json.load(_cf) or {}
+                except Exception:
+                    cfg_json = {}
+                ruta_imgs = cfg_json.get('ruta_imagenes') or cfg_json.get('ruta_imgs')
+                if ruta_imgs:
+                    # Añadir bajo una clave de grupo clara si no existe ya
+                    try:
+                        # normalizar a lista
+                        if isinstance(evidencia_cfg, dict):
+                            if 'app_ruta_imagenes' not in evidencia_cfg:
+                                evidencia_cfg['app_ruta_imagenes'] = [ruta_imgs]
+                            else:
+                                if ruta_imgs not in evidencia_cfg.get('app_ruta_imagenes', []):
+                                    evidencia_cfg['app_ruta_imagenes'].append(ruta_imgs)
+                    except Exception:
+                        pass
+    except Exception:
+        pass
+
     IMG_EXTS = {'.png', '.jpg', '.jpeg', '.bmp', '.tif', '.tiff', '.webp'}
     import re
     def _normalizar(s):
@@ -1493,6 +1519,31 @@ def generar_dictamenes_completos(directorio_destino, cliente_manual=None, rfc_ma
                                             if carpeta_encontrada:
                                                 carpeta_codigo = carpeta_encontrada
                                             else:
+                                                # No hay carpeta con el código; como fallback, buscar
+                                                # en la raíz de la base archivos cuyo nombre normalizado
+                                                # coincida o contenga el código.
+                                                try:
+                                                    found_root = []
+                                                    code_norm = _re.sub(r"[^A-Za-z0-9]", "", str(code_hint or "")).upper()
+                                                    for fn in os.listdir(base):
+                                                        fpath = Path(base) / fn
+                                                        if not fpath.is_file():
+                                                            continue
+                                                        if fpath.suffix.lower() not in exts:
+                                                            continue
+                                                        name_core = re.sub(r"[^A-Za-z0-9]", "", fpath.stem).upper()
+                                                        if not name_core:
+                                                            continue
+                                                        if code_norm == name_core or code_norm in name_core or name_core in code_norm:
+                                                            found_root.append(str(fpath))
+                                                    if found_root:
+                                                        try:
+                                                            print(f"         → Imágenes encontradas en raíz {base}: {found_root[:3]}")
+                                                        except Exception:
+                                                            pass
+                                                        return found_root
+                                                except Exception:
+                                                    pass
                                                 continue
                                         found = []
                                         for ext in exts:
@@ -1522,6 +1573,10 @@ def generar_dictamenes_completos(directorio_destino, cliente_manual=None, rfc_ma
                         import re as _re
                         if _re.search(r"\d", str(key)):
                             out = []
+                            try:
+                                code_norm = _re.sub(r"[^A-Za-z0-9]", "", str(key or "")).upper()
+                            except Exception:
+                                code_norm = str(key)
                             for grp, lst in (evidencia_cfg or {}).items():
                                 for base in lst:
                                     try:
@@ -1530,6 +1585,23 @@ def generar_dictamenes_completos(directorio_destino, cliente_manual=None, rfc_ma
                                             for ext in exts:
                                                 for f in carpeta_codigo.glob(f"*{ext}"):
                                                     out.append(str(f))
+                                        else:
+                                            # Fallback: buscar en la raíz de la base archivos
+                                            # cuyo nombre normalizado coincida o contenga el código.
+                                            try:
+                                                for fn in os.listdir(base):
+                                                    fpath = Path(base) / fn
+                                                    if not fpath.is_file():
+                                                        continue
+                                                    if fpath.suffix.lower() not in exts:
+                                                        continue
+                                                    name_core = re.sub(r"[^A-Za-z0-9]", "", fpath.stem).upper()
+                                                    if not name_core:
+                                                        continue
+                                                    if code_norm == name_core or code_norm in name_core or name_core in code_norm:
+                                                        out.append(str(fpath))
+                                            except Exception:
+                                                pass
                                     except Exception:
                                         continue
                             return out if out else None
