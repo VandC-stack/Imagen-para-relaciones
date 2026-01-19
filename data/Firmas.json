@@ -239,7 +239,15 @@
     "FIRMA": "EREYES",
     "Puesto": "Inspector",
     "VIGENCIA": "INDEFINIDA",
-    "Normas acreditadas": ["NOM-050-SCFI-2004"],
+    "Normas acreditadas": [
+      "NOM-004-SE-2021",
+      "NOM-015-SCFI-2007",
+      "NOM-020-SCFI-1997",
+      "NOM-024-SCFI-2013",
+      "NOM-050-SCFI-2004",
+      "NOM-141-SSA1/SCFI-2012",
+      "NOM-189-SSA1/SCFI-2018"
+    ],
     "Referencia": "24UI4399",
     "Fecha de acreditación": "2024-10-10T00:00:00"
   },

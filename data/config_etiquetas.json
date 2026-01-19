@@ -36,11 +36,11 @@
         "tamaño_cm": "(5,5)"
     },
     "NOM-141-SSA1 SCFI-2012": {
-        "campos": ["EAN", "MARCA", "MAGNITUD", "INSUMOS", "LEYENDAS", "IMPORTADOR"],
+        "campos": ["EAN", "MARCA", "MAGNITUD", "INSUMOS", "LEYENDAS", "PAIS ORIGEN", "CONTENIDO", "IMPORTADOR"],
         "tamaño_cm": "(5,5)"
     },
     "NOM-189-SSA1 SCFI-2018": {
-        "campos": ["EAN", "MARCA", "CONTENIDO NETO", "INSUMOS O INGREDIENTES", "LEYENDAS", "IMPORTADOR"],
+        "campos": ["EAN", "MARCA", "CONTENIDO NETO", "INSUMOS O INGREDIENTES", "LEYENDAS", "PAIS ORIGEN", "CONTENIDO", "IMPORTADOR"],
         "tamaño_cm": "(5,5)"
     },
     "NOM-142-SSA1 SCFI-2014": {

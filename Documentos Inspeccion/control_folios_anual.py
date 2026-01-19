@@ -294,36 +294,76 @@ class ControlFoliosAnual:
             else:
                 if not os.path.exists(dicts_dir):
                     return None
-                files = [os.path.join(dicts_dir, f) for f in os.listdir(dicts_dir) if f.lower().endswith('.json')]
+                # Index both JSON and PDF files so we can match dictamen info even
+                # when only a PDF exists for a folio.
+                files = [os.path.join(dicts_dir, f) for f in os.listdir(dicts_dir)
+                         if f.lower().endswith('.json') or f.lower().endswith('.pdf')]
                 self._dictamen_cache[dicts_dir] = files
 
             # Buscamos coincidencias estrictas: preferir igualdad de folio+solicitud.
             for fp in files:
-                try:
-                    with open(fp, 'r', encoding='utf-8') as f:
-                        d = json.load(f)
-                except Exception:
+                fname = os.path.basename(fp)
+                # If JSON, load; if PDF, build a minimal dictamen object from filename
+                d = None
+                if fname.lower().endswith('.json'):
+                    try:
+                        with open(fp, 'r', encoding='utf-8') as f:
+                            d = json.load(f)
+                    except Exception:
+                        continue
+                elif fname.lower().endswith('.pdf'):
+                    # create minimal dict structure from filename
+                    name_base = os.path.splitext(fname)[0]
+                    digit_sequences = re.findall(r"(\d+)", name_base)
+                    fol_guess = ''
+                    sol_guess = ''
+                    if digit_sequences:
+                        fol_guess = max(digit_sequences, key=lambda s: len(s))
+                    sol_match = re.search(r"([A-Za-z0-9\-]{4,})", name_base)
+                    if sol_match:
+                        sol_guess = sol_match.group(1)
+                    d = {
+                        'identificacion': {
+                            'solicitud': sol_guess,
+                            'folio': fol_guess,
+                            'cadena_identificacion': ''
+                        }
+                    }
+                else:
                     continue
 
                 ident = d.get('identificacion', {})
                 sol_file = str(ident.get('solicitud', '')).strip()
                 fol_file = str(ident.get('folio', '')).strip()
                 cadena = (ident.get('cadena_identificacion') or '')
-                fname = os.path.basename(fp)
 
                 # 1) Coincidencia exacta en folio y solicitud (cuando ambos estén presentes)
-                if fol_file and folio_s and fol_file == folio_s:
-                    if sol_base:
-                        if sol_file and (sol_file == sol_base or sol_file.endswith(sol_base)):
+                if fol_file and folio_s:
+                    equal_folio = False
+                    try:
+                        # Comparar como texto (posible padded) y como dígitos (ignorar ceros)
+                        if fol_file == folio_s:
+                            equal_folio = True
+                        else:
+                            digits_a = ''.join(ch for ch in fol_file if ch.isdigit())
+                            digits_b = ''.join(ch for ch in folio_s if ch.isdigit())
+                            if digits_a and digits_b and int(digits_a) == int(digits_b):
+                                equal_folio = True
+                    except Exception:
+                        equal_folio = False
+                    if equal_folio:
+                        if sol_base:
+                            if sol_file and (sol_file == sol_base or sol_file.endswith(sol_base)):
+                                return d
+                            # También checar si la solicitud completa aparece en la cadena_identificacion
+                            if cadena and sol_base in cadena:
+                                return d
+                            # también intentar por filename (considerar variantes sin padding)
+                            fname_digits = ''.join(ch for ch in fname if ch.isdigit())
+                            if (f"_{folio_s}_" in fname and sol_base and f"_{sol_base}_" in fname) or (digits_a and str(int(digits_a)) in fname_digits):
+                                return d
+                        else:
                             return d
-                        # También checar si la solicitud completa aparece en la cadena_identificacion
-                        if cadena and sol_base in cadena:
-                            return d
-                        # también intentar por filename
-                        if f"_{folio_s}_" in fname and sol_base and f"_{sol_base}_" in fname:
-                            return d
-                    else:
-                        return d
 
                 # 2) Coincidencia exacta en solicitud cuando folio no disponible
                 if sol_base and sol_file and (sol_file == sol_base or sol_file.endswith(sol_base)):
@@ -760,19 +800,53 @@ class ControlFoliosAnual:
                 dicts_dir = os.path.join(self.data_dir, 'Dictamenes')
                 if os.path.exists(dicts_dir):
                     for fname in os.listdir(dicts_dir):
-                        if not fname.lower().endswith('.json'):
-                            continue
                         fp = os.path.join(dicts_dir, fname)
-                        try:
-                            with open(fp, 'r', encoding='utf-8') as f:
-                                d = json.load(f)
-                        except Exception:
-                            continue
+                        # Si es JSON, cargar como antes
+                        if fname.lower().endswith('.json'):
+                            try:
+                                with open(fp, 'r', encoding='utf-8') as f:
+                                    d = json.load(f)
+                            except Exception:
+                                continue
 
-                        ident = d.get('identificacion', {})
-                        sol = str(ident.get('solicitud', '')).strip()
-                        fol = str(ident.get('folio', '')).strip()
-                        cadena = str(ident.get('cadena_identificacion') or '').strip()
+                            ident = d.get('identificacion', {})
+                            sol = str(ident.get('solicitud', '')).strip()
+                            fol = str(ident.get('folio', '')).strip()
+                            cadena = str(ident.get('cadena_identificacion') or '').strip()
+                        # Si es PDF u otro binario con extensión .pdf, crear registro mínimo a partir del nombre
+                        elif fname.lower().endswith('.pdf'):
+                            # Extraer tokens del nombre de archivo
+                            name_base = os.path.splitext(fname)[0]
+                            cadena = ''
+                            sol = ''
+                            fol = ''
+
+                            # Buscar secuencias de dígitos (tomar la más larga como folio probable)
+                            digit_sequences = re.findall(r"(\d+)", name_base)
+                            if digit_sequences:
+                                # elegir la secuencia más larga (probablemente el folio)
+                                fol_candidate = max(digit_sequences, key=lambda s: len(s))
+                                fol = fol_candidate
+
+                            # Intentar extraer una solicitud/token alfanumérico (patrón similar a 'XXXX-123' o 'XXXXX')
+                            sol_match = re.search(r"([A-Za-z0-9\-]{4,})", name_base)
+                            if sol_match:
+                                sol = sol_match.group(1)
+
+                            # Construir un objeto mínimo que siga la estructura esperada
+                            d = {
+                                'identificacion': {
+                                    'solicitud': sol,
+                                    'folio': fol,
+                                    'cadena_identificacion': cadena
+                                },
+                                'fechas': {},
+                                'producto': {},
+                                'tabla_productos': [],
+                                'firmas': {}
+                            }
+                        else:
+                            continue
 
                         # Extraer token 'Solicitud de Servicio' preferido
                         sol_token = None
@@ -785,8 +859,9 @@ class ControlFoliosAnual:
                                 if m2:
                                     sol_token = m2.group(1)
 
-                        # Clave preferida: token extraído; si no, fallback a solicitud_folio
-                        key = sol_token if sol_token else f"{sol}_{fol}"
+                        # Clave principal: usar siempre 'solicitud_folio' para consistencia
+                        key = f"{sol}_{fol}"
+                        # Guardar también sol_token si se extrajo (como dato auxiliar)
 
                         # Crear registro mínimo basado en el JSON completo
                         registro = {}

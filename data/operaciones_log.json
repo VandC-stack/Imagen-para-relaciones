@@ -657,6 +657,27 @@
       "folio": "CP000001",
       "status": "exitosa",
       "detalles": "Archivos: 36, Errores: 0"
+    },
+    {
+      "timestamp": "2026-01-15T16:51:52.092837",
+      "tipo": "eliminar_registro",
+      "folio": "CP000001",
+      "status": "exitosa",
+      "detalles": "Archivos: 26, Errores: 0"
+    },
+    {
+      "timestamp": "2026-01-15T17:00:09.221844",
+      "tipo": "eliminar_registro",
+      "folio": "CP000001",
+      "status": "exitosa",
+      "detalles": "Archivos: 12, Errores: 0"
+    },
+    {
+      "timestamp": "2026-01-15T17:18:56.890344",
+      "tipo": "eliminar_registro",
+      "folio": "CP000001",
+      "status": "exitosa",
+      "detalles": "Archivos: 102, Errores: 0"
     }
   ]
 }

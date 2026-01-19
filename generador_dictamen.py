@@ -945,8 +945,9 @@ def convertir_dictamen_a_json(datos):
         "identificacion": {
             "cadena_identificacion": cadena_identificacion,
             "year": year,
-            "folio": datos.get("folio", ""),
-            "solicitud": datos.get("solicitud", ""),
+            # Guardar folio y solicitud en formato normalizado (folio 6 dígitos, solicitud sin año)
+            "folio": folio_formateado,
+            "solicitud": solicitud_formateado or datos.get("solicitud", ""),
             "lista": datos.get("lista", "")
         },
         "norma": {
