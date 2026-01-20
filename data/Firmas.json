@@ -10,11 +10,77 @@
     [
       "NOM-004-SE-2021",  
       "NOM-020-SCFI-1997", 
+      "NOM-024-SCFI-2013",
+      "NOM-050-SCFI-2004",
+      "NOM-141-SSA1/SCFI-2012"
+    ],
+    "Referencia": "24UI4399 - 24UI4400 - ",
+    "Fecha de acreditación": "2024-10-10"
+  },
+
+  {
+    "NOMBRE DE INSPECTOR": "Edgar Ivan Cedillo Ramirez",
+    "CORREO":"@vyc.com.mx",
+    "IMAGEN": "Firmas/ICEDILLO.png",
+    "FIRMA": "ICEDILLO",
+    "Puesto": "Inspector",
+    "VIGENCIA": "INDEFINIDA",
+    "Normas acreditadas": 
+    [ 
+      "NOM-024-SCFI-2013"
+    ],
+    "Referencia": "",
+    "Fecha de acreditación": "2024-10-10"
+  },
+
+  {
+    "NOMBRE DE INSPECTOR": "Amanda Merlin Juan",
+    "CORREO":"tecnico10@vyc.com.mx",
+    "IMAGEN": "Firmas/AMERLIN.png",
+    "FIRMA": "AMERLIN",
+    "Puesto": "Inspector",
+    "VIGENCIA": "INDEFINIDA",
+    "Normas acreditadas": 
+    [
+      "NOM-004-SE-2021"
+    ],
+    "Referencia": "",
+    "Fecha de acreditación": "2026-01-14"
+  },
+
+  {
+    "NOMBRE DE INSPECTOR": "Brenda Abigail Velazquez Cisneros",
+    "CORREO":"brenda.velazquez@vyc.com.mx",
+    "IMAGEN": "Firmas/BVELAZQUEZ.png",
+    "FIRMA": "BVELAZQUEZ",
+    "Puesto": "Inspector",
+    "VIGENCIA": "INDEFINIDA",
+    "Normas acreditadas": 
+    [
+      "NOM-024-SCFI-2013",
+      "NOM-050-SCFI-2004",
+      "NOM-189-SSA1/SCFI-2018"
+    ],
+    "Referencia": "",
+    "Fecha de acreditación": "2026-01-14"
+  },
+
+  {
+    "NOMBRE DE INSPECTOR": "Saul Ivan Madrid Santiago",
+    "CORREO":"tecnico12@vyc.com.mx",
+    "IMAGEN": "Firmas/SMADRID.png",
+    "FIRMA": "SMADRID",
+    "Puesto": "Inspector",
+    "VIGENCIA": "INDEFINIDA",
+    "Normas acreditadas": 
+    [
+      "NOM-020-SCFI-1997",
       "NOM-050-SCFI-2004"
     ],
-    "Referencia": "24UI4399 - 24UI4400",
-    "Fecha de acreditación": "2024-10-10T00:00:00"
+    "Referencia": "",
+    "Fecha de acreditación": "2026-01-14"
   },
+
   {
     "NOMBRE DE INSPECTOR": "Alberto Martinez Guzman",
     "CORREO":"tecnico9@vyc.com.mx",
@@ -32,8 +98,9 @@
       "NOM-189-SSA1/SCFI-2018"
     ],
     "Referencia": "24U1740-24UI2509 - 24UI2663 / 24UI5052-24UI4952",
-    "Fecha de acreditación": "2024-12-19T00:00:00"
+    "Fecha de acreditación": "2024-12-19"
   },
+
   {
     "NOMBRE DE INSPECTOR": "Alejandro Fernando Moreno Valdovinos",
     "CORREO":"soporte2@vyc.com.mx",
@@ -47,8 +114,9 @@
       "NOM-020-SCFI-1997"
     ],
     "Referencia": "24UI5052-24UI4952",
-    "Fecha de acreditación": "2024-12-19T00:00:00"
+    "Fecha de acreditación": "2024-12-19"
   },
+
   {
     "NOMBRE DE INSPECTOR": "Andrea Paola Ramos Santos",
     "CORREO":"andrea.ramos@vyc.com.mx",
@@ -66,6 +134,7 @@
     "Referencia": "22UI0932 22UI0933 22UI1080",
     "Fecha de acreditación": "2022-04-12T00:00:00"
   },
+
   {
     "NOMBRE DE INSPECTOR": "Angel Imanol Pozos Zertuche",
     "CORREO":"tecnico7@vyc.com.mx",
@@ -77,12 +146,14 @@
     [
       "NOM-004-SE-2021",
       "NOM-020-SCFI-1997",
+      "NOM-024-SCFI-2013",
       "NOM-050-SCFI-2004",
       "NOM-141-SSA1/SCFI-2012"
     ],
     "Referencia": "21UI0624-21UI0625",
     "Fecha de acreditación": "2021-07-09T00:00:00"
   },
+
   {
     "NOMBRE DE INSPECTOR": "Arturo Flores Gomez",
     "CORREO":"arturo.flores@vyc.com.mx",
@@ -107,6 +178,7 @@
     "Referencia": "Supervisión General",
     "Fecha de acreditación": "2024-01-01T00:00:00"
   },
+
   {
     "NOMBRE DE INSPECTOR": "Arturo Ivan Cortes Flores",
     "CORREO":"ivan.cortes@vyc.com.mx",
@@ -128,6 +200,7 @@
     "Referencia": "24UI4399",
     "Fecha de acreditación": "2024-10-10T00:00:00"
   },
+
   {
     "NOMBRE DE INSPECTOR": "Brayan Arano Chontal",
     "CORREO":"tecnico3@vyc.com.mx",
@@ -144,6 +217,7 @@
     "Referencia": "24UI5052",
     "Fecha de acreditación": "2024-12-19T00:00:00"
   },
+
   {
     "NOMBRE DE INSPECTOR": "Braulio Saul Garcia Maganda",
     "CORREO":"tecnico6@vyc.com.mx",
@@ -160,6 +234,7 @@
     "Referencia": "24UI5052",
     "Fecha de acreditación": "2024-12-19T00:00:00"
   },
+
   {
     "NOMBRE DE INSPECTOR": "David Garcia Alcantara",
     "CORREO":"tecnico5@vyc.com.mx",
@@ -181,6 +256,7 @@
     "Referencia": "24UI4399",
     "Fecha de acreditación": "2024-10-10T00:00:00"
   },
+
   {
     "NOMBRE DE INSPECTOR": "Edvin Zaid Ornelas Hernandez",
     "CORREO":"tecnico8@vyc.com.mx",
@@ -190,11 +266,14 @@
     "VIGENCIA": "INDEFINIDA",
     "Normas acreditadas": 
     [
-      "NOM-020-SCFI-1997"
+      "NOM-020-SCFI-1997",
+      "NOM-050-SCFI-2004",
+      "NOM-051-SCFI/SSA1-2010"
     ],
     "Referencia": "24UI5052",
-    "Fecha de acreditación": "2024-12-19T00:00:00"
+    "Fecha de acreditación": "2026-01-14"
   },
+
   {
     "NOMBRE DE INSPECTOR": "Flor Selenia Marquez Rivera",
     "CORREO":"flor.marquez@vyc.com.mx",
@@ -213,6 +292,7 @@
     "Referencia": "22UI0932",
     "Fecha de acreditación": "2022-04-12T00:00:00"
   },
+
   {
     "NOMBRE DE INSPECTOR": "Gabriel Ramirez Castillo",
     "CORREO":"gabriel.ramirez@vyc.com.mx",
@@ -232,6 +312,7 @@
     "Referencia": "24UI5052",
     "Fecha de acreditación": "2024-12-19T00:00:00"
   },
+
   {
     "NOMBRE DE INSPECTOR": "Jesus Eduardo Reyes Lozano",
     "CORREO":"eduardo.reyes@vyc.com.mx",
@@ -251,6 +332,7 @@
     "Referencia": "24UI4399",
     "Fecha de acreditación": "2024-10-10T00:00:00"
   },
+
   {
     "NOMBRE DE INSPECTOR": "Jose Alberto Zuñiga Estrada",
     "CORREO":"tecnico2@vyc.com.mx",
@@ -262,11 +344,13 @@
     [
       "NOM-004-SE-2021", 
       "NOM-020-SCFI-1997",
+      "NOM-050-SCFI-2004",
       "NOM-141-SSA1/SCFI-2012"
     ],
     "Referencia": "24UI5052",
     "Fecha de acreditación": "2024-12-19T00:00:00"
   },
+
   {
     "NOMBRE DE INSPECTOR": "Marcos Uriel Flores Gomez",
     "CORREO":"marcos.flores@vyc.com.mx",
@@ -292,6 +376,7 @@
     "Referencia": "24UI4399",
     "Fecha de acreditación": "2024-10-10T00:00:00"
   },
+
   {
     "NOMBRE DE INSPECTOR": "Mario Terrez Gonzalez",
     "CORREO":"mario.terrez@vyc.com.mx",
@@ -317,6 +402,7 @@
     "Referencia": "24UI5052",
     "Fecha de acreditación": "2024-12-19T00:00:00"
   },
+
   {
     "NOMBRE DE INSPECTOR": "Oscar Perez Ramirez",
     "CORREO":"tecnico1@vyc.com.mx",
@@ -328,7 +414,9 @@
     [
       "NOM-004-SE-2021",
       "NOM-020-SCFI-1997",
-      "NOM-024-SCFI-2013"
+      "NOM-024-SCFI-2013",
+      "NOM-050-SCFI-2004",
+      "NOM-141-SSA1/SCFI-2012"
     ],
     "Referencia": "24UI5052",
     "Fecha de acreditación": "2024-12-19T00:00:00"

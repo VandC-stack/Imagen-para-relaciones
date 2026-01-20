@@ -420,19 +420,20 @@ class SistemaDictamenesVC(ctk.CTk):
             font=("Inter", 12),
             text_color=STYLE["texto_claro"]
         )
+        
         # Botón Backup en la barra de navegación (no mostrar por defecto)
-        try:
-            self.btn_backup = ctk.CTkButton(
-                botones_frame,
-                text="💾 Backup",
-                command=self.hist_hacer_backup,
-                height=34, width=110, corner_radius=8,
-                fg_color=STYLE["primario"], text_color=STYLE["secundario"], hover_color="#D4BF22"
-            )
-        except Exception:
-            self.btn_backup = None
+        # try:
+        #     self.btn_backup = ctk.CTkButton(
+        #         botones_frame,
+        #         text="💾 Backup",
+        #         command=self.hist_hacer_backup,
+        #         height=34, width=110, corner_radius=8,
+        #         fg_color=STYLE["primario"], text_color=STYLE["secundario"], hover_color="#D4BF22"
+        #     )
+        # except Exception:
+        #     self.btn_backup = None
 
-        self.lbl_info_sistema.pack(side="right")
+        # self.lbl_info_sistema.pack(side="right")
 
     def crear_area_contenido(self):
         """Crea el área de contenido donde se muestran las secciones"""
@@ -1314,14 +1315,14 @@ class SistemaDictamenesVC(ctk.CTk):
         try:
             gen_top = ctk.CTkFrame(linea_busqueda, fg_color='transparent')
             gen_top.pack(side='right')
+            # ctk.CTkButton(
+            #     gen_top, text="📈Generar EMA",
+            #     command=self.descargar_excel_ema,
+            #     height=28, width=120, corner_radius=8,
+            #     fg_color=STYLE["primario"], hover_color="#D4BF22", text_color=STYLE["secundario"], font=("Inter", 11, "bold")
+            # ).pack(side='right', padx=(6,0))
             ctk.CTkButton(
-                gen_top, text="📊 Generar EMA",
-                command=self.descargar_excel_ema,
-                height=28, width=120, corner_radius=8,
-                fg_color=STYLE["primario"], hover_color="#D4BF22", text_color=STYLE["secundario"], font=("Inter", 11, "bold")
-            ).pack(side='right', padx=(6,0))
-            ctk.CTkButton(
-                gen_top, text="📈 Generar Anual",
+                gen_top, text="📊 Reporte EMA",
                 command=self.descargar_excel_anual,
                 height=28, width=120, corner_radius=8,
                 fg_color=STYLE["primario"], hover_color="#D4BF22", text_color=STYLE["secundario"], font=("Inter", 11, "bold")
@@ -1350,7 +1351,7 @@ class SistemaDictamenesVC(ctk.CTk):
                 40,    # Hora Fin
                 150,   # Cliente (más ancho)
                 80,    # Supervisor (ligeramente más pequeño)
-                90,   # Tipo de documento
+                90,    # Tipo de documento
                 50,    # Estatus
                 60,    # Folios (más compacto)
                 400    # Acciones (ajustado: más ancho para mostrar todas las acciones)
@@ -1472,11 +1473,7 @@ class SistemaDictamenesVC(ctk.CTk):
         footer_content = ctk.CTkFrame(footer, fg_color="transparent")
         footer_content.pack(expand=True, fill="both", padx=12, pady=10)
 
-        # (Los botones de generación se insertan en el subframe derecho de paginación más abajo)
 
-        # --- Estructura de paginación: columnas izquierda/central/derecha ---
-        # Creamos subframes con ancho fijo a izquierda/derecha para asegurar
-        # que los botones queden pegados a los bordes, y el centro expande.
         pag_left = ctk.CTkFrame(footer_content, fg_color="transparent")
         pag_center = ctk.CTkFrame(footer_content, fg_color="transparent")
         pag_right = ctk.CTkFrame(footer_content, fg_color="transparent")
@@ -1545,8 +1542,6 @@ class SistemaDictamenesVC(ctk.CTk):
     def _construir_tab_clientes(self, parent):
         """Consulta de clientes y agregar nuevos clientes"""
         cont = ctk.CTkFrame(parent, fg_color=STYLE["surface"], corner_radius=8)
-        # Permitir que el contenedor principal expanda verticalmente para
-        # dar más espacio a la tabla y al formulario.
         cont.pack(fill="both", expand=True, padx=10, pady=(0,0), side="top", anchor="n")
 
         contenido = ctk.CTkFrame(cont, fg_color="transparent")
@@ -1764,6 +1759,8 @@ class SistemaDictamenesVC(ctk.CTk):
 
         # Botones centrales (centrados) con espacio entre ellos
         ctk.CTkButton(center_actions, text="Editar seleccionado", fg_color=STYLE["primario"], hover_color="#D4BF22", text_color=STYLE["secundario"], height=32, corner_radius=8, command=self._editar_cliente_seleccionado).pack(side="left", padx=12)
+        # Botón para desmarcar / salir de modo edición
+        ctk.CTkButton(center_actions, text="Desmarcar", fg_color=STYLE["advertencia"], hover_color="#d2693e", text_color=STYLE["surface"], height=32, corner_radius=8, command=self.desmarcar_cliente).pack(side="left", padx=12)
         ctk.CTkButton(center_actions, text="Eliminar seleccionado", fg_color=STYLE["peligro"], hover_color="#c84a3d", text_color=STYLE["surface"], height=32, corner_radius=8, command=self._eliminar_cliente_seleccionado).pack(side="left", padx=12)
 
         # Botón para exportar todo el catálogo de clientes a Excel (derecha)
@@ -2046,6 +2043,11 @@ class SistemaDictamenesVC(ctk.CTk):
                 self.editing_cliente_rfc = None
                 try:
                     self.btn_guardar_cliente.configure(text="Guardar cliente")
+                except Exception:
+                    pass
+                # Después de editar un cliente, limpiar la selección en la UI
+                try:
+                    self.limpiar_cliente()
                 except Exception:
                     pass
         except Exception:
@@ -2995,6 +2997,38 @@ class SistemaDictamenesVC(ctk.CTk):
         except Exception:
             pass
 
+    def desmarcar_cliente(self):
+        """Desmarca cualquier cliente seleccionado y sale del modo edición."""
+        try:
+            # Limpiar el formulario de edición
+            self._limpiar_formulario_cliente()
+        except Exception:
+            pass
+        try:
+            # Limpiar la selección visual y los datos de cliente seleccionado
+            self.limpiar_cliente()
+        except Exception:
+            pass
+        try:
+            # Resetear flag de edición y texto del botón guardar
+            self.editing_cliente_rfc = None
+            try:
+                self.btn_guardar_cliente.configure(text="Guardar cliente")
+            except Exception:
+                pass
+        except Exception:
+            pass
+        try:
+            # Quitar selección en la tabla si existe
+            if hasattr(self, 'tree_clientes'):
+                for iid in list(self.tree_clientes.selection()):
+                    try:
+                        self.tree_clientes.selection_remove(iid)
+                    except Exception:
+                        pass
+        except Exception:
+            pass
+
     def _seleccionar_domicilio(self, domicilio_text):
         """Handler para seleccionar domicilio del cliente."""
         try:
@@ -3614,10 +3648,7 @@ class SistemaDictamenesVC(ctk.CTk):
             with open(output_path, "w", encoding="utf-8") as f:
                 json.dump(records, f, ensure_ascii=False, indent=2)
 
-            # NOTA: No crear PERSIST/backup durante la conversión de la tabla. La copia
-            # persistente (PERSIST) se creará únicamente cuando la generación de
-            # documentos sea exitosa, usando el folio de la visita como identificador.
-            # Esto evita crear múltiples copias al subir/editar tablas que luego se descartan.
+        
             try:
                 print("   ℹ️ Conversión completada: no se crea backup PERSIST en esta etapa.")
             except Exception:
@@ -3642,18 +3673,13 @@ class SistemaDictamenesVC(ctk.CTk):
                 # Si falla la validación no evitar la conversión, pero informar en consola
                 print("⚠️ Error validando firmas de la tabla (continuando):", sys.exc_info()[0])
 
-            # GUARDAR FOLIOS PARA VISITA ACTUAL (no persistir contador aquí)
-            # Nota: No crear backups automáticos de `tabla_de_relacion` en esta etapa
-            # para evitar que tablas cargadas y luego descartadas parezcan consumir folios.
+        
             if hasattr(self, 'current_folio') and self.current_folio:
                 # Regenerar cache exportable para Excel (persistente)
                 try:
                     self._generar_datos_exportable()
                 except Exception:
                     pass
-                # NOTA: NO guardar el archivo en `folios_visitas` aquí porque
-                # aún no se han generado documentos. Los folios se guardarán
-                # cuando la generación sea exitosa (en `registrar_visita_automatica`).
 
             self.after(0, self._actualizar_ui_conversion_exitosa, output_path, len(records))
 
@@ -4198,9 +4224,6 @@ class SistemaDictamenesVC(ctk.CTk):
             self.info_etiquetado.configure(text="")
             self.info_etiquetado.pack_forget()
 
-            # Además, eliminar backups temporales de tabla_relacion relacionados
-            # con la visita actual si existe (evita que tablas cargadas y luego
-            # limpiadas aparezcan como folios ocupados).
             try:
                 if hasattr(self, 'current_folio') and self.current_folio:
                     import re

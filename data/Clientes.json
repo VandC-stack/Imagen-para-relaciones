@@ -2025,6 +2025,24 @@
         "SERVICIO": "DICTAMEN"
       }
     ]
+  },
+
+  {
+    "RFC": "IBB060425DI8",
+    "CLIENTE": "BED BATH & BEYOND",
+    "NÚMERO_DE_CONTRATO": "",
+    "ACTIVIDAD": "ACTIVO",
+    "CURP": "",
+    "DIRECCIONES": [
+      {
+        "CALLE Y NO": "Parque Industrial Kimex, Bodega 30 KM,26.5 de la Autopista México-Queretaro",
+        "COLONIA O POBLACION": "Lomas Boulevares, Reserva Ecologica 2",
+        "MUNICIPIO O ALCADIA": "Tlanepantla de Baz",
+        "CIUDAD O ESTADO": "Estado de mexico",
+        "CP": "54020",
+        "SERVICIO": "CONSTANCIA"
+      }
+    ]
   }
 
 ]
