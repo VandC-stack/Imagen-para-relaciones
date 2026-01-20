@@ -40,6 +40,44 @@ def seleccionar_excel():
     )
 
 
+def normalizar_codigo(codigo):
+    """Normaliza un código que puede venir como float/int/str.
+    - Convierte NaN/None a "".
+    - Si es float entero (ej. 28013578.0) devuelve "28013578".
+    - Elimina sufijos ".0" en strings y quita espacios alrededor.
+    - Devuelve string vacío si el resultado está vacío o es 'nan'.
+    """
+    try:
+        import pandas as _pd
+        if _pd.isna(codigo):
+            return ""
+    except Exception:
+        pass
+
+    if codigo is None:
+        return ""
+
+    # Enteros y floats
+    if isinstance(codigo, float):
+        # 28013578.0 -> '28013578'
+        if codigo.is_integer():
+            return str(int(codigo))
+        # floats not integer: strip trailing zeros
+        s = format(codigo, 'g')
+        return s
+
+    if isinstance(codigo, int):
+        return str(codigo)
+
+    s = str(codigo).strip()
+    # Eliminar sufijo .0 que pandas a veces pone en strings
+    if s.endswith('.0'):
+        s = s[:-2]
+    if s.lower() == 'nan':
+        return ""
+    return s
+
+
 # Caché simple de listados de directorio para evitar os.listdir repetidos
 _listdir_cache = {}
 def _cached_listdir(path):
@@ -60,8 +98,18 @@ def _cached_listdir(path):
 def construir_indice_desde_excel(ruta_excel):
     ext = os.path.splitext(ruta_excel)[1].lower()
     engine = "pyxlsb" if ext == ".xlsb" else None
+    # Intentar leer forzando todas las columnas a strings para evitar floats
     try:
-        df = pd.read_excel(ruta_excel, sheet_name="CONCENTRADO", engine=engine)
+        df = pd.read_excel(ruta_excel, sheet_name="CONCENTRADO", engine=engine, dtype=str)
+    except TypeError:
+        # Algunos engines (pyxlsb) pueden no aceptar dtype; hacer fallback sin dtype
+        try:
+            df = pd.read_excel(ruta_excel, sheet_name="CONCENTRADO", engine=engine)
+        except Exception as e:
+            msg = str(e).lower()
+            if ext == ".xlsb" and ("pyxlsb" in msg or "missing optional dependency" in msg):
+                raise Exception("Missing optional dependency 'pyxlsb'.") from e
+            raise
     except Exception as e:
         msg = str(e).lower()
         if ext == ".xlsb" and ("pyxlsb" in msg or "missing optional dependency" in msg):
@@ -129,20 +177,9 @@ def construir_indice_desde_excel(ruta_excel):
         code_col = None
         dest_col = None
 
-    # Helper: convertir celdas a string manejando floats con .0 y NaN
+    # Helper: normalizar valores de código/destino
     def _cell_str_from_row(val):
-        try:
-            import pandas as _pd
-            if _pd.isna(val):
-                return ""
-        except Exception:
-            pass
-        try:
-            if isinstance(val, float) and val.is_integer():
-                return str(int(val))
-        except Exception:
-            pass
-        return str(val).strip()
+        return normalizar_codigo(val)
 
     for _, row in df.iterrows():
         try:
@@ -168,6 +205,13 @@ def construir_indice_desde_excel(ruta_excel):
             continue
 
         indice[canon] = destino
+        # También añadir la variante literal que pandas/otros puedan usar (p.ej. '28013578.0')
+        try:
+            raw_key = str(codigo).strip()
+            if raw_key and raw_key != canon:
+                indice[raw_key] = destino
+        except Exception:
+            pass
 
     with open(INDEX_FILE, "w", encoding="utf-8") as f:
         json.dump(indice, f, ensure_ascii=False, indent=4)
@@ -297,12 +341,13 @@ def procesar_doc_con_indice_docx(ruta_doc, ruta_imagenes, indice):
             run = p.add_run()
 
             for codigo in codigos:
-                canon = normalizar_cadena_alnum_mayus(codigo)
-                if canon not in indice:
+                codigo_norm = normalizar_codigo(codigo)
+                canon = normalizar_cadena_alnum_mayus(codigo_norm)
+                if canon not in indice and codigo_norm not in indice:
                     continue
 
                 destino = indice[canon]
-                _log_index(f"Codigo {canon} -> destino {destino}")
+                _log_index(f"Codigo {codigo!r} -> canon={canon} -> destino {destino}")
                 tipo, ruta = buscar_destino(ruta_imagenes, destino)
                 _log_index(f"buscar_destino -> tipo={tipo} ruta={ruta}")
 
@@ -353,12 +398,14 @@ def procesar_doc_con_indice_pdf(ruta_doc, ruta_imagenes, indice):
 
     _log_index(f"Procesando PDF: {ruta_doc}; codigos_found={len(codigos)}; ruta_imagenes={ruta_imagenes}")
     for codigo in codigos:
-        canon = normalizar_cadena_alnum_mayus(codigo)
-        if canon not in indice:
+        codigo_norm = normalizar_codigo(codigo)
+        canon = normalizar_cadena_alnum_mayus(codigo_norm)
+        if canon not in indice and codigo_norm not in indice:
             continue
 
-        destino = indice[canon]
-        _log_index(f"Codigo {canon} -> destino {destino}")
+        # Preferir destino por canon, si no existe usar la clave literal
+        destino = indice.get(canon) or indice.get(codigo_norm)
+        _log_index(f"Codigo {codigo!r} -> canon={canon} -> destino {destino}")
         tipo, ruta = buscar_destino(ruta_imagenes, destino)
         _log_index(f"buscar_destino -> tipo={tipo} ruta={ruta}")
 

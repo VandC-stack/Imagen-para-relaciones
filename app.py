@@ -1659,9 +1659,6 @@ class SistemaDictamenesVC(ctk.CTk):
         self.lbl_total_clientes = ctk.CTkLabel(header_frame, text="Total: 0", font=FONT_SMALL, text_color=STYLE["texto_oscuro"]) 
         self.lbl_total_clientes.pack(side='right')
 
-        # Usar ttk.Treeview para tabla (más flexible)
-        # Quitar columna CP: no mostrar CP en la tabla para simplificar vista
-        # Añadir columna de ACCIONES para permitir botón/acción por fila (ver domicilios)
         cols = ("RFC","CLIENTE","NÚMERO DE CONTRATO","ACTIVIDAD","SERVICIO","ACCIONES")
 
         # Barra de búsqueda para la tabla de clientes
@@ -2385,7 +2382,7 @@ class SistemaDictamenesVC(ctk.CTk):
                         break
                     frm, fields = self._crear_domicilio_subform(self.dom_container, len(self.dom_fields))
                     self.dom_fields.append({'frame': frm, 'fields': fields})
-                    # Mapear claves variantes del JSON a los campos internos del subformulario
+                    
                     key_variants = {
                         'CALLE_Y_NO': ['CALLE Y NO', 'CALLE_Y_NO', 'CALLE Y No', 'CALLEYNO', 'CALLE'],
                         'COLONIA_O_POBLACION': ['COLONIA O POBLACION', 'COLONIA_O_POBLACION', 'COLONIA', 'POBLACION'],
@@ -2738,8 +2735,8 @@ class SistemaDictamenesVC(ctk.CTk):
         # ─────────────────────────────────────────────
         CLIENTES_ETIQUETA = {
             "ARTICULOS DEPORTIVOS DECATHLON SA DE CV",
-            "FERRAGAMO MEXICO S DE RL DE CV",
-            "ULTA BEAUTY SAPI DE CV",  # Regla especial
+            "FERRAGAMO MEXICO S. DE RL DE C.V.",
+            "ULTA BEAUTY S.A.P.I. DE C.V.",  # Regla especial
         }
 
         # Buscar cliente en la lista; aceptar varias claves de nombre
@@ -3516,9 +3513,6 @@ class SistemaDictamenesVC(ctk.CTk):
                 records.append(rec)
 
             # ----------------- ASIGNAR FOLIOS USANDO FOLIO_MANAGER -----------------
-            # Intentamos reservar un bloque persistente desde folio_manager para
-            # asignar folios por familia (SOLICITUD, LISTA). Si la reserva atómica
-            # falla, se hace un fallback a la asignación en memoria basada en historial.
             try:
                 # Recolectar pares únicos (SOLICITUD, LISTA)
                 pares_vistos = []
@@ -3543,8 +3537,6 @@ class SistemaDictamenesVC(ctk.CTk):
                 pair_to_folio = {}
 
                 if total_necesarios > 0:
-                    # No reservar persistente aquí: asignación en memoria basada en historial
-                    # para evitar avanzar el contador global en cargas/preview.
                     try:
                         maxf = 0
                         visitas = []
@@ -3592,9 +3584,6 @@ class SistemaDictamenesVC(ctk.CTk):
                                 pass
 
                         next_local = maxf + 1
-                        # Si no se encontraron folios locales (next_local == 1),
-                        # intentar sincronizar con el contador persistente
-                        # `data/folio_counter.json` mediante `folio_manager`.
                         if int(next_local) == 1:
                             try:
                                 import folio_manager
@@ -3644,6 +3633,36 @@ class SistemaDictamenesVC(ctk.CTk):
 
             self.json_filename = "tabla_de_relacion.json"
             output_path = os.path.join(data_folder, self.json_filename)
+
+            # Normalizar campos CODIGO y SKU para que se guarden como strings sin '.0'
+            def _norm_code(v):
+                try:
+                    import pandas as _pd
+                    if _pd.isna(v):
+                        return None
+                except Exception:
+                    pass
+                if v is None:
+                    return None
+                if isinstance(v, float):
+                    if v.is_integer():
+                        return str(int(v))
+                    return format(v, 'g')
+                if isinstance(v, int):
+                    return str(v)
+                s = str(v).strip()
+                if s.endswith('.0'):
+                    s = s[:-2]
+                if s.lower() == 'nan' or s == '':
+                    return None
+                return s
+
+            for rec in records:
+                # Normalizar claves comunes (mayúsculas esperadas en la tabla)
+                if 'CODIGO' in rec:
+                    rec['CODIGO'] = _norm_code(rec.get('CODIGO'))
+                if 'SKU' in rec:
+                    rec['SKU'] = _norm_code(rec.get('SKU'))
 
             with open(output_path, "w", encoding="utf-8") as f:
                 json.dump(records, f, ensure_ascii=False, indent=2)

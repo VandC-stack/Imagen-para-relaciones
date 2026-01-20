@@ -1,33 +1,4 @@
 {
   "last_folio_visita": 0,
-  "visitas": [
-    {
-      "folio_visita": "CP000001",
-      "folio_acta": "AC000001",
-      "fecha_inicio": "15/01/2026",
-      "fecha_termino": "15/01/2026",
-      "hora_inicio_24h": "17:01",
-      "hora_termino_24h": "18:00",
-      "hora_inicio": "5:01 PM",
-      "hora_termino": "6:00 PM",
-      "norma": "NOM-004-SE-2021, NOM-024-SCFI-2013, NOM-050-SCFI-2004",
-      "cliente": "ROBERT BOSCH S. DE R.L. DE C.V.",
-      "nfirma1": "Arturo Ivan Cortes Flores",
-      "nfirma2": "",
-      "estatus": "Completada",
-      "tipo_documento": "Dictamen",
-      "folios_utilizados": "001622 - 001717",
-      "total_folios": 96,
-      "total_folios_numericos": 96,
-      "supervisores_tabla": "Arturo Ivan Cortes Flores",
-      "supervisor_formulario": "",
-      "_id": "9c10cfc3-fd5a-4228-97d8-6c6d7c560ccd",
-      "direccion": "AV. TEJOCOTES S/N LOTE 2, Parque industrial San Martin Obispo, Cuautitlan Izcalli, Estado de México, C.P. 54769",
-      "calle_numero": "AV. TEJOCOTES S/N LOTE 2",
-      "colonia": "Parque industrial San Martin Obispo",
-      "municipio": "Cuautitlan Izcalli",
-      "ciudad_estado": "Estado de México",
-      "cp": "54769"
-    }
-  ]
+  "visitas": []
 }
