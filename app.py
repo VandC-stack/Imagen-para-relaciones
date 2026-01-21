@@ -410,6 +410,23 @@ class SistemaDictamenesVC(ctk.CTk):
         )
         self.btn_reportes.pack(side="left", padx=(0, 10))
         
+        # Botón Inspectores
+        self.btn_inspectores = ctk.CTkButton(
+            botones_frame,
+            text="👥 Inspectores",
+            command=self.mostrar_inspectores,
+            font=("Inter", 14, "bold"),
+            fg_color=STYLE["surface"],
+            hover_color=STYLE["primario"],
+            text_color=STYLE["secundario"],
+            height=38,
+            width=140,
+            corner_radius=10,
+            border_width=2,
+            border_color=STYLE["secundario"]
+        )
+        self.btn_inspectores.pack(side="left", padx=(0, 10))
+        
         # Espacio flexible
         ctk.CTkLabel(botones_frame, text="", fg_color="transparent").pack(side="left", expand=True)
         
@@ -449,11 +466,14 @@ class SistemaDictamenesVC(ctk.CTk):
 
         # Frame para reportes
         self.frame_reportes = ctk.CTkFrame(self.contenido_frame, fg_color="transparent")
+        # Frame para inspectores
+        self.frame_inspectores = ctk.CTkFrame(self.contenido_frame, fg_color="transparent")
         
         # Construir el contenido de cada sección
         self._construir_tab_principal(self.frame_principal)
         self._construir_tab_historial(self.frame_historial)
         self._construir_tab_clientes(self.frame_reportes)
+        self._construir_tab_inspectores(self.frame_inspectores)
         
         # Mostrar la sección principal por defecto
         self.mostrar_principal()
@@ -485,6 +505,11 @@ class SistemaDictamenesVC(ctk.CTk):
         )
         try:
             self.btn_reportes.configure(fg_color=STYLE["surface"], text_color=STYLE["secundario"], border_color=STYLE["secundario"])
+        except Exception:
+            pass
+        # Asegurar que la pestaña Inspectores quede oculta al mostrar Principal
+        try:
+            self.frame_inspectores.pack_forget()
         except Exception:
             pass
         # Ocultar backup nav cuando no estemos en Historial
@@ -523,6 +548,11 @@ class SistemaDictamenesVC(ctk.CTk):
                 self.btn_reportes.configure(fg_color=STYLE["surface"], text_color=STYLE["secundario"], border_color=STYLE["secundario"])
             except Exception:
                 pass
+            # Asegurar que la pestaña Inspectores quede oculta al mostrar Historial
+            try:
+                self.frame_inspectores.pack_forget()
+            except Exception:
+                pass
             
             # Verificar y reparar datos existentes al mostrar historial
             self.verificar_datos_folios_existentes()
@@ -556,6 +586,15 @@ class SistemaDictamenesVC(ctk.CTk):
             self.btn_principal.configure(fg_color=STYLE["surface"], text_color=STYLE["secundario"], border_color=STYLE["secundario"])
             self.btn_historial.configure(fg_color=STYLE["surface"], text_color=STYLE["secundario"], border_color=STYLE["secundario"])
             self.btn_reportes.configure(fg_color=STYLE["primario"], text_color=STYLE["secundario"], border_color=STYLE["primario"])
+            try:
+                self.btn_inspectores.configure(fg_color=STYLE["surface"], text_color=STYLE["secundario"], border_color=STYLE["secundario"])
+            except Exception:
+                pass
+        except Exception:
+            pass
+        # Asegurar que la pestaña Inspectores quede oculta al mostrar Clientes
+        try:
+            self.frame_inspectores.pack_forget()
         except Exception:
             pass
 
@@ -1755,10 +1794,10 @@ class SistemaDictamenesVC(ctk.CTk):
         ctk.CTkButton(left_actions, text="Refrescar", command=self._refrescar_tabla_clientes, fg_color=STYLE["exito"], hover_color=STYLE["exito"], text_color=STYLE["surface"], font=("Inter", 11, "bold"), height=32, corner_radius=8).pack(side="left")
 
         # Botones centrales (centrados) con espacio entre ellos
-        ctk.CTkButton(center_actions, text="Editar seleccionado", fg_color=STYLE["primario"], hover_color="#D4BF22", text_color=STYLE["secundario"], height=32, corner_radius=8, command=self._editar_cliente_seleccionado).pack(side="left", padx=12)
+        ctk.CTkButton(center_actions, text="Editar", fg_color=STYLE["primario"], hover_color="#D4BF22", text_color=STYLE["secundario"], height=32, corner_radius=8, command=self._editar_cliente_seleccionado).pack(side="left", padx=12)
         # Botón para desmarcar / salir de modo edición
         ctk.CTkButton(center_actions, text="Desmarcar", fg_color=STYLE["advertencia"], hover_color="#d2693e", text_color=STYLE["surface"], height=32, corner_radius=8, command=self.desmarcar_cliente).pack(side="left", padx=12)
-        ctk.CTkButton(center_actions, text="Eliminar seleccionado", fg_color=STYLE["peligro"], hover_color="#c84a3d", text_color=STYLE["surface"], height=32, corner_radius=8, command=self._eliminar_cliente_seleccionado).pack(side="left", padx=12)
+        ctk.CTkButton(center_actions, text="Eliminar", fg_color=STYLE["peligro"], hover_color="#c84a3d", text_color=STYLE["surface"], height=32, corner_radius=8, command=self._eliminar_cliente_seleccionado).pack(side="left", padx=12)
 
         # Botón para exportar todo el catálogo de clientes a Excel (derecha)
         try:
@@ -1769,6 +1808,606 @@ class SistemaDictamenesVC(ctk.CTk):
         # Poblar la tabla inicialmente
         try:
             self._refrescar_tabla_clientes()
+        except Exception:
+            pass
+
+
+    def mostrar_inspectores(self):
+        """Muestra la sección de Inspectores y oculta las demás"""
+        # Ocultar todos los frames primero
+        try:
+            self.frame_principal.pack_forget()
+        except Exception:
+            pass
+        try:
+            self.frame_historial.pack_forget()
+        except Exception:
+            pass
+        try:
+            self.frame_reportes.pack_forget()
+        except Exception:
+            pass
+        # Mostrar inspectores
+        try:
+            self.frame_inspectores.pack(fill="both", expand=True)
+        except Exception:
+            pass
+
+        # Actualizar estado de los botones
+        try:
+            self.btn_principal.configure(fg_color=STYLE["surface"], text_color=STYLE["secundario"], border_color=STYLE["secundario"])
+            self.btn_historial.configure(fg_color=STYLE["surface"], text_color=STYLE["secundario"], border_color=STYLE["secundario"])
+            self.btn_reportes.configure(fg_color=STYLE["surface"], text_color=STYLE["secundario"], border_color=STYLE["secundario"])
+            self.btn_inspectores.configure(fg_color=STYLE["primario"], text_color=STYLE["secundario"], border_color=STYLE["primario"])
+        except Exception:
+            pass
+
+    def _construir_tab_inspectores(self, parent):
+        """Formulario simple para registrar inspectores y tabla de listado (almacena en data/Firmas.json)"""
+        cont = ctk.CTkFrame(parent, fg_color=STYLE["surface"], corner_radius=8)
+        cont.pack(fill="both", expand=True, padx=10, pady=(0,0), side="top", anchor="n")
+
+        contenido = ctk.CTkFrame(cont, fg_color="transparent")
+        contenido.pack(fill="both", expand=True, pady=(0,0), side="top", anchor="n")
+
+        inspect_frame = ctk.CTkFrame(contenido, fg_color="transparent")
+        inspect_frame.pack(fill="both", expand=True, padx=10, pady=(0,0))
+        # Usar la misma proporción y tamaño mínimo que la pestaña Clientes
+        inspect_frame.grid_columnconfigure(0, weight=6, minsize=600)
+        inspect_frame.grid_columnconfigure(1, weight=6)
+        inspect_frame.grid_rowconfigure(0, weight=1)
+
+        form_frame = ctk.CTkScrollableFrame(inspect_frame, fg_color=STYLE["surface"], corner_radius=8)
+        form_frame.grid(row=0, column=0, sticky="nsew", padx=(0,8), pady=(1,1))
+
+        ctk.CTkLabel(form_frame, text="Agregar nuevo inspector", font=FONT_SUBTITLE, text_color=STYLE["texto_oscuro"]).pack(anchor="w", padx=10, pady=(4,4))
+
+
+        self.inspector_campos = {}
+        # Campos básicos (sin IMAGEN). Las normas se muestran como checkboxes más abajo.
+        campos = [
+            ("NOMBRE DE INSPECTOR", 40), ("CORREO", 30), ("FIRMA", 30), ("Puesto", 25), ("VIGENCIA", 20), ("Fecha de acreditación", 24), ("Referencia", 30)
+        ]
+
+        for k, w in campos:
+            frame_k = ctk.CTkFrame(form_frame, fg_color="transparent")
+            frame_k.pack(fill="x", padx=12, pady=(4,4))
+            # usar el mismo ancho de etiqueta que Clientes
+            ctk.CTkLabel(frame_k, text=f"{k}:", font=FONT_SMALL, width=140, anchor="w", text_color=STYLE["texto_oscuro"]).pack(side="left")
+            ent = ctk.CTkEntry(frame_k, placeholder_text=k, font=FONT_SMALL, height=30)
+            ent.pack(side="left", fill="x", expand=True)
+            self.inspector_campos[k] = ent
+
+        # --- Normas acreditadas (checkboxes) ---
+        normas_label = ctk.CTkLabel(form_frame, text="Normas acreditadas:", font=FONT_SMALL, text_color=STYLE["texto_oscuro"]) 
+        normas_label.pack(anchor='w', padx=12, pady=(8,2))
+        normas_frame = ctk.CTkFrame(form_frame, fg_color="transparent")
+        normas_frame.pack(fill="x", padx=12, pady=(2,8))
+        # Cargar catálogo de normas desde data/Normas.json
+        self.inspector_normas_vars = {}
+        normas_path = os.path.join(DATA_DIR, 'Normas.json')
+        normas_list = []
+        try:
+            if os.path.exists(normas_path):
+                with open(normas_path, 'r', encoding='utf-8') as nf:
+                    normas_json = json.load(nf)
+                    for rec in normas_json:
+                        nom = rec.get('NOM') or rec.get('NOMBRE')
+                        if nom:
+                            normas_list.append(nom)
+        except Exception:
+            normas_list = []
+        # Crear checkboxes en dos columnas
+        col = 0
+        row = 0
+        for i, nom in enumerate(normas_list):
+            var = tk.BooleanVar(value=False)
+            cb = ctk.CTkCheckBox(normas_frame, text=nom, variable=var)
+            cb.grid(row=row, column=col, sticky='w', padx=6, pady=2)
+            self.inspector_normas_vars[nom] = var
+            col += 1
+            if col >= 2:
+                col = 0
+                row += 1
+
+        btns_frame = ctk.CTkFrame(form_frame, fg_color="transparent")
+        btns_frame.pack(fill="x", padx=12, pady=(8,12))
+        self.btn_guardar_inspector = ctk.CTkButton(btns_frame, text="Guardar inspector", command=self._guardar_inspector_desde_form, fg_color=STYLE["primario"], hover_color=STYLE["primario"], text_color=STYLE["secundario"], font=("Inter", 11, "bold"), height=34, corner_radius=8)
+        self.btn_guardar_inspector.pack(side="left")
+        self.btn_limpiar_inspector = ctk.CTkButton(btns_frame, text="Limpiar", command=self._limpiar_formulario_inspector, fg_color=STYLE["advertencia"], hover_color=STYLE["advertencia"], text_color=STYLE["surface"], font=("Inter", 11, "bold"), height=34, corner_radius=8)
+        self.btn_limpiar_inspector.pack(side="left", padx=(8,0))
+
+        # Tabla de inspectores
+        tabla_frame = ctk.CTkFrame(inspect_frame, fg_color=STYLE["surface"], corner_radius=8)
+        tabla_frame.grid(row=0, column=1, sticky="nsew", padx=(10,0), pady=(0,5))
+        tabla_frame.grid_rowconfigure(0, weight=1, minsize=420)
+        header_frame = ctk.CTkFrame(tabla_frame, fg_color="transparent")
+        header_frame.pack(fill='x', padx=12, pady=(8,6))
+        ctk.CTkLabel(header_frame, text="Inspectores registrados", font=FONT_SUBTITLE, text_color=STYLE["texto_oscuro"]).pack(side='left')
+        self.lbl_total_inspectores = ctk.CTkLabel(header_frame, text="Total: 0", font=FONT_SMALL, text_color=STYLE["texto_oscuro"]) 
+        self.lbl_total_inspectores.pack(side='right')
+
+        cols = ("NOMBRE","CORREO","FIRMA","PUESTO","VIGENCIA")
+        tree_container = tk.Frame(tabla_frame)
+        tree_container.pack(fill="both", expand=True, padx=12, pady=(0,0))
+
+        style = ttk.Style()
+        try:
+            style.theme_use('clam')
+        except Exception:
+            pass
+        try:
+            # Usar el mismo estilo que la pestaña Clientes para apariencia idéntica
+            style.configure('clientes.Treeview', background=STYLE["surface"], foreground=STYLE["texto_oscuro"], rowheight=22, fieldbackground=STYLE["surface"])
+            style.configure('clientes.Treeview.Heading', background=STYLE["secundario"], foreground=STYLE["surface"], font=("Inter", 10, "bold"))
+        except Exception:
+            pass
+
+        self.tree_inspectores = ttk.Treeview(tree_container, columns=cols, show='headings', selectmode='browse', style='clientes.Treeview')
+        # Anchuras iniciales sugeridas (similar proporción a Clientes)
+        col_widths = {
+            'NOMBRE': 150,
+            'CORREO': 180,
+            'FIRMA': 120,
+            'PUESTO': 200,
+            'VIGENCIA': 120
+        }
+        for c in cols:
+            self.tree_inspectores.heading(c, text=c)
+            try:
+                w = col_widths.get(c, 120)
+                self.tree_inspectores.column(c, width=w, anchor='w')
+            except Exception:
+                self.tree_inspectores.column(c, width=120, anchor='w')
+
+        try:
+            vsb = ctk.CTkScrollbar(tree_container, orientation="vertical", command=self.tree_inspectores.yview)
+            self.tree_inspectores.configure(yscrollcommand=vsb.set)
+            self.tree_inspectores.pack(side="left", fill="both", expand=True)
+            vsb.pack(side="right", fill="y")
+        except Exception:
+            vsb = ttk.Scrollbar(tree_container, orient="vertical", command=self.tree_inspectores.yview)
+            self.tree_inspectores.configure(yscrollcommand=vsb.set)
+            self.tree_inspectores.pack(side="left", fill="both", expand=True)
+            vsb.pack(side="right", fill="y")
+
+        tbl_btns = ctk.CTkFrame(tabla_frame, fg_color="transparent")
+        tbl_btns.pack(fill="x", padx=12, pady=(0,10))
+        left_actions = ctk.CTkFrame(tbl_btns, fg_color="transparent")
+        center_actions = ctk.CTkFrame(tbl_btns, fg_color="transparent")
+        right_actions = ctk.CTkFrame(tbl_btns, fg_color="transparent")
+        left_actions.pack(side="left")
+        center_actions.pack(side="left", expand=True)
+        right_actions.pack(side="right")
+
+        ctk.CTkButton(left_actions, text="Refrescar", command=self._refrescar_tabla_inspectores, fg_color=STYLE["exito"], hover_color=STYLE["exito"], text_color=STYLE["surface"], font=("Inter", 11, "bold"), height=32, corner_radius=8).pack(side="left")
+        # Centro: editar / desmarcar / eliminar
+        ctk.CTkButton(center_actions, text="Editar", fg_color=STYLE["primario"], hover_color="#D4BF22", text_color=STYLE["secundario"], height=32, corner_radius=8, command=self._editar_inspector_seleccionado).pack(side="left", padx=12)
+        ctk.CTkButton(center_actions, text="Desmarcar", fg_color=STYLE["advertencia"], hover_color="#d2693e", text_color=STYLE["surface"], height=32, corner_radius=8, command=self.desmarcar_inspector).pack(side="left", padx=12)
+        ctk.CTkButton(center_actions, text="Eliminar", fg_color=STYLE["peligro"], hover_color="#c84a3d", text_color=STYLE["surface"], height=32, corner_radius=8, command=self._eliminar_inspector_seleccionado).pack(side="left", padx=12)
+        try:
+            ctk.CTkButton(right_actions, text="Exportar catálogo", fg_color=STYLE['exito'], hover_color=STYLE['exito'], text_color=STYLE['surface'], height=36, corner_radius=8, font=("Inter", 11, "bold"), command=self._export_catalogo_inspectores).pack(side="right")
+        except Exception:
+            pass
+
+        # Poblar inicialmente
+        try:
+            self._refrescar_tabla_inspectores()
+        except Exception:
+            pass
+
+        # Exponer contenedor para poder ajustar columnas al cambiar tamaño (igual que Clientes)
+        try:
+            self.tree_inspectores_container = tree_container
+            self.tree_inspectores_container.bind('<Configure>', lambda e: self._adjust_inspectores_columns())
+        except Exception:
+            pass
+
+
+    # -------------------- Inspectores helpers --------------------
+    def cargar_inspectores_desde_json(self):
+        posibles = [os.path.join(DATA_DIR, 'Firmas.json'), 'data/Firmas.json', 'Firmas.json']
+        ruta = None
+        for p in posibles:
+            try:
+                if os.path.exists(p):
+                    ruta = p
+                    break
+            except Exception:
+                continue
+        if not ruta:
+            self.inspectores_data = []
+            return
+        try:
+            with open(ruta, 'r', encoding='utf-8') as f:
+                datos = json.load(f)
+        except Exception:
+            datos = []
+        self.inspectores_data = datos if isinstance(datos, list) else []
+
+    def _guardar_inspector_desde_form(self):
+        nuevo = {}
+        for k, ent in (self.inspector_campos or {}).items():
+            try:
+                v = ent.get().strip()
+            except Exception:
+                try:
+                    v = ent.get() or ""
+                except Exception:
+                    v = ""
+            nuevo[k] = v
+
+        # Normas seleccionadas desde checkboxes
+        try:
+            normas_sel = [n for n, var in (self.inspector_normas_vars or {}).items() if getattr(var, 'get', lambda: False)()]
+            if normas_sel:
+                nuevo['Normas acreditadas'] = normas_sel
+        except Exception:
+            pass
+
+        ruta = os.path.join(DATA_DIR, 'Firmas.json')
+        datos = []
+        try:
+            if os.path.exists(ruta):
+                with open(ruta, 'r', encoding='utf-8') as f:
+                    datos = json.load(f) or []
+        except Exception:
+            datos = []
+
+        actualizado = False
+        # Si estamos editando, reemplazar el registro coincidente por FIRMA
+        try:
+            edit_key = getattr(self, 'editing_inspector_firma', None)
+            if edit_key:
+                for i, rec in enumerate(datos):
+                    try:
+                        if str(rec.get('FIRMA','')) == str(edit_key):
+                            datos[i] = nuevo
+                            actualizado = True
+                            break
+                    except Exception:
+                        continue
+        except Exception:
+            pass
+
+        if not actualizado:
+            datos.append(nuevo)
+
+        try:
+            with open(ruta, 'w', encoding='utf-8') as f:
+                json.dump(datos, f, ensure_ascii=False, indent=2)
+            if actualizado:
+                messagebox.showinfo('Inspector actualizado', 'El inspector se ha actualizado en Firmas.json')
+            else:
+                messagebox.showinfo('Inspector guardado', 'El inspector se ha guardado en Firmas.json')
+        except Exception as e:
+            messagebox.showerror('Error', f'No se pudo guardar el inspector: {e}')
+            return
+
+        try:
+            # reset editing flag
+            if getattr(self, 'editing_inspector_firma', None):
+                self.editing_inspector_firma = None
+                try:
+                    self.btn_guardar_inspector.configure(text="Guardar inspector")
+                except Exception:
+                    pass
+        except Exception:
+            pass
+
+        try:
+            self._refrescar_tabla_inspectores()
+        except Exception:
+            pass
+        self._limpiar_formulario_inspector()
+
+    def _limpiar_formulario_inspector(self):
+        try:
+            for ent in (self.inspector_campos or {}).values():
+                try:
+                    ent.delete(0, 'end')
+                except Exception:
+                    pass
+        except Exception:
+            pass
+        # Resetear checkboxes de normas
+        try:
+            for var in (self.inspector_normas_vars or {}).values():
+                try:
+                    var.set(False)
+                except Exception:
+                    pass
+        except Exception:
+            pass
+
+    def _refrescar_tabla_inspectores(self):
+        self.cargar_inspectores_desde_json()
+        try:
+            for i in self.tree_inspectores.get_children():
+                self.tree_inspectores.delete(i)
+        except Exception:
+            pass
+        total = 0
+        for rec in (self.inspectores_data or []):
+            try:
+                nombre = rec.get('NOMBRE DE INSPECTOR') or rec.get('NOMBRE') or ''
+                correo = rec.get('CORREO','')
+                firma = rec.get('FIRMA','')
+                puesto = rec.get('Puesto','')
+                vig = rec.get('VIGENCIA','')
+                self.tree_inspectores.insert('', 'end', values=(nombre, correo, firma, puesto, vig))
+                total += 1
+            except Exception:
+                continue
+        try:
+            self.lbl_total_inspectores.configure(text=f"Total: {total}")
+        except Exception:
+            pass
+        # Ajustar anchos de columnas según el contenido para que los textos sean visibles
+        try:
+            # Primero intentar auto-ajustar según contenido usando helper común
+            self._auto_resize_tree_columns(self.tree_inspectores)
+        except Exception:
+            try:
+                # como fallback, usar el ajuste para el contenedor
+                self._adjust_inspectores_columns()
+            except Exception:
+                pass
+
+    def _export_catalogo_inspectores(self):
+        """Exporta `data/Firmas.json` (inspectores) a un archivo Excel.
+        Incluye las normas acreditadas concatenadas en la columna 'NORMAS'.
+        """
+        ruta = os.path.join(DATA_DIR, 'Firmas.json')
+        datos = []
+        try:
+            if os.path.exists(ruta):
+                with open(ruta, 'r', encoding='utf-8') as f:
+                    datos = json.load(f) or []
+        except Exception as e:
+            messagebox.showerror('Exportar', f'No se pudo leer Firmas.json: {e}')
+            return
+
+        if not datos:
+            messagebox.showinfo('Exportar', 'No hay datos de inspectores para exportar.')
+            return
+
+        rows = []
+        for rec in datos:
+            try:
+                nombre = rec.get('NOMBRE DE INSPECTOR') or rec.get('NOMBRE') or ''
+                correo = rec.get('CORREO') or rec.get('EMAIL') or ''
+                firma = rec.get('FIRMA','')
+                puesto = rec.get('Puesto') or rec.get('PUESTO') or ''
+                vig = rec.get('VIGENCIA','')
+                normas = rec.get('Normas acreditadas') or rec.get('Normas') or rec.get('NORMAS') or []
+                if isinstance(normas, (list, tuple)):
+                    normas_txt = '; '.join(str(n) for n in normas)
+                else:
+                    normas_txt = str(normas)
+                rows.append({
+                    'NOMBRE': nombre,
+                    'CORREO': correo,
+                    'FIRMA': firma,
+                    'PUESTO': puesto,
+                    'VIGENCIA': vig,
+                    'NORMAS': normas_txt
+                })
+            except Exception:
+                continue
+
+        try:
+            save_path = filedialog.asksaveasfilename(defaultextension='.xlsx', filetypes=[('Excel','*.xlsx')], title='Guardar catálogo de inspectores')
+            if not save_path:
+                return
+            df = pd.DataFrame(rows, columns=['NOMBRE','CORREO','FIRMA','PUESTO','VIGENCIA','NORMAS'])
+            try:
+                with pd.ExcelWriter(save_path, engine='openpyxl') as writer:
+                    df.to_excel(writer, index=False, sheet_name='Inspectores')
+                    try:
+                        ws = writer.sheets['Inspectores']
+                        from openpyxl.utils import get_column_letter
+                        for i, col in enumerate(df.columns, 1):
+                            col_letter = get_column_letter(i)
+                            try:
+                                max_len = max(df[col].astype(str).map(len).max(), len(col)) + 2
+                                ws.column_dimensions[col_letter].width = max_len
+                            except Exception:
+                                pass
+                    except Exception:
+                        pass
+            except Exception:
+                # fallback sin ajustar anchos
+                df.to_excel(save_path, index=False)
+
+            messagebox.showinfo('Exportar', f'Catálogo de inspectores exportado correctamente a:\n{save_path}')
+        except Exception as e:
+            messagebox.showerror('Exportar', f'Error al exportar: {e}')
+
+    def _adjust_inspectores_columns(self):
+        """Ajusta anchos de columnas en `self.tree_inspectores` para mantener apariencia consistente con Clientes."""
+        try:
+            tree = getattr(self, 'tree_inspectores', None)
+            cont = getattr(self, 'tree_inspectores_container', None)
+            if not tree or not cont:
+                return
+            total_w = cont.winfo_width() or tree.winfo_width()
+            if not total_w or total_w < 100:
+                return
+
+            padding = 8
+            min_col = 80
+            cols = list(tree['columns'])
+
+            # mínimos por columna para inspectores
+            desired_mins = {
+                'NOMBRE': 150,
+                'CORREO': 180,
+                'FIRMA': 120,
+                'PUESTO': 200,
+                'VIGENCIA': 100
+            }
+
+            available = max(50, total_w - padding)
+            sum_mins = sum(desired_mins.get(c, 80) for c in cols)
+
+            new_widths = {}
+            if sum_mins <= available:
+                extra = available - sum_mins
+                for c in cols:
+                    base = desired_mins.get(c, 80)
+                    add = 0
+                    if c == 'NOMBRE' and extra > 0:
+                        add = extra
+                    new_widths[c] = max(min_col, int(base + add))
+            else:
+                min_hard = 60
+                total_weight = sum(desired_mins.get(c, 80) for c in cols)
+                for c in cols:
+                    weight = desired_mins.get(c, 80)
+                    w = int(max(min_hard, available * (weight / total_weight)))
+                    new_widths[c] = w
+
+            for c, w in new_widths.items():
+                try:
+                    tree.column(c, width=w)
+                except Exception:
+                    pass
+        except Exception:
+            pass
+
+    def _editar_inspector_seleccionado(self):
+        sel = None
+        try:
+            sel = self.tree_inspectores.selection()
+        except Exception:
+            sel = None
+        if not sel:
+            messagebox.showinfo('Seleccionar', 'Seleccione un inspector en la tabla primero.')
+            return
+        iid = sel[0]
+        vals = self.tree_inspectores.item(iid).get('values') or []
+        if not vals:
+            messagebox.showinfo('Seleccionar', 'No se pudo obtener el registro seleccionado.')
+            return
+        # Buscar registro en datos por FIRMA o NOMBRE
+        key_firma = vals[2] if len(vals) > 2 else None
+        target = None
+        for rec in (self.inspectores_data or []):
+            try:
+                if key_firma and str(rec.get('FIRMA','')) == str(key_firma):
+                    target = rec
+                    break
+                if str(rec.get('NOMBRE DE INSPECTOR','')) == str(vals[0]):
+                    target = rec
+                    break
+            except Exception:
+                continue
+        if not target:
+            messagebox.showinfo('Error', 'No se encontró el registro en los datos.')
+            return
+        # Poblar formulario
+        try:
+            for k, ent in (self.inspector_campos or {}).items():
+                try:
+                    val = target.get(k) or target.get(k.upper()) or ''
+                    ent.delete(0, 'end')
+                    ent.insert(0, str(val))
+                except Exception:
+                    continue
+        except Exception:
+            pass
+        # Poblar checkboxes de normas
+        try:
+            normas = target.get('Normas acreditadas') or target.get('Normas') or []
+            for n, var in (self.inspector_normas_vars or {}).items():
+                try:
+                    var.set(n in normas)
+                except Exception:
+                    continue
+        except Exception:
+            pass
+        # Marcar modo edición
+        try:
+            self.editing_inspector_firma = target.get('FIRMA') or target.get('FIRMA','')
+            try:
+                self.btn_guardar_inspector.configure(text="Actualizar inspector")
+            except Exception:
+                pass
+        except Exception:
+            pass
+
+    def desmarcar_inspector(self):
+        try:
+            # quitar selección en la tabla
+            sels = self.tree_inspectores.selection()
+            for s in sels:
+                try:
+                    self.tree_inspectores.selection_remove(s)
+                except Exception:
+                    pass
+        except Exception:
+            pass
+        # limpiar formulario y reset edición
+        try:
+            self._limpiar_formulario_inspector()
+        except Exception:
+            pass
+        try:
+            if getattr(self, 'editing_inspector_firma', None):
+                self.editing_inspector_firma = None
+                try:
+                    self.btn_guardar_inspector.configure(text="Guardar inspector")
+                except Exception:
+                    pass
+        except Exception:
+            pass
+
+    def _eliminar_inspector_seleccionado(self):
+        sel = None
+        try:
+            sel = self.tree_inspectores.selection()
+        except Exception:
+            sel = None
+        if not sel:
+            messagebox.showinfo('Seleccionar', 'Seleccione un inspector en la tabla primero.')
+            return
+        iid = sel[0]
+        vals = self.tree_inspectores.item(iid).get('values') or []
+        key_firma = vals[2] if len(vals) > 2 else None
+        if not key_firma:
+            messagebox.showinfo('Error', 'No se pudo identificar el inspector seleccionado.')
+            return
+        if not messagebox.askyesno('Confirmar', f'¿Eliminar el inspector {vals[0]}?'):
+            return
+        ruta = os.path.join(DATA_DIR, 'Firmas.json')
+        try:
+            with open(ruta, 'r', encoding='utf-8') as f:
+                datos = json.load(f) or []
+        except Exception:
+            datos = []
+        nuevo_arr = []
+        eliminado = False
+        for rec in datos:
+            try:
+                if str(rec.get('FIRMA','')) == str(key_firma):
+                    eliminado = True
+                    continue
+            except Exception:
+                pass
+            nuevo_arr.append(rec)
+        try:
+            with open(ruta, 'w', encoding='utf-8') as f:
+                json.dump(nuevo_arr, f, ensure_ascii=False, indent=2)
+        except Exception as e:
+            messagebox.showerror('Error', f'No se pudo eliminar el inspector: {e}')
+            return
+        if eliminado:
+            messagebox.showinfo('Eliminado', 'Inspector eliminado correctamente.')
+        else:
+            messagebox.showinfo('No encontrado', 'No se encontró el inspector a eliminar.')
+        try:
+            self._refrescar_tabla_inspectores()
         except Exception:
             pass
 
@@ -1940,44 +2579,90 @@ class SistemaDictamenesVC(ctk.CTk):
 
     def _guardar_cliente_desde_form(self):
         """Lee los campos del formulario de Reportes y guarda un nuevo cliente en Clientes.json"""
-        nuevo = {}
-        for k, ent in (self.cliente_campos or {}).items():
-            try:
-                v = ent.get().strip()
-            except Exception:
-                try:
-                    v = ent.get() or ""
-                except Exception:
-                    v = ""
-            # Convertir CP a entero si es posible
-            if k == 'CP' and v != "":
-                try:
-                    nuevo[k] = int(v)
-                except Exception:
-                    nuevo[k] = v
-            else:
-                nuevo[k] = v
-
-        # Recopilar domicilios desde los subformularios dinámicos
+        # Construir el registro con la estructura estándar requerida
+        nuevo = {
+            'RFC': '',
+            'CLIENTE': '',
+            'NÚMERO_DE_CONTRATO': '',
+            'ACTIVIDAD': '',
+            'CURP': '',
+            'DIRECCIONES': []
+        }
         try:
-            doms = []
+            # Campos principales vienen de self.cliente_campos
+            def _get_field(name):
+                ent = (self.cliente_campos or {}).get(name)
+                if not ent:
+                    return ''
+                try:
+                    return ent.get().strip()
+                except Exception:
+                    try:
+                        return ent.get() or ''
+                    except Exception:
+                        return ''
+
+            nuevo['RFC'] = _get_field('RFC')
+            nuevo['CLIENTE'] = _get_field('CLIENTE')
+            # Mapear 'No. CONTRATO' -> 'NÚMERO_DE_CONTRATO'
+            nuevo['NÚMERO_DE_CONTRATO'] = _get_field('NÚMERO_DE_CONTRATO')
+            nuevo['ACTIVIDAD'] = _get_field('ACTIVIDAD')
+            nuevo['CURP'] = _get_field('CURP')
+        except Exception:
+            pass
+
+        # Recopilar domicilios y almacenarlos en 'Direcciones' con claves estándar
+        try:
+            direcciones = []
             for rec in (self.dom_fields or []):
                 try:
-                    d = {}
-                    fields = rec.get('fields')
-                    for k, e in (fields or {}).items():
-                        try:
-                            if k == 'SERVICIO':
-                                d[k] = e.get() if hasattr(e, 'get') else ''
-                            else:
-                                d[k] = e.get().strip()
-                        except Exception:
-                            d[k] = ''
-                    doms.append(d)
+                    fields = rec.get('fields') or {}
+                    d = {
+                        'CALLE Y NO': '',
+                        'COLONIA O POBLACION': '',
+                        'MUNICIPIO O ALCADIA': '',
+                        'CIUDAD O ESTADO': '',
+                        'CP': '',
+                        'SERVICIO': ''
+                    }
+                    # Los campos internos usan claves como 'CALLE_Y_NO', 'COLONIA_O_POBLACION', etc.
+                    try:
+                        if 'CALLE_Y_NO' in fields:
+                            d['CALLE Y NO'] = (fields['CALLE_Y_NO'].get() or '').strip()
+                        elif 'CALLE Y No' in fields:
+                            d['CALLE Y NO'] = (fields['CALLE Y No'].get() or '').strip()
+                    except Exception:
+                        pass
+                    try:
+                        if 'COLONIA_O_POBLACION' in fields:
+                            d['COLONIA O POBLACION'] = (fields['COLONIA_O_POBLACION'].get() or '').strip()
+                    except Exception:
+                        pass
+                    try:
+                        if 'MUNICIPIO_O_ALCADIA' in fields:
+                            d['MUNICIPIO O ALCADIA'] = (fields['MUNICIPIO_O_ALCADIA'].get() or '').strip()
+                    except Exception:
+                        pass
+                    try:
+                        if 'CIUDAD_O_ESTADO' in fields:
+                            d['CIUDAD O ESTADO'] = (fields['CIUDAD_O_ESTADO'].get() or '').strip()
+                    except Exception:
+                        pass
+                    try:
+                        if 'CP' in fields:
+                            d['CP'] = (fields['CP'].get() or '').strip()
+                    except Exception:
+                        pass
+                    try:
+                        if 'SERVICIO' in fields:
+                            d['SERVICIO'] = fields['SERVICIO'].get() if hasattr(fields['SERVICIO'], 'get') else ''
+                    except Exception:
+                        pass
+                    direcciones.append(d)
                 except Exception:
                     continue
-            if doms:
-                nuevo['DOMICILIOS'] = doms
+            if direcciones:
+                nuevo['DIRECCIONES'] = direcciones
         except Exception:
             pass
 
@@ -2106,12 +2791,14 @@ class SistemaDictamenesVC(ctk.CTk):
                 cp = c.get('CP') or ''
                 servicio = c.get('SERVICIO') or ''
                 try:
-                    if (not cp or not servicio) and isinstance(c.get('DOMICILIOS'), (list, tuple)) and len(c.get('DOMICILIOS'))>0:
-                        primera = c.get('DOMICILIOS')[0]
+                    # soportar tanto 'DIRECCIONES' (nuevo) como 'DOMICILIOS' (antiguo)
+                    direc = c.get('DIRECCIONES') if c.get('DIRECCIONES') is not None else c.get('DOMICILIOS')
+                    if (not cp or not servicio) and isinstance(direc, (list, tuple)) and len(direc) > 0:
+                        primera = direc[0]
                         if not cp:
                             cp = primera.get('CP') or primera.get('cp') or ''
                         if not servicio:
-                            servicio = primera.get('SERVICIO') or primera.get('SERVICIO'.upper()) or primera.get('servicio') or ''
+                            servicio = primera.get('SERVICIO') or primera.get('servicio') or ''
                 except Exception:
                     pass
                 # Insertar sin la columna CP; añadir texto en ACCIONES para permitir interacción
