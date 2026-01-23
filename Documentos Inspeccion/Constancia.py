@@ -47,8 +47,10 @@ class ConstanciaPDFGenerator:
         self.datos = datos or {}
         self.width, self.height = letter
         self.base_dir = base_dir or os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
-        # bajar la posición inicial para que las firmas queden más abajo en la hoja
-        self.cursor_y = self.height - 90
+        # altura fija del encabezado (misma en todas las páginas)
+        self.header_y = self.height - 40
+        # posición del cursor (empieza debajo del encabezado)
+        self.cursor_y = self.header_y
 
     def _fondo_path(self) -> str | None:
         p = os.path.join(self.base_dir, 'img', 'Fondo.jpeg')
@@ -137,6 +139,8 @@ class ConstanciaPDFGenerator:
         return cadena
 
     def dibujar_encabezado(self, c: canvas.Canvas) -> None:
+        # asegurar altura fija del encabezado
+        self.cursor_y = self.header_y
         # Logo (if present) at top-left (fallback to background watermark)
         logo_paths = [
             os.path.join(self.base_dir, 'img', 'Logo.png'),
@@ -181,13 +185,20 @@ class ConstanciaPDFGenerator:
         # small gap after header
         self.cursor_y -= 6
 
+        # dibujar paginación si ya se definió contexto (opcional)
+
     def dibujar_paginacion(self, c: canvas.Canvas) -> None:
-        # Right-aligned codes and page number similar to sample
+        # legacy: kept for backward-compatibility
+        pass
+
+    def dibujar_paginacion(self, c: canvas.Canvas, current: int, total: int) -> None:
+        # Right-aligned page counter "Pagina X de Y" at top-right
         c.setFont('Helvetica', 8)
         right_x = self.width - 30
-        c.drawRightString(right_x, self.height - 30, self.datos.get('formato_codigo', 'PT-F-208C-00-1'))
-        pagina_txt = self.datos.get('pagina_text', 'Página 1')
-        c.drawRightString(right_x, self.height - 40, pagina_txt)
+        # formato de código arriba
+        c.drawRightString(right_x, self.header_y + 8, self.datos.get('formato_codigo', 'PT-F-208C-00-1'))
+        pagina_txt = f"Página {current} de {total}"
+        c.drawRightString(right_x, self.header_y - 6, pagina_txt)
 
     def dibujar_footer(self, c: canvas.Canvas) -> None:
         # Yellow band at bottom with organization info (similar to sample)
@@ -209,20 +220,8 @@ class ConstanciaPDFGenerator:
         x = 25 * mm
         right_x = self.width - 25 * mm
 
-        # Norma y nombre (línea superior, en negritas) — permitir wrap si no cabe en una línea
-        norma = str(self.datos.get('norma', '') or '').strip()
-        nombre_norma = str(self.datos.get('nombre_norma', '') or '').strip()
-        encabezado_norma = (f"{norma} - {nombre_norma}").strip(' -')
-        c.setFont('Helvetica-Bold', 10)
-        if encabezado_norma:
-            max_w = right_x - x
-            lines = _dividir_texto(c, encabezado_norma, max_w, font_name='Helvetica-Bold', font_size=10)
-            for ln in lines:
-                c.drawString(x, self.cursor_y, ln)
-                self.cursor_y -= 12
-        else:
-            # mantener la posición si no hay norma
-            pass
+        # No mostrar número de NOM en la parte superior según solicitud
+        # (se mantiene posible referencia a la norma dentro del cuerpo legal)
 
         # No. de contrato (valor en negritas)
         no_contrato = str(self.datos.get('no_contrato', '') or self.datos.get('no_de_contrato', ''))
@@ -241,25 +240,18 @@ class ConstanciaPDFGenerator:
         self.cursor_y -= 12
 
         # Fecha de emisión (ahora después de la fecha de contrato)
+        # Mostrar Fecha de Emisión en UNA sola línea con el label primero
         fecha_emision = str(self.datos.get('fecha_emision', '') or '')
         fecha_larga = _formato_fecha_larga(fecha_emision)
-        c.setFont('Helvetica', 9)
-        # Dibujar la etiqueta en la misma línea
-        c.drawRightString(right_x, self.cursor_y, 'Fecha de Emisión:')
-        # Dibujar el valor justo debajo de la etiqueta para evitar empalmes; soporta wrap
-        if fecha_larga:
-            c.setFont('Helvetica-Bold', 9)
-            max_w_val = right_x - (x + 10 * mm)
-            val_lines = _dividir_texto(c, fecha_larga, max_w_val, font_name='Helvetica-Bold', font_size=9)
-            # comenzar a dibujar el primer valor una línea por debajo de la etiqueta
-            y_val = self.cursor_y - 10
-            for ln in val_lines:
-                c.drawRightString(right_x, y_val, ln)
-                y_val -= 10
-            # ajustar cursor al final del bloque de fecha
-            self.cursor_y = y_val - 4
-        else:
-            self.cursor_y -= 12
+        combined = f"Fecha de Emisión: {fecha_larga}" if fecha_larga else 'Fecha de Emisión:'
+        fsize = 9
+        min_fsize = 7
+        avail_w = right_x - x
+        while fsize >= min_fsize and c.stringWidth(combined, 'Helvetica-Bold', fsize) > avail_w:
+            fsize -= 1
+        c.setFont('Helvetica-Bold', fsize)
+        c.drawRightString(right_x, self.cursor_y, combined)
+        self.cursor_y -= 12
 
     def dibujar_cuerpo_legal(self, c: canvas.Canvas) -> None:
         x = 25 * mm
@@ -327,66 +319,82 @@ class ConstanciaPDFGenerator:
         self.cursor_y -= 20
 
     def dibujar_tabla_relacion(self, c: canvas.Canvas) -> None:
-        # Nuevo diseño compacto y con todos los bordes visibles
+        # Diseño compacto y con bordes uniformes; ajustar contenido para que quepa en celdas
         margin_x = 28 * mm
         total_w = self.width - 2 * margin_x
         x = margin_x
 
-        # Column widths compactas
+        # Column widths: hacer la columna 'CONTENIDO NETO' más pequeña
         col1 = 34 * mm
-        col2 = 46 * mm
-        col3 = total_w - col1 - col2
+        col3 = 28 * mm
+        col2 = total_w - col1 - col3
 
         title_h = 9 * mm
         header_h = 8 * mm
-        row_h = 10 * mm
+        row_h = 14 * mm
 
         table_top = self.cursor_y
-        table_height = title_h + header_h + row_h + 4 * mm
+        bottom_y = table_top - (title_h + header_h + row_h)
 
-        c.setLineWidth(0.9)
-        # Caja externa que engloba todo
-        c.rect(x, table_top - table_height, total_w, table_height, stroke=1, fill=0)
-
-        # Banda superior con título (rellena ligeramente)
+        # Dibujar bandas (rellenos) primero
         c.setFillColor(colors.whitesmoke)
-        c.rect(x + 1 * mm, table_top - title_h + 1 * mm, total_w - 2 * mm, title_h - 2 * mm, stroke=0, fill=1)
-        c.setFillColor(colors.black)
-        c.setFont('Helvetica-Bold', 10)
-        c.drawCentredString(x + total_w / 2, table_top - title_h / 2 + 1, 'RELACIÓN CORRESPONDIENTE')
-
-        # Línea separadora bajo título
-        top_y = table_top - title_h
-        c.line(x, top_y, x + total_w, top_y)
-
-        # Encabezado de columnas (con fondo gris claro)
+        c.rect(x, table_top - title_h, total_w, title_h, stroke=0, fill=1)
         c.setFillColor(colors.HexColor('#efefef'))
-        c.rect(x, top_y - header_h, total_w, header_h, stroke=0, fill=1)
+        c.rect(x, table_top - title_h - header_h, total_w, header_h, stroke=0, fill=1)
         c.setFillColor(colors.black)
-        # Dibujar separadores verticales del encabezado
-        bottom_y = top_y - header_h - row_h
+
+        # Textos de título y encabezados
+        c.setFont('Helvetica-Bold', 10)
+        c.drawCentredString(x + total_w / 2, table_top - title_h / 2 - 1, 'RELACIÓN CORRESPONDIENTE')
+        c.setFont('Helvetica-Bold', 8)
+        c.drawCentredString(x + col1 / 2, table_top - title_h - header_h / 2 - 2, 'CÓDIGO')
+        c.drawCentredString(x + col1 + col2 / 2, table_top - title_h - header_h / 2 - 2, 'MEDIDAS')
+        c.drawCentredString(x + col1 + col2 + col3 / 2, table_top - title_h - header_h / 2 - 2, 'CONTENIDO NETO')
+
+        c.setLineWidth(0.6)
+        c.setStrokeColor(colors.black)
+        # Caja externa
+        c.rect(x, bottom_y, total_w, title_h + header_h + row_h, stroke=1, fill=0)
+        # Líneas verticales (desde la parte superior de la tabla hasta el fondo)
+        top_y = table_top
         c.line(x + col1, top_y, x + col1, bottom_y)
         c.line(x + col1 + col2, top_y, x + col1 + col2, bottom_y)
+        # Línea separadora entre encabezado y fila
+        c.line(x, top_y - header_h, x + total_w, top_y - header_h)
 
-        # Encabezados
-        c.setFont('Helvetica-Bold', 8)
-        c.drawCentredString(x + col1 / 2, top_y - header_h / 2 - 2, 'CÓDIGO')
-        c.drawCentredString(x + col1 + col2 / 2, top_y - header_h / 2 - 2, 'MEDIDAS')
-        c.drawCentredString(x + col1 + col2 + col3 / 2, top_y - header_h / 2 - 2, 'CONTENIDO NETO')
+        # Preparar valores
+        codigo = str(self.datos.get('codigo', '')).strip() or '7 503049 695501'
+        medida = str(self.datos.get('medida', '')).strip() or '17 cm de ancho x 15.35 cm de alto'
+        contenido = str(self.datos.get('contenido_neto', '')).strip() or '355 ml'
 
-        # Dibujar bordes de la fila de datos (siempre visibles)
+        def _draw_cell_text(text, cell_x, cell_w, cell_y, cell_h, align='left'):
+            fsize = 8
+            min_fsize = 6
+            while fsize >= min_fsize:
+                lines = _dividir_texto(c, text, cell_w - 6 * mm, font_name='Helvetica-Bold', font_size=fsize)
+                if len(lines) <= 2:
+                    break
+                fsize -= 1
+            c.setFont('Helvetica-Bold', fsize)
+            leading = fsize + 2
+            lines = lines[:2]
+            y_text = cell_y + cell_h - (cell_h - (len(lines) * leading)) / 2 - leading + 2
+            for ln in lines:
+                if align == 'left':
+                    c.drawString(cell_x + 3 * mm, y_text, ln)
+                else:
+                    c.drawRightString(cell_x + cell_w - 3 * mm, y_text, ln)
+                y_text -= leading
+
+        # Dibujar rectángulos de las celdas (asegurar bordes visibles)
         c.rect(x, bottom_y, col1, row_h, stroke=1, fill=0)
         c.rect(x + col1, bottom_y, col2, row_h, stroke=1, fill=0)
         c.rect(x + col1 + col2, bottom_y, col3, row_h, stroke=1, fill=0)
 
-        # Rellenar fila de datos (ejemplo o reales) en negritas
-        codigo = str(self.datos.get('codigo', '')).strip() or '7 503049 695501'
-        medida = str(self.datos.get('medida', '')).strip() or '17 cm de ancho x 15.35 cm de alto'
-        contenido = str(self.datos.get('contenido_neto', '')).strip() or '355 ml'
-        c.setFont('Helvetica-Bold', 8)
-        c.drawString(x + 3 * mm, bottom_y + row_h / 2 - 4, codigo)
-        c.drawString(x + col1 + 3 * mm, bottom_y + row_h / 2 - 4, medida)
-        c.drawRightString(x + total_w - 4 * mm, bottom_y + row_h / 2 - 4, contenido)
+        # Dibujar contenidos ajustados
+        _draw_cell_text(codigo, x, col1, bottom_y, row_h, align='left')
+        _draw_cell_text(medida, x + col1, col2, bottom_y, row_h, align='left')
+        _draw_cell_text(contenido, x + col1 + col2, col3, bottom_y, row_h, align='right')
 
         # Actualizar cursor
         self.cursor_y = bottom_y - 8 * mm
@@ -401,13 +409,19 @@ class ConstanciaPDFGenerator:
 
     def dibujar_firma(self, c: canvas.Canvas) -> None:
         # Imprimir firmas en página(s) final(es) con diseño de dos columnas similar al Dictamen
+        # Reservar página nueva y dibujar encabezado en altura fija
         try:
             c.showPage()
         except Exception:
             pass
-        self.cursor_y = self.height - 40
+        self.cursor_y = self.header_y
         try:
             self.dibujar_fondo(c)
+        except Exception:
+            pass
+        try:
+            self.dibujar_encabezado(c)
+            # paginación será añadida por el llamador con el número correcto
         except Exception:
             pass
 
@@ -526,7 +540,14 @@ class ConstanciaPDFGenerator:
             salida = os.path.join(const_dir, f'Constancia_{safe}.pdf')
 
         c = canvas.Canvas(salida, pagesize=letter)
-        self.cursor_y = self.height - 40
+        self.cursor_y = self.header_y
+        # calcular páginas totales: página principal + N páginas de evidencia (4 por página) + firmas
+        evidencias = (self.datos.get('evidencias_lista') or [])
+        import math
+        evidence_pages = max(1, math.ceil(len(evidencias) / 4))
+        signature_page = 1
+        total_pages = 1 + evidence_pages + signature_page
+        current_page = 1
         try:
             # Preparar datos: construir cadena identificadora y cargar catálogos
             try:
@@ -586,6 +607,10 @@ class ConstanciaPDFGenerator:
             pass
         # Página principal: encabezado y secciones iniciales
         self.dibujar_encabezado(c)
+        try:
+            self.dibujar_paginacion(c, current_page, total_pages)
+        except Exception:
+            pass
         self.dibujar_datos_basicos(c)
         self.dibujar_cuerpo_legal(c)
         self.dibujar_condiciones(c)
@@ -598,43 +623,57 @@ class ConstanciaPDFGenerator:
 
         # Añadir apartado para pegar evidencia fotográfica (páginas nuevas)
         try:
-            self.dibujar_evidencia(c)
+            # dividir evidencias en páginas de 4
+            for p in range(evidence_pages):
+                start = p * 4
+                page_items = evidencias[start:start + 4]
+                current_page += 1
+                self.dibujar_evidencia(c, page_items)
+                try:
+                    self.dibujar_paginacion(c, current_page, total_pages)
+                except Exception:
+                    pass
         except Exception:
             pass
 
         # Firmas al final del documento
         try:
+            current_page += 1
             self.dibujar_firma(c)
+            try:
+                self.dibujar_paginacion(c, current_page, total_pages)
+            except Exception:
+                pass
         except Exception:
             pass
         c.save()
         return salida
 
-    def dibujar_evidencia(self, c: canvas.Canvas) -> None:
-        """Crea una página para pegar evidencia fotográfica (2x2 cajas).
+    def dibujar_evidencia(self, c: canvas.Canvas, page_items: list | None = None) -> None:
+        """Dibuja una página de evidencia con hasta 4 elementos (page_items).
 
-        Esta implementación añade una única página con cuatro recuadros.
+        - `page_items` es lista con hasta 4 elementos. Cada elemento puede ser:
+          - '${IMAGEN}' para dejar el placeholder
+          - ruta a imagen (string) para dibujarla
+          - None para dejar el placeholder
+        Si `page_items` es None, se dibujan 4 placeholders.
         """
         try:
             c.showPage()
         except Exception:
             pass
-        self.cursor_y = self.height - 40
+        # Reservar espacio superior para encabezado en la página de evidencia
+        self.cursor_y = self.header_y
         try:
             self.dibujar_fondo(c)
         except Exception:
             pass
+        try:
+            self.dibujar_encabezado(c)
+        except Exception:
+            pass
 
-        evidencias = self.datos.get('evidencias_lista', []) or []
-
-        # Si no hay evidencias, añadir placeholder ${IMAGEN} centrado
-        if not evidencias:
-            c.setFont('Helvetica-Bold', 14)
-            c.drawCentredString(self.width / 2, self.cursor_y - 40, '${IMAGEN}')
-            # dejar espacio y regresar para que las firmas se dibujen después
-            self.cursor_y -= 80
-            return
-
+        items = page_items or []
         # Título
         c.setFont('Helvetica-Bold', 12)
         c.drawCentredString(self.width / 2, self.cursor_y, 'EVIDENCIA FOTOGRÁFICA')
@@ -656,8 +695,25 @@ class ConstanciaPDFGenerator:
             for ccol in range(2):
                 x = margin_x + ccol * (box_w + gap)
                 c.rect(x, y - box_h, box_w, box_h, stroke=1, fill=0)
-                c.setFont('Helvetica', 8)
-                c.drawCentredString(x + box_w / 2, y - box_h + 6 * mm, f'Evidencia {num}')
+                idx = (r * 2) + ccol
+                val = items[idx] if idx < len(items) else None
+                if val == '${IMAGEN}' or val is None:
+                    c.setFont('Helvetica-Bold', 14)
+                    c.drawCentredString(x + box_w / 2, y - box_h / 2, '${IMAGEN}')
+                elif isinstance(val, str) and os.path.exists(val):
+                    try:
+                        im = ImageReader(val)
+                        iw, ih = im.getSize()
+                        scale = min((box_w - 6 * mm) / iw, (box_h - 6 * mm) / ih)
+                        w = iw * scale
+                        h = ih * scale
+                        c.drawImage(im, x + (box_w - w) / 2, y - box_h + (box_h - h) / 2, width=w, height=h, mask='auto')
+                    except Exception:
+                        c.setFont('Helvetica', 8)
+                        c.drawCentredString(x + box_w / 2, y - box_h + 6 * mm, f'Evidencia {num}')
+                else:
+                    c.setFont('Helvetica', 8)
+                    c.drawCentredString(x + box_w / 2, y - box_h + 6 * mm, f'Evidencia {num}')
                 num += 1
 
         self.cursor_y = margin_y
