@@ -187,30 +187,57 @@ class ConstanciaPDFGenerator:
         Formato final:
         {year}049UCC{norma}{folio_formateado} Solicitud de Servicio: {year}049UCC{norma}{solicitud_formateado}-{lista}
         """
-        # Año a partir de fecha_emision si está, else año actual
+        # Año a partir de fecha_emision si está, else año actual (AAAA)
         fecha = self.datos.get('fecha_emision', '')
-        year = None
+        year_full = None
         if fecha:
-            # intentar formatos dd/mm/YYYY o YYYY-mm-dd
             m = re.search(r"(\d{4})", fecha)
             if m:
-                year = m.group(1)
+                year_full = m.group(1)
             else:
                 m2 = re.search(r"(\d{2})/(\d{2})/(\d{4})", fecha)
                 if m2:
-                    year = m2.group(3)
-        if not year:
-            year = datetime.now().strftime('%Y')
+                    year_full = m2.group(3)
+        if not year_full:
+            year_full = datetime.now().strftime('%Y')
 
         # conservar los guiones en la norma (ej. NOM-051-SCFI/SSA1-2010)
         norma = (self.datos.get('norma') or '').strip()
+        # Si no viene la norma completa, pero tenemos 'clasif_uva' intentar mapearla usando data/Normas.json
+        try:
+            if (not norma) and self.datos.get('clasif_uva'):
+                clas = str(self.datos.get('clasif_uva'))
+                mnum = re.search(r"(\d{1,3})", clas)
+                if mnum:
+                    code3 = f"{int(mnum.group(1)):03d}"
+                    normas_path = os.path.join(self.base_dir, 'data', 'Normas.json')
+                    if os.path.exists(normas_path):
+                        with open(normas_path, 'r', encoding='utf-8') as nf:
+                            ndata = json.load(nf)
+                            if isinstance(ndata, list):
+                                for item in ndata:
+                                    nom = str(item.get('NOM') or '')
+                                    if f"-{code3}-" in nom or code3 in nom:
+                                        norma = nom
+                                        # also set nombre_norma in datos if available
+                                        nombre = item.get('NOMBRE') or item.get('NOMBRE', '')
+                                        if nombre:
+                                            self.datos['nombre_norma'] = nombre
+                                        break
+        except Exception:
+            pass
 
-        # folio_formateado: usar campo si existe, si no extraer dígitos del folio
+        # folio_formateado: usar campo si existe, si no extraer dígitos del folio y formatear a 6 dígitos
         folio = str(self.datos.get('folio_constancia',''))
         folio_formateado = self.datos.get('folio_formateado')
         if not folio_formateado:
             nums = re.findall(r"\d+", folio)
-            folio_formateado = nums[-1] if nums else folio
+            digits = nums[-1] if nums else ''
+            if digits:
+                folio_formateado = digits.zfill(6)
+            else:
+                # fallback: si no hay dígitos, usar texto tal cual
+                folio_formateado = folio
 
         # Solicitud: preferir campo ya formateado; si no, intentar dividir "NNN.../YY" -> numero y año
         solicitud_raw = str(
@@ -247,17 +274,28 @@ class ConstanciaPDFGenerator:
         # preparar la lista
         lista = str(self.datos.get('lista', '1'))
 
-        # determinar año de la parte 'Solicitud de Servicio' (2 dígitos)
+        # determinar año de emisión corto (2 dígitos) para la parte izquierda: usar año actual
+        year_left_two = datetime.now().strftime('%y')
+
+        # determinar año de la parte 'Solicitud de Servicio' (2 dígitos): preferir el año extraído de la solicitud
         if solicitud_year_two:
             sol_year_two = solicitud_year_two
         else:
-            # extraer dos últimos dígitos del `year` principal (puede ser YYYY o YY)
-            sol_year_two = str(year)[-2:]
+            # extraer dos últimos dígitos del `solicitud` si posible, si no usar el año actual
+            if solicitud_raw:
+                msol = re.search(r"/(\d{2,4})\s*$", solicitud_raw)
+                if msol:
+                    sfull = msol.group(1)
+                    sol_year_two = sfull[-2:]
+                else:
+                    sol_year_two = datetime.now().strftime('%y')
+            else:
+                sol_year_two = datetime.now().strftime('%y')
 
         # asegurar formato de solicitud (6 dígitos cuando sea numérica)
         solicitud_formatted = solicitud_num.zfill(6) if solicitud_num and solicitud_num.isdigit() else solicitud_num
 
-        cadena = f"{year}049UCC{norma}{folio_formateado} Solicitud de Servicio: {sol_year_two}049UCC{norma}{solicitud_formatted}-{lista}"
+        cadena = f"{year_left_two}049UCC{norma}{folio_formateado} Solicitud de Servicio: {sol_year_two}049UCC{norma}{solicitud_formatted}-{lista}"
         self.datos['cadena'] = cadena
         return cadena
 
@@ -888,13 +926,13 @@ class ConstanciaPDFGenerator:
 
 
     def generar(self, salida: str) -> str:
-        # Si no se especifica salida, no guardar PDFs en data/Constancias por defecto.
-        # Usar un archivo temporal para evitar congestionar la carpeta `data/Constancias`.
+        # Si no se especifica salida, guardar en data/Constancias dentro del proyecto
         if not salida:
-            fol = str(self.datos.get('folio_constancia') or '')
+            fol = str(self.datos.get('folio_formateado') or self.datos.get('folio_constancia') or '')
             safe = fol.replace('/', '_').replace(' ', '_') or datetime.now().strftime('%Y%m%d_%H%M%S')
-            tmp_dir = tempfile.gettempdir()
-            salida = os.path.join(tmp_dir, f'Constancia_{safe}.pdf')
+            const_dir = os.path.join(self.base_dir, 'data', 'Constancias')
+            os.makedirs(const_dir, exist_ok=True)
+            salida = os.path.join(const_dir, f'Constancia_{safe}.pdf')
 
         # Use NumberedCanvas so we can print "Página X de Y" after all pages are created
         try:
@@ -1255,6 +1293,52 @@ def _actualizar_tabla_relacion(path: str) -> None:
     except Exception:
         pass
 
+
+def _reserve_next_folio(data_dir: str) -> str:
+    """Reserva y retorna el siguiente folio numérico como cadena (sin ceros a la izquierda).
+
+    Archivo: data/folio_counter.json con formato {"last": N}
+    """
+    try:
+        p = os.path.join(data_dir, 'folio_counter.json')
+        # crear si no existe
+        if not os.path.exists(p):
+            with open(p, 'w', encoding='utf-8') as f:
+                json.dump({'last': 0}, f)
+        with open(p, 'r', encoding='utf-8') as f:
+            data = json.load(f) or {}
+        last = int(data.get('last') or 0)
+        nxt = last + 1
+        data['last'] = nxt
+        # escribir de vuelta
+        try:
+            with open(p, 'w', encoding='utf-8') as f:
+                json.dump(data, f, ensure_ascii=False, indent=2)
+        except Exception:
+            pass
+        return str(nxt)
+    except Exception:
+        return '1'
+
+def _get_last_historial_fecha(data_dir: str) -> str:
+    """Leer `data/historial_visitas.json` y devolver la fecha de la última visita.
+
+    Retorna cadena vacía si no existe o no contiene fechas.
+    """
+    try:
+        p = os.path.join(data_dir, 'historial_visitas.json')
+        if not os.path.exists(p):
+            return ''
+        with open(p, 'r', encoding='utf-8') as f:
+            hist = json.load(f) or {}
+        visitas = hist.get('visitas', []) if isinstance(hist, dict) else hist
+        if not visitas:
+            return ''
+        last = visitas[-1]
+        return last.get('fecha_termino') or last.get('fecha') or last.get('fecha_emision') or ''
+    except Exception:
+        return ''
+
 def generar_constancia_desde_visita(folio_visita: str | None = None, salida: str | None = None) -> str:
     base = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
     data_dir = os.path.join(base, 'data')
@@ -1345,7 +1429,7 @@ def generar_constancia_desde_visita(folio_visita: str | None = None, salida: str
     fecha = visita.get('fecha_termino') or visita.get('fecha') or datetime.now().strftime('%d/%m/%Y')
 
     # Preferir folio de dictamen/familia si está presente; si no, usar folio_visita
-    fol = (visita.get('folio') or visita.get('folio_visita') or '').replace('UDC', 'UCC')
+    fol = (visita.get('folio') or visita.get('folio_visita') or '').replace('UDC', f'UCC')
     # Capturar solicitud de la visita en múltiples formatos posibles (ej. "000333/25")
     solicitud_raw = str(visita.get('solicitud') or visita.get('Solicitud') or visita.get('SOLICITUD') or '').strip()
     solicitud_num = ''
@@ -1436,6 +1520,84 @@ def generar_constancia_desde_visita(folio_visita: str | None = None, salida: str
         except Exception:
             pass
 
+    # Extraer campos relevantes desde la primera fila de tabla_relacion cuando exista
+    extra = {}
+    try:
+        if tabla_rows:
+            first = tabla_rows[0] if isinstance(tabla_rows, list) else tabla_rows
+            # helpers para claves con/ sin mayúsculas y guiones
+            def _get(k):
+                return first.get(k) or first.get(k.upper()) or first.get(k.replace(' ', '_')) or first.get(k.replace(' ', '')) or ''
+
+            extra['lista'] = _get('LISTA') or _get('Lista') or ''
+            extra['fecha_verificacion'] = _get('FECHA DE VERIFICACION') or _get('FECHA_DE_VERIFICACION') or _get('Fecha de Verificacion') or ''
+            extra['marca'] = _get('MARCA') or extra.get('marca') or marca
+            extra['codigo'] = _get('CODIGO') or _get('Codigo') or ''
+            extra['pais_origen'] = _get('PAIS DE ORIGEN') or _get('PAIS_DE_ORIGEN') or _get('PAIS DE PROCEDENCIA') or _get('PAIS_DE_PROCEDENCIA') or ''
+            extra['descripcion'] = _get('DESCRIPCION') or _get('Descripcion') or _get('descripcion') or ''
+            extra['contenido'] = _get('CONTENIDO') or _get('CONTENIDO NETO') or _get('CONTENIDO_NETO') or ''
+            extra['clasif_uva'] = _get('CLASIF UVA') or _get('CLASIF_UVA') or _get('CLASIF') or ''
+            extra['norma_uva'] = _get('NORMA UVA') or _get('NORMA_UVA') or ''
+            extra['obs_dictamen'] = _get('OBSERVACIONES DICTAMEN') or _get('OBSERVACIONES_DICTAMEN') or _get('OBSERVACIONES') or ''
+            extra['tipo_documento'] = _get('TIPO DE DOCUMENTO') or _get('TIPO_DE_DOCUMENTO') or ''
+            extra['folio_tabla'] = _get('FOLIO') or ''
+            extra['medidas'] = _get('MEDIDAS') or _get('Medidas') or ''
+            extra['pais_procedencia'] = _get('PAIS DE PROCEDENCIA') or _get('PAIS_DE_PROCEDENCIA') or ''
+
+            # Si la fila trae solicitud más fiable, actualizar solicitud y formato
+            sol_row = str(_get('SOLICITUD') or _get('Solicitud') or _get('solicitud') or '').strip()
+            if sol_row:
+                solicitud_raw = sol_row
+                m2 = re.match(r"^\s*(\d+)(?:[\/\-](\d{2,4}))?\s*$", solicitud_raw)
+                if m2:
+                    solicitud_num = m2.group(1)
+                    suf2 = m2.group(2)
+                    if suf2:
+                        solicitud_year_full = ("20" + suf2) if len(suf2) == 2 else suf2
+                else:
+                    nums2 = re.findall(r"\d+", solicitud_raw)
+                    solicitud_num = nums2[0] if nums2 else solicitud_raw
+                solicitud_formateado = solicitud_num.zfill(6) if solicitud_num and solicitud_num.isdigit() else solicitud_num
+
+            # Mapear CLASIF UVA a NOM en Normas.json cuando sea numérico
+            try:
+                clas = extra.get('clasif_uva')
+                if clas:
+                    clas_s = str(clas).strip()
+                    # extraer número si viene con texto
+                    mnum = re.search(r"(\d{1,3})", clas_s)
+                    if mnum:
+                        num = int(mnum.group(1))
+                        code3 = f"{num:03d}"
+                        mapped_nom = ''
+                        mapped_name = ''
+                        for nom_code, nom_name in normas.items():
+                            if f"-{code3}-" in nom_code or code3 in nom_code:
+                                mapped_nom = nom_code
+                                mapped_name = nom_name
+                                break
+                        if mapped_nom:
+                            norma_str = mapped_nom
+                            nombre_norma = mapped_name
+            except Exception:
+                pass
+    except Exception:
+        extra = {}
+
+    # Construir el diccionario final de datos incluyendo los campos extraídos
+    # Asegurar folio: si viene vacío o no contiene dígitos, reservar uno nuevo
+    try:
+        fol_digits = ''.join([c for c in str(fol) if c.isdigit()])
+    except Exception:
+        fol_digits = ''
+    if not fol_digits:
+        try:
+            fol_digits = _reserve_next_folio(data_dir)
+        except Exception:
+            fol_digits = '1'
+    # formatear a 6 dígitos
+    fol_display = fol_digits.zfill(6)
+
     datos = {
         'folio_constancia': fol,
         'fecha_emision': fecha,
@@ -1449,15 +1611,31 @@ def generar_constancia_desde_visita(folio_visita: str | None = None, salida: str
         'normades': nombre_norma,
         'nombre_norma': nombre_norma,
         'producto': producto,
-        'marca': marca,
+        'marca': extra.get('marca') or marca,
         'modelo': modelo,
         'tabla_relacion': tabla_rows,
+        'folio_formateado': fol_display,
+        # Campos extra desde tabla_de_relacion (si existen)
+        'lista': extra.get('lista',''),
+        'fecha_verificacion': extra.get('fecha_verificacion',''),
+        'codigo': extra.get('codigo',''),
+        'pais_origen': extra.get('pais_origen',''),
+        'descripcion': extra.get('descripcion',''),
+        'contenido': extra.get('contenido',''),
+        'clasif_uva': extra.get('clasif_uva',''),
+        'norma_uva': extra.get('norma_uva',''),
+        'obs_dictamen': extra.get('obs_dictamen',''),
+        'tipo_documento': extra.get('tipo_documento',''),
+        'folio_tabla': extra.get('folio_tabla',''),
+        'medidas': extra.get('medidas',''),
+        'pais_procedencia': extra.get('pais_procedencia',''),
     }
 
     if not salida:
-        tmp_dir = tempfile.gettempdir()
+        const_dir = os.path.join(data_dir, 'Constancias')
+        os.makedirs(const_dir, exist_ok=True)
         safe = str(fol or 'constancia').replace('/', '_').replace(' ', '_')
-        salida = os.path.join(tmp_dir, f'Constancia_{safe}.pdf')
+        salida = os.path.join(const_dir, f'Constancia_{safe}.pdf')
 
     gen = ConstanciaPDFGenerator(datos, base_dir=base)
     return gen.generar(salida)
@@ -1553,8 +1731,132 @@ def generar_json_constancias_desde_historial(salida_dir: str | None = None, max_
 
     return created
 
+
+def generar_constancias_desde_tabla(salida_dir: str | None = None) -> list:
+    """Genera una constancia PDF por cada fila en data/tabla_de_relacion.json.
+
+    Devuelve la lista de rutas generadas.
+    """
+    base = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+    data_dir = os.path.join(base, 'data')
+    tabla = os.path.join(data_dir, 'tabla_de_relacion.json')
+    normas_p = os.path.join(data_dir, 'Normas.json')
+
+    if not os.path.exists(tabla):
+        raise FileNotFoundError(tabla)
+
+    # cargar normas para mapeos
+    normas_map = _cargar_normas(normas_p)
+
+    with open(tabla, 'r', encoding='utf-8') as f:
+        rows = json.load(f) or []
+
+    out_dir = salida_dir or os.path.join(data_dir, 'Constancias')
+    os.makedirs(out_dir, exist_ok=True)
+    created = []
+
+    for i, row in enumerate(rows, start=1):
+        try:
+            # preparar campos básicos
+            solicitud_raw = str(row.get('SOLICITUD') or row.get('Solicitud') or row.get('solicitud') or '').strip()
+            producto = str(row.get('DESCRIPCION') or '')
+            marca = str(row.get('MARCA') or '')
+
+            # mapear CLASIF UVA a NOM y nombre de norma si es posible
+            norma_str = ''
+            nombre_norma = ''
+            clas = row.get('CLASIF UVA') or row.get('CLASIF_UVA') or row.get('CLASIF') or ''
+            try:
+                if clas:
+                    mnum = re.search(r"(\d{1,3})", str(clas))
+                    if mnum:
+                        code3 = f"{int(mnum.group(1)):03d}"
+                        for nom_code, nom_name in normas_map.items():
+                            if f"-{code3}-" in nom_code or code3 in nom_code:
+                                norma_str = nom_code
+                                nombre_norma = nom_name
+                                break
+            except Exception:
+                pass
+
+            # fecha de emisión desde historial o hoy
+            fecha_emision = _get_last_historial_fecha(data_dir) or datetime.now().strftime('%d/%m/%Y')
+
+            # reservar folio
+            fol_digits = _reserve_next_folio(data_dir)
+            fol_display = str(fol_digits).zfill(6)
+
+            datos = {
+                'folio_constancia': '',
+                'fecha_emision': fecha_emision,
+                'cliente': str(row.get('CLIENTE') or ''),
+                'rfc': '',
+                'no_contrato': '',
+                'fecha_contrato': '',
+                'solicitud': solicitud_raw,
+                'solicitud_formateado': '',
+                'norma': norma_str,
+                'nombre_norma': nombre_norma,
+                'producto': producto,
+                'marca': marca,
+                'modelo': str(row.get('MODELO') or ''),
+                'tabla_relacion': [row],
+                'lista': row.get('LISTA',''),
+                'clasif_uva': row.get('CLASIF UVA') or row.get('CLASIF_UVA') or row.get('CLASIF') or '',
+                'folio_formateado': fol_display,
+            }
+
+            out_path = os.path.join(out_dir, f'Constancia_{fol_display}.pdf')
+            gen = ConstanciaPDFGenerator(datos, base_dir=base)
+            out = gen.generar(out_path)
+            created.append(out)
+            print('Generated:', out)
+        except Exception as e:
+            print('Error generating for row', i, e)
+            continue
+
+    return created
+
 if __name__ == '__main__':
-    # Generador integrado de ejemplos: crea JSON en data/Constancias y genera PDFs
+    import sys
+
+    def _preview_cadena_from_tabla():
+        base = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+        data_dir = os.path.join(base, 'data')
+        tabla = os.path.join(data_dir, 'tabla_de_relacion.json')
+        try:
+            with open(tabla, 'r', encoding='utf-8') as f:
+                t = json.load(f)
+                first = t[0] if isinstance(t, list) and t else {}
+        except Exception as e:
+            print('Error loading tabla_de_relacion.json:', e)
+            return
+
+        datos = {
+            'folio_constancia': '',
+            'fecha_emision': '',
+            'cliente': '',
+            'rfc': '',
+            'no_contrato': '',
+            'fecha_contrato': '',
+            'solicitud': str(first.get('SOLICITUD') or '').strip(),
+            'solicitud_formateado': '',
+            'norma': '',
+            'normades': '',
+            'nombre_norma': '',
+            'producto': str(first.get('DESCRIPCION') or ''),
+            'marca': str(first.get('MARCA') or ''),
+            'modelo': str(first.get('MODELO') or ''),
+            'tabla_relacion': [first],
+            'lista': first.get('LISTA',''),
+            'clasif_uva': first.get('CLASIF UVA') or first.get('CLASIF_UVA') or first.get('CLASIF') or '',
+        }
+
+        gen = ConstanciaPDFGenerator(datos, base_dir=base)
+        cadena = gen.construir_cadena_identificacion()
+        print('CADENA IDENTIFICACION:')
+        print(cadena)
+
     def generar_ejemplos_integrados(count: int = 3) -> None:
         base = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
         data_dir = os.path.join(base, 'data')
@@ -1592,5 +1894,51 @@ if __name__ == '__main__':
             except Exception as e:
                 print('Error generating PDF for', json_path, e)
 
-    # Ejecutar generador integrado al invocar este script
-    generar_ejemplos_integrados(3)
+    if '--preview-cadena' in sys.argv:
+        _preview_cadena_from_tabla()
+    else:
+        # Si se solicita, generar una constancia a partir de la primera fila de tabla_de_relacion
+        if '--generar-constancia-tabla' in sys.argv:
+            base = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+            data_dir = os.path.join(base, 'data')
+            tabla = os.path.join(data_dir, 'tabla_de_relacion.json')
+            try:
+                with open(tabla, 'r', encoding='utf-8') as f:
+                    t = json.load(f)
+                    first = t[0] if isinstance(t, list) and t else {}
+            except Exception as e:
+                print('Error loading tabla_de_relacion.json:', e)
+                sys.exit(1)
+
+            datos = {
+                'folio_constancia': '',
+                'fecha_emision': _get_last_historial_fecha(data_dir) or datetime.now().strftime('%d/%m/%Y'),
+                'cliente': '',
+                'rfc': '',
+                'no_contrato': '',
+                'fecha_contrato': '',
+                'solicitud': str(first.get('SOLICITUD') or '').strip(),
+                'solicitud_formateado': '',
+                'norma': '',
+                'normades': '',
+                'nombre_norma': '',
+                'producto': str(first.get('DESCRIPCION') or ''),
+                'marca': str(first.get('MARCA') or ''),
+                'modelo': str(first.get('MODELO') or ''),
+                'tabla_relacion': [first],
+                'lista': first.get('LISTA',''),
+                'clasif_uva': first.get('CLASIF UVA') or first.get('CLASIF_UVA') or first.get('CLASIF') or '',
+            }
+            # Reservar folio y asignarlo
+            fol_digits = _reserve_next_folio(data_dir)
+            datos['folio_formateado'] = fol_digits.zfill(6)
+            gen = ConstanciaPDFGenerator(datos, base_dir=base)
+            out = gen.generar(None)
+            print('Generated (from tabla) PDF:', out)
+        elif '--generar-constancias-tabla' in sys.argv:
+            # Generar una constancia por cada fila de tabla_de_relacion.json
+            base = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+            created = generar_constancias_desde_tabla()
+            print('Created', len(created), 'constancias')
+        else:
+            generar_ejemplos_integrados(3)

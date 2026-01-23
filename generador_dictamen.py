@@ -284,11 +284,6 @@ class PDFGeneratorConDatos(PDFGenerator):
     # ---------------- páginas ----------------
     def agregar_primera_pagina_con_datos(self):
         print("   📄 Construyendo primera página...")
-        # Preferir fecha de entrada (tabla) en múltiples variantes antes de
-        # usar la fecha de verificación. Esto cubre nombres de columna variados
-        # que provienen de la tabla de relación.
-        # Preferir la fecha de entrada que `preparar_datos_familia` coloca en
-        # `femision` (fecha corta). Luego probar otras variantes conocidas.
         fecha_entrada = (
             self.datos.get('femision') or self.datos.get('fentradalarga') or
             self.datos.get('fentrada') or self.datos.get('fecha_entrada') or
@@ -2228,19 +2223,11 @@ def generar_dictamenes_completos(directorio_destino, cliente_manual=None, rfc_ma
                     'NORMA UVA': r.get('NORMA UVA') or r.get('NORMA_UVA') or r.get('NORMA_Uva') or r.get('norma_uva') or None
                 })
         if tabla_out:
-            # Nota: No sobrescribimos ni creamos copias reducidas de `data/tabla_de_relacion.json`.
-            # La intención es preservar la tabla completa que el usuario haya subido.
-            # Por tanto, si ya existe `tabla_de_relacion.json` en `data/`, lo dejamos intacto
-            # y usamos esa versión completa como único respaldo persistente.
             try:
                 data_dir = obtener_ruta_recurso('data')
                 tabla_principal = os.path.join(data_dir, 'tabla_de_relacion.json')
                 backup_dir = os.path.join(data_dir, 'tabla_relacion_backups')
                 os.makedirs(backup_dir, exist_ok=True)
-
-                # Si existe la tabla principal completa, NO crear el respaldo PERSIST aquí.
-                # La aplicación (app.py) es responsable de crear el respaldo final cuando
-                # la generación de documentos sea exitosa y tenga el folio de visita.
                 if os.path.exists(tabla_principal):
                     try:
                         print("   ℹ️ Se omite creación de PERSIST en el generador; lo crea app.py tras generación.")
