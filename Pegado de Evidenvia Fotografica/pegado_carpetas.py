@@ -22,7 +22,12 @@ def construir_indice_carpetas(ruta_imgs):
     """
     indice = {}
 
-    for nombre in os.listdir(ruta_imgs):
+    try:
+        entries = os.listdir(ruta_imgs)
+    except Exception:
+        entries = []
+
+    for nombre in entries:
         ruta = os.path.join(ruta_imgs, nombre)
         if not os.path.isdir(ruta):
             continue
@@ -48,8 +53,12 @@ def procesar_carpetas():
 
     carpetas_index = construir_indice_carpetas(ruta_imgs)
 
+    try:
+        docs_entries = os.listdir(ruta_docs)
+    except Exception:
+        docs_entries = []
     archivos = [
-        f for f in os.listdir(ruta_docs)
+        f for f in docs_entries
         if (f.endswith(".docx") or f.endswith(".pdf")) and not f.startswith("~$")
     ]
 
@@ -102,13 +111,26 @@ def procesar_carpetas():
                             continue
 
                         for carpeta_codigo in carpetas:
-                            for archivo_img in os.listdir(carpeta_codigo):
+                            try:
+                                files_in_code = os.listdir(carpeta_codigo)
+                            except Exception:
+                                files_in_code = []
+                            for archivo_img in files_in_code:
                                 ext_img = os.path.splitext(archivo_img)[1].lower()
-                                if ext_img in IMG_EXTS:
-                                    img_path = os.path.join(carpeta_codigo, archivo_img)
-                                    insertar_imagen_con_transparencia(run, img_path)
-                                    imagen_insertada = True
-                                    print(f"  Imagen insertada: {img_path}")
+                                if ext_img not in IMG_EXTS:
+                                    continue
+
+                                # Solo aceptar imágenes cuyo nombre base normalizado
+                                # coincida exactamente con la clave del código.
+                                base = os.path.splitext(archivo_img)[0]
+                                if normalizar_cadena_alnum_mayus(base) != clave:
+                                    # Ignorar imágenes que no coincidan exactamente
+                                    continue
+
+                                img_path = os.path.join(carpeta_codigo, archivo_img)
+                                insertar_imagen_con_transparencia(run, img_path)
+                                imagen_insertada = True
+                                print(f"  Imagen insertada: {img_path}")
 
                     break
 
@@ -158,13 +180,25 @@ def procesar_carpetas():
                     continue
 
                 for carpeta_codigo in carpetas:
-                    for archivo_img in os.listdir(carpeta_codigo):
+                    try:
+                        files_in_code = os.listdir(carpeta_codigo)
+                    except Exception:
+                        files_in_code = []
+                    for archivo_img in files_in_code:
                         ext_img = os.path.splitext(archivo_img)[1].lower()
-                        if ext_img in IMG_EXTS:
-                            img_path = os.path.join(carpeta_codigo, archivo_img)
-                            rutas_imagenes.append(img_path)
-                            imagen_insertada = True
-                            print(f"  Imagen detectada para PDF: {img_path}")
+                        if ext_img not in IMG_EXTS:
+                            continue
+
+                        # Solo aceptar imágenes cuyo nombre base normalizado
+                        # coincida exactamente con la clave del código.
+                        base = os.path.splitext(archivo_img)[0]
+                        if normalizar_cadena_alnum_mayus(base) != clave:
+                            continue
+
+                        img_path = os.path.join(carpeta_codigo, archivo_img)
+                        rutas_imagenes.append(img_path)
+                        imagen_insertada = True
+                        print(f"  Imagen detectada para PDF: {img_path}")
 
             if not rutas_imagenes:
                 registrar_fallo(archivo)

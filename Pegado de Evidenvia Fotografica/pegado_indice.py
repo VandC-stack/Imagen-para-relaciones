@@ -40,11 +40,76 @@ def seleccionar_excel():
     )
 
 
+def normalizar_codigo(codigo):
+    """Normaliza un código que puede venir como float/int/str.
+    - Convierte NaN/None a "".
+    - Si es float entero (ej. 28013578.0) devuelve "28013578".
+    - Elimina sufijos ".0" en strings y quita espacios alrededor.
+    - Devuelve string vacío si el resultado está vacío o es 'nan'.
+    """
+    try:
+        import pandas as _pd
+        if _pd.isna(codigo):
+            return ""
+    except Exception:
+        pass
+
+    if codigo is None:
+        return ""
+
+    # Enteros y floats
+    if isinstance(codigo, float):
+        # 28013578.0 -> '28013578'
+        if codigo.is_integer():
+            return str(int(codigo))
+        # floats not integer: strip trailing zeros
+        s = format(codigo, 'g')
+        return s
+
+    if isinstance(codigo, int):
+        return str(codigo)
+
+    s = str(codigo).strip()
+    # Eliminar sufijo .0 que pandas a veces pone en strings
+    if s.endswith('.0'):
+        s = s[:-2]
+    if s.lower() == 'nan':
+        return ""
+    return s
+
+
+# Caché simple de listados de directorio para evitar os.listdir repetidos
+_listdir_cache = {}
+def _cached_listdir(path):
+    try:
+        key = os.path.normcase(os.path.abspath(path))
+    except Exception:
+        key = path
+    if key in _listdir_cache:
+        return _listdir_cache[key]
+    try:
+        items = os.listdir(path)
+    except Exception:
+        items = []
+    _listdir_cache[key] = items
+    return items
+
+
 def construir_indice_desde_excel(ruta_excel):
     ext = os.path.splitext(ruta_excel)[1].lower()
     engine = "pyxlsb" if ext == ".xlsb" else None
+    # Intentar leer forzando todas las columnas a strings para evitar floats
     try:
-        df = pd.read_excel(ruta_excel, sheet_name="CONCENTRADO", engine=engine)
+        df = pd.read_excel(ruta_excel, sheet_name="CONCENTRADO", engine=engine, dtype=str)
+    except TypeError:
+        # Algunos engines (pyxlsb) pueden no aceptar dtype; hacer fallback sin dtype
+        try:
+            df = pd.read_excel(ruta_excel, sheet_name="CONCENTRADO", engine=engine)
+        except Exception as e:
+            msg = str(e).lower()
+            if ext == ".xlsb" and ("pyxlsb" in msg or "missing optional dependency" in msg):
+                raise Exception("Missing optional dependency 'pyxlsb'.") from e
+            raise
     except Exception as e:
         msg = str(e).lower()
         if ext == ".xlsb" and ("pyxlsb" in msg or "missing optional dependency" in msg):
@@ -59,16 +124,72 @@ def construir_indice_desde_excel(ruta_excel):
         valid_codes = set()
         for col in ("CODIGO","CODIGOS","CODE","SKU","CLAVE"):
             if col in df_rel.columns:
-                for v in df_rel[col].astype(str).fillna(""):
-                    valid_codes.add(normalizar_cadena_alnum_mayus(v))
+                # Normalizar valores numéricos leídos por pandas (evitar '28007960.0')
+                def _cell_to_str(v):
+                    try:
+                        import pandas as _pd
+                        if _pd.isna(v):
+                            return ""
+                    except Exception:
+                        pass
+                    # Si viene como float entero, convertir a int para quitar .0
+                    try:
+                        if isinstance(v, float) and v.is_integer():
+                            return str(int(v))
+                    except Exception:
+                        pass
+                    return str(v).strip()
+
+                for v in df_rel[col].tolist():
+                    s = _cell_to_str(v)
+                    if not s:
+                        continue
+                    valid_codes.add(normalizar_cadena_alnum_mayus(s))
                 break
     except Exception:
         valid_codes = None
 
+    # Detectar columnas de código y destino por encabezado si es posible
+    code_col = None
+    dest_col = None
+    try:
+        cols = list(df.columns)
+        # Normalizar encabezados para detección
+        def _norm_col(c):
+            return re.sub(r"[^A-Za-z0-9]", "", str(c or "")).upper()
+
+        norm = {c: _norm_col(c) for c in cols}
+        # Buscar columna de código
+        for c, nc in norm.items():
+            if any(k in nc for k in ("CODIGO", "CODIGOS", "CODE", "SKU", "EAN", "UPC", "ESTILO")):
+                code_col = c
+                break
+
+        # Buscar columna de destino/asignación (columna B esperada: ASIGNACIÓN/ASIG/DESTINO)
+        for c, nc in norm.items():
+            if any(k in nc for k in ("ASIG", "ASIGN", "ASIGNACION", "DESTINO", "NOMBRE", "EVIDENCIA")):
+                dest_col = c
+                break
+
+        # Log columns chosen
+        _log_index(f"construir_indice: detected cols code_col={code_col} dest_col={dest_col} cols={cols}")
+    except Exception:
+        code_col = None
+        dest_col = None
+
+    # Helper: normalizar valores de código/destino
+    def _cell_str_from_row(val):
+        return normalizar_codigo(val)
+
     for _, row in df.iterrows():
         try:
-            codigo = str(row.iloc[0]).strip()
-            destino = str(row.iloc[1]).strip()
+            if code_col is not None and dest_col is not None:
+                codigo = _cell_str_from_row(row.get(code_col, ""))
+                destino = _cell_str_from_row(row.get(dest_col, ""))
+            else:
+                # Fallback antiguo: columna A -> código, columna B -> destino
+                codigo = _cell_str_from_row(row.iloc[0])
+                destino = _cell_str_from_row(row.iloc[1])
         except Exception:
             continue
 
@@ -84,10 +205,17 @@ def construir_indice_desde_excel(ruta_excel):
             continue
 
         indice[canon] = destino
+        # También añadir la variante literal que pandas/otros puedan usar (p.ej. '28013578.0')
+        try:
+            raw_key = str(codigo).strip()
+            if raw_key and raw_key != canon:
+                indice[raw_key] = destino
+        except Exception:
+            pass
 
     with open(INDEX_FILE, "w", encoding="utf-8") as f:
         json.dump(indice, f, ensure_ascii=False, indent=4)
-    _log_index(f"Indice construido: {len(indice)} entries; index_file={INDEX_FILE}")
+    _log_index(f"Indice construido: {len(indice)} entries; index_file={INDEX_FILE}; sample_keys={list(indice.keys())[:10]}")
 
     return indice
 
@@ -112,17 +240,13 @@ def extraer_codigos_tabla(doc):
                 if not texto:
                     continue
 
+                # Normalizar a sólo caracteres alfanuméricos para la clave
                 canon = "".join(ch for ch in texto if ch.isalnum())
                 if not canon:
                     continue
 
-                tiene_letras = any(c.isalpha() for c in canon)
-                tiene_digitos = any(c.isdigit() for c in canon)
-
-                if not (tiene_letras and tiene_digitos):
-                    continue
-
                 codigos.append(texto)
+                _log_index(f"extraer_codigos_tabla: encontrado -> original='{texto}' canon='{canon}'")
 
             break
     return codigos
@@ -134,18 +258,45 @@ def buscar_destino(ruta_base, destino):
     base, ext = os.path.splitext(destino)
 
     if ext.lower() in IMG_EXTS:
-        for archivo in os.listdir(ruta_base):
+        for archivo in _cached_listdir(ruta_base):
             if archivo.lower() == destino.lower():
                 return "imagen", os.path.join(ruta_base, archivo)
 
     nombre_base = base if ext.lower() in IMG_EXTS else destino
-    for archivo in os.listdir(ruta_base):
+    # Buscar coincidencias de nombre base, incluyendo variantes tipo "1234(2)", "1234-2", "1234_2"
+    matches = []
+    for archivo in _cached_listdir(ruta_base):
         archivo_base, archivo_ext = os.path.splitext(archivo)
-        if archivo_base.lower() == nombre_base.lower() and archivo_ext.lower() in IMG_EXTS:
-            return "imagen", os.path.join(ruta_base, archivo)
+        if archivo_ext.lower() not in IMG_EXTS:
+            continue
+        ab = archivo_base.strip().lower()
+        nb = nombre_base.strip().lower()
+        if ab == nb:
+            matches.append(os.path.join(ruta_base, archivo))
+            continue
+        # permitir sufijos de continuación: (N), -N, _N
+        try:
+            import re
+            m = re.match(rf"^{re.escape(nb)}(?:\s*\(\d+\)|[-_]\d+)$", ab, flags=re.IGNORECASE)
+            if m:
+                matches.append(os.path.join(ruta_base, archivo))
+        except Exception:
+            # fallback: si empieza con nb and remainder is digits/paren, accept
+            if ab.startswith(nb):
+                rem = ab[len(nb):].strip()
+                if rem.startswith('(') and rem.endswith(')') and rem[1:-1].isdigit():
+                    matches.append(os.path.join(ruta_base, archivo))
+                elif (rem.startswith('-') or rem.startswith('_')) and rem[1:].isdigit():
+                    matches.append(os.path.join(ruta_base, archivo))
+
+    if matches:
+        # Si hay múltiples coincidencias, devolver la lista para que el llamador inserte todas
+        if len(matches) == 1:
+            return "imagen", matches[0]
+        return "imagen", matches
 
     carpeta_buscada = nombre_base
-    for item in os.listdir(ruta_base):
+    for item in _cached_listdir(ruta_base):
         if os.path.isdir(os.path.join(ruta_base, item)) and item.lower() == carpeta_buscada.lower():
             return "carpeta", os.path.join(ruta_base, item)
 
@@ -170,25 +321,48 @@ def procesar_doc_con_indice_docx(ruta_doc, ruta_imagenes, indice):
         txt = (p.text or "")
         # Accept case-variants like ${IMAGEN} or ${imagen} (allow spaces inside braces)
         if re.search(r"\$\{\s*imagen\s*\}", txt, flags=re.IGNORECASE):
-            p.clear()
+            # Limpiar el párrafo de forma segura (python-docx no tiene `clear()` pública)
+            try:
+                for r in list(p.runs):
+                    try:
+                        p._element.remove(r._element)
+                    except Exception:
+                        # Si falla la eliminación directa, intentar borrar el texto
+                        try:
+                            r.text = ""
+                        except Exception:
+                            pass
+            except Exception:
+                try:
+                    p.text = ""
+                except Exception:
+                    pass
+            _log_index(f"placeholder encontrado en paragraph: {ruta_doc}")
             run = p.add_run()
 
             for codigo in codigos:
-                canon = normalizar_cadena_alnum_mayus(codigo)
-                if canon not in indice:
+                codigo_norm = normalizar_codigo(codigo)
+                canon = normalizar_cadena_alnum_mayus(codigo_norm)
+                if canon not in indice and codigo_norm not in indice:
                     continue
 
                 destino = indice[canon]
-                _log_index(f"Codigo {canon} -> destino {destino}")
+                _log_index(f"Codigo {codigo!r} -> canon={canon} -> destino {destino}")
                 tipo, ruta = buscar_destino(ruta_imagenes, destino)
                 _log_index(f"buscar_destino -> tipo={tipo} ruta={ruta}")
 
                 if tipo == "imagen":
-                    insertar_imagen_con_transparencia(run, ruta)
-                    imagenes_insertadas += 1
+                    # `ruta` puede ser una lista (varios archivos con misma base)
+                    if isinstance(ruta, (list, tuple)):
+                        for rp in ruta:
+                            insertar_imagen_con_transparencia(run, rp)
+                            imagenes_insertadas += 1
+                    else:
+                        insertar_imagen_con_transparencia(run, ruta)
+                        imagenes_insertadas += 1
 
                 elif tipo == "carpeta":
-                    for archivo in os.listdir(ruta):
+                    for archivo in _cached_listdir(ruta):
                         if os.path.splitext(archivo)[1].lower() in IMG_EXTS:
                             insertar_imagen_con_transparencia(run, os.path.join(ruta, archivo))
                             imagenes_insertadas += 1
@@ -224,21 +398,29 @@ def procesar_doc_con_indice_pdf(ruta_doc, ruta_imagenes, indice):
 
     _log_index(f"Procesando PDF: {ruta_doc}; codigos_found={len(codigos)}; ruta_imagenes={ruta_imagenes}")
     for codigo in codigos:
-        canon = normalizar_cadena_alnum_mayus(codigo)
-        if canon not in indice:
+        codigo_norm = normalizar_codigo(codigo)
+        canon = normalizar_cadena_alnum_mayus(codigo_norm)
+        if canon not in indice and codigo_norm not in indice:
             continue
 
-        destino = indice[canon]
-        _log_index(f"Codigo {canon} -> destino {destino}")
+        # Preferir destino por canon, si no existe usar la clave literal
+        destino = indice.get(canon) or indice.get(codigo_norm)
+        _log_index(f"Codigo {codigo!r} -> canon={canon} -> destino {destino}")
         tipo, ruta = buscar_destino(ruta_imagenes, destino)
         _log_index(f"buscar_destino -> tipo={tipo} ruta={ruta}")
 
         if tipo == "imagen":
-            rutas_imagenes.append(ruta)
-            imagenes_insertadas += 1
+            # ruta puede ser lista
+            if isinstance(ruta, (list, tuple)):
+                for rp in ruta:
+                    rutas_imagenes.append(rp)
+                    imagenes_insertadas += 1
+            else:
+                rutas_imagenes.append(ruta)
+                imagenes_insertadas += 1
 
         elif tipo == "carpeta":
-            for archivo in os.listdir(ruta):
+            for archivo in _cached_listdir(ruta):
                 if os.path.splitext(archivo)[1].lower() in IMG_EXTS:
                     rutas_imagenes.append(os.path.join(ruta, archivo))
                     imagenes_insertadas += 1
@@ -282,7 +464,7 @@ def procesar_indice():
     print("Índice generado correctamente.")
 
     archivos = [
-        f for f in os.listdir(ruta_docs)
+        f for f in _cached_listdir(ruta_docs)
         if (f.endswith(".docx") or f.endswith(".pdf")) and not f.startswith("~$")
     ]
 
@@ -293,3 +475,6 @@ def procesar_indice():
 
     if os.path.exists(LOG_FILE):
         os.startfile(LOG_FILE)
+
+
+        

@@ -1,6 +1,6 @@
 # Generador de Dictámenes con Etiquetas Integradas
 
-Sistema completo para generar dictámenes en PDF con etiquetas visuales automáticas.
+Sistema completo para generar documentos en PDF con etiquetas visuales automáticas.
 
 ## 📋 Características
 

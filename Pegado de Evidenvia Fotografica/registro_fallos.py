@@ -6,7 +6,6 @@ os.makedirs(APPDATA_DIR, exist_ok=True)
 
 LOG_FILE = os.path.join(APPDATA_DIR, "documentos_sin_imagenes.txt")
 
-
 def registrar_fallo(nombre_doc):
     """
     Registra el nombre de un documento que no recibió imágenes en el archivo de log.
@@ -18,7 +17,6 @@ def registrar_fallo(nombre_doc):
     except Exception as e:
         print(f"Error al registrar el fallo de {nombre_doc}: {e}")
 
-
 def limpiar_registro():
     """
     Borra el archivo de log si existe.
@@ -29,7 +27,6 @@ def limpiar_registro():
             print("Registro de fallos reiniciado correctamente.")
     except Exception as e:
         print(f"Error al limpiar el registro: {e}")
-
 
 def mostrar_registro():
     """

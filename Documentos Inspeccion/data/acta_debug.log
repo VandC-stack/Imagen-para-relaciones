@@ -1,6 +1,0 @@
-[2026-01-05T21:33:06.581175] Checking candidate data dir: c:\Users\bost2\OneDrive\Escritorio\Dictamenes\Imagen-para-relaciones\data
-[2026-01-05T21:33:06.582106] Selected data_dir: c:\Users\bost2\OneDrive\Escritorio\Dictamenes\Imagen-para-relaciones\data
-[2026-01-05T21:33:06.583065] Historial path resolved to: c:\Users\bost2\OneDrive\Escritorio\Dictamenes\Imagen-para-relaciones\data\historial_visitas.json (exists=True)
-[2026-01-05T21:33:06.584059] Loaded historial: type=dict, visitas_count=1
-[2026-01-05T21:33:06.584944] Using per-visit backup for tabla_de_relacion: c:\Users\bost2\OneDrive\Escritorio\Dictamenes\Imagen-para-relaciones\data\tabla_relacion_backups\tabla_de_relacion_CP000001_PERSIST_20260105213246.json
-[2026-01-05T21:33:06.589615] Loaded tabla_path=c:\Users\bost2\OneDrive\Escritorio\Dictamenes\Imagen-para-relaciones\data\tabla_relacion_backups\tabla_de_relacion_CP000001_PERSIST_20260105213246.json; tabla_type=list; records=14

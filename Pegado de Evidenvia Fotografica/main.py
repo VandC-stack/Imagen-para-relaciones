@@ -146,15 +146,25 @@ def indexar_imagenes(carpeta_imagenes):
       - path
     """
     index = []
+    def _core_base(name):
+        # Eliminar sufijos comunes como ' (2)', '-2', '_2' al final del nombre
+        import re
+        core = re.sub(r"[\s\-_]*\(\s*\d+\s*\)$", "", name)
+        core = re.sub(r"[\s\-_]+\d+$", "", core)
+        return core
+
     for nombre in os.listdir(carpeta_imagenes):
         base, ext = os.path.splitext(nombre)
         if ext.lower() not in IMG_EXTS:
             continue
+        core = _core_base(base)
         index.append({
             "name": nombre,
             "base": base,
+            "base_core": core,
             "ext": ext,
             "base_norm": normalizar_cadena_alnum_mayus(base),
+            "base_core_norm": normalizar_cadena_alnum_mayus(core),
             "path": os.path.join(carpeta_imagenes, nombre),
         })
     return index
@@ -171,12 +181,12 @@ def buscar_imagen_index(index, codigo_canonico, usadas_paths, usadas_bases):
     if not code:
         return None
 
-    # Coincidencia exacta
+    # Coincidencia exacta (tanto con base_norm como con base_core_norm)
     exactos = [
         it for it in index
-        if it["base_norm"] == code
+        if (it.get("base_norm") == code or it.get("base_core_norm") == code)
         and norm_path_key(it["path"]) not in usadas_paths
-        and it["base_norm"] not in usadas_bases
+        and (it.get("base_norm") not in usadas_bases and it.get("base_core_norm") not in usadas_bases)
     ]
     if exactos:
         return exactos[0]["path"]
@@ -184,9 +194,10 @@ def buscar_imagen_index(index, codigo_canonico, usadas_paths, usadas_bases):
     # Coincidencias parciales
     parciales = [
         it for it in index
-        if (code in it["base_norm"] or it["base_norm"] in code)
+        if ((code in (it.get("base_norm") or "") or (it.get("base_norm") or "") in code)
+            or (code in (it.get("base_core_norm") or "") or (it.get("base_core_norm") or "") in code))
         and norm_path_key(it["path"]) not in usadas_paths
-        and it["base_norm"] not in usadas_bases
+        and (it.get("base_norm") not in usadas_bases and it.get("base_core_norm") not in usadas_bases)
     ]
     if not parciales:
         return None
@@ -401,6 +412,55 @@ def insertar_imagenes_en_pdf_placeholder(ruta_pdf, rutas_imagenes, placeholder="
         print(f"No hay imágenes para insertar en {ruta_pdf}.")
         return False
 
+    # Eliminar duplicados y rutas inexistentes antes de abrir el PDF
+    try:
+        import os as _os
+        seen = set()
+        uniq = []
+        missing = []
+        for p in rutas_imagenes:
+            # admitir que cada entrada pueda ser un dict con clave 'imagen_path' u otras
+            candidate = None
+            try:
+                if isinstance(p, dict):
+                    # Priorizar llaves comunes
+                    candidate = p.get('imagen_path') or p.get('path') or p.get('ruta') or p.get('imagen')
+                else:
+                    candidate = p
+            except Exception:
+                candidate = p
+
+            if not candidate:
+                missing.append(p)
+                continue
+
+            try:
+                path_norm = _os.path.normcase(_os.path.normpath(str(candidate)))
+            except Exception:
+                path_norm = str(candidate)
+
+            if not _os.path.exists(path_norm):
+                missing.append(candidate)
+                continue
+
+            # deduplicar por ruta normalizada (permitir múltiples archivos con mismo contenido)
+            if path_norm in seen:
+                continue
+            seen.add(path_norm)
+            uniq.append(path_norm)
+
+        if missing:
+            try:
+                print(f"Advertencia: {len(missing)} imágenes no existen y serán omitidas. Ejemplo: {missing[:3]}")
+            except Exception:
+                pass
+
+        rutas_imagenes = uniq
+        if not rutas_imagenes:
+            print(f"No quedan imágenes válidas tras deduplicación/validación para {ruta_pdf}.")
+            return False
+    except Exception:
+        pass
     try:
         doc = fitz.open(ruta_pdf)
     except Exception as e:
@@ -470,6 +530,46 @@ def insertar_imagenes_en_pdf_placeholder(ruta_pdf, rutas_imagenes, placeholder="
         start_y = max(margen_sup, margen_inf - max_h_pt * 2)
 
     # Inserción de imágenes
+    # Mantener conjunto de rutas insertadas para evitar insertar exactamente
+    # la misma ruta más de una vez (pero permitir distintos paths aunque
+    # tengan contenido idéntico, ya que el usuario puede querer ese comportamiento).
+    inserted_paths = set()
+    # Además mantener hashes insertados para evitar pegar la misma imagen
+    # visual más de una vez aunque venga desde paths distintos.
+    inserted_hashes = set()
+    import hashlib
+    # Funciones de hashing: por defecto usar hash normalizado de imagen
+    def _file_md5(p):
+        try:
+            h = hashlib.md5()
+            with open(p, 'rb') as fh:
+                for chunk in iter(lambda: fh.read(8192), b''):
+                    h.update(chunk)
+            return h.hexdigest()
+        except Exception:
+            return None
+
+    def _image_normalized_hash(p, size=(64, 64)):
+        try:
+            # Usar PIL para abrir, convertir a RGB, redimensionar y hash de bytes
+            with Image.open(p) as im:
+                im = im.convert('RGB')
+                im = im.resize(size, resample=Image.LANCZOS)
+                data = im.tobytes()
+            return hashlib.md5(data).hexdigest()
+        except Exception:
+            return None
+
+    # Leer configuración para decidir modo de deduplicación por contenido
+    try:
+        cfg_local = cargar_config() if 'cargar_config' in globals() else {}
+    except Exception:
+        cfg_local = {}
+    DEDUPE_CONTENT = bool(cfg_local.get('dedupe_by_content', False))
+    try:
+        print(f"Iniciando inserción en {ruta_pdf}: {len(rutas_imagenes)} imágenes; dedupe_by_content={DEDUPE_CONTENT}. Ejemplo: {rutas_imagenes[:3]}")
+    except Exception:
+        pass
     for idx, img_path in enumerate(rutas_imagenes):
         fila = idx // por_fila
         col = idx % por_fila
@@ -479,13 +579,51 @@ def insertar_imagenes_en_pdf_placeholder(ruta_pdf, rutas_imagenes, placeholder="
         x1 = x0 + max_w_pt
         y1 = y0 + max_h_pt
 
-        # Si nos salimos por el ancho de página, paramos esa fila
+        # Si nos salimos por el ancho de página, intentamos mover a la siguiente fila
         if x1 > page_rect.x1 - 20:
+            fila += 1
+            col = 0
+            x0 = start_x + col * (max_w_pt + espacio_x)
+            y0 = start_y + fila * (max_h_pt + espacio_y)
+            x1 = x0 + max_w_pt
+            y1 = y0 + max_h_pt
+
+        # Si ahora se sale por el alto de la página, lo registramos y saltamos
+        if y1 > page_rect.y1 - 20:
+            print(f"Advertencia: no hay espacio para insertar imagen en {ruta_pdf}: {img_path}")
             continue
 
         rect = fitz.Rect(x0, y0, x1, y1)
 
         try:
+            try:
+                pnorm = os.path.normcase(os.path.normpath(img_path))
+            except Exception:
+                pnorm = img_path
+            if pnorm in inserted_paths:
+                print(f"Omitida inserción duplicada por ruta: {img_path}")
+                continue
+
+            # calcular hash y omitir si ya se insertó una imagen idéntica
+            img_hash = None
+            if DEDUPE_CONTENT:
+                img_hash = _image_normalized_hash(pnorm)
+                # si falla el método normalizado, caer al hash de archivo
+                if img_hash is None:
+                    img_hash = _file_md5(pnorm)
+            else:
+                img_hash = _file_md5(pnorm)
+
+            if img_hash is not None and img_hash in inserted_hashes:
+                print(f"Omitida inserción duplicada por contenido (hash): {img_path}")
+                # marcar ruta como vista para evitar procesarla otra vez
+                inserted_paths.add(pnorm)
+                continue
+
+            inserted_paths.add(pnorm)
+            if img_hash is not None:
+                inserted_hashes.add(img_hash)
+
             page_target.insert_image(rect, filename=img_path, keep_proportion=True)
             print(f"Imagen insertada en PDF {ruta_pdf}: {img_path}")
         except Exception as e:
