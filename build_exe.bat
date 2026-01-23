@@ -40,8 +40,7 @@ SET ADD2=--add-data "Documentos Inspeccion;Documentos Inspeccion"
 SET ADD3=--add-data "Pegado de Evidenvia Fotografica;Pegado de Evidenvia Fotografica"
 SET ADD4=--add-data "Firmas;Firmas"
 SET ADD5=--add-data "img;img"
-SET ADD6=--add-data "Plantillas PDF;Plantillas PDF"
-SET ADD7=--add-data "Otros archivos;Otros archivos"
+
 
 REM Construct mode flags
 IF "%BUILD_MODE%"=="onefile" (

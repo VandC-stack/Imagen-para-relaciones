@@ -5,7 +5,7 @@ a = Analysis(
     ['app.py'],
     pathex=[],
     binaries=[],
-    datas=[('data', 'data'), ('Documentos Inspeccion', 'Documentos Inspeccion'), ('Pegado de Evidenvia Fotografica', 'Pegado de Evidenvia Fotografica'), ('Firmas', 'Firmas'), ('img', 'img'), ('Plantillas PDF', 'Plantillas PDF'), ('Otros archivos', 'Otros archivos')],
+    datas=[('data', 'data'), ('Documentos Inspeccion', 'Documentos Inspeccion'), ('Pegado de Evidenvia Fotografica', 'Pegado de Evidenvia Fotografica'), ('Firmas', 'Firmas'), ('img', 'img')],
     hiddenimports=['fitz', 'docx', 'PIL'],
     hookspath=[],
     hooksconfig={},

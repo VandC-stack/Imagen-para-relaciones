@@ -1,8 +1,26 @@
 # -- SISTEMA V&C - GENERADOR DE DICTÁMENES -- #
-import os, sys, uuid, shutil
+import os
+import sys
+import uuid
+import shutil
 import json
 import pandas as pd
 import customtkinter as ctk
+from tkinter import filedialog, messagebox, simpledialog
+from tkinter import ttk
+import tkinter as tk
+import tkinter.font as tkfont
+import threading
+import subprocess
+import importlib
+import importlib.util
+from datetime import datetime
+import folio_manager
+from plantillaPDF import cargar_tabla_relacion
+import unicodedata
+import time
+import platform
+from datetime import datetime
 from tkinter import filedialog, messagebox, simpledialog
 from tkinter import ttk
 import tkinter as tk
@@ -50,6 +68,20 @@ if getattr(sys, 'frozen', False):
 else:
     APP_DIR = os.path.abspath(os.path.dirname(__file__))
 
+# Directorio de datos: permitir carpeta central mediante variable de entorno
+# Si `IMAGENESVC_DATA_DIR` está definida, usarla; en caso contrario, usar
+# la carpeta `data` junto a `APP_DIR` (comportamiento por defecto).
+DATA_DIR = os.getenv('IMAGENESVC_DATA_DIR')
+if DATA_DIR:
+    DATA_DIR = os.path.abspath(DATA_DIR)
+else:
+    DATA_DIR = os.path.join(APP_DIR, 'data')
+# Asegurar que folio_manager use la misma carpeta de datos (cuando busque folio_counter)
+try:
+    os.environ['FOLIO_DATA_DIR'] = DATA_DIR
+except Exception:
+    pass
+
 
 class SistemaDictamenesVC(ctk.CTk):
     # --- PAGINACIÓN HISTORIAL ---
@@ -89,6 +121,8 @@ class SistemaDictamenesVC(ctk.CTk):
         self.cliente_seleccionado = None
         self.domicilio_seleccionado = None
         self.archivo_etiquetado_json = None
+        # Flag para edición de clientes desde el formulario de Reportes
+        self.editing_cliente_rfc = None
 
         # Variables para nueva visita
         self.current_folio = "000001"
@@ -96,7 +130,7 @@ class SistemaDictamenesVC(ctk.CTk):
         # ===== NUEVAS VARIABLES PARA HISTORIAL =====
         self.historial_data = []
         self.historial_data_original = []
-        self.historial_path = os.path.join(APP_DIR, "data", "historial_visitas.json")
+        self.historial_path = os.path.join(DATA_DIR, "historial_visitas.json")
         
         # INICIALIZAR self.historial COMO DICCIONARIO
         self.historial = {"visitas": []}
@@ -104,7 +138,7 @@ class SistemaDictamenesVC(ctk.CTk):
         # ===== NUEVA VARIABLE PARA FOLIOS POR VISITA =====
         # Crear directorios necesarios. Usar `APP_DIR` para que la carpeta
         # `data` se cree junto al ejecutable cuando esté generado.
-        data_dir = os.path.join(APP_DIR, "data")
+        data_dir = DATA_DIR
         # Si estamos en un ejecutable congelado y no existe la carpeta externa
         # `APP_DIR/data`, extraer (copiar) la carpeta `data` embebida dentro
         # del bundle (BASE_DIR apunta a sys._MEIPASS cuando está congelado).
@@ -207,11 +241,8 @@ class SistemaDictamenesVC(ctk.CTk):
                 except Exception:
                     w.pack(side='left', padx=(2, 2), pady=2)
 
-            # Bindings para mostrar/ocultar y reposicionar el overlay
-            self.hist_tree.bind('<Motion>', self._on_tree_motion)
-            self.hist_tree.bind('<Leave>', lambda e: self._hide_actions_overlay())
-            self.hist_tree.bind('<Button-1>', self._on_tree_click)
-            self.hist_tree.bind('<MouseWheel>', lambda e: self._hide_actions_overlay())
+            # Overlay bindings removed to disable hover animation showing action buttons
+            # (kept functions for compatibility but not bound)
         except Exception:
             pass
 
@@ -320,13 +351,13 @@ class SistemaDictamenesVC(ctk.CTk):
 
     def crear_navegacion(self):
         """Crea la barra de navegación con botones mejorados"""
-        nav_frame = ctk.CTkFrame(self, fg_color=STYLE["surface"], height=60)
-        nav_frame.pack(fill="x", padx=20, pady=(15, 0))
+        nav_frame = ctk.CTkFrame(self, fg_color=STYLE["surface"], height=48)
+        nav_frame.pack(fill="x", padx=20, pady=(0, 0))
         nav_frame.pack_propagate(False)
         
         # Contenedor para los botones
         botones_frame = ctk.CTkFrame(nav_frame, fg_color="transparent")
-        botones_frame.pack(expand=True, fill="both", padx=20, pady=12)
+        botones_frame.pack(expand=True, fill="both", padx=20, pady=2)
         
         # Botón Principal con estilo mejorado
         self.btn_principal = ctk.CTkButton(
@@ -365,8 +396,8 @@ class SistemaDictamenesVC(ctk.CTk):
         # Botón Reportes
         self.btn_reportes = ctk.CTkButton(
             botones_frame,
-            text="📑 Reportes",
-            command=self.mostrar_reportes,
+            text="📑Clientes",
+            command=self.mostrar_clientes,
             font=("Inter", 14, "bold"),
             fg_color=STYLE["surface"],
             hover_color=STYLE["primario"],
@@ -379,6 +410,23 @@ class SistemaDictamenesVC(ctk.CTk):
         )
         self.btn_reportes.pack(side="left", padx=(0, 10))
         
+        # Botón Inspectores
+        self.btn_inspectores = ctk.CTkButton(
+            botones_frame,
+            text="👥 Inspectores",
+            command=self.mostrar_inspectores,
+            font=("Inter", 14, "bold"),
+            fg_color=STYLE["surface"],
+            hover_color=STYLE["primario"],
+            text_color=STYLE["secundario"],
+            height=38,
+            width=140,
+            corner_radius=10,
+            border_width=2,
+            border_color=STYLE["secundario"]
+        )
+        self.btn_inspectores.pack(side="left", padx=(0, 10))
+        
         # Espacio flexible
         ctk.CTkLabel(botones_frame, text="", fg_color="transparent").pack(side="left", expand=True)
         
@@ -389,25 +437,26 @@ class SistemaDictamenesVC(ctk.CTk):
             font=("Inter", 12),
             text_color=STYLE["texto_claro"]
         )
+        
         # Botón Backup en la barra de navegación (no mostrar por defecto)
-        try:
-            self.btn_backup = ctk.CTkButton(
-                botones_frame,
-                text="💾 Backup",
-                command=self.hist_hacer_backup,
-                height=34, width=110, corner_radius=8,
-                fg_color=STYLE["primario"], text_color=STYLE["secundario"], hover_color="#D4BF22"
-            )
-        except Exception:
-            self.btn_backup = None
+        # try:
+        #     self.btn_backup = ctk.CTkButton(
+        #         botones_frame,
+        #         text="💾 Backup",
+        #         command=self.hist_hacer_backup,
+        #         height=34, width=110, corner_radius=8,
+        #         fg_color=STYLE["primario"], text_color=STYLE["secundario"], hover_color="#D4BF22"
+        #     )
+        # except Exception:
+        #     self.btn_backup = None
 
-        self.lbl_info_sistema.pack(side="right")
+        # self.lbl_info_sistema.pack(side="right")
 
     def crear_area_contenido(self):
         """Crea el área de contenido donde se muestran las secciones"""
         # Frame contenedor del contenido
         self.contenido_frame = ctk.CTkFrame(self, fg_color="transparent")
-        self.contenido_frame.pack(fill="both", expand=True, padx=20, pady=(0, 15))
+        self.contenido_frame.pack(fill="both", expand=True, padx=20, pady=(0, 0))
         
         # Frame para el contenido principal
         self.frame_principal = ctk.CTkFrame(self.contenido_frame, fg_color="transparent")
@@ -417,11 +466,14 @@ class SistemaDictamenesVC(ctk.CTk):
 
         # Frame para reportes
         self.frame_reportes = ctk.CTkFrame(self.contenido_frame, fg_color="transparent")
+        # Frame para inspectores
+        self.frame_inspectores = ctk.CTkFrame(self.contenido_frame, fg_color="transparent")
         
         # Construir el contenido de cada sección
         self._construir_tab_principal(self.frame_principal)
         self._construir_tab_historial(self.frame_historial)
-        self._construir_tab_reportes(self.frame_reportes)
+        self._construir_tab_clientes(self.frame_reportes)
+        self._construir_tab_inspectores(self.frame_inspectores)
         
         # Mostrar la sección principal por defecto
         self.mostrar_principal()
@@ -453,6 +505,11 @@ class SistemaDictamenesVC(ctk.CTk):
         )
         try:
             self.btn_reportes.configure(fg_color=STYLE["surface"], text_color=STYLE["secundario"], border_color=STYLE["secundario"])
+        except Exception:
+            pass
+        # Asegurar que la pestaña Inspectores quede oculta al mostrar Principal
+        try:
+            self.frame_inspectores.pack_forget()
         except Exception:
             pass
         # Ocultar backup nav cuando no estemos en Historial
@@ -491,6 +548,11 @@ class SistemaDictamenesVC(ctk.CTk):
                 self.btn_reportes.configure(fg_color=STYLE["surface"], text_color=STYLE["secundario"], border_color=STYLE["secundario"])
             except Exception:
                 pass
+            # Asegurar que la pestaña Inspectores quede oculta al mostrar Historial
+            try:
+                self.frame_inspectores.pack_forget()
+            except Exception:
+                pass
             
             # Verificar y reparar datos existentes al mostrar historial
             self.verificar_datos_folios_existentes()
@@ -506,7 +568,7 @@ class SistemaDictamenesVC(ctk.CTk):
             except Exception:
                 pass
 
-    def mostrar_reportes(self):
+    def mostrar_clientes(self):
         """Muestra la sección de reportes y oculta las demás"""
         # Ocultar todos los frames primero
         self.frame_principal.pack_forget()
@@ -524,6 +586,15 @@ class SistemaDictamenesVC(ctk.CTk):
             self.btn_principal.configure(fg_color=STYLE["surface"], text_color=STYLE["secundario"], border_color=STYLE["secundario"])
             self.btn_historial.configure(fg_color=STYLE["surface"], text_color=STYLE["secundario"], border_color=STYLE["secundario"])
             self.btn_reportes.configure(fg_color=STYLE["primario"], text_color=STYLE["secundario"], border_color=STYLE["primario"])
+            try:
+                self.btn_inspectores.configure(fg_color=STYLE["surface"], text_color=STYLE["secundario"], border_color=STYLE["secundario"])
+            except Exception:
+                pass
+        except Exception:
+            pass
+        # Asegurar que la pestaña Inspectores quede oculta al mostrar Clientes
+        try:
+            self.frame_inspectores.pack_forget()
         except Exception:
             pass
 
@@ -754,7 +825,7 @@ class SistemaDictamenesVC(ctk.CTk):
 
         # --- SELECCIONAR CLIENTE ---
         cliente_section = ctk.CTkFrame(scroll_generacion, fg_color="transparent")
-        cliente_section.pack(fill="x", pady=(0, 6))
+        cliente_section.pack(fill="x", pady=(0, 4))
 
         ctk.CTkLabel(
             cliente_section,
@@ -764,7 +835,7 @@ class SistemaDictamenesVC(ctk.CTk):
         ).pack(anchor="w", pady=(0, 10))
 
         cliente_controls_frame = ctk.CTkFrame(cliente_section, fg_color="transparent")
-        cliente_controls_frame.pack(fill="x", pady=(0, 10))
+        cliente_controls_frame.pack(fill="x", pady=(0, 6))
 
         # Usamos grid dentro de cliente_controls_frame para que el combo de
         # cliente y el combo de domicilios compartan el mismo ancho.
@@ -831,11 +902,11 @@ class SistemaDictamenesVC(ctk.CTk):
             text_color=STYLE["texto_claro"],
             wraplength=350
         )
-        self.info_cliente.pack(anchor="w", fill="x")
+        self.info_cliente.pack(anchor="w", fill="x", pady=(0,4))
 
         # --- PEGADO DE EVIDENCIA (siempre visible, arriba de Cargar Tabla de Relación) ---
         pegado_section = ctk.CTkFrame(scroll_generacion, fg_color="transparent")
-        pegado_section.pack(fill="x", pady=(0, 6))
+        pegado_section.pack(fill="x", pady=(0, 4))
 
         ctk.CTkLabel(
             pegado_section,
@@ -845,7 +916,7 @@ class SistemaDictamenesVC(ctk.CTk):
         ).pack(anchor="w", pady=(0, 8))
 
         pegado_botones_frame = ctk.CTkFrame(pegado_section, fg_color="transparent")
-        pegado_botones_frame.pack(fill="x", pady=(0, 6))
+        pegado_botones_frame.pack(fill="x", pady=(0, 4))
 
         # --- FOLIOS RESERVADOS (Debajo del selector de cliente) ---
         self.cliente_folios_frame = ctk.CTkFrame(cliente_section, fg_color="transparent")
@@ -853,7 +924,7 @@ class SistemaDictamenesVC(ctk.CTk):
 
         self.lbl_folios_pendientes = ctk.CTkLabel(
             self.cliente_folios_frame,
-            text="Folios reservados:",
+            text="Visitas Reservadas:",
             font=("Inter", 10),
             text_color=STYLE["texto_oscuro"]
         )
@@ -910,7 +981,7 @@ class SistemaDictamenesVC(ctk.CTk):
         # Tres botones para modos de pegado (siempre están visibles en la card de pegado)
         self.boton_pegado_simple = ctk.CTkButton(
             pegado_botones_frame,
-            text="🖼️ Pegado Simple",
+            text="🖼️ Una sola Carpeta",
             command=self.handle_pegado_simple,
             font=("Inter", 11, "bold"),
             fg_color=STYLE["primario"],
@@ -923,7 +994,7 @@ class SistemaDictamenesVC(ctk.CTk):
 
         self.boton_pegado_carpetas = ctk.CTkButton(
             pegado_botones_frame,
-            text="📁 Pegado Carpetas",
+            text="📁 Carpetas con más carpetas",
             command=self.handle_pegado_carpetas,
             font=("Inter", 11, "bold"),
             fg_color=STYLE["primario"],
@@ -936,7 +1007,7 @@ class SistemaDictamenesVC(ctk.CTk):
 
         self.boton_pegado_indice = ctk.CTkButton(
             pegado_botones_frame,
-            text="📑 Pegado Índice",
+            text="📑 Índice en excel y cargar carpeta",
             command=self.handle_pegado_indice,
             font=("Inter", 11, "bold"),
             fg_color=STYLE["primario"],
@@ -1172,7 +1243,7 @@ class SistemaDictamenesVC(ctk.CTk):
         # para que siempre esté visible junto a 'Subir archivo', 'Verificar Datos' y 'Limpiar'.
         self.boton_guardar_folio = ctk.CTkButton(
             botones_fila1,
-            text="Reservar Folio",
+            text="Reservar Visita",
             command=self.reservar_folios_tabla,
             font=("Inter", 12, "bold"),
             fg_color=STYLE["primario"],
@@ -1215,7 +1286,7 @@ class SistemaDictamenesVC(ctk.CTk):
 
     def _construir_tab_historial(self, parent):
         cont = ctk.CTkFrame(parent, fg_color=STYLE["surface"], corner_radius=8)
-        cont.pack(fill="both", expand=True, padx=10, pady=10)
+        cont.pack(fill="both", expand=True, padx=10, pady=(0,5))
 
         # ===========================================================
         # BARRA SUPERIOR EN UNA SOLA LÍNEA (COMO EN LA IMAGEN)
@@ -1279,6 +1350,24 @@ class SistemaDictamenesVC(ctk.CTk):
             width=40, height=25, corner_radius=6,
             fg_color=STYLE["advertencia"], text_color=STYLE["surface"]
         ).pack(side="left")
+        # Botones de generación rápidos en la parte superior (derecha)
+        try:
+            gen_top = ctk.CTkFrame(linea_busqueda, fg_color='transparent')
+            gen_top.pack(side='right')
+            # ctk.CTkButton(
+            #     gen_top, text="📈Generar EMA",
+            #     command=self.descargar_excel_ema,
+            #     height=28, width=120, corner_radius=8,
+            #     fg_color=STYLE["primario"], hover_color="#D4BF22", text_color=STYLE["secundario"], font=("Inter", 11, "bold")
+            # ).pack(side='right', padx=(6,0))
+            ctk.CTkButton(
+                gen_top, text="📊 Reporte EMA",
+                command=self.descargar_excel_anual,
+                height=28, width=120, corner_radius=8,
+                fg_color=STYLE["primario"], hover_color="#D4BF22", text_color=STYLE["secundario"], font=("Inter", 11, "bold")
+            ).pack(side='right')
+        except Exception:
+            pass
 
         # Espaciador para empujar todo a la izquierda (opcional)
         # ctk.CTkFrame(linea_busqueda, fg_color="transparent").pack(side="left", expand=True)
@@ -1301,7 +1390,7 @@ class SistemaDictamenesVC(ctk.CTk):
                 40,    # Hora Fin
                 150,   # Cliente (más ancho)
                 80,    # Supervisor (ligeramente más pequeño)
-                90,   # Tipo de documento
+                90,    # Tipo de documento
                 50,    # Estatus
                 60,    # Folios (más compacto)
                 400    # Acciones (ajustado: más ancho para mostrar todas las acciones)
@@ -1323,12 +1412,14 @@ class SistemaDictamenesVC(ctk.CTk):
                 style.theme_use('clam')
             except Exception:
                 pass
-
-            style.configure("mystyle.Treeview", font=("Inter", 10), rowheight=28,
+            style.configure('clientes.Treeview', font=("Inter", 10), rowheight=22,
                             background=STYLE["surface"], fieldbackground=STYLE["surface"], foreground=STYLE["texto_oscuro"]) 
-            style.configure("mystyle.Treeview.Heading", font=("Inter", 10, "bold"), background=STYLE["secundario"], foreground=STYLE["surface"], relief='flat')
-            # Ajustes del mapa para que el heading mantenga color al interactuar
-            style.map('mystyle.Treeview.Heading', background=[('active', STYLE['secundario'])], foreground=[('active', STYLE['surface'])])
+            style.configure('clientes.Treeview.Heading', font=("Inter", 10, "bold"), background=STYLE["secundario"], foreground=STYLE["surface"], relief='flat')
+            style.map('clientes.Treeview.Heading', background=[('active', STYLE['secundario'])], foreground=[('active', STYLE['surface'])])
+            # Selección menos intrusiva para mantener legibilidad
+            style.map('clientes.Treeview', background=[('selected', '#d9f0ff')], foreground=[('selected', STYLE['texto_oscuro'])])
+            # Scrollbar neutral para no abusar del color primario
+            style.configure('Vertical.TScrollbar', troughcolor=STYLE['surface'], background=STYLE['borde'], arrowcolor=STYLE['texto_oscuro'])
         except Exception:
             pass
 
@@ -1337,7 +1428,7 @@ class SistemaDictamenesVC(ctk.CTk):
         tree_container.pack(fill="both", expand=True)
 
         cols = [f"c{i}" for i in range(len(column_widths))]
-        self.hist_tree = ttk.Treeview(tree_container, columns=cols, show='headings', style='mystyle.Treeview')
+        self.hist_tree = ttk.Treeview(tree_container, columns=cols, show='headings', style='clientes.Treeview')
         # Configurar encabezados y anchos (permitir estirar columnas excepto la de Acciones)
         last_idx = len(headers) - 1
         for i, h in enumerate(headers):
@@ -1362,16 +1453,32 @@ class SistemaDictamenesVC(ctk.CTk):
                 pass
 
         # Scrollbars: vertical y horizontal — usar grid para posicionar correctamente
-        vsb = ttk.Scrollbar(tree_container, orient="vertical", command=self.hist_tree.yview)
-        hsb = ttk.Scrollbar(tree_container, orient="horizontal", command=self.hist_tree.xview)
-        self.hist_tree.configure(yscrollcommand=vsb.set, xscrollcommand=hsb.set)
+        try:
+            vsb = ctk.CTkScrollbar(tree_container, orientation="vertical", command=self.hist_tree.yview)
+            # CTkScrollbar uses theme colors; set appearance if supported
+            try:
+                vsb.configure(button_color=STYLE['borde'], fg_color=STYLE['borde'])
+            except Exception:
+                pass
+            self.hist_tree.configure(yscrollcommand=vsb.set)
+        except Exception:
+            # Fallback to ttk if CTkScrollbar not available
+            vsb = ttk.Scrollbar(tree_container, orient="vertical", command=self.hist_tree.yview, style='Vertical.TScrollbar')
+            try:
+                style.configure('Vertical.TScrollbar', troughcolor=STYLE['surface'], background=STYLE['borde'], arrowcolor=STYLE['texto_oscuro'])
+            except Exception:
+                pass
+            try:
+                vsb.configure(background=STYLE['borde'], troughcolor=STYLE['surface'], activebackground=STYLE['borde'])
+            except Exception:
+                pass
+            self.hist_tree.configure(yscrollcommand=vsb.set)
 
         # Layout con grid: tree en (0,0), vsb en (0,1), hsb en (1,0) colspan 2
         tree_container.grid_rowconfigure(0, weight=1)
         tree_container.grid_columnconfigure(0, weight=1)
         self.hist_tree.grid(row=0, column=0, sticky='nsew')
         vsb.grid(row=0, column=1, sticky='ns')
-        hsb.grid(row=1, column=0, sticky='ew', columnspan=2)
 
         # Crear overlay de acciones (botones) y enlazarlo al Treeview
         try:
@@ -1405,9 +1512,7 @@ class SistemaDictamenesVC(ctk.CTk):
         footer_content = ctk.CTkFrame(footer, fg_color="transparent")
         footer_content.pack(expand=True, fill="both", padx=12, pady=10)
 
-        # --- Estructura de paginación: columnas izquierda/central/derecha ---
-        # Creamos subframes con ancho fijo a izquierda/derecha para asegurar
-        # que los botones queden pegados a los bordes, y el centro expande.
+
         pag_left = ctk.CTkFrame(footer_content, fg_color="transparent")
         pag_center = ctk.CTkFrame(footer_content, fg_color="transparent")
         pag_right = ctk.CTkFrame(footer_content, fg_color="transparent")
@@ -1449,6 +1554,8 @@ class SistemaDictamenesVC(ctk.CTk):
             fg_color=STYLE["secundario"], text_color=STYLE["surface"],
             hover_color="#1a1a1a"
         )
+        # Generación de reportes: botones movidos al área superior de búsqueda
+
         self.btn_hist_next.pack(side='right', anchor='e', padx=(0,6))
 
         # Note: los botones de EMA/Anual y Backup se muestran en la pestaña "Reportes".
@@ -1463,41 +1570,855 @@ class SistemaDictamenesVC(ctk.CTk):
         except Exception:
             pass
 
-    def _construir_tab_reportes(self, parent):
-        """Construye la pestaña 'Reportes' con botones EMA y Anual y Backup en la esquina superior derecha."""
+
+
+
+
+
+
+
+
+    def _construir_tab_clientes(self, parent):
+        """Consulta de clientes y agregar nuevos clientes"""
         cont = ctk.CTkFrame(parent, fg_color=STYLE["surface"], corner_radius=8)
-        cont.pack(fill="both", expand=True, padx=10, pady=10)
+        cont.pack(fill="both", expand=True, padx=10, pady=(0,0), side="top", anchor="n")
 
-        # Barra superior: título y backup a la derecha
-        barra = ctk.CTkFrame(cont, fg_color="transparent", height=50)
-        barra.pack(fill="x", pady=(0, 10))
-        barra.pack_propagate(False)
-
-        ctk.CTkLabel(barra, text="📑 Reportes", font=FONT_SUBTITLE, text_color=STYLE["texto_oscuro"]).pack(side="left", padx=12)
-
-        # Nota: el botón de Backup se gestiona desde la barra de navegación
-        # (evitar duplicarlo aquí para que solo exista una instancia).
-
-        # Contenido central con dos botones grandes: Anual y EMA
         contenido = ctk.CTkFrame(cont, fg_color="transparent")
-        contenido.pack(fill="both", expand=True, pady=(10,0))
+        # Permitir que el contenido central expanda para aprovechar todo el alto
+        contenido.pack(fill="both", expand=True, pady=(0,0), side="top", anchor="n")
 
-        btn_frame = ctk.CTkFrame(contenido, fg_color="transparent")
-        btn_frame.pack(expand=True)
+        # ===== Sección: Clientes - formulario + tabla =====
+        clientes_frame = ctk.CTkFrame(contenido, fg_color="transparent")
+        clientes_frame.pack(fill="both", expand=True, padx=10, pady=(0,0))
+     
+        clientes_frame.grid_columnconfigure(0, weight=6, minsize=600)
+        clientes_frame.grid_columnconfigure(1, weight=6)
+        clientes_frame.grid_rowconfigure(0, weight=1)
+        
+        form_frame = ctk.CTkScrollableFrame(
+            clientes_frame,
+            fg_color=STYLE["surface"],
+            corner_radius=8,
+            scrollbar_button_color=STYLE["borde"],
+            scrollbar_button_hover_color=STYLE["borde"]
+        )
+        form_frame.grid(row=0, column=0, sticky="nsew", padx=(0,8), pady=(1,1))
 
-        ctk.CTkButton(
-            btn_frame, text="📈 Generar Anual",
-            command=self.descargar_excel_anual,
-            height=60, width=220, corner_radius=10,
-            fg_color=("#1976D2", "#0D47A1"), text_color=STYLE["secundario"], font=("Inter", 14, "bold")
-        ).pack(side="left", padx=20, pady=40)
+        ctk.CTkLabel(form_frame, text="Agregar nuevo cliente", font=FONT_SUBTITLE, text_color=STYLE["texto_oscuro"]).pack(anchor="w", padx=10, pady=(4,4))
 
-        ctk.CTkButton(
-            btn_frame, text="📊 Generar EMA",
-            command=self.descargar_excel_ema,
-            height=60, width=220, corner_radius=10,
-            fg_color=("#2E7D32", "#1B5E20"), text_color=STYLE["secundario"], font=("Inter", 14, "bold")
-        ).pack(side="left", padx=20, pady=40)
+        # Campos mínimos sugeridos
+        self.cliente_campos = {}
+        campos = [
+            ("RFC", 25), ("CLIENTE", 35), ("No. CONTRATO", 30), ("ACTIVIDAD", 20),
+            ("CURP", 18)
+        ]
+
+        for k, w in campos:
+            frame_k = ctk.CTkFrame(form_frame, fg_color="transparent")
+            frame_k.pack(fill="x", padx=12, pady=(4,4))
+            ctk.CTkLabel(frame_k, text=f"{k}:", font=FONT_SMALL, width=140, anchor="w", text_color=STYLE["texto_oscuro"]).pack(side="left")
+            ent = ctk.CTkEntry(frame_k, placeholder_text=k, font=FONT_SMALL, height=30)
+            ent.pack(side="left", fill="x", expand=True)
+            self.cliente_campos[k] = ent
+
+        # ===== Domicilios de almacén (seleccione 0,1 o 2 y rellene formularios) =====
+        dom_frame = ctk.CTkFrame(form_frame, fg_color="transparent")
+        dom_frame.pack(fill="x", padx=12, pady=(6,6))
+        ctk.CTkLabel(dom_frame, text="Número de domicilios de almacén:", font=FONT_SMALL, text_color=STYLE["texto_oscuro"]).pack(anchor="w")
+
+        dom_select_frame = ctk.CTkFrame(dom_frame, fg_color="transparent")
+        dom_select_frame.pack(fill="x", pady=(6,4))
+        ctk.CTkLabel(dom_select_frame, text="Domicilios de almacén (puede agregar varios):", font=FONT_SMALL, text_color=STYLE["texto_oscuro"]).pack(anchor="w")
+
+        controls = ctk.CTkFrame(dom_frame, fg_color="transparent")
+        controls.pack(fill="x", pady=(6,4))
+        # Contenedor donde se añadirán subformularios dinámicos
+        self.dom_container = ctk.CTkFrame(dom_frame, fg_color="transparent")
+        self.dom_container.pack(fill="both", pady=(4,4))
+
+        # Lista de campos por domicilio
+        self.dom_fields = []
+        self.max_domicilios = 20
+
+        def _crear_subform(parent, idx):
+            frame = ctk.CTkFrame(parent, fg_color=STYLE["surface"], corner_radius=6)
+            frame.pack(fill="x", pady=(6,6), padx=6)
+            campos_dom = {}
+            campos = [
+                ("CALLE Y No", 'CALLE_Y_NO'),
+                ("COLONIA O POBLACION", 'COLONIA_O_POBLACION'),
+                ("MUNICIPIO O ALCADIA", 'MUNICIPIO_O_ALCADIA'),
+                ("CIUDAD O ESTADO", 'CIUDAD_O_ESTADO'),
+                ("CP", 'CP')
+            ]
+            for label_text, key in campos:
+                f = ctk.CTkFrame(frame, fg_color="transparent")
+                f.pack(fill="x", padx=6, pady=(4,2))
+                ctk.CTkLabel(f, text=f"{label_text}:", font=FONT_SMALL, width=140, anchor="w", text_color=STYLE["texto_oscuro"]).pack(side="left")
+                e = ctk.CTkEntry(f, placeholder_text=label_text, font=FONT_SMALL, height=30)
+                e.pack(side="left", fill="x", expand=True)
+                campos_dom[key] = e
+            svc_f = ctk.CTkFrame(frame, fg_color="transparent")
+            svc_f.pack(fill="x", padx=6, pady=(4,6))
+            ctk.CTkLabel(svc_f, text="SERVICIO:", font=FONT_SMALL, width=140, anchor="w", text_color=STYLE["texto_oscuro"]).pack(side="left")
+            svc = ctk.CTkComboBox(svc_f, values=["DICTAMEN","CONSTANCIA"], font=FONT_SMALL, dropdown_font=FONT_SMALL, state="readonly", height=30)
+            svc.set("DICTAMEN")
+            svc.pack(side="left", fill="x", expand=True)
+            campos_dom['SERVICIO'] = svc
+            # Botón para quitar este subform
+            btn_rm = ctk.CTkButton(frame, text="Quitar domicilio", fg_color=STYLE["peligro"], hover_color=STYLE["peligro"], text_color=STYLE["surface"], font=("Inter", 11, "bold"), command=lambda f=frame: self._remove_domicilio_by_frame(f))
+            btn_rm.pack(anchor="e", padx=6, pady=(0,6))
+            return frame, campos_dom
+
+        # Botones agregar/remover globales
+        self.btn_add_domicilio = ctk.CTkButton(controls, text="Añadir domicilio", fg_color=STYLE["primario"], hover_color=STYLE["primario"], text_color=STYLE["secundario"], font=("Inter", 11, "bold"), command=self._add_domicilio)
+        self.btn_add_domicilio.pack(side="left")
+        self.lbl_dom_count = ctk.CTkLabel(controls, text="0 domicilios", font=FONT_SMALL, text_color=STYLE["texto_oscuro"])
+        self.lbl_dom_count.pack(side="left", padx=(8,0))
+
+        # store creator for use
+        self._crear_domicilio_subform = _crear_subform
+
+        btns_frame = ctk.CTkFrame(form_frame, fg_color="transparent")
+        btns_frame.pack(fill="x", padx=12, pady=(8,12))
+        # Guardar/Actualizar (se actualiza dinámicamente cuando se edita)
+        self.btn_guardar_cliente = ctk.CTkButton(btns_frame, text="Guardar cliente", command=self._guardar_cliente_desde_form, fg_color=STYLE["primario"], hover_color=STYLE["primario"], text_color=STYLE["secundario"], font=("Inter", 11, "bold"), height=34, corner_radius=8)
+        self.btn_guardar_cliente.pack(side="left")
+        self.btn_limpiar_cliente = ctk.CTkButton(btns_frame, text="Limpiar", command=self._limpiar_formulario_cliente, fg_color=STYLE["advertencia"], hover_color=STYLE["advertencia"], text_color=STYLE["surface"], font=("Inter", 11, "bold"), height=34, corner_radius=8)
+        self.btn_limpiar_cliente.pack(side="left", padx=(8,0))
+
+        # Tabla de clientes
+        tabla_frame = ctk.CTkFrame(clientes_frame, fg_color=STYLE["surface"], corner_radius=8)
+        tabla_frame.grid(row=0, column=1, sticky="nsew", padx=(10,0), pady=(0,5))
+        # Aumentar ligeramente la altura mínima de la tabla para mejor visibilidad
+        tabla_frame.grid_rowconfigure(0, weight=1, minsize=420)
+        header_frame = ctk.CTkFrame(tabla_frame, fg_color="transparent")
+        header_frame.pack(fill='x', padx=12, pady=(8,6))
+        ctk.CTkLabel(header_frame, text="Clientes registrados", font=FONT_SUBTITLE, text_color=STYLE["texto_oscuro"]).pack(side='left')
+        self.lbl_total_clientes = ctk.CTkLabel(header_frame, text="Total: 0", font=FONT_SMALL, text_color=STYLE["texto_oscuro"]) 
+        self.lbl_total_clientes.pack(side='right')
+
+        cols = ("RFC","CLIENTE","NÚMERO DE CONTRATO","ACTIVIDAD","SERVICIO","ACCIONES")
+
+        # Barra de búsqueda para la tabla de clientes
+        search_frame = ctk.CTkFrame(tabla_frame, fg_color="transparent")
+        search_frame.pack(fill="x", padx=12, pady=(4,6))
+        self.entry_buscar_cliente = ctk.CTkEntry(search_frame, placeholder_text="Buscar por cliente, RFC, servicio o contrato", font=FONT_SMALL, height=30)
+        self.entry_buscar_cliente.pack(side="left", fill="x", expand=True)
+        ctk.CTkButton(search_frame, text="Buscar", command=self._buscar_clientes, fg_color=STYLE["primario"], hover_color=STYLE["primario"], text_color=STYLE["secundario"], font=("Inter", 11, "bold"), height=32, corner_radius=8).pack(side="left", padx=(8,0))
+        ctk.CTkButton(search_frame, text="Limpiar", command=self._limpiar_busqueda_clientes, fg_color=STYLE["advertencia"], hover_color=STYLE["advertencia"], text_color=STYLE["surface"], font=("Inter", 11, "bold"), height=32, corner_radius=8).pack(side="left", padx=(8,0))
+
+        tree_container = tk.Frame(tabla_frame)
+        # Exponer contenedor para poder ajustar columnas al cambiar tamaño
+        self.tree_clientes_container = tree_container
+        # Ajustar espacio para que la tabla ocupe la mayor parte del panel
+        tree_container.pack(fill="both", expand=True, padx=12, pady=(0,0))
+
+        # Estilo similar al historial
+        style = ttk.Style()
+        try:
+            style.theme_use('clam')
+        except Exception:
+            pass
+        try:
+            style.configure('clientes.Treeview', background=STYLE["surface"], foreground=STYLE["texto_oscuro"], rowheight=22, fieldbackground=STYLE["surface"])
+            style.configure('clientes.Treeview.Heading', background=STYLE["secundario"], foreground=STYLE["surface"], font=("Inter", 10, "bold"))
+            # Selección menos intrusiva: color claro para destacar sin ocultar texto
+            style.map('clientes.Treeview', background=[('selected', '#d9f0ff')], foreground=[('selected', STYLE['texto_oscuro'])])
+            # Evitar usar el color primario en el scrollbar para no abusar del color
+            style.configure('Vertical.TScrollbar', troughcolor=STYLE['surface'], background=STYLE['borde'], arrowcolor=STYLE['texto_oscuro'])
+        except Exception:
+            pass
+
+        self.tree_clientes = ttk.Treeview(tree_container, columns=cols, show='headings', selectmode='browse', style='clientes.Treeview')
+        # Establecer anchos más estrechos por columna para reducir el ancho total
+        col_widths = {
+            'RFC': 110,
+            'CLIENTE': 220,
+            'NÚMERO DE CONTRATO': 180,
+            'ACTIVIDAD': 120,
+            'SERVICIO': 120,
+            'ACCIONES': 120
+        }
+        for c in cols:
+            self.tree_clientes.heading(c, text=c)
+            try:
+                w = col_widths.get(c, 120)
+                self.tree_clientes.column(c, width=w, anchor='w')
+            except Exception:
+                self.tree_clientes.column(c, width=120, anchor='w')
+
+        # Bind para detectar clicks en la columna de acciones (última columna)
+        try:
+            self.tree_clientes.bind('<Button-1>', self._on_client_tree_click)
+        except Exception:
+            pass
+        # Ajustar columnas al redimensionar el contenedor para mantener ACCIONES visible
+        try:
+            self.tree_clientes_container.bind('<Configure>', lambda e: self._adjust_clientes_columns())
+        except Exception:
+            pass
+
+        # Vertical scrollbar con color primario; quitar scrollbar horizontal externa
+        try:
+            vsb = ctk.CTkScrollbar(tree_container, orientation="vertical", command=self.tree_clientes.yview)
+            try:
+                vsb.configure(button_color=STYLE['borde'], fg_color=STYLE['borde'])
+            except Exception:
+                pass
+            self.tree_clientes.configure(yscrollcommand=vsb.set)
+            self.tree_clientes.pack(side="left", fill="both", expand=True)
+            vsb.pack(side="right", fill="y")
+        except Exception:
+            vsb = ttk.Scrollbar(tree_container, orient="vertical", command=self.tree_clientes.yview, style='Vertical.TScrollbar')
+            try:
+                style.configure('Vertical.TScrollbar', troughcolor=STYLE['surface'], background=STYLE['borde'], arrowcolor=STYLE['texto_oscuro'])
+            except Exception:
+                pass
+            self.tree_clientes.configure(yscrollcommand=vsb.set)
+            self.tree_clientes.pack(side="left", fill="both", expand=True)
+            vsb.pack(side="right", fill="y")
+
+        # Botones de gestión de tabla
+        tbl_btns = ctk.CTkFrame(tabla_frame, fg_color="transparent")
+        tbl_btns.pack(fill="x", padx=12, pady=(0,10))
+        # Subframes para separar botones: left, center (expand), right
+        left_actions = ctk.CTkFrame(tbl_btns, fg_color="transparent")
+        center_actions = ctk.CTkFrame(tbl_btns, fg_color="transparent")
+        right_actions = ctk.CTkFrame(tbl_btns, fg_color="transparent")
+        left_actions.pack(side="left")
+        center_actions.pack(side="left", expand=True, fill="both")
+        right_actions.pack(side="right")
+
+        # Botón Refrescar a la izquierda
+        ctk.CTkButton(left_actions, text="Refrescar", command=self._refrescar_tabla_clientes, fg_color=STYLE["exito"], hover_color=STYLE["exito"], text_color=STYLE["surface"], font=("Inter", 11, "bold"), height=32, corner_radius=8).pack(side="left")
+
+        # Botones centrales (centrados) con espacio entre ellos
+        ctk.CTkButton(center_actions, text="Editar", fg_color=STYLE["primario"], hover_color="#D4BF22", text_color=STYLE["secundario"], height=32, corner_radius=8, command=self._editar_cliente_seleccionado).pack(side="left", padx=12)
+        # Botón para desmarcar / salir de modo edición
+        ctk.CTkButton(center_actions, text="Desmarcar", fg_color=STYLE["advertencia"], hover_color="#d2693e", text_color=STYLE["surface"], height=32, corner_radius=8, command=self.desmarcar_cliente).pack(side="left", padx=12)
+        ctk.CTkButton(center_actions, text="Eliminar", fg_color=STYLE["peligro"], hover_color="#c84a3d", text_color=STYLE["surface"], height=32, corner_radius=8, command=self._eliminar_cliente_seleccionado).pack(side="left", padx=12)
+
+        # Botón para exportar todo el catálogo de clientes a Excel (derecha)
+        try:
+            ctk.CTkButton(right_actions, text="Catálogo de clientes", fg_color=STYLE['exito'], hover_color=STYLE['exito'], text_color=STYLE['surface'], height=36, corner_radius=8, font=("Inter", 11, "bold"), command=self._export_catalogo_clientes).pack(side="right")
+        except Exception:
+            pass
+
+        # Poblar la tabla inicialmente
+        try:
+            self._refrescar_tabla_clientes()
+        except Exception:
+            pass
+
+
+    def mostrar_inspectores(self):
+        """Muestra la sección de Inspectores y oculta las demás"""
+        # Ocultar todos los frames primero
+        try:
+            self.frame_principal.pack_forget()
+        except Exception:
+            pass
+        try:
+            self.frame_historial.pack_forget()
+        except Exception:
+            pass
+        try:
+            self.frame_reportes.pack_forget()
+        except Exception:
+            pass
+        # Mostrar inspectores
+        try:
+            self.frame_inspectores.pack(fill="both", expand=True)
+        except Exception:
+            pass
+
+        # Actualizar estado de los botones
+        try:
+            self.btn_principal.configure(fg_color=STYLE["surface"], text_color=STYLE["secundario"], border_color=STYLE["secundario"])
+            self.btn_historial.configure(fg_color=STYLE["surface"], text_color=STYLE["secundario"], border_color=STYLE["secundario"])
+            self.btn_reportes.configure(fg_color=STYLE["surface"], text_color=STYLE["secundario"], border_color=STYLE["secundario"])
+            self.btn_inspectores.configure(fg_color=STYLE["primario"], text_color=STYLE["secundario"], border_color=STYLE["primario"])
+        except Exception:
+            pass
+
+    def _construir_tab_inspectores(self, parent):
+        """Formulario simple para registrar inspectores y tabla de listado (almacena en data/Firmas.json)"""
+        cont = ctk.CTkFrame(parent, fg_color=STYLE["surface"], corner_radius=8)
+        cont.pack(fill="both", expand=True, padx=10, pady=(0,0), side="top", anchor="n")
+
+        contenido = ctk.CTkFrame(cont, fg_color="transparent")
+        contenido.pack(fill="both", expand=True, pady=(0,0), side="top", anchor="n")
+
+        inspect_frame = ctk.CTkFrame(contenido, fg_color="transparent")
+        inspect_frame.pack(fill="both", expand=True, padx=10, pady=(0,0))
+        # Usar la misma proporción y tamaño mínimo que la pestaña Clientes
+        inspect_frame.grid_columnconfigure(0, weight=6, minsize=600)
+        inspect_frame.grid_columnconfigure(1, weight=6)
+        inspect_frame.grid_rowconfigure(0, weight=1)
+
+        form_frame = ctk.CTkScrollableFrame(inspect_frame, fg_color=STYLE["surface"], corner_radius=8)
+        form_frame.grid(row=0, column=0, sticky="nsew", padx=(0,8), pady=(1,1))
+
+        ctk.CTkLabel(form_frame, text="Agregar nuevo inspector", font=FONT_SUBTITLE, text_color=STYLE["texto_oscuro"]).pack(anchor="w", padx=10, pady=(4,4))
+
+
+        self.inspector_campos = {}
+        # Campos básicos (sin IMAGEN). Las normas se muestran como checkboxes más abajo.
+        campos = [
+            ("NOMBRE DE INSPECTOR", 40), ("CORREO", 30), ("FIRMA", 30), ("Puesto", 25), ("VIGENCIA", 20), ("Fecha de acreditación", 24), ("Referencia", 30)
+        ]
+
+        for k, w in campos:
+            frame_k = ctk.CTkFrame(form_frame, fg_color="transparent")
+            frame_k.pack(fill="x", padx=12, pady=(4,4))
+            # usar el mismo ancho de etiqueta que Clientes
+            ctk.CTkLabel(frame_k, text=f"{k}:", font=FONT_SMALL, width=140, anchor="w", text_color=STYLE["texto_oscuro"]).pack(side="left")
+            ent = ctk.CTkEntry(frame_k, placeholder_text=k, font=FONT_SMALL, height=30)
+            ent.pack(side="left", fill="x", expand=True)
+            self.inspector_campos[k] = ent
+
+        # --- Normas acreditadas (checkboxes) ---
+        normas_label = ctk.CTkLabel(form_frame, text="Normas acreditadas:", font=FONT_SMALL, text_color=STYLE["texto_oscuro"]) 
+        normas_label.pack(anchor='w', padx=12, pady=(8,2))
+        normas_frame = ctk.CTkFrame(form_frame, fg_color="transparent")
+        normas_frame.pack(fill="x", padx=12, pady=(2,8))
+        # Cargar catálogo de normas desde data/Normas.json
+        self.inspector_normas_vars = {}
+        normas_path = os.path.join(DATA_DIR, 'Normas.json')
+        normas_list = []
+        try:
+            if os.path.exists(normas_path):
+                with open(normas_path, 'r', encoding='utf-8') as nf:
+                    normas_json = json.load(nf)
+                    for rec in normas_json:
+                        nom = rec.get('NOM') or rec.get('NOMBRE')
+                        if nom:
+                            normas_list.append(nom)
+        except Exception:
+            normas_list = []
+        # Crear checkboxes en dos columnas
+        col = 0
+        row = 0
+        for i, nom in enumerate(normas_list):
+            var = tk.BooleanVar(value=False)
+            cb = ctk.CTkCheckBox(normas_frame, text=nom, variable=var)
+            cb.grid(row=row, column=col, sticky='w', padx=6, pady=2)
+            self.inspector_normas_vars[nom] = var
+            col += 1
+            if col >= 2:
+                col = 0
+                row += 1
+
+        btns_frame = ctk.CTkFrame(form_frame, fg_color="transparent")
+        btns_frame.pack(fill="x", padx=12, pady=(8,12))
+        self.btn_guardar_inspector = ctk.CTkButton(btns_frame, text="Guardar inspector", command=self._guardar_inspector_desde_form, fg_color=STYLE["primario"], hover_color=STYLE["primario"], text_color=STYLE["secundario"], font=("Inter", 11, "bold"), height=34, corner_radius=8)
+        self.btn_guardar_inspector.pack(side="left")
+        self.btn_limpiar_inspector = ctk.CTkButton(btns_frame, text="Limpiar", command=self._limpiar_formulario_inspector, fg_color=STYLE["advertencia"], hover_color=STYLE["advertencia"], text_color=STYLE["surface"], font=("Inter", 11, "bold"), height=34, corner_radius=8)
+        self.btn_limpiar_inspector.pack(side="left", padx=(8,0))
+
+        # Tabla de inspectores
+        tabla_frame = ctk.CTkFrame(inspect_frame, fg_color=STYLE["surface"], corner_radius=8)
+        tabla_frame.grid(row=0, column=1, sticky="nsew", padx=(10,0), pady=(0,5))
+        tabla_frame.grid_rowconfigure(0, weight=1, minsize=420)
+        header_frame = ctk.CTkFrame(tabla_frame, fg_color="transparent")
+        header_frame.pack(fill='x', padx=12, pady=(8,6))
+        ctk.CTkLabel(header_frame, text="Inspectores registrados", font=FONT_SUBTITLE, text_color=STYLE["texto_oscuro"]).pack(side='left')
+        self.lbl_total_inspectores = ctk.CTkLabel(header_frame, text="Total: 0", font=FONT_SMALL, text_color=STYLE["texto_oscuro"]) 
+        self.lbl_total_inspectores.pack(side='right')
+
+        cols = ("NOMBRE","CORREO","FIRMA","PUESTO","VIGENCIA")
+        tree_container = tk.Frame(tabla_frame)
+        tree_container.pack(fill="both", expand=True, padx=12, pady=(0,0))
+
+        style = ttk.Style()
+        try:
+            style.theme_use('clam')
+        except Exception:
+            pass
+        try:
+            # Usar el mismo estilo que la pestaña Clientes para apariencia idéntica
+            style.configure('clientes.Treeview', background=STYLE["surface"], foreground=STYLE["texto_oscuro"], rowheight=22, fieldbackground=STYLE["surface"])
+            style.configure('clientes.Treeview.Heading', background=STYLE["secundario"], foreground=STYLE["surface"], font=("Inter", 10, "bold"))
+        except Exception:
+            pass
+
+        self.tree_inspectores = ttk.Treeview(tree_container, columns=cols, show='headings', selectmode='browse', style='clientes.Treeview')
+        # Anchuras iniciales sugeridas (similar proporción a Clientes)
+        col_widths = {
+            'NOMBRE': 150,
+            'CORREO': 180,
+            'FIRMA': 120,
+            'PUESTO': 200,
+            'VIGENCIA': 120
+        }
+        for c in cols:
+            self.tree_inspectores.heading(c, text=c)
+            try:
+                w = col_widths.get(c, 120)
+                self.tree_inspectores.column(c, width=w, anchor='w')
+            except Exception:
+                self.tree_inspectores.column(c, width=120, anchor='w')
+
+        try:
+            vsb = ctk.CTkScrollbar(tree_container, orientation="vertical", command=self.tree_inspectores.yview)
+            self.tree_inspectores.configure(yscrollcommand=vsb.set)
+            self.tree_inspectores.pack(side="left", fill="both", expand=True)
+            vsb.pack(side="right", fill="y")
+        except Exception:
+            vsb = ttk.Scrollbar(tree_container, orient="vertical", command=self.tree_inspectores.yview)
+            self.tree_inspectores.configure(yscrollcommand=vsb.set)
+            self.tree_inspectores.pack(side="left", fill="both", expand=True)
+            vsb.pack(side="right", fill="y")
+
+        tbl_btns = ctk.CTkFrame(tabla_frame, fg_color="transparent")
+        tbl_btns.pack(fill="x", padx=12, pady=(0,10))
+        left_actions = ctk.CTkFrame(tbl_btns, fg_color="transparent")
+        center_actions = ctk.CTkFrame(tbl_btns, fg_color="transparent")
+        right_actions = ctk.CTkFrame(tbl_btns, fg_color="transparent")
+        left_actions.pack(side="left")
+        center_actions.pack(side="left", expand=True)
+        right_actions.pack(side="right")
+
+        ctk.CTkButton(left_actions, text="Refrescar", command=self._refrescar_tabla_inspectores, fg_color=STYLE["exito"], hover_color=STYLE["exito"], text_color=STYLE["surface"], font=("Inter", 11, "bold"), height=32, corner_radius=8).pack(side="left")
+        # Centro: editar / desmarcar / eliminar
+        ctk.CTkButton(center_actions, text="Editar", fg_color=STYLE["primario"], hover_color="#D4BF22", text_color=STYLE["secundario"], height=32, corner_radius=8, command=self._editar_inspector_seleccionado).pack(side="left", padx=12)
+        ctk.CTkButton(center_actions, text="Desmarcar", fg_color=STYLE["advertencia"], hover_color="#d2693e", text_color=STYLE["surface"], height=32, corner_radius=8, command=self.desmarcar_inspector).pack(side="left", padx=12)
+        ctk.CTkButton(center_actions, text="Eliminar", fg_color=STYLE["peligro"], hover_color="#c84a3d", text_color=STYLE["surface"], height=32, corner_radius=8, command=self._eliminar_inspector_seleccionado).pack(side="left", padx=12)
+        try:
+            ctk.CTkButton(right_actions, text="Exportar catálogo", fg_color=STYLE['exito'], hover_color=STYLE['exito'], text_color=STYLE['surface'], height=36, corner_radius=8, font=("Inter", 11, "bold"), command=self._export_catalogo_inspectores).pack(side="right")
+        except Exception:
+            pass
+
+        # Poblar inicialmente
+        try:
+            self._refrescar_tabla_inspectores()
+        except Exception:
+            pass
+
+        # Exponer contenedor para poder ajustar columnas al cambiar tamaño (igual que Clientes)
+        try:
+            self.tree_inspectores_container = tree_container
+            self.tree_inspectores_container.bind('<Configure>', lambda e: self._adjust_inspectores_columns())
+        except Exception:
+            pass
+
+
+    # -------------------- Inspectores helpers --------------------
+    def cargar_inspectores_desde_json(self):
+        posibles = [os.path.join(DATA_DIR, 'Firmas.json'), 'data/Firmas.json', 'Firmas.json']
+        ruta = None
+        for p in posibles:
+            try:
+                if os.path.exists(p):
+                    ruta = p
+                    break
+            except Exception:
+                continue
+        if not ruta:
+            self.inspectores_data = []
+            return
+        try:
+            with open(ruta, 'r', encoding='utf-8') as f:
+                datos = json.load(f)
+        except Exception:
+            datos = []
+        self.inspectores_data = datos if isinstance(datos, list) else []
+
+    def _guardar_inspector_desde_form(self):
+        nuevo = {}
+        for k, ent in (self.inspector_campos or {}).items():
+            try:
+                v = ent.get().strip()
+            except Exception:
+                try:
+                    v = ent.get() or ""
+                except Exception:
+                    v = ""
+            nuevo[k] = v
+
+        # Normas seleccionadas desde checkboxes
+        try:
+            normas_sel = [n for n, var in (self.inspector_normas_vars or {}).items() if getattr(var, 'get', lambda: False)()]
+            if normas_sel:
+                nuevo['Normas acreditadas'] = normas_sel
+        except Exception:
+            pass
+
+        ruta = os.path.join(DATA_DIR, 'Firmas.json')
+        datos = []
+        try:
+            if os.path.exists(ruta):
+                with open(ruta, 'r', encoding='utf-8') as f:
+                    datos = json.load(f) or []
+        except Exception:
+            datos = []
+
+        actualizado = False
+        # Si estamos editando, reemplazar el registro coincidente por FIRMA
+        try:
+            edit_key = getattr(self, 'editing_inspector_firma', None)
+            if edit_key:
+                for i, rec in enumerate(datos):
+                    try:
+                        if str(rec.get('FIRMA','')) == str(edit_key):
+                            datos[i] = nuevo
+                            actualizado = True
+                            break
+                    except Exception:
+                        continue
+        except Exception:
+            pass
+
+        if not actualizado:
+            datos.append(nuevo)
+
+        try:
+            with open(ruta, 'w', encoding='utf-8') as f:
+                json.dump(datos, f, ensure_ascii=False, indent=2)
+            if actualizado:
+                messagebox.showinfo('Inspector actualizado', 'El inspector se ha actualizado en Firmas.json')
+            else:
+                messagebox.showinfo('Inspector guardado', 'El inspector se ha guardado en Firmas.json')
+        except Exception as e:
+            messagebox.showerror('Error', f'No se pudo guardar el inspector: {e}')
+            return
+
+        try:
+            # reset editing flag
+            if getattr(self, 'editing_inspector_firma', None):
+                self.editing_inspector_firma = None
+                try:
+                    self.btn_guardar_inspector.configure(text="Guardar inspector")
+                except Exception:
+                    pass
+        except Exception:
+            pass
+
+        try:
+            self._refrescar_tabla_inspectores()
+        except Exception:
+            pass
+        self._limpiar_formulario_inspector()
+
+    def _limpiar_formulario_inspector(self):
+        try:
+            for ent in (self.inspector_campos or {}).values():
+                try:
+                    ent.delete(0, 'end')
+                except Exception:
+                    pass
+        except Exception:
+            pass
+        # Resetear checkboxes de normas
+        try:
+            for var in (self.inspector_normas_vars or {}).values():
+                try:
+                    var.set(False)
+                except Exception:
+                    pass
+        except Exception:
+            pass
+
+    def _refrescar_tabla_inspectores(self):
+        self.cargar_inspectores_desde_json()
+        try:
+            for i in self.tree_inspectores.get_children():
+                self.tree_inspectores.delete(i)
+        except Exception:
+            pass
+        total = 0
+        for rec in (self.inspectores_data or []):
+            try:
+                nombre = rec.get('NOMBRE DE INSPECTOR') or rec.get('NOMBRE') or ''
+                correo = rec.get('CORREO','')
+                firma = rec.get('FIRMA','')
+                puesto = rec.get('Puesto','')
+                vig = rec.get('VIGENCIA','')
+                self.tree_inspectores.insert('', 'end', values=(nombre, correo, firma, puesto, vig))
+                total += 1
+            except Exception:
+                continue
+        try:
+            self.lbl_total_inspectores.configure(text=f"Total: {total}")
+        except Exception:
+            pass
+        # Ajustar anchos de columnas según el contenido para que los textos sean visibles
+        try:
+            # Primero intentar auto-ajustar según contenido usando helper común
+            self._auto_resize_tree_columns(self.tree_inspectores)
+        except Exception:
+            try:
+                # como fallback, usar el ajuste para el contenedor
+                self._adjust_inspectores_columns()
+            except Exception:
+                pass
+
+    def _export_catalogo_inspectores(self):
+        """Exporta `data/Firmas.json` (inspectores) a un archivo Excel.
+        Incluye las normas acreditadas concatenadas en la columna 'NORMAS'.
+        """
+        ruta = os.path.join(DATA_DIR, 'Firmas.json')
+        datos = []
+        try:
+            if os.path.exists(ruta):
+                with open(ruta, 'r', encoding='utf-8') as f:
+                    datos = json.load(f) or []
+        except Exception as e:
+            messagebox.showerror('Exportar', f'No se pudo leer Firmas.json: {e}')
+            return
+
+        if not datos:
+            messagebox.showinfo('Exportar', 'No hay datos de inspectores para exportar.')
+            return
+
+        rows = []
+        for rec in datos:
+            try:
+                nombre = rec.get('NOMBRE DE INSPECTOR') or rec.get('NOMBRE') or ''
+                correo = rec.get('CORREO') or rec.get('EMAIL') or ''
+                firma = rec.get('FIRMA','')
+                puesto = rec.get('Puesto') or rec.get('PUESTO') or ''
+                vig = rec.get('VIGENCIA','')
+                normas = rec.get('Normas acreditadas') or rec.get('Normas') or rec.get('NORMAS') or []
+                if isinstance(normas, (list, tuple)):
+                    normas_txt = '; '.join(str(n) for n in normas)
+                else:
+                    normas_txt = str(normas)
+                rows.append({
+                    'NOMBRE': nombre,
+                    'CORREO': correo,
+                    'FIRMA': firma,
+                    'PUESTO': puesto,
+                    'VIGENCIA': vig,
+                    'NORMAS': normas_txt
+                })
+            except Exception:
+                continue
+
+        try:
+            save_path = filedialog.asksaveasfilename(defaultextension='.xlsx', filetypes=[('Excel','*.xlsx')], title='Guardar catálogo de inspectores')
+            if not save_path:
+                return
+            df = pd.DataFrame(rows, columns=['NOMBRE','CORREO','FIRMA','PUESTO','VIGENCIA','NORMAS'])
+            try:
+                with pd.ExcelWriter(save_path, engine='openpyxl') as writer:
+                    df.to_excel(writer, index=False, sheet_name='Inspectores')
+                    try:
+                        ws = writer.sheets['Inspectores']
+                        from openpyxl.utils import get_column_letter
+                        for i, col in enumerate(df.columns, 1):
+                            col_letter = get_column_letter(i)
+                            try:
+                                max_len = max(df[col].astype(str).map(len).max(), len(col)) + 2
+                                ws.column_dimensions[col_letter].width = max_len
+                            except Exception:
+                                pass
+                    except Exception:
+                        pass
+            except Exception:
+                # fallback sin ajustar anchos
+                df.to_excel(save_path, index=False)
+
+            messagebox.showinfo('Exportar', f'Catálogo de inspectores exportado correctamente a:\n{save_path}')
+        except Exception as e:
+            messagebox.showerror('Exportar', f'Error al exportar: {e}')
+
+    def _adjust_inspectores_columns(self):
+        """Ajusta anchos de columnas en `self.tree_inspectores` para mantener apariencia consistente con Clientes."""
+        try:
+            tree = getattr(self, 'tree_inspectores', None)
+            cont = getattr(self, 'tree_inspectores_container', None)
+            if not tree or not cont:
+                return
+            total_w = cont.winfo_width() or tree.winfo_width()
+            if not total_w or total_w < 100:
+                return
+
+            padding = 8
+            min_col = 80
+            cols = list(tree['columns'])
+
+            # mínimos por columna para inspectores
+            desired_mins = {
+                'NOMBRE': 150,
+                'CORREO': 180,
+                'FIRMA': 120,
+                'PUESTO': 200,
+                'VIGENCIA': 100
+            }
+
+            available = max(50, total_w - padding)
+            sum_mins = sum(desired_mins.get(c, 80) for c in cols)
+
+            new_widths = {}
+            if sum_mins <= available:
+                extra = available - sum_mins
+                for c in cols:
+                    base = desired_mins.get(c, 80)
+                    add = 0
+                    if c == 'NOMBRE' and extra > 0:
+                        add = extra
+                    new_widths[c] = max(min_col, int(base + add))
+            else:
+                min_hard = 60
+                total_weight = sum(desired_mins.get(c, 80) for c in cols)
+                for c in cols:
+                    weight = desired_mins.get(c, 80)
+                    w = int(max(min_hard, available * (weight / total_weight)))
+                    new_widths[c] = w
+
+            for c, w in new_widths.items():
+                try:
+                    tree.column(c, width=w)
+                except Exception:
+                    pass
+        except Exception:
+            pass
+
+    def _editar_inspector_seleccionado(self):
+        sel = None
+        try:
+            sel = self.tree_inspectores.selection()
+        except Exception:
+            sel = None
+        if not sel:
+            messagebox.showinfo('Seleccionar', 'Seleccione un inspector en la tabla primero.')
+            return
+        iid = sel[0]
+        vals = self.tree_inspectores.item(iid).get('values') or []
+        if not vals:
+            messagebox.showinfo('Seleccionar', 'No se pudo obtener el registro seleccionado.')
+            return
+        # Buscar registro en datos por FIRMA o NOMBRE
+        key_firma = vals[2] if len(vals) > 2 else None
+        target = None
+        for rec in (self.inspectores_data or []):
+            try:
+                if key_firma and str(rec.get('FIRMA','')) == str(key_firma):
+                    target = rec
+                    break
+                if str(rec.get('NOMBRE DE INSPECTOR','')) == str(vals[0]):
+                    target = rec
+                    break
+            except Exception:
+                continue
+        if not target:
+            messagebox.showinfo('Error', 'No se encontró el registro en los datos.')
+            return
+        # Poblar formulario
+        try:
+            for k, ent in (self.inspector_campos or {}).items():
+                try:
+                    val = target.get(k) or target.get(k.upper()) or ''
+                    ent.delete(0, 'end')
+                    ent.insert(0, str(val))
+                except Exception:
+                    continue
+        except Exception:
+            pass
+        # Poblar checkboxes de normas
+        try:
+            normas = target.get('Normas acreditadas') or target.get('Normas') or []
+            for n, var in (self.inspector_normas_vars or {}).items():
+                try:
+                    var.set(n in normas)
+                except Exception:
+                    continue
+        except Exception:
+            pass
+        # Marcar modo edición
+        try:
+            self.editing_inspector_firma = target.get('FIRMA') or target.get('FIRMA','')
+            try:
+                self.btn_guardar_inspector.configure(text="Actualizar inspector")
+            except Exception:
+                pass
+        except Exception:
+            pass
+
+    def desmarcar_inspector(self):
+        try:
+            # quitar selección en la tabla
+            sels = self.tree_inspectores.selection()
+            for s in sels:
+                try:
+                    self.tree_inspectores.selection_remove(s)
+                except Exception:
+                    pass
+        except Exception:
+            pass
+        # limpiar formulario y reset edición
+        try:
+            self._limpiar_formulario_inspector()
+        except Exception:
+            pass
+        try:
+            if getattr(self, 'editing_inspector_firma', None):
+                self.editing_inspector_firma = None
+                try:
+                    self.btn_guardar_inspector.configure(text="Guardar inspector")
+                except Exception:
+                    pass
+        except Exception:
+            pass
+
+    def _eliminar_inspector_seleccionado(self):
+        sel = None
+        try:
+            sel = self.tree_inspectores.selection()
+        except Exception:
+            sel = None
+        if not sel:
+            messagebox.showinfo('Seleccionar', 'Seleccione un inspector en la tabla primero.')
+            return
+        iid = sel[0]
+        vals = self.tree_inspectores.item(iid).get('values') or []
+        key_firma = vals[2] if len(vals) > 2 else None
+        if not key_firma:
+            messagebox.showinfo('Error', 'No se pudo identificar el inspector seleccionado.')
+            return
+        if not messagebox.askyesno('Confirmar', f'¿Eliminar el inspector {vals[0]}?'):
+            return
+        ruta = os.path.join(DATA_DIR, 'Firmas.json')
+        try:
+            with open(ruta, 'r', encoding='utf-8') as f:
+                datos = json.load(f) or []
+        except Exception:
+            datos = []
+        nuevo_arr = []
+        eliminado = False
+        for rec in datos:
+            try:
+                if str(rec.get('FIRMA','')) == str(key_firma):
+                    eliminado = True
+                    continue
+            except Exception:
+                pass
+            nuevo_arr.append(rec)
+        try:
+            with open(ruta, 'w', encoding='utf-8') as f:
+                json.dump(nuevo_arr, f, ensure_ascii=False, indent=2)
+        except Exception as e:
+            messagebox.showerror('Error', f'No se pudo eliminar el inspector: {e}')
+            return
+        if eliminado:
+            messagebox.showinfo('Eliminado', 'Inspector eliminado correctamente.')
+        else:
+            messagebox.showinfo('No encontrado', 'No se encontró el inspector a eliminar.')
+        try:
+            self._refrescar_tabla_inspectores()
+        except Exception:
+            pass
+
+
+
+
+
+
+
+
+
 
     def _formatear_hora_12h(self, hora_str):
         """Convierte hora de formato 24h a formato 12h con AM/PM de forma consistente"""
@@ -1591,7 +2512,7 @@ class SistemaDictamenesVC(ctk.CTk):
         y el combobox `self.combo_cliente` se rellena con los nombres detectados.
         """
         posibles_rutas = [
-            os.path.join(APP_DIR, 'data', 'Clientes.json'),
+            os.path.join(DATA_DIR, 'Clientes.json'),
             os.path.join(BASE_DIR, 'Clientes.json'),
             'data/Clientes.json',
             'Clientes.json',
@@ -1656,6 +2577,806 @@ class SistemaDictamenesVC(ctk.CTk):
         except Exception:
             pass
 
+    def _guardar_cliente_desde_form(self):
+        """Lee los campos del formulario de Reportes y guarda un nuevo cliente en Clientes.json"""
+        # Construir el registro con la estructura estándar requerida
+        nuevo = {
+            'RFC': '',
+            'CLIENTE': '',
+            'NÚMERO_DE_CONTRATO': '',
+            'ACTIVIDAD': '',
+            'CURP': '',
+            'DIRECCIONES': []
+        }
+        try:
+            # Campos principales vienen de self.cliente_campos
+            def _get_field(name):
+                ent = (self.cliente_campos or {}).get(name)
+                if not ent:
+                    return ''
+                try:
+                    return ent.get().strip()
+                except Exception:
+                    try:
+                        return ent.get() or ''
+                    except Exception:
+                        return ''
+
+            nuevo['RFC'] = _get_field('RFC')
+            nuevo['CLIENTE'] = _get_field('CLIENTE')
+            # Mapear 'No. CONTRATO' -> 'NÚMERO_DE_CONTRATO'
+            nuevo['NÚMERO_DE_CONTRATO'] = _get_field('NÚMERO_DE_CONTRATO')
+            nuevo['ACTIVIDAD'] = _get_field('ACTIVIDAD')
+            nuevo['CURP'] = _get_field('CURP')
+        except Exception:
+            pass
+
+        # Recopilar domicilios y almacenarlos en 'Direcciones' con claves estándar
+        try:
+            direcciones = []
+            for rec in (self.dom_fields or []):
+                try:
+                    fields = rec.get('fields') or {}
+                    d = {
+                        'CALLE Y NO': '',
+                        'COLONIA O POBLACION': '',
+                        'MUNICIPIO O ALCADIA': '',
+                        'CIUDAD O ESTADO': '',
+                        'CP': '',
+                        'SERVICIO': ''
+                    }
+                    # Los campos internos usan claves como 'CALLE_Y_NO', 'COLONIA_O_POBLACION', etc.
+                    try:
+                        if 'CALLE_Y_NO' in fields:
+                            d['CALLE Y NO'] = (fields['CALLE_Y_NO'].get() or '').strip()
+                        elif 'CALLE Y No' in fields:
+                            d['CALLE Y NO'] = (fields['CALLE Y No'].get() or '').strip()
+                    except Exception:
+                        pass
+                    try:
+                        if 'COLONIA_O_POBLACION' in fields:
+                            d['COLONIA O POBLACION'] = (fields['COLONIA_O_POBLACION'].get() or '').strip()
+                    except Exception:
+                        pass
+                    try:
+                        if 'MUNICIPIO_O_ALCADIA' in fields:
+                            d['MUNICIPIO O ALCADIA'] = (fields['MUNICIPIO_O_ALCADIA'].get() or '').strip()
+                    except Exception:
+                        pass
+                    try:
+                        if 'CIUDAD_O_ESTADO' in fields:
+                            d['CIUDAD O ESTADO'] = (fields['CIUDAD_O_ESTADO'].get() or '').strip()
+                    except Exception:
+                        pass
+                    try:
+                        if 'CP' in fields:
+                            d['CP'] = (fields['CP'].get() or '').strip()
+                    except Exception:
+                        pass
+                    try:
+                        if 'SERVICIO' in fields:
+                            d['SERVICIO'] = fields['SERVICIO'].get() if hasattr(fields['SERVICIO'], 'get') else ''
+                    except Exception:
+                        pass
+                    direcciones.append(d)
+                except Exception:
+                    continue
+            if direcciones:
+                nuevo['DIRECCIONES'] = direcciones
+        except Exception:
+            pass
+
+        # Ruta objetivo
+        ruta = os.path.join(DATA_DIR, 'Clientes.json')
+        datos = []
+        try:
+            if os.path.exists(ruta):
+                with open(ruta, 'r', encoding='utf-8') as f:
+                    datos = json.load(f) or []
+        except Exception:
+            datos = []
+
+        # Si estamos en modo edición, intentar reemplazar el registro existente
+        actualizado = False
+        try:
+            if getattr(self, 'editing_cliente_rfc', None):
+                busc_rfc = str(self.editing_cliente_rfc)
+                for i, c in enumerate(datos):
+                    try:
+                        if str(c.get('RFC', '')) == busc_rfc:
+                            datos[i] = nuevo
+                            actualizado = True
+                            break
+                    except Exception:
+                        continue
+            if not actualizado:
+                datos.append(nuevo)
+
+            with open(ruta, 'w', encoding='utf-8') as f:
+                json.dump(datos, f, ensure_ascii=False, indent=2)
+
+            if actualizado:
+                messagebox.showinfo('Cliente actualizado', 'El cliente se ha actualizado en Clientes.json')
+            else:
+                messagebox.showinfo('Cliente guardado', 'El cliente se ha guardado en Clientes.json')
+        except Exception as e:
+            messagebox.showerror('Error', f'No se pudo guardar el cliente: {e}')
+            return
+
+        # Refrescar cache y UI
+        try:
+            self.cargar_clientes_desde_json()
+        except Exception:
+            pass
+        try:
+            self._refrescar_tabla_clientes()
+        except Exception:
+            pass
+
+        # Limpiar formulario
+        for ent in (self.cliente_campos or {}).values():
+            try:
+                ent.delete(0, 'end')
+            except Exception:
+                pass
+        # Si veníamos editando, resetear estado del botón
+        try:
+            if getattr(self, 'editing_cliente_rfc', None):
+                self.editing_cliente_rfc = None
+                try:
+                    self.btn_guardar_cliente.configure(text="Guardar cliente")
+                except Exception:
+                    pass
+                # Después de editar un cliente, limpiar la selección en la UI
+                try:
+                    self.limpiar_cliente()
+                except Exception:
+                    pass
+        except Exception:
+            pass
+
+    def _limpiar_formulario_cliente(self):
+        """Limpia los campos del formulario de cliente y elimina subformularios de domicilios."""
+        try:
+            for ent in (self.cliente_campos or {}).values():
+                try:
+                    ent.delete(0, 'end')
+                except Exception:
+                    pass
+        except Exception:
+            pass
+        # quitar subformularios de domicilios
+        try:
+            for idx, rec in enumerate(list(self.dom_fields)):
+                frm = rec.get('frame')
+                try:
+                    frm.destroy()
+                except Exception:
+                    pass
+            self.dom_fields = []
+            try:
+                self.lbl_dom_count.configure(text="0 domicilios")
+            except Exception:
+                pass
+        except Exception:
+            pass
+
+    def _refrescar_tabla_clientes(self):
+        """Carga `Clientes.json` y muestra los registros en la tabla Treeview."""
+        ruta = os.path.join(DATA_DIR, 'Clientes.json')
+        datos = []
+        try:
+            if os.path.exists(ruta):
+                with open(ruta, 'r', encoding='utf-8') as f:
+                    datos = json.load(f) or []
+        except Exception:
+            datos = []
+
+        # Limpiar tabla
+        try:
+            for r in self.tree_clientes.get_children():
+                self.tree_clientes.delete(r)
+        except Exception:
+            pass
+
+        # Insertar filas
+        for c in datos:
+            try:
+                rfc = c.get('RFC') or c.get('R.F.C') or ''
+                nombre = c.get('CLIENTE') or c.get('RAZÓN SOCIAL ') or c.get('RAZON SOCIAL') or ''
+                contrato = c.get('NÚMERO_DE_CONTRATO') or c.get('No. DE CONTRATO') or ''
+                actividad = c.get('ACTIVIDAD') or ''
+                # Si no hay CP/SERVICIO a nivel cliente, intentar usar el primer domicilio
+                # CP se omite para la vista; aún lo extraemos por compatibilidad
+                cp = c.get('CP') or ''
+                servicio = c.get('SERVICIO') or ''
+                try:
+                    # soportar tanto 'DIRECCIONES' (nuevo) como 'DOMICILIOS' (antiguo)
+                    direc = c.get('DIRECCIONES') if c.get('DIRECCIONES') is not None else c.get('DOMICILIOS')
+                    if (not cp or not servicio) and isinstance(direc, (list, tuple)) and len(direc) > 0:
+                        primera = direc[0]
+                        if not cp:
+                            cp = primera.get('CP') or primera.get('cp') or ''
+                        if not servicio:
+                            servicio = primera.get('SERVICIO') or primera.get('servicio') or ''
+                except Exception:
+                    pass
+                # Insertar sin la columna CP; añadir texto en ACCIONES para permitir interacción
+                self.tree_clientes.insert('', 'end', values=(rfc, nombre, contrato, actividad, servicio, 'Ver domicilios'))
+            except Exception:
+                continue
+
+        # Auto-ajustar columnas según el contenido recién cargado
+        try:
+            self._auto_resize_tree_columns(self.tree_clientes)
+        except Exception:
+            pass
+
+        # Asegurar que la columna ACCIONES permanezca visible ajustando anchos
+        try:
+            self._adjust_clientes_columns()
+        except Exception:
+            pass
+        # Actualizar contador de clientes
+        try:
+            total = len(datos) if isinstance(datos, (list, tuple)) else 0
+            try:
+                self.lbl_total_clientes.configure(text=f"Total: {total}")
+            except Exception:
+                pass
+        except Exception:
+            pass
+
+    def _buscar_clientes(self):
+        """Busca clientes por texto en RFC, CLIENTE, NÚMERO DE CONTRATO o SERVICIO."""
+        q = ''
+        try:
+            q = (self.entry_buscar_cliente.get() or '').strip().lower()
+        except Exception:
+            q = ''
+
+        ruta = os.path.join(DATA_DIR, 'Clientes.json')
+        datos = []
+        try:
+            if os.path.exists(ruta):
+                with open(ruta, 'r', encoding='utf-8') as f:
+                    datos = json.load(f) or []
+        except Exception:
+            datos = []
+
+        # Limpiar tabla
+        try:
+            for r in self.tree_clientes.get_children():
+                self.tree_clientes.delete(r)
+        except Exception:
+            pass
+
+        if not q:
+            # si no hay query, recargar todo
+            try:
+                self._refrescar_tabla_clientes()
+            except Exception:
+                pass
+            return
+
+        for c in datos:
+            try:
+                rfc = (c.get('RFC') or c.get('R.F.C') or '')
+                nombre = (c.get('CLIENTE') or c.get('RAZÓN SOCIAL ') or c.get('RAZON SOCIAL') or '')
+                contrato = (c.get('NÚMERO_DE_CONTRATO') or c.get('No. DE CONTRATO') or '')
+                servicio = (c.get('SERVICIO') or '')
+                actividad = c.get('ACTIVIDAD') or ''
+                cp = c.get('CP') or ''
+                hay = False
+                # Buscar en campos relevantes (omitimos CP de la lista de búsqueda visible)
+                for field in (rfc, nombre, contrato, servicio, actividad):
+                    try:
+                        if q in str(field).lower():
+                            hay = True
+                            break
+                    except Exception:
+                        continue
+                if hay:
+                    self.tree_clientes.insert('', 'end', values=(rfc, nombre, contrato, actividad, servicio, 'Ver domicilios'))
+            except Exception:
+                continue
+
+    def _limpiar_busqueda_clientes(self):
+        """Limpia la caja de búsqueda de clientes y recarga la tabla."""
+        try:
+            self.entry_buscar_cliente.delete(0, tk.END)
+        except Exception:
+            try:
+                self.entry_buscar_cliente.delete(0, 'end')
+            except Exception:
+                pass
+        try:
+            self._refrescar_tabla_clientes()
+        except Exception:
+            pass
+
+    def _eliminar_cliente_seleccionado(self):
+        sel = None
+        try:
+            sel = self.tree_clientes.selection()[0]
+        except Exception:
+            messagebox.showwarning('Eliminar', 'No hay ningún cliente seleccionado')
+            return
+
+        vals = self.tree_clientes.item(sel, 'values')
+        if not vals:
+            return
+
+        rfc_sel = vals[0]
+        ruta = os.path.join(DATA_DIR, 'Clientes.json')
+        try:
+            with open(ruta, 'r', encoding='utf-8') as f:
+                datos = json.load(f) or []
+        except Exception:
+            datos = []
+
+        # Eliminar por RFC (si está vacío, por nombre)
+        nuevos = []
+        for c in datos:
+            try:
+                if rfc_sel and c.get('RFC') and str(c.get('RFC')) == str(rfc_sel):
+                    continue
+                nombre = c.get('CLIENTE') or c.get('RAZÓN SOCIAL ') or c.get('RAZON SOCIAL') or ''
+                if not rfc_sel and nombre == vals[1]:
+                    continue
+                nuevos.append(c)
+            except Exception:
+                nuevos.append(c)
+
+        # Confirmación fuerte: primero confirmar intención
+        try:
+            confirmar = messagebox.askyesno('Confirmar eliminación', f"¿Está seguro que desea eliminar al cliente '{vals[1]}'? Esta acción no se puede deshacer.")
+            if not confirmar:
+                return
+            # Solicitar que escriba la palabra ELIMINAR para evitar borrados accidentales
+            respuesta = simpledialog.askstring('Autenticación', "Escriba ELIMINAR para confirmar la eliminación:", parent=self)
+            if not respuesta or respuesta.strip().upper() != 'ELIMINAR':
+                messagebox.showinfo('Cancelado', 'Eliminación cancelada. No se escribieron las credenciales correctas.')
+                return
+        except Exception:
+            # Si falla el diálogo, cancelar por seguridad
+            messagebox.showwarning('Eliminar', 'No se pudo completar la confirmación. Cancelando eliminación.')
+            return
+
+        try:
+            with open(ruta, 'w', encoding='utf-8') as f:
+                json.dump(nuevos, f, ensure_ascii=False, indent=2)
+        except Exception as e:
+            messagebox.showerror('Error', f'No se pudo eliminar: {e}')
+            return
+
+        messagebox.showinfo('Eliminado', 'Cliente eliminado correctamente')
+        try:
+            self._refrescar_tabla_clientes()
+        except Exception:
+            pass
+
+    def _editar_cliente_seleccionado(self):
+        """Carga el cliente seleccionado en el formulario para su edición."""
+        sel = None
+        try:
+            sel = self.tree_clientes.selection()[0]
+        except Exception:
+            messagebox.showwarning('Editar', 'No hay ningún cliente seleccionado')
+            return
+
+        vals = self.tree_clientes.item(sel, 'values')
+        if not vals:
+            return
+
+        rfc_sel = vals[0]
+        ruta = os.path.join(DATA_DIR, 'Clientes.json')
+        datos = []
+        try:
+            if os.path.exists(ruta):
+                with open(ruta, 'r', encoding='utf-8') as f:
+                    datos = json.load(f) or []
+        except Exception:
+            datos = []
+
+        # Buscar registro completo por RFC (si no hay RFC, por nombre)
+        registro = None
+        for c in datos:
+            try:
+                if rfc_sel and str(c.get('RFC', '')) == str(rfc_sel):
+                    registro = c
+                    break
+                nombre = c.get('CLIENTE') or c.get('RAZÓN SOCIAL ') or c.get('RAZON SOCIAL') or ''
+                if not rfc_sel and nombre == vals[1]:
+                    registro = c
+                    break
+            except Exception:
+                continue
+
+        if not registro:
+            messagebox.showwarning('Editar', 'No se encontró el registro completo para edición')
+            return
+
+        # Llenar formulario con datos del registro
+        for k, ent in (self.cliente_campos or {}).items():
+            try:
+                # Construir lista de posibles claves en el JSON para este campo
+                candidates = []
+                candidates.append(k)
+                candidates.append(k.replace(' ', '_'))
+                candidates.append(k.upper())
+                candidates.append(k.replace('.', ''))
+                candidates.append(k.replace('.', '').replace(' ', '_').upper())
+                # Casos específicos mapeados
+                if k.strip().lower().startswith('no') or 'contrato' in k.lower():
+                    candidates = ['NÚMERO_DE_CONTRATO', 'NÚMERO DE CONTRATO', 'No. DE CONTRATO', 'No. CONTRATO', 'NUMERO_DE_CONTRATO', 'NUMERO DE CONTRATO'] + candidates
+                # Buscar el primer valor existente
+                v = ''
+                for key in candidates:
+                    try:
+                        if key in registro and registro.get(key) is not None:
+                            v = registro.get(key)
+                            break
+                    except Exception:
+                        continue
+                # Fallback: intentar buscar por coincidencia ignorando mayúsculas/minúsculas y signos
+                if (v is None or v == '') and isinstance(registro, dict):
+                    lk = k.replace('_', ' ').strip().lower()
+                    for rk in registro.keys():
+                        try:
+                            if str(rk).strip().lower() == lk or str(rk).strip().lower().replace('.', '') == lk.replace('.', ''):
+                                v = registro.get(rk)
+                                break
+                        except Exception:
+                            continue
+
+                try:
+                    ent.delete(0, 'end')
+                except Exception:
+                    pass
+                if v is None:
+                    v = ''
+                try:
+                    ent.insert(0, str(v))
+                except Exception:
+                    pass
+            except Exception:
+                try:
+                    ent.delete(0, 'end')
+                except Exception:
+                    pass
+
+        # Llenar subformularios dinámicos de domicilios si existen
+        try:
+            # Aceptar varias claves posibles para domicilios: DIRECCIONES, DOMICILIOS, DOMICILIO
+            domicilios = registro.get('DIRECCIONES') or registro.get('DOMICILIOS') or registro.get('DOMICILIO') or []
+            if not isinstance(domicilios, (list, tuple)):
+                domicilios = []
+            # eliminar subformularios existentes
+            try:
+                for rec in list(self.dom_fields):
+                    try:
+                        rec.get('frame').destroy()
+                    except Exception:
+                        pass
+                self.dom_fields = []
+            except Exception:
+                pass
+            # crear subformularios y rellenar
+            for i, ddata in enumerate(domicilios):
+                try:
+                    if len(self.dom_fields) >= self.max_domicilios:
+                        break
+                    frm, fields = self._crear_domicilio_subform(self.dom_container, len(self.dom_fields))
+                    self.dom_fields.append({'frame': frm, 'fields': fields})
+                    
+                    key_variants = {
+                        'CALLE_Y_NO': ['CALLE Y NO', 'CALLE_Y_NO', 'CALLE Y No', 'CALLEYNO', 'CALLE'],
+                        'COLONIA_O_POBLACION': ['COLONIA O POBLACION', 'COLONIA_O_POBLACION', 'COLONIA', 'POBLACION'],
+                        'MUNICIPIO_O_ALCADIA': ['MUNICIPIO O ALCADIA', 'MUNICIPIO_O_ALCADIA', 'MUNICIPIO', 'ALCADIA'],
+                        'CIUDAD_O_ESTADO': ['CIUDAD O ESTADO', 'CIUDAD_O_ESTADO', 'CIUDAD', 'ESTADO'],
+                        'CP': ['CP', 'cp', 'Codigo Postal', 'C.P.'],
+                        'SERVICIO': ['SERVICIO', 'servicio']
+                    }
+                    for k, widget in (fields or {}).items():
+                        try:
+                            val = ''
+                            if isinstance(ddata, dict):
+                                # buscar por variantes de llave
+                                variants = key_variants.get(k, [k, k.replace('_', ' '), k.lower()])
+                                for key in variants:
+                                    if key in ddata and ddata.get(key) is not None:
+                                        val = ddata.get(key)
+                                        break
+                                # también probar claves con distintos capitalizations
+                                if val == '':
+                                    for key in list(ddata.keys()):
+                                        if key.strip().lower() == k.replace('_', ' ').strip().lower():
+                                            val = ddata.get(key)
+                                            break
+                            # Asignar al widget: combo -> set(), entry -> insert
+                            try:
+                                if hasattr(widget, 'set'):
+                                    try:
+                                        widget.set(str(val))
+                                    except Exception:
+                                        pass
+                                else:
+                                    try:
+                                        widget.delete(0, 'end')
+                                    except Exception:
+                                        pass
+                                    if val is not None:
+                                        try:
+                                            widget.insert(0, str(val))
+                                        except Exception:
+                                            pass
+                            except Exception:
+                                pass
+                        except Exception:
+                            pass
+                except Exception:
+                    continue
+            try:
+                self.lbl_dom_count.configure(text=f"{len(self.dom_fields)} domicilios")
+            except Exception:
+                pass
+        except Exception:
+            pass
+
+        # Marcar modo edición
+        try:
+            self.editing_cliente_rfc = registro.get('RFC') or ''
+            try:
+                self.btn_guardar_cliente.configure(text="Actualizar cliente")
+            except Exception:
+                pass
+        except Exception:
+            pass
+
+    def _on_client_tree_click(self, event):
+        """Detecta clicks en la columna de ACCIONES y muestra domicilios del cliente."""
+        try:
+            col = self.tree_clientes.identify_column(event.x)
+            iid = self.tree_clientes.identify_row(event.y)
+            if not iid:
+                return
+            last_col = f"#{len(self.tree_clientes['columns'])}"
+            if col == last_col:
+                vals = self.tree_clientes.item(iid, 'values')
+                if not vals:
+                    return
+                rfc = vals[0]
+                try:
+                    self._mostrar_domicilios_cliente(rfc)
+                except Exception:
+                    pass
+                return "break"
+        except Exception:
+            pass
+
+    def _mostrar_domicilios_cliente(self, rfc_or_name):
+        """Abre una ventana modal mostrando los domicilios del cliente identificado por RFC o nombre."""
+        ruta = os.path.join(DATA_DIR, 'Clientes.json')
+        datos = []
+        try:
+            if os.path.exists(ruta):
+                with open(ruta, 'r', encoding='utf-8') as f:
+                    datos = json.load(f) or []
+        except Exception:
+            datos = []
+
+        registro = None
+        for c in datos:
+            try:
+                if rfc_or_name and c.get('RFC') and str(c.get('RFC')) == str(rfc_or_name):
+                    registro = c
+                    break
+                nombre = c.get('CLIENTE') or c.get('RAZÓN SOCIAL ') or c.get('RAZON SOCIAL') or ''
+                if (not registro) and str(nombre) == str(rfc_or_name):
+                    registro = c
+                    break
+            except Exception:
+                continue
+
+        if not registro:
+            messagebox.showwarning('Domicilios', 'No se encontró el cliente o no tiene domicilios registrados.')
+            return
+
+        domicilios = registro.get('DIRECCIONES') or registro.get('DOMICILIOS') or registro.get('DOMICILIO') or []
+        if not isinstance(domicilios, (list, tuple)):
+            domicilios = []
+
+        # Crear ventana modal
+        win = ctk.CTkToplevel(self)
+        win.title(f"Domicilios - {registro.get('CLIENTE') or registro.get('RFC')}")
+        win.geometry('640x420')
+        win.transient(self)
+        win.grab_set()
+
+        frame = ctk.CTkFrame(win, fg_color=STYLE['surface'])
+        frame.pack(fill='both', expand=True, padx=12, pady=12)
+
+        hdr = ctk.CTkLabel(frame, text=f"Domicilios de {registro.get('CLIENTE') or registro.get('RFC')}", font=FONT_SUBTITLE, text_color=STYLE['texto_oscuro'])
+        hdr.pack(anchor='w', pady=(0,8))
+
+        scroll = ctk.CTkScrollableFrame(frame, fg_color='transparent')
+        scroll.pack(fill='both', expand=True)
+
+        if not domicilios:
+            ctk.CTkLabel(scroll, text='No hay domicilios registrados.', text_color=STYLE['texto_oscuro']).pack(anchor='w', pady=6)
+        else:
+            for i, d in enumerate(domicilios, start=1):
+                box = ctk.CTkFrame(scroll, fg_color=STYLE['surface'], corner_radius=6)
+                box.pack(fill='x', pady=6, padx=6)
+                ctk.CTkLabel(box, text=f"Domicilio {i}", font=("Inter", 12, "bold"), text_color=STYLE['texto_oscuro']).pack(anchor='w', padx=8, pady=(6,2))
+                # Mostrar campos relevantes y soportar claves con espacios/variantes
+                field_variants = [
+                    ('CALLE Y NO', ['CALLE Y NO', 'CALLE_Y_NO', 'CALLE Y No', 'CALLEYNO']),
+                    ('COLONIA O POBLACION', ['COLONIA O POBLACION', 'COLONIA_O_POBLACION', 'COLONIA']),
+                    ('MUNICIPIO O ALCADIA', ['MUNICIPIO O ALCADIA', 'MUNICIPIO_O_ALCADIA', 'MUNICIPIO']),
+                    ('CIUDAD O ESTADO', ['CIUDAD O ESTADO', 'CIUDAD_O_ESTADO', 'ESTADO']),
+                    ('CP', ['CP', 'cp']),
+                    ('SERVICIO', ['SERVICIO', 'servicio'])
+                ]
+                for label, variants in field_variants:
+                    try:
+                        val = ''
+                        if isinstance(d, dict):
+                            for key in variants:
+                                if key in d and d.get(key) is not None:
+                                    val = d.get(key)
+                                    break
+                        ctk.CTkLabel(box, text=f"{label}: {val}", text_color=STYLE['texto_oscuro']).pack(anchor='w', padx=12, pady=2)
+                    except Exception:
+                        continue
+
+        ctk.CTkButton(frame, text='Cerrar', command=win.destroy, fg_color=STYLE['secundario'], hover_color=STYLE['secundario'], text_color=STYLE['surface']).pack(pady=(8,0))
+
+    def _export_catalogo_clientes(self):
+        """Exporta `data/Clientes.json` a un archivo Excel seleccionado por el usuario.
+        Cada domicilio del cliente se exporta como una fila separada con columnas:
+        RFC, CLIENTE, CALLE Y NO, COLONIA O POBLACION, MUNICIPIO O ALCADIA, CIUDAD O ESTADO, CP, SERVICIO
+        """
+        ruta = os.path.join(DATA_DIR, 'Clientes.json')
+        datos = []
+        try:
+            if os.path.exists(ruta):
+                with open(ruta, 'r', encoding='utf-8') as f:
+                    datos = json.load(f) or []
+        except Exception as e:
+            messagebox.showerror('Exportar', f'No se pudo leer Clientes.json: {e}')
+            return
+
+        if not datos:
+            messagebox.showinfo('Exportar', 'No hay datos para exportar.')
+            return
+
+        rows = []
+        for c in datos:
+            try:
+                rfc = c.get('RFC') or c.get('R.F.C') or ''
+                cliente = c.get('CLIENTE') or c.get('RAZÓN SOCIAL ') or c.get('RAZON SOCIAL') or ''
+                domicilios = c.get('DIRECCIONES') or c.get('DOMICILIOS') or c.get('DOMICILIO') or []
+                if not isinstance(domicilios, (list, tuple)):
+                    domicilios = []
+                if domicilios:
+                    for d in domicilios:
+                        try:
+                            # extraer campos con variantes de nombre
+                            def g(obj, *keys):
+                                for k in keys:
+                                    if isinstance(obj, dict) and k in obj and obj.get(k) is not None:
+                                        return obj.get(k)
+                                return ''
+                            calle = g(d, 'CALLE Y NO', 'CALLE_Y_NO', 'CALLE Y No', 'CALLEYNO')
+                            colonia = g(d, 'COLONIA O POBLACION', 'COLONIA_O_POBLACION', 'COLONIA')
+                            municipio = g(d, 'MUNICIPIO O ALCADIA', 'MUNICIPIO_O_ALCADIA', 'MUNICIPIO')
+                            ciudad = g(d, 'CIUDAD O ESTADO', 'CIUDAD_O_ESTADO', 'ESTADO')
+                            cp = g(d, 'CP', 'cp')
+                            servicio = g(d, 'SERVICIO', 'servicio')
+                            rows.append({
+                                'RFC': rfc,
+                                'CLIENTE': cliente,
+                                'CALLE Y NO': calle,
+                                'COLONIA O POBLACION': colonia,
+                                'MUNICIPIO O ALCADIA': municipio,
+                                'CIUDAD O ESTADO': ciudad,
+                                'CP': cp,
+                                'SERVICIO': servicio
+                            })
+                        except Exception:
+                            continue
+                else:
+                    rows.append({
+                        'RFC': rfc,
+                        'CLIENTE': cliente,
+                        'CALLE Y NO': '',
+                        'COLONIA O POBLACION': '',
+                        'MUNICIPIO O ALCADIA': '',
+                        'CIUDAD O ESTADO': '',
+                        'CP': '',
+                        'SERVICIO': ''
+                    })
+            except Exception:
+                continue
+
+        # Preguntar ubicación de guardado
+        try:
+            save_path = filedialog.asksaveasfilename(defaultextension='.xlsx', filetypes=[('Excel','*.xlsx')], title='Guardar catálogo de clientes')
+            if not save_path:
+                return
+            df = pd.DataFrame(rows, columns=['RFC','CLIENTE','CALLE Y NO','COLONIA O POBLACION','MUNICIPIO O ALCADIA','CIUDAD O ESTADO','CP','SERVICIO'])
+            try:
+                # Intentar ajustar anchos en Excel usando openpyxl si está disponible
+                with pd.ExcelWriter(save_path, engine='openpyxl') as writer:
+                    df.to_excel(writer, index=False, sheet_name='Catalogo')
+                    try:
+                        ws = writer.sheets['Catalogo']
+                        # Ajustar anchos de columna en base al contenido (simple heurística)
+                        from openpyxl.utils import get_column_letter
+                        for i, col in enumerate(df.columns, 1):
+                            col_letter = get_column_letter(i)
+                            try:
+                                max_len = max(df[col].astype(str).map(len).max(), len(col)) + 2
+                                ws.column_dimensions[col_letter].width = max_len
+                            except Exception:
+                                pass
+                    except Exception:
+                        pass
+            except Exception:
+                df.to_excel(save_path, index=False)
+
+            messagebox.showinfo('Exportar', f'Catálogo exportado correctamente a:\n{save_path}')
+        except Exception as e:
+            messagebox.showerror('Exportar', f'Error al exportar: {e}')
+
+    # Handlers para los subformularios de domicilios
+    def _on_change_num_domicilios(self, valor):
+        """Muestra u oculta los subformularios de domicilios según el número seleccionado."""
+        # deprecated (now using dynamic add/remove). keep for safety
+        return
+
+    def _add_domicilio(self):
+        """Añade un subformulario de domicilio si no supera el máximo."""
+        try:
+            if len(self.dom_fields) >= self.max_domicilios:
+                messagebox.showwarning('Máximo', f'Solo se permiten hasta {self.max_domicilios} domicilios')
+                return
+            frm, fields = self._crear_domicilio_subform(self.dom_container, len(self.dom_fields))
+            self.dom_fields.append({'frame': frm, 'fields': fields})
+            try:
+                self.lbl_dom_count.configure(text=f"{len(self.dom_fields)} domicilios")
+            except Exception:
+                pass
+        except Exception:
+            pass
+
+    def _remove_domicilio_by_frame(self, frame):
+        """Elimina el subform asociado al frame y actualiza el contador."""
+        try:
+            found = None
+            for rec in self.dom_fields:
+                if rec.get('frame') == frame:
+                    found = rec
+                    break
+            if not found:
+                return
+            try:
+                found.get('frame').destroy()
+            except Exception:
+                pass
+            try:
+                self.dom_fields.remove(found)
+            except Exception:
+                pass
+            try:
+                self.lbl_dom_count.configure(text=f"{len(self.dom_fields)} domicilios")
+            except Exception:
+                pass
+        except Exception:
+            pass
+
     def safe_forget(self, widget):
         """Evita errores al ocultar widgets ya olvidados."""
         try:
@@ -1701,8 +3422,8 @@ class SistemaDictamenesVC(ctk.CTk):
         # ─────────────────────────────────────────────
         CLIENTES_ETIQUETA = {
             "ARTICULOS DEPORTIVOS DECATHLON SA DE CV",
-            "FERRAGAMO MEXICO S DE RL DE CV",
-            "ULTA BEAUTY SAPI DE CV",  # Regla especial
+            "FERRAGAMO MEXICO S. DE RL DE C.V.",
+            "ULTA BEAUTY S.A.P.I. DE C.V.",  # Regla especial
         }
 
         # Buscar cliente en la lista; aceptar varias claves de nombre
@@ -1960,6 +3681,38 @@ class SistemaDictamenesVC(ctk.CTk):
         except Exception:
             pass
 
+    def desmarcar_cliente(self):
+        """Desmarca cualquier cliente seleccionado y sale del modo edición."""
+        try:
+            # Limpiar el formulario de edición
+            self._limpiar_formulario_cliente()
+        except Exception:
+            pass
+        try:
+            # Limpiar la selección visual y los datos de cliente seleccionado
+            self.limpiar_cliente()
+        except Exception:
+            pass
+        try:
+            # Resetear flag de edición y texto del botón guardar
+            self.editing_cliente_rfc = None
+            try:
+                self.btn_guardar_cliente.configure(text="Guardar cliente")
+            except Exception:
+                pass
+        except Exception:
+            pass
+        try:
+            # Quitar selección en la tabla si existe
+            if hasattr(self, 'tree_clientes'):
+                for iid in list(self.tree_clientes.selection()):
+                    try:
+                        self.tree_clientes.selection_remove(iid)
+                    except Exception:
+                        pass
+        except Exception:
+            pass
+
     def _seleccionar_domicilio(self, domicilio_text):
         """Handler para seleccionar domicilio del cliente."""
         try:
@@ -2080,6 +3833,40 @@ class SistemaDictamenesVC(ctk.CTk):
             print(f"❌ Error cargando último folio: {e}")
             self.current_folio = "000001"
 
+    def _folio_visita_exists(self, folio_visita, exclude_id=None):
+        """Devuelve True si `folio_visita` ya existe en el historial en disco.
+        Opción `exclude_id` permite omitir un registro por su _id al validar (útil en actualizaciones).
+        Comparación es insensible a mayúsculas y espacios.
+        """
+        try:
+            if not folio_visita:
+                return False
+            fv = str(folio_visita).strip().lower()
+            hist_path = getattr(self, 'historial_path', None) or os.path.join(DATA_DIR, 'historial_visitas.json')
+            visitas = []
+            if os.path.exists(hist_path):
+                try:
+                    with open(hist_path, 'r', encoding='utf-8') as hf:
+                        hobj = json.load(hf) or {}
+                        visitas = hobj.get('visitas', []) if isinstance(hobj, dict) else (hobj or [])
+                except Exception:
+                    visitas = self.historial.get('visitas', []) or []
+            else:
+                visitas = self.historial.get('visitas', []) or []
+
+            for rec in (visitas or []):
+                try:
+                    if exclude_id and (rec.get('_id') == exclude_id or rec.get('id') == exclude_id):
+                        continue
+                    other = str(rec.get('folio_visita','') or '').strip().lower()
+                    if other and other == fv:
+                        return True
+                except Exception:
+                    continue
+            return False
+        except Exception:
+            return False
+
     def crear_nueva_visita(self):
         """Prepara el formulario para una nueva visita"""
         try:
@@ -2129,36 +3916,30 @@ class SistemaDictamenesVC(ctk.CTk):
             except Exception:
                 seleccionado = None
 
-            # Si existe un folio pendiente para este tipo, ofrecer reutilizarlo
+            # No consumir automáticamente las reservas al crear un formulario nuevo.
+            # Dejaremos las visitas en estado 'Pendiente' hasta que el usuario
+            # seleccione explícitamente una de las reservas desde el combobox.
             try:
-                if seleccionado:
-                    pendientes = [r for r in getattr(self, 'historial_data', []) if (r.get('tipo_documento') or '').strip() == seleccionado and (r.get('estatus','').lower() == 'pendiente')]
-                    if pendientes:
-                        primero = pendientes[0]
-                        usar = messagebox.askyesno("Folio pendiente encontrado", f"Se encontró un folio pendiente: {primero.get('folio_visita','-')} / {primero.get('folio_acta','-')}\n¿Desea usarlo para esta visita?")
-                        if usar:
-                            # Cargar folios pendientes en el formulario
+                # Asegurar que el combobox de folios pendientes esté actualizado
+                if hasattr(self, '_refresh_pending_folios_dropdown'):
+                    try:
+                        self._refresh_pending_folios_dropdown()
+                    except Exception:
+                        pass
+                # Indicar al usuario si existe alguna reserva para el tipo seleccionado
+                try:
+                    if seleccionado:
+                        pendientes = [r for r in getattr(self, 'historial_data', []) if (r.get('tipo_documento') or '').strip() == seleccionado and (r.get('estatus','').lower() == 'pendiente')]
+                        if pendientes:
+                            # Mostrar mensaje no intrusivo en la etiqueta de info
                             try:
-                                self.entry_folio_visita.configure(state='normal')
-                                self.entry_folio_visita.delete(0, 'end')
-                                self.entry_folio_visita.insert(0, primero.get('folio_visita',''))
-                                self.entry_folio_visita.configure(state='readonly')
-
-                                self.entry_folio_acta.configure(state='normal')
-                                self.entry_folio_acta.delete(0, 'end')
-                                self.entry_folio_acta.insert(0, primero.get('folio_acta',''))
-                                self.entry_folio_acta.configure(state='readonly')
+                                if hasattr(self, 'info_folio_pendiente'):
+                                    p0 = pendientes[0]
+                                    self.info_folio_pendiente.configure(text=f"Folio pendiente disponible: {p0.get('folio_visita','-')}")
                             except Exception:
                                 pass
-
-                            # Marcar el registro como en proceso para no sugerirlo de nuevo
-                            try:
-                                rid = primero.get('_id') or primero.get('id')
-                                if rid:
-                                    self.hist_update_visita(rid, {'estatus': 'En proceso'})
-                            except Exception:
-                                pass
-                            return
+                except Exception:
+                    pass
             except Exception:
                 pass
 
@@ -2244,7 +4025,7 @@ class SistemaDictamenesVC(ctk.CTk):
                             "tipo_documento": tipo_documento,
                         "folios_utilizados": f"{folio_visita} - {folio_visita}"  # Guardar el folio como rango único
                     }
-                    self.hist_create_visita(payload)
+                    self.hist_create_visita(payload, show_notification=False)
                     self.crear_nueva_visita()
                     messagebox.showinfo("Registro guardado", "El folio se guardó como registro incompleto. Podrá completarlo más adelante.")
                     return
@@ -2285,8 +4066,40 @@ class SistemaDictamenesVC(ctk.CTk):
             except Exception:
                 pass
 
-            # Guardar visita
-            self.hist_create_visita(payload)
+            # Guardar visita: validar unicidad de folio de visita y folio de acta
+            new_fv = str(payload.get('folio_visita','') or '').strip()
+            new_fa = str(payload.get('folio_acta','') or '').strip()
+            if new_fv and self._folio_visita_exists(new_fv):
+                messagebox.showwarning("Folio duplicado", f"El folio de visita {new_fv} ya está registrado en el historial. Elimine el registro existente para volver a usarlo.")
+                return
+            # Para folio de acta reutilizar la validación previa (comprobar en disco)
+            if new_fa:
+                # Buscar AC duplicada en disco
+                try:
+                    hist_path = getattr(self, 'historial_path', None) or os.path.join(DATA_DIR, 'historial_visitas.json')
+                    if os.path.exists(hist_path):
+                        with open(hist_path, 'r', encoding='utf-8') as hf:
+                            hobj = json.load(hf) or {}
+                            latest_visitas = hobj.get('visitas', []) if isinstance(hobj, dict) else (hobj or [])
+                    else:
+                        latest_visitas = self.historial.get('visitas', []) or []
+                except Exception:
+                    latest_visitas = self.historial.get('visitas', []) or []
+                for v in (latest_visitas or []):
+                    try:
+                        if new_fa and str(v.get('folio_acta','') or '').strip().lower() == new_fa.lower():
+                            messagebox.showwarning("Folio duplicado", f"El folio de acta {new_fa} ya está en uso. No se puede duplicar AC.")
+                            return
+                    except Exception:
+                        continue
+
+            self.hist_create_visita(payload, show_notification=False)
+            # Forzar actualización inmediata de la etiqueta de siguiente folio
+            try:
+                self._update_siguiente_folio_label()
+            except Exception:
+                pass
+
             # Limpiar formulario después de guardar
             self.crear_nueva_visita()
         except Exception as e:
@@ -2333,6 +4146,25 @@ class SistemaDictamenesVC(ctk.CTk):
 
     def convertir_a_json(self, file_path):
         try:
+            # Detectar si el Excel tiene una hoja llamada CONCENTRADO (índice)
+            try:
+                xls = pd.ExcelFile(file_path)
+                sheets = [s.upper() for s in (xls.sheet_names or [])]
+            except Exception:
+                sheets = []
+
+            if 'CONCENTRADO' in sheets:
+                # Advertir al usuario: este archivo parece ser un índice, no la tabla principal
+                from tkinter import messagebox as _mb
+                confirmar = _mb.askyesno(
+                    "Archivo con hoja CONCENTRADO detectado",
+                    "El archivo seleccionado contiene una hoja llamada 'CONCENTRADO', que parece ser un índice para Pegado por Índice.\n\n¿Desea importarlo AHORA como 'Tabla de Relación' y sobrescribir data/tabla_de_relacion.json?\n\n(Si NO está seguro, use la opción 'Pegado por Índice' en la UI en lugar de 'Cargar Tabla de Relación')"
+                )
+                if not confirmar:
+                    # cancelar la conversión para evitar sobrescritura accidental
+                    self.after(0, self.mostrar_error, "Importación cancelada: el archivo parece ser un índice. Use 'Pegado por Índice' para importar índices.")
+                    return
+
             df = pd.read_excel(file_path)
             if df.empty:
                 self.mostrar_error("El archivo seleccionado no contiene datos.")
@@ -2368,9 +4200,6 @@ class SistemaDictamenesVC(ctk.CTk):
                 records.append(rec)
 
             # ----------------- ASIGNAR FOLIOS USANDO FOLIO_MANAGER -----------------
-            # Intentamos reservar un bloque persistente desde folio_manager para
-            # asignar folios por familia (SOLICITUD, LISTA). Si la reserva atómica
-            # falla, se hace un fallback a la asignación en memoria basada en historial.
             try:
                 # Recolectar pares únicos (SOLICITUD, LISTA)
                 pares_vistos = []
@@ -2395,8 +4224,6 @@ class SistemaDictamenesVC(ctk.CTk):
                 pair_to_folio = {}
 
                 if total_necesarios > 0:
-                    # No reservar persistente aquí: asignación en memoria basada en historial
-                    # para evitar avanzar el contador global en cargas/preview.
                     try:
                         maxf = 0
                         visitas = []
@@ -2444,9 +4271,6 @@ class SistemaDictamenesVC(ctk.CTk):
                                 pass
 
                         next_local = maxf + 1
-                        # Si no se encontraron folios locales (next_local == 1),
-                        # intentar sincronizar con el contador persistente
-                        # `data/folio_counter.json` mediante `folio_manager`.
                         if int(next_local) == 1:
                             try:
                                 import folio_manager
@@ -2497,13 +4321,40 @@ class SistemaDictamenesVC(ctk.CTk):
             self.json_filename = "tabla_de_relacion.json"
             output_path = os.path.join(data_folder, self.json_filename)
 
+            # Normalizar campos CODIGO y SKU para que se guarden como strings sin '.0'
+            def _norm_code(v):
+                try:
+                    import pandas as _pd
+                    if _pd.isna(v):
+                        return None
+                except Exception:
+                    pass
+                if v is None:
+                    return None
+                if isinstance(v, float):
+                    if v.is_integer():
+                        return str(int(v))
+                    return format(v, 'g')
+                if isinstance(v, int):
+                    return str(v)
+                s = str(v).strip()
+                if s.endswith('.0'):
+                    s = s[:-2]
+                if s.lower() == 'nan' or s == '':
+                    return None
+                return s
+
+            for rec in records:
+                # Normalizar claves comunes (mayúsculas esperadas en la tabla)
+                if 'CODIGO' in rec:
+                    rec['CODIGO'] = _norm_code(rec.get('CODIGO'))
+                if 'SKU' in rec:
+                    rec['SKU'] = _norm_code(rec.get('SKU'))
+
             with open(output_path, "w", encoding="utf-8") as f:
                 json.dump(records, f, ensure_ascii=False, indent=2)
 
-            # NOTA: No crear PERSIST/backup durante la conversión de la tabla. La copia
-            # persistente (PERSIST) se creará únicamente cuando la generación de
-            # documentos sea exitosa, usando el folio de la visita como identificador.
-            # Esto evita crear múltiples copias al subir/editar tablas que luego se descartan.
+        
             try:
                 print("   ℹ️ Conversión completada: no se crea backup PERSIST en esta etapa.")
             except Exception:
@@ -2517,18 +4368,24 @@ class SistemaDictamenesVC(ctk.CTk):
             except Exception:
                 pass
 
-            # GUARDAR FOLIOS PARA VISITA ACTUAL (no persistir contador aquí)
-            # Nota: No crear backups automáticos de `tabla_de_relacion` en esta etapa
-            # para evitar que tablas cargadas y luego descartadas parezcan consumir folios.
+            # Validar que existan firmas/inspectores que cubran las normas requeridas
+            try:
+                ok = self._validate_tabla_normas(records)
+                if not ok:
+                    # Bloquear la continuación hasta que el usuario agregue/seleccione firma(s)
+                    self.after(0, self.mostrar_error, "La tabla de relación requiere firmas para todas las normas. Por favor agregue la(s) firma(s) necesarias desde el catálogo de supervisores.")
+                    return
+            except Exception:
+                # Si falla la validación no evitar la conversión, pero informar en consola
+                print("⚠️ Error validando firmas de la tabla (continuando):", sys.exc_info()[0])
+
+        
             if hasattr(self, 'current_folio') and self.current_folio:
                 # Regenerar cache exportable para Excel (persistente)
                 try:
                     self._generar_datos_exportable()
                 except Exception:
                     pass
-                # NOTA: NO guardar el archivo en `folios_visitas` aquí porque
-                # aún no se han generado documentos. Los folios se guardarán
-                # cuando la generación sea exitosa (en `registrar_visita_automatica`).
 
             self.after(0, self._actualizar_ui_conversion_exitosa, output_path, len(records))
 
@@ -2649,6 +4506,126 @@ class SistemaDictamenesVC(ctk.CTk):
                 "total_folios_numericos": 0,
                 "mensaje": f"Error: {str(e)}"
             }
+
+    def _extract_normas_from_records(self, records):
+        """Intento heurístico para extraer el conjunto de normas requeridas desde la tabla de relación."""
+        try:
+            import re
+            posibles = ['NORMA','Norma','norma','NORMAS','Normas','normas','REQUISITOS','REQUERIMIENTOS','REQUISITO','requisito']
+            normas = set()
+            if not records:
+                return normas
+            for r in records:
+                if not isinstance(r, dict):
+                    continue
+                for k in posibles:
+                    if k in r and r.get(k):
+                        v = r.get(k)
+                        if isinstance(v, (list, tuple, set)):
+                            for it in v:
+                                for part in re.split(r'[;,/\\|]', str(it)):
+                                    p = part.strip()
+                                    if p:
+                                        normas.add(p)
+                        else:
+                            for part in re.split(r'[;,/\\|]', str(v)):
+                                p = part.strip()
+                                if p:
+                                    normas.add(p)
+                        break
+            # Normalizar espacios
+            normas = set([n.strip() for n in normas if n and str(n).strip()])
+            return normas
+        except Exception:
+            return set()
+
+    def _load_supervisores_catalog(self):
+        """Carga el catálogo de supervisores/firmas desde `DATA_DIR/Firmas.json` si existe."""
+        path = os.path.join(DATA_DIR, 'Firmas.json')
+        if not os.path.exists(path):
+            return []
+        try:
+            with open(path, 'r', encoding='utf-8') as f:
+                arr = json.load(f) or []
+            # Normalizar esquema mínimo
+            cleaned = []
+            for s in arr:
+                if not isinstance(s, dict):
+                    continue
+                nombre = s.get('nombre') or s.get('Nombre') or s.get('nombre_supervisor') or ''
+                normas_field = s.get('normas') or s.get('Normas') or s.get('NORMAS') or s.get('lista_normas') or ''
+                normas_set = set()
+                if isinstance(normas_field, (list, tuple, set)):
+                    for n in normas_field:
+                        if n:
+                            normas_set.add(str(n).strip())
+                else:
+                    import re
+                    for p in re.split(r'[;,/\\|]', str(normas_field)):
+                        if p and p.strip():
+                            normas_set.add(p.strip())
+                cleaned.append({'nombre': nombre, 'normas': sorted(normas_set)})
+            return cleaned
+        except Exception:
+            return []
+
+    def _save_supervisores_catalog(self, arr):
+        try:
+            path = os.path.join(DATA_DIR, 'Firmas.json')
+            with open(path, 'w', encoding='utf-8') as f:
+                json.dump(arr, f, ensure_ascii=False, indent=2)
+            return True
+        except Exception:
+            return False
+
+    def _validate_tabla_normas(self, records):
+        """Valida que el catálogo de supervisores cubra las normas encontradas en la tabla.
+        Si faltan normas, solicita al usuario agregar un supervisor que las cubra.
+        Devuelve True si la validación queda satisfecha (se encontró o se agregó supervisor).
+        Devuelve False si el usuario cancela.
+        """
+        try:
+            needed = self._extract_normas_from_records(records)
+            if not needed:
+                return True
+
+            supervisors = self._load_supervisores_catalog()
+            covered = set()
+            for s in supervisors:
+                for n in (s.get('normas') or []):
+                    if n:
+                        covered.add(str(n).strip())
+
+            missing = set(n for n in needed if n not in covered)
+            if not missing:
+                return True
+
+            # Informar al usuario y ofrecer agregar un supervisor que cubra las normas faltantes
+            msg = "Se requieren firmas para las normas:\n\n" + "\n".join(sorted(missing))
+            msg += "\n\n¿Desea agregar un supervisor que cubra estas normas ahora?"
+            abrir = messagebox.askyesno("Faltan firmas", msg)
+            if not abrir:
+                return False
+
+            # Pedir nombre y normas (prellenar con las faltantes)
+            nombre = simpledialog.askstring("Añadir supervisor", "Ingrese el nombre del supervisor que cubrirá las normas:", initialvalue="")
+            if not nombre or not str(nombre).strip():
+                return False
+            import re
+            normas_input = simpledialog.askstring("Normas", "Ingrese las normas separadas por comas", initialvalue=", ".join(sorted(missing)))
+            if not normas_input:
+                return False
+
+            normas_list = [p.strip() for p in re.split(r'[;,/\\|]', normas_input) if p and p.strip()]
+            new = {'nombre': str(nombre).strip(), 'normas': normas_list}
+            # Añadir al catálogo y guardar
+            supervisors.append(new)
+            self._save_supervisores_catalog(supervisors)
+            messagebox.showinfo("Supervisor agregado", f"Se agregó el supervisor '{new['nombre']}' con normas: {', '.join(new['normas'])}.")
+            return True
+        except Exception as e:
+            print("⚠️ Error en validación de normas:", e)
+            return False
 
     def verificar_datos_folios_existentes(self):
         """Verifica y repara datos de folios existentes para asegurar consistencia"""
@@ -2774,28 +4751,90 @@ class SistemaDictamenesVC(ctk.CTk):
             except Exception:
                 pass
 
-            # Además, leer el contador legacy `folio_counter.json` si existe y
-            # tomar como referencia el mayor entre ambos (archivos por visita
-            # vs contador). De esta forma el UI recuerda hasta dónde se
-            # avanzó aunque no haya archivos en `folios_visitas/`.
+            # Considerar reservas pendientes y folios recién calculados en memoria
             try:
-                data_dir = os.path.dirname(self.historial_path)
-                contador_path = os.path.join(data_dir, "folio_counter.json")
-                if os.path.exists(contador_path):
+                # `self.pending_folios` contiene reservas no persistidas o recién añadidas
+                for p in getattr(self, 'pending_folios', []) or []:
                     try:
-                        with open(contador_path, 'r', encoding='utf-8') as cf:
-                            j = json.load(cf) or {}
-                            last = int(j.get('last', 0))
-                            if last > maxf:
-                                maxf = last
+                        fus = p.get('folios_utilizados') or p.get('folios') or []
+                        if isinstance(fus, list):
+                            for f in fus:
+                                digits = ''.join([c for c in str(f) if c.isdigit()])
+                                if digits:
+                                    try:
+                                        n = int(digits)
+                                        if n > maxf:
+                                            maxf = n
+                                    except Exception:
+                                        pass
+                        else:
+                            digits = ''.join([c for c in str(fus) if c.isdigit()])
+                            if digits:
+                                try:
+                                    n = int(digits)
+                                    if n > maxf:
+                                        maxf = n
+                                except Exception:
+                                    pass
                     except Exception:
-                        pass
+                        continue
+
+                # También considerar `folios_utilizados_actual` (datos cargados desde la tabla)
+                try:
+                    for f in getattr(self, 'folios_utilizados_actual', []) or []:
+                        digits = ''.join([c for c in str(f) if c.isdigit()])
+                        if digits:
+                            try:
+                                n = int(digits)
+                                if n > maxf:
+                                    maxf = n
+                            except Exception:
+                                pass
+                except Exception:
+                    pass
             except Exception:
                 pass
+
+            # Además, consultar el contador maestro a través de `folio_manager`
+            # (usa `FOLIO_DATA_DIR` cuando esté definido). Esto evita que la
+            # UI lea un archivo distinto al que usa el proceso que reserva
+            # folios (por ejemplo, al ejecutar en .exe con rutas embebidas).
+            try:
+                import folio_manager
+                try:
+                    last = int(folio_manager.get_last() or 0)
+                    if last > maxf:
+                        maxf = last
+                except Exception:
+                    pass
+            except Exception:
+                # Fallback: mantener comportamiento anterior si folio_manager
+                # no está disponible por alguna razón.
+                try:
+                    data_dir = os.path.dirname(self.historial_path)
+                    contador_path = os.path.join(data_dir, "folio_counter.json")
+                    if os.path.exists(contador_path):
+                        try:
+                            with open(contador_path, 'r', encoding='utf-8') as cf:
+                                j = json.load(cf) or {}
+                                last = int(j.get('last', 0))
+                                if last > maxf:
+                                    maxf = last
+                        except Exception:
+                            pass
+                except Exception:
+                    pass
 
             return maxf + 1
         except Exception:
             return 1
+
+
+
+
+
+
+
 
     def _update_siguiente_folio_label(self):
         try:
@@ -2822,10 +4861,29 @@ class SistemaDictamenesVC(ctk.CTk):
             if hasattr(self, 'lbl_siguiente_folio_doc'):
                 try:
                     self.lbl_siguiente_folio_doc.configure(text=txt)
+                    # Forzar refresco inmediato del GUI para que el cambio se vea al instante
+                    try:
+                        self.update_idletasks()
+                    except Exception:
+                        try:
+                            self.update()
+                        except Exception:
+                            pass
                 except Exception:
                     pass
         except Exception:
             pass
+
+
+
+
+
+
+
+
+
+
+
 
     def limpiar_archivo(self):
         self.archivo_excel_cargado = None
@@ -2872,9 +4930,6 @@ class SistemaDictamenesVC(ctk.CTk):
             self.info_etiquetado.configure(text="")
             self.info_etiquetado.pack_forget()
 
-            # Además, eliminar backups temporales de tabla_relacion relacionados
-            # con la visita actual si existe (evita que tablas cargadas y luego
-            # limpiadas aparezcan como folios ocupados).
             try:
                 if hasattr(self, 'current_folio') and self.current_folio:
                     import re
@@ -2992,7 +5047,7 @@ class SistemaDictamenesVC(ctk.CTk):
                 if visit_actual and normas_en_datos:
                     # cargar Firmas.json para mapa nombre->normas
                     try:
-                        firmas_path = os.path.join(APP_DIR, 'data', 'Firmas.json')
+                        firmas_path = os.path.join(DATA_DIR, 'Firmas.json')
                         with open(firmas_path, 'r', encoding='utf-8') as ff:
                             firmas_data = json.load(ff)
                     except Exception:
@@ -3070,10 +5125,12 @@ class SistemaDictamenesVC(ctk.CTk):
                 # en caso de errores en la validación, continuar con confirmación normal
                 pass
 
+            tipo_sel = (self.combo_tipo_documento.get().strip() if hasattr(self, 'combo_tipo_documento') else 'Dictamen')
+            titulo_confirm = f"Generar {tipo_sel}s" if tipo_sel else "Generar Documentos"
             confirmacion = messagebox.askyesno(
-                "Generar Dictámenes",
-                f"¿Está seguro de que desea generar los dictámenes PDF?\n\n"
-                f"📄 Archivo: {os.path.basename(self.archivo_json_generado)}\n"
+                titulo_confirm,
+                f"¿Está seguro de que desea generar {tipo_sel.lower()}s?\n\n"
+                f"📄 Archivo: {os.path.basename(self.archivo_json_generado) if getattr(self, 'archivo_json_generado', None) else 'N/A'}\n"
                 f"👤 Cliente: {self.cliente_seleccionado['CLIENTE']}\n"
                 f"📋 RFC: {self.cliente_seleccionado.get('RFC', 'No disponible')}\n"
                 f"📊 Total de folios: {len(folios_ordenados)}"
@@ -3086,7 +5143,7 @@ class SistemaDictamenesVC(ctk.CTk):
             self.boton_generar_dictamen.configure(state="disabled")
             self.barra_progreso.set(0)
             self.etiqueta_progreso.configure(
-                text="⏳ Iniciando generación de dictámenes...",
+                text="⏳ Iniciando generación de documentos...",
                 text_color=STYLE["advertencia"]
             )
             self.update_idletasks()
@@ -3138,6 +5195,334 @@ class SistemaDictamenesVC(ctk.CTk):
             if not self.winfo_exists():
                 return
                 
+            # Seleccionar flujo según tipo de documento
+            tipo_sel = (self.combo_tipo_documento.get().strip() if hasattr(self, 'combo_tipo_documento') else 'Dictamen')
+            tipo_upper = tipo_sel.upper() if tipo_sel else 'DICTAMEN'
+
+            if 'CONSTANCIA' in tipo_upper:
+                # Generar JSONs de constancias en data/Constancias (siempre)
+                # Para los PDFs: abrir diálogo para que el usuario elija carpeta destino (si cancela: no se guardan PDFs)
+                try:
+                    import importlib.util, time
+                    const_file = os.path.join(BASE_DIR, 'Documentos Inspeccion', 'Constancia.py')
+                    if os.path.exists(const_file):
+                        spec = importlib.util.spec_from_file_location('Constancia', const_file)
+                        if spec and getattr(spec, 'loader', None):
+                            mod = importlib.util.module_from_spec(spec)
+                            sys.modules['Constancia'] = mod
+                            spec.loader.exec_module(mod)
+                        else:
+                            mod = None
+                    else:
+                        mod = None
+                except Exception:
+                    mod = None
+
+                created = []
+                errores = []
+                try:
+                    tabla_path = os.path.join(DATA_DIR, 'tabla_de_relacion.json')
+                    tabla_data = []
+                    if os.path.exists(tabla_path):
+                        with open(tabla_path, 'r', encoding='utf-8') as tf:
+                            tabla_data = json.load(tf) or []
+
+                    folios_sel = set(getattr(self, 'folios_utilizados_actual', []) or [])
+                    filas = []
+                    if tabla_data:
+                        for r in tabla_data:
+                            try:
+                                f = r.get('FOLIO')
+                                if f is None:
+                                    filas.append(r)
+                                    continue
+                                if folios_sel:
+                                    if (str(f).isdigit() and int(f) in folios_sel) or (str(f) in map(str, folios_sel)):
+                                        filas.append(r)
+                                else:
+                                    filas.append(r)
+                            except Exception:
+                                continue
+
+                    grupos = {}
+                    for r in filas:
+                        lista = r.get('LISTA') or r.get('Lista') or r.get('lista') or '0'
+                        grupos.setdefault(str(lista), []).append(r)
+
+                    try:
+                        sys.path.append(BASE_DIR)
+                        import generador_dictamen as gd
+                        limpiar_nombre = getattr(gd, 'limpiar_nombre_archivo', lambda n: n.replace('/', '_'))
+                    except Exception:
+                        limpiar_nombre = lambda n: n.replace('/', '_')
+
+                    ConstGen = getattr(mod, 'ConstanciaPDFGenerator', None) if mod is not None else None
+
+                    # Directorio para JSONs (siempre dentro de data/Constancias)
+                    out_base_json = os.path.join(DATA_DIR, 'Constancias')
+                    os.makedirs(out_base_json, exist_ok=True)
+
+                    # Solicitar al usuario la carpeta destino para los PDFs (se ejecuta en hilo UI)
+                    selected = {'done': False, 'path': None}
+                    def _askdir():
+                        try:
+                            p = filedialog.askdirectory(initialdir=DATA_DIR, title='Seleccionar carpeta destino para Constancias')
+                        except Exception:
+                            p = ''
+                        selected['path'] = p or ''
+                        selected['done'] = True
+
+                    # Llamar en thread principal
+                    if self.winfo_exists():
+                        self.after(0, _askdir)
+
+                    # esperar hasta que el usuario seleccione o cancele (timeout razonable)
+                    timeout = 60.0
+                    waited = 0.0
+                    while not selected['done'] and waited < timeout:
+                        time.sleep(0.05)
+                        waited += 0.05
+
+                    out_base_pdf = selected['path'] or None
+
+                    # Crear carpeta raíz timestamp una sola vez para todas las listas
+                    carpeta_raiz = None
+                    if out_base_pdf:
+                        dt_now_root = datetime.now()
+                        carpeta_raiz = os.path.join(out_base_pdf, f"Constancia_{dt_now_root.strftime('%Y%m%d_%H%M%S')}")
+                        os.makedirs(carpeta_raiz, exist_ok=True)
+
+                    for lista, filas_grp in grupos.items():
+                        try:
+                            solicitud_raw = ''
+                            if filas_grp:
+                                solicitud_raw = str(filas_grp[0].get('SOLICITUD') or '').strip()
+                            sol_no = ''
+                            sol_year = ''
+                            if '/' in solicitud_raw:
+                                parts = solicitud_raw.split('/')
+                                sol_no = parts[0].strip()
+                                sol_year = parts[1].strip() if len(parts) > 1 else ''
+                            else:
+                                sol_no = solicitud_raw
+
+                            folio_vis = (self.entry_folio_visita.get().strip() if hasattr(self, 'entry_folio_visita') else '') or str(filas_grp[0].get('FOLIO',''))
+                            fecha_em = (self.entry_fecha_termino.get().strip() if hasattr(self, 'entry_fecha_termino') else '') or datetime.now().strftime('%d/%m/%Y')
+                            cliente_name = self.cliente_seleccionado['CLIENTE'] if getattr(self, 'cliente_seleccionado', None) else ''
+                            rfc = (self.cliente_seleccionado.get('RFC','') if getattr(self, 'cliente_seleccionado', None) else '')
+                            no_contrato = (self.cliente_seleccionado.get('NÚMERO_DE_CONTRATO','') if getattr(self, 'cliente_seleccionado', None) else '')
+
+                            # Resolver norma y nombre de la norma consultando data/Normas.json cuando sea posible
+                            norma_raw = filas_grp[0].get('NORMA','') or filas_grp[0].get('NORMA UVA','') or filas_grp[0].get('NORMA_UVA','') or ''
+                            norma_val = str(norma_raw).strip()
+                            nombre_norma = ''
+                            try:
+                                normas_path = os.path.join(DATA_DIR, 'Normas.json')
+                                if os.path.exists(normas_path):
+                                    with open(normas_path, 'r', encoding='utf-8') as nf:
+                                        normas_raw = json.load(nf) or []
+                                        # soportar dos formatos: lista de objetos [{"NOM":..., "NOMBRE":...}] o dict {"NOM-...": {...}}
+                                        if isinstance(normas_raw, list):
+                                            for entry in normas_raw:
+                                                try:
+                                                    nom_code = (entry.get('NOM') or entry.get('NOMINA') or '')
+                                                    nom_name = entry.get('NOMBRE') or entry.get('NOMBRE DE NORMA') or ''
+                                                    if not nom_code:
+                                                        continue
+                                                    if norma_val and norma_val.isdigit():
+                                                        if norma_val.zfill(3) in nom_code or nom_code in norma_val:
+                                                            norma_val = nom_code
+                                                            nombre_norma = nom_name
+                                                            break
+                                                    else:
+                                                        if norma_val and (norma_val in nom_code or nom_code in norma_val):
+                                                            norma_val = nom_code
+                                                            nombre_norma = nom_name
+                                                            break
+                                                except Exception:
+                                                    # continuar con la siguiente entrada si hay datos inesperados
+                                                    continue
+                                            # fallback: si no se encontró y norma_val coincide exactamente con algún NOM
+                                            if not nombre_norma:
+                                                for entry in normas_raw:
+                                                    nom_code = entry.get('NOM') or ''
+                                                    if nom_code == norma_val:
+                                                        nombre_norma = entry.get('NOMBRE') or ''
+                                                        break
+                                        elif isinstance(normas_raw, dict):
+                                            normas_map = normas_raw
+                                            if norma_val and norma_val.isdigit():
+                                                search = norma_val.zfill(3)
+                                                for k, v in normas_map.items():
+                                                    if search in k or k in norma_val:
+                                                        if isinstance(v, dict):
+                                                            nombre_norma = v.get('NOMBRE', '') or v.get('NOMBRE DE NORMA', '') or ''
+                                                        else:
+                                                            nombre_norma = str(v)
+                                                        norma_val = k
+                                                        break
+                                            else:
+                                                for k, v in normas_map.items():
+                                                    if norma_val and (norma_val in k or k in norma_val):
+                                                        if isinstance(v, dict):
+                                                            nombre_norma = v.get('NOMBRE', '') or v.get('NOMBRE DE NORMA', '') or ''
+                                                        else:
+                                                            nombre_norma = str(v)
+                                                        norma_val = k
+                                                        break
+                                            if not nombre_norma and norma_val in normas_map:
+                                                v = normas_map.get(norma_val)
+                                                if isinstance(v, dict):
+                                                    nombre_norma = v.get('NOMBRE', '') or v.get('NOMBRE DE NORMA', '') or ''
+                                                else:
+                                                    nombre_norma = str(v)
+                            except Exception:
+                                pass
+
+                            datos_const = {
+                                'folio_constancia': folio_vis,
+                                'fecha_emision': fecha_em,
+                                'cliente': cliente_name,
+                                'rfc': rfc,
+                                'no_contrato': no_contrato,
+                                'fecha_contrato': '',
+                                'norma': norma_val,
+                                'normades': nombre_norma,
+                                'nombre_norma': nombre_norma,
+                                'producto': filas_grp[0].get('DESCRIPCION',''),
+                                'marca': filas_grp[0].get('MARCA',''),
+                                'modelo': filas_grp[0].get('MODELO',''),
+                                'tabla_relacion': filas_grp,
+                                'lista': lista
+                            }
+
+                            folio_num = str(filas_grp[0].get('FOLIO','') or '').strip()
+                            folio_for_name = folio_num
+
+                            # Crear una carpeta raíz `Constancias` dentro de la carpeta elegida por el usuario
+                            nombre_pdf = f"Constancia_Lista_{lista}_{folio_for_name}_{sol_no}_{sol_year}.pdf"
+                            nombre_pdf = limpiar_nombre(nombre_pdf)
+
+                            ruta_pdf = None
+                            if out_base_pdf and carpeta_raiz:
+                                # Crear subcarpeta por solicitud (usar solicitud_raw saneado)
+                                sol_folder_name = solicitud_raw or f"Solicitud_{lista}"
+                                try:
+                                    sol_folder_name = limpiar_nombre(sol_folder_name)
+                                except Exception:
+                                    sol_folder_name = f"Solicitud_{lista}"
+                                carpeta_solicitud = os.path.join(carpeta_raiz, sol_folder_name)
+                                os.makedirs(carpeta_solicitud, exist_ok=True)
+                                ruta_pdf = os.path.join(carpeta_solicitud, nombre_pdf)
+
+                            pdf_ok = False
+                            try:
+                                if ruta_pdf and ConstGen:
+                                    gen_inst = ConstGen(datos_const, base_dir=BASE_DIR)
+                                    ruta_generada = gen_inst.generar(ruta_pdf)
+                                    pdf_ok = True if ruta_generada and os.path.exists(ruta_generada) else False
+                                elif ruta_pdf and mod is not None:
+                                    try:
+                                        ruta_generada = getattr(mod, 'generar_constancia_desde_visita')(folio_vis, salida=ruta_pdf)
+                                        pdf_ok = True if ruta_generada and os.path.exists(ruta_generada) else False
+                                    except Exception:
+                                        pdf_ok = False
+                                else:
+                                    # Usuario canceló selección de carpeta para PDFs -> no generar PDF
+                                    pdf_ok = False
+                            except Exception:
+                                pdf_ok = False
+
+                            # Guardar JSON auxiliar dentro de data/Constancias (raíz)
+                            try:
+                                json_name = f"Constancia_Lista_{lista}_{folio_for_name}_{sol_no}_{sol_year}.json"
+                                json_name = limpiar_nombre(json_name)
+                                json_path = os.path.join(out_base_json, json_name)
+                                with open(json_path, 'w', encoding='utf-8') as jf:
+                                    json.dump(datos_const, jf, ensure_ascii=False, indent=2)
+                            except Exception:
+                                pass
+
+                            if pdf_ok:
+                                created.append(ruta_pdf)
+                                # --- Persistir folios y crear respaldo persistente de tabla_de_relacion
+                                try:
+                                    # Guardar folios específicos para esta visita (persistir contador)
+                                    try:
+                                        if filas_grp:
+                                            self.guardar_folios_visita(folio_vis, filas_grp, persist_counter=True)
+                                    except Exception:
+                                        pass
+
+                                    # Crear respaldo persistente de tabla_de_relacion para constancias
+                                    try:
+                                        tabla_relacion_path = os.path.join(DATA_DIR, 'tabla_de_relacion.json')
+                                        if os.path.exists(tabla_relacion_path):
+                                            backup_dir = os.path.join(DATA_DIR, 'tabla_relacion_backups')
+                                            os.makedirs(backup_dir, exist_ok=True)
+                                            ts = datetime.now().strftime('%Y%m%d%H%M%S')
+                                            dest_name = f"tabla_de_relacion_{folio_vis}_PERSIST_{ts}.json"
+                                            try:
+                                                shutil.copyfile(tabla_relacion_path, os.path.join(backup_dir, dest_name))
+                                                print(f"📦 Respaldo persistente creado para constancia: {dest_name}")
+                                            except Exception as e:
+                                                print(f"⚠️ No se pudo crear respaldo persistente de tabla_de_relacion para constancia: {e}")
+                                    except Exception:
+                                        pass
+                                except Exception:
+                                    pass
+                            else:
+                                # sólo registrar error si intentó generar y falló
+                                if ruta_pdf:
+                                    errores.append(lista)
+
+                        except Exception as e:
+                            errores.append((lista, str(e)))
+
+                except Exception as e:
+                    created = []
+                    errores.append(str(e))
+
+                # Preparar resultado y notificar
+                try:
+                    mensaje_final = f"✅ Se generaron {len(created)} constancias (PDF).\n"
+                    if out_base_pdf:
+                        mensaje_final += f"\n📁 Ubicación PDFs: {out_base_pdf}"
+                    else:
+                        mensaje_final += "\nℹ️ No se guardaron PDFs (usuario no seleccionó carpeta)."
+
+                    mensaje_final += f"\n\n📁 JSONs guardados en: {out_base_json}"
+
+                    if errores:
+                        mensaje_final += f"\n\n⚠️ Errores en listas: {errores}"
+
+                    if self.winfo_exists():
+                        self.after(0, lambda: messagebox.showinfo("Generación Completada", mensaje_final) if self.winfo_exists() else None)
+
+                    resultado = {
+                        'directorio': out_base_pdf or out_base_json,
+                        'total_generados': len(created),
+                        'total_familias': len(grupos),
+                        'dictamenes_fallidos': len(errores),
+                        'folios_utilizados': getattr(self, 'folios_utilizados_actual', [])
+                    }
+                    try:
+                        resultado['folios_utilizados_info'] = getattr(self, 'folios_utilizados_actual', [])
+                        self.registrar_visita_automatica(resultado)
+                    except Exception:
+                        pass
+
+                    # Abrir carpeta seleccionada por el usuario (si existe)
+                    try:
+                        if out_base_pdf and os.path.exists(out_base_pdf) and self.winfo_exists():
+                            self.after(1000, lambda: self._abrir_carpeta(out_base_pdf) if self.winfo_exists() else None)
+                    except Exception:
+                        pass
+                except Exception:
+                    pass
+                return
+
+            # flujo por defecto: dictámenes
             sys.path.append(BASE_DIR)
             from generador_dictamen import generar_dictamenes_gui
             
@@ -3200,7 +5585,7 @@ class SistemaDictamenesVC(ctk.CTk):
 
                                 # Eliminar de archivo de reservas
                                 try:
-                                    pf = os.path.join(APP_DIR, 'data', 'pending_folios.json')
+                                    pf = os.path.join(DATA_DIR, 'pending_folios.json')
                                     if os.path.exists(pf):
                                         with open(pf, 'r', encoding='utf-8') as f:
                                             arr = json.load(f) or []
@@ -3327,6 +5712,8 @@ class SistemaDictamenesVC(ctk.CTk):
             # No bloquear la aplicación por errores en esta actualización
             print(f"Error actualizando tipo de documento UI: {e}")
 
+        
+
         # Refrescar lista de folios pendientes en el combobox (si existe)
         try:
             if hasattr(self, '_refresh_pending_folios_dropdown'):
@@ -3427,14 +5814,18 @@ class SistemaDictamenesVC(ctk.CTk):
                 "cp": getattr(self, 'cp_seleccionado', '')
             }
 
-            # DEBUG: imprimir payload que vamos a guardar
+            # Log breve: indicar folio guardado (evitar volcar todo el payload)
             try:
-                print(f"[DEBUG] guardar_folio_historial payload: {json.dumps(payload, ensure_ascii=False)}")
+                print(f"[INFO] Visita pendiente guardada: {payload.get('folio_visita','-')} tipo={payload.get('tipo_documento','-')}")
             except Exception:
-                print(f"[DEBUG] guardar_folio_historial payload: {payload}")
+                try:
+                    print(f"[INFO] Visita pendiente guardada")
+                except Exception:
+                    pass
 
-            # Guardar usando la función existente
-            self.hist_create_visita(payload)
+            # Guardar usando la función existente (suprimir notificación interna
+            # porque este llamador mostrará su propio messagebox)
+            self.hist_create_visita(payload, show_notification=False)
             try:
                 # actualizar indicador visual del siguiente folio
                 self._update_siguiente_folio_label()
@@ -3442,7 +5833,7 @@ class SistemaDictamenesVC(ctk.CTk):
                 pass
             # Persistir también en archivo de reservas (pending_folios.json)
             try:
-                pf_path = os.path.join(APP_DIR, 'data', 'pending_folios.json')
+                pf_path = os.path.join(DATA_DIR, 'pending_folios.json')
                 arr = []
                 if os.path.exists(pf_path):
                     try:
@@ -3456,6 +5847,17 @@ class SistemaDictamenesVC(ctk.CTk):
                     with open(pf_path, 'w', encoding='utf-8') as f:
                         json.dump(arr, f, ensure_ascii=False, indent=2)
                     self.pending_folios = arr
+                    # Forzar refresco inmediato de la UI de folios pendientes
+                    try:
+                        if hasattr(self, '_refresh_pending_folios_dropdown'):
+                            self._refresh_pending_folios_dropdown()
+                    except Exception:
+                        pass
+                    try:
+                        if hasattr(self, 'cliente_folios_frame') and not self.cliente_folios_frame.winfo_ismapped():
+                            self.cliente_folios_frame.pack(fill="x", pady=(4,4))
+                    except Exception:
+                        pass
             except Exception as e:
                 print(f"[WARN] No se pudo persistir reserva en pending_folios.json: {e}")
             # DEBUG: leer historial inmediatamente y confirmar último registro
@@ -3493,95 +5895,20 @@ class SistemaDictamenesVC(ctk.CTk):
         `data/tabla_de_relacion.json` asignando un folio por familia (LISTA).
         """
         try:
-            data_dir = os.path.join(APP_DIR, 'data')
-            tabla_path = os.path.join(data_dir, 'tabla_de_relacion.json')
-            if not os.path.exists(tabla_path):
-                # Si no existe la tabla de relación, reservar el folio directamente
-                # usando los datos del formulario (comportamiento original).
-                try:
-                    self.guardar_folio_historial()
-                except Exception as e:
-                    # No interrumpir con un diálogo; registrar error y retornar
-                    print(f"[ERROR] reservar_folios_tabla -> guardar_folio_historial: {e}")
-                return
-
-            with open(tabla_path, 'r', encoding='utf-8') as f:
-                registros = json.load(f) or []
-
-            # Agrupar por LISTA (si no existe, intentar 'lista')
-            familias = {}
-            for r in registros:
-                llave = r.get('LISTA') or r.get('lista') or r.get('Lista') or r.get('Lista')
-                if llave is None:
-                    # fallback: usar índice por fila
-                    llave = f"_ROW_{len(familias)}"
-                familias.setdefault(str(llave), []).append(r)
-
-            total_needed = len(familias)
-            if total_needed <= 0:
-                messagebox.showinfo("Sin familias", "No se detectaron familias/listas en la tabla para reservar folios.")
-                return
-
-            # Reservar bloque atómico
+            # Esta función fue simplificada: ya no requiere ni usa
+            # `tabla_de_relacion.json`. El botón "Reservar Folio" únicamente
+            # guarda la visita actual como pendiente en el historial y en
+            # `pending_folios.json` para que el usuario la seleccione después.
             try:
-                start = folio_manager.reserve_block(total_needed)
+                self.guardar_folio_historial()
             except Exception as e:
-                # intentar obtener último conocido y calcular
-                try:
-                    last = folio_manager.get_last()
-                    start = int(last) + 1
-                    folio_manager.set_last(int(last) + int(total_needed))
-                except Exception:
-                    messagebox.showerror("Reserva fallida", f"No se pudo reservar folios: {e}")
-                    return
-
-            # Asignar folios por familia en orden determinista (orden de claves)
-            claves = sorted(list(familias.keys()))
-            current = int(start)
-            for k in claves:
-                for rec in familias[k]:
-                    try:
-                        rec['FOLIO'] = int(current)
-                    except Exception:
-                        rec['FOLIO'] = str(current)
-                current += 1
-
-            # Hacer backup antes de sobrescribir
-            backups_dir = os.path.join(data_dir, 'tabla_relacion_backups')
-            os.makedirs(backups_dir, exist_ok=True)
-            ts = datetime.now().strftime('%Y%m%d_%H%M%S')
-            backup_name = f"tabla_relacion_backup_{start:06d}_{ts}.json"
-            backup_path = os.path.join(backups_dir, backup_name)
-            try:
-                # Copiar el archivo existente para preservar su formato exacto
-                if os.path.exists(tabla_path):
-                    shutil.copyfile(tabla_path, backup_path)
-                else:
-                    with open(backup_path, 'w', encoding='utf-8') as bf:
-                        json.dump(registros, bf, ensure_ascii=False, indent=2)
-            except Exception:
-                pass
-
-            # Sobrescribir tabla_de_relacion.json
-            try:
-                with open(tabla_path, 'w', encoding='utf-8') as f:
-                    json.dump(registros, f, ensure_ascii=False, indent=2)
-            except Exception as e:
-                messagebox.showerror("Error guardando tabla", f"No se pudo actualizar tabla_de_relacion.json: {e}")
-                return
-
-            # Actualizar UI y estado
-            try:
-                # Forzar recalcular info_folios_actual
-                self._extraer_informacion_folios(registros)
-                self._update_siguiente_folio_label()
-            except Exception:
-                pass
-
-            messagebox.showinfo("Reserva completada", f"Reservados {total_needed} folios empezando desde {int(start):06d}. Tabla actualizada.")
-
+                print(f"[ERROR] reservar_folios_tabla -> guardar_folio_historial: {e}")
         except Exception as e:
-            messagebox.showerror("Error", f"Error al reservar folios: {e}")
+            # No interrumpimos la UX: mostrar un error genérico si ocurre
+            try:
+                messagebox.showerror("Error", f"Error guardando visita: {e}")
+            except Exception:
+                print(f"Error guardando visita: {e}")
 
     def _finalizar_generacion(self):
         if self.winfo_exists():  # Verificar si la ventana aún existe
@@ -3742,7 +6069,7 @@ class SistemaDictamenesVC(ctk.CTk):
                         assigned_nums = set()
                     # Log early read result
                     try:
-                        dbg_dir_early = os.path.join(APP_DIR, 'data')
+                        dbg_dir_early = DATA_DIR
                         os.makedirs(dbg_dir_early, exist_ok=True)
                         dbg_path_early = os.path.join(dbg_dir_early, 'hist_borrar_debug.log')
                         from datetime import datetime as _dt
@@ -3755,6 +6082,10 @@ class SistemaDictamenesVC(ctk.CTk):
 
             # Recalcular el folio actual (buscar el siguiente disponible)
             self.cargar_ultimo_folio()
+            try:
+                self._update_siguiente_folio_label()
+            except Exception:
+                pass
             # Además de borrar el registro en el historial, eliminar archivos JSON
             # de dictámenes que correspondan a los folios asociados a esta visita.
             try:
@@ -3871,7 +6202,7 @@ class SistemaDictamenesVC(ctk.CTk):
                         pass
 
                 # Ruta a data/Dictamenes (compatible con exe y desarrollo)
-                dicts_dir = os.path.join(APP_DIR, 'data', 'Dictamenes')
+                dicts_dir = os.path.join(DATA_DIR, 'Dictamenes')
                 deleted_files = []
                 # Siempre escanear `data/Dictamenes` para intentar localizar archivos
                 # relacionados con la visita aunque no tengamos `folios_a_eliminar`.
@@ -4029,7 +6360,7 @@ class SistemaDictamenesVC(ctk.CTk):
                     existing = set()
                     # Escanear data/Dictamenes
                     try:
-                        dicts_dir = os.path.join(APP_DIR, 'data', 'Dictamenes')
+                        dicts_dir = os.path.join(DATA_DIR, 'Dictamenes')
                         if os.path.exists(dicts_dir):
                             for fn in os.listdir(dicts_dir):
                                 if not fn.lower().endswith('.json'):
@@ -4055,7 +6386,7 @@ class SistemaDictamenesVC(ctk.CTk):
 
                     # Escanear data/folios_visitas
                     try:
-                        fv_dir = os.path.join(APP_DIR, 'data', 'folios_visitas')
+                        fv_dir = os.path.join(DATA_DIR, 'folios_visitas')
                         if os.path.exists(fv_dir):
                             for ffn in os.listdir(fv_dir):
                                 if not ffn.lower().endswith('.json'):
@@ -4224,7 +6555,7 @@ class SistemaDictamenesVC(ctk.CTk):
                                     set_ok = False
                                 if not set_ok:
                                     try:
-                                        fc_dir = os.path.join(APP_DIR, 'data')
+                                        fc_dir = DATA_DIR
                                         os.makedirs(fc_dir, exist_ok=True)
                                         tmp_path = os.path.join(fc_dir, 'folio_counter.json.tmp')
                                         real_path = os.path.join(fc_dir, 'folio_counter.json')
@@ -4247,7 +6578,7 @@ class SistemaDictamenesVC(ctk.CTk):
 
                     # Write debug log entries
                     try:
-                        dbg_dir = os.path.join(APP_DIR, 'data')
+                        dbg_dir = DATA_DIR
                         os.makedirs(dbg_dir, exist_ok=True)
                         dbg_path = os.path.join(dbg_dir, 'hist_borrar_debug.log')
                         with open(dbg_path, 'a', encoding='utf-8') as dbgf:
@@ -4301,6 +6632,37 @@ class SistemaDictamenesVC(ctk.CTk):
             # ACTUALIZAR self.historial_data DESDE self.historial
             self.historial_data = self.historial.get("visitas", [])
             self.historial_data_original = self.historial_data.copy()
+
+            # Ordenar historial por `folio_visita` (CP) de menor a mayor cuando sea posible.
+            # Intentamos extraer el primer número presente en el campo `folio_visita` y
+            # ordenar numéricamente; si no es posible, caer al comparador de texto.
+            try:
+                import re
+                def _folio_key(rec):
+                    try:
+                        fv = str(rec.get('folio_visita') or '')
+                    except Exception:
+                        fv = ''
+                    # Buscar primer bloque de dígitos
+                    m = re.search(r'(\d+)', fv)
+                    if m:
+                        try:
+                            return int(m.group(1))
+                        except Exception:
+                            pass
+                    # Intentar convertir entero directo
+                    try:
+                        return int(fv)
+                    except Exception:
+                        return fv.lower() if isinstance(fv, str) else fv
+
+                visitas_list = self.historial.get('visitas')
+                if isinstance(visitas_list, list) and visitas_list:
+                    visitas_list.sort(key=_folio_key)
+                    # Asegurar que self.historial_data refleje el orden actual
+                    self.historial_data = visitas_list
+            except Exception:
+                pass
             
             # Determinar ruta de guardado (soporte para .exe congelado y rutas no escribibles)
             target_path = self.historial_path
@@ -4316,7 +6678,7 @@ class SistemaDictamenesVC(ctk.CTk):
                 # al usuario. Solo si eso falla, redirigir a APPDATA.
                 if getattr(sys, 'frozen', False):
                     try:
-                        app_data_dir = os.path.join(APP_DIR, 'data')
+                        app_data_dir = DATA_DIR
                         os.makedirs(app_data_dir, exist_ok=True)
                         if os.access(app_data_dir, os.W_OK):
                             target_path = os.path.join(app_data_dir, os.path.basename(self.historial_path))
@@ -4454,6 +6816,23 @@ class SistemaDictamenesVC(ctk.CTk):
             self._cargar_historial()
             self._force_reload_hist = False
         regs = getattr(self, 'historial_data', []) or []
+
+        # Ordenar visitas por folio_visita (CP) ascendente, y luego por folio_acta (AC)
+        try:
+            def _folio_key(r):
+                def digits_of(s):
+                    try:
+                        s = str(s) or ''
+                        digs = ''.join([c for c in s if c.isdigit()])
+                        return int(digs) if digs else 0
+                    except Exception:
+                        return 0
+
+                return (digits_of(r.get('folio_visita') or r.get('folio') or ''), digits_of(r.get('folio_acta') or ''))
+
+            regs = sorted(regs, key=_folio_key)
+        except Exception:
+            pass
 
         total_registros = len(regs)
         regs_pagina = self.HISTORIAL_REGS_POR_PAGINA
@@ -4788,7 +7167,7 @@ class SistemaDictamenesVC(ctk.CTk):
                         return
 
                     # Preferir el backup más reciente en data/tabla_relacion_backups si existe
-                    data_dir_local = os.path.join(APP_DIR, 'data')
+                    data_dir_local = DATA_DIR
                     backups_dir = os.path.join(data_dir_local, 'tabla_relacion_backups')
                     tabla_dest = os.path.join(data_dir_local, 'tabla_de_relacion.json')
 
@@ -4859,7 +7238,7 @@ class SistemaDictamenesVC(ctk.CTk):
                     return
 
                 # Asegurar que usamos el backup más reciente para tabla_de_relacion
-                data_dir_local = os.path.join(APP_DIR, 'data')
+                data_dir_local = DATA_DIR
                 backups_dir = os.path.join(data_dir_local, 'tabla_relacion_backups')
                 tabla_dest = os.path.join(data_dir_local, 'tabla_de_relacion.json')
 
@@ -5290,6 +7669,8 @@ class SistemaDictamenesVC(ctk.CTk):
         try:
             if not datos_tabla:
                 print(f"⚠️ No hay datos de folios para guardar en la visita {folio_visita}")
+
+            
                 return False
             
             # Preparar datos para el archivo JSON
@@ -5298,7 +7679,7 @@ class SistemaDictamenesVC(ctk.CTk):
             # Cargar mapeos de firmas -> nombre completo y de normas
             firmas_map = {}
             try:
-                firmas_path = os.path.join(APP_DIR, 'data', 'Firmas.json')
+                firmas_path = os.path.join(DATA_DIR, 'Firmas.json')
                 if os.path.exists(firmas_path):
                     with open(firmas_path, 'r', encoding='utf-8') as ff:
                         fdata = json.load(ff) or []
@@ -5315,7 +7696,7 @@ class SistemaDictamenesVC(ctk.CTk):
 
             normas_map = {}
             try:
-                normas_path = os.path.join(APP_DIR, 'data', 'Normas.json')
+                normas_path = os.path.join(DATA_DIR, 'Normas.json')
                 if os.path.exists(normas_path):
                     with open(normas_path, 'r', encoding='utf-8') as nf:
                         ndata = json.load(nf) or []
@@ -5479,7 +7860,7 @@ class SistemaDictamenesVC(ctk.CTk):
                                 except Exception:
                                     # Fallback atómico directo al archivo si folio_manager falla
                                     try:
-                                        counter_path = os.path.join(APP_DIR, 'data', 'folio_counter.json')
+                                        counter_path = os.path.join(DATA_DIR, 'folio_counter.json')
                                         tmp = counter_path + '.tmp'
                                         with open(tmp, 'w', encoding='utf-8') as tf:
                                             json.dump({'last': int(safe_max)}, tf)
@@ -5501,24 +7882,6 @@ class SistemaDictamenesVC(ctk.CTk):
         except Exception as e:
             print(f"❌ Error guardando folios para visita {folio_visita}: {e}")
             return False
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
     def descargar_folios_visita(self, registro):
         """Descarga los folios de una visita en formato Excel con columnas personalizadas"""
@@ -5554,7 +7917,7 @@ class SistemaDictamenesVC(ctk.CTk):
             try:
                 # Buscar backups específicos para esta visita en data/tabla_relacion_backups
                 try:
-                    backups_dir = os.path.join(APP_DIR, 'data', 'tabla_relacion_backups')
+                    backups_dir = os.path.join(DATA_DIR, 'tabla_relacion_backups')
                 except Exception:
                     backups_dir = os.path.join(os.path.dirname(__file__), 'data', 'tabla_relacion_backups')
 
@@ -5788,28 +8151,6 @@ class SistemaDictamenesVC(ctk.CTk):
         except Exception as e:
             messagebox.showerror("Error", f"No se pudieron descargar los folios:\n{str(e)}")
     
-    
-    
-    
-    
-    
-    
-    
-
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
     # ----------------- FOLIOS PENDIENTES (UI helpers) -----------------
     def _get_folios_pendientes(self):
         """Retorna lista de registros pendientes.
@@ -5851,7 +8192,7 @@ class SistemaDictamenesVC(ctk.CTk):
                     pendientes_source = list(self.pending_folios)
                 else:
                     # intentar leer archivo
-                    pf = os.path.join(APP_DIR, 'data', 'pending_folios.json')
+                    pf = os.path.join(DATA_DIR, 'pending_folios.json')
                     if os.path.exists(pf):
                         with open(pf, 'r', encoding='utf-8') as f:
                             pendientes_source = json.load(f) or []
@@ -5959,6 +8300,16 @@ class SistemaDictamenesVC(ctk.CTk):
                                 self.combo_folios_pendientes.set("")
                         except Exception:
                             self.combo_folios_pendientes.set(vals[0])
+                        try:
+                            # Intentar abrir el desplegable para que el usuario vea las opciones
+                            try:
+                                self.combo_folios_pendientes.focus_set()
+                                self.combo_folios_pendientes.event_generate('<Button-1>')
+                                self.combo_folios_pendientes.event_generate('<Down>')
+                            except Exception:
+                                pass
+                        except Exception:
+                            pass
                     else:
                         # No hay reservas: ocultar los widgets relacionados
                         try:
@@ -6130,7 +8481,12 @@ class SistemaDictamenesVC(ctk.CTk):
                 self._refresh_pending_folios_dropdown()
             except Exception:
                 pass
-            messagebox.showinfo("Desmarcado", "La selección del folio reservado ha sido desactivada. La reserva se mantiene hasta que se utilice o se elimine.")
+
+            # Actualizar etiqueta de siguiente folio en la UI sin mostrar popup
+            try:
+                self._update_siguiente_folio_label()
+            except Exception:
+                pass
         except Exception as e:
             messagebox.showerror("Error", f"No se pudo desmarcar la selección: {e}")
 
@@ -6184,7 +8540,7 @@ class SistemaDictamenesVC(ctk.CTk):
 
             # También eliminar de archivo de reservas si existe
             try:
-                pf_path = os.path.join(APP_DIR, 'data', 'pending_folios.json')
+                pf_path = os.path.join(DATA_DIR, 'pending_folios.json')
                 if os.path.exists(pf_path):
                     with open(pf_path, 'r', encoding='utf-8') as f:
                         arr = json.load(f) or []
@@ -6246,7 +8602,7 @@ class SistemaDictamenesVC(ctk.CTk):
 
     def _save_pending_folios(self):
         """Guarda `self.pending_folios` en data/pending_folios.json con lock y escritura atómica."""
-        pf = os.path.join(APP_DIR, 'data', 'pending_folios.json')
+        pf = os.path.join(DATA_DIR, 'pending_folios.json')
         lock_path = pf + '.lock'
         fd = None
         try:
@@ -6281,7 +8637,7 @@ class SistemaDictamenesVC(ctk.CTk):
 
     def _read_pending_folios_disk(self, timeout=2.0):
         """Lee `pending_folios.json` desde disco usando lock. Devuelve lista de dicts."""
-        pf = os.path.join(APP_DIR, 'data', 'pending_folios.json')
+        pf = os.path.join(DATA_DIR, 'pending_folios.json')
         lock_path = pf + '.lock'
         try:
             fd = self._acquire_file_lock(lock_path, timeout=timeout)
@@ -6368,13 +8724,13 @@ class SistemaDictamenesVC(ctk.CTk):
                 for key in ('tabla_de_relacion', 'clientes', 'export_cache', 'tabla_backups_dir'):
                     val = self.excel_export_config.get(key)
                     if val and not os.path.exists(val):
-                        candidate = os.path.join(APP_DIR, 'data', os.path.basename(val))
+                        candidate = os.path.join(DATA_DIR, os.path.basename(val))
                         if os.path.exists(candidate):
                             self.excel_export_config[key] = candidate
                         else:
                             # special case: backups dir should be a directory
                             if key == 'tabla_backups_dir':
-                                candidate_dir = os.path.join(APP_DIR, 'data', os.path.basename(val) if os.path.basename(val) else 'tabla_relacion_backups')
+                                candidate_dir = os.path.join(DATA_DIR, os.path.basename(val) if os.path.basename(val) else 'tabla_relacion_backups')
                                 self.excel_export_config[key] = candidate_dir
             except Exception:
                 pass
@@ -6810,7 +9166,7 @@ class SistemaDictamenesVC(ctk.CTk):
 
         try:
             # 1) Extraer de folios_{folio}.json si existe
-            folios_visita_dir = getattr(self, 'folios_visita_path', os.path.join(APP_DIR, 'data', 'folios_visitas'))
+            folios_visita_dir = getattr(self, 'folios_visita_path', os.path.join(DATA_DIR, 'folios_visitas'))
             folio_file = os.path.join(folios_visita_dir, f"folios_{folio}.json")
             if os.path.exists(folio_file):
                 try:
@@ -7032,6 +9388,75 @@ class SistemaDictamenesVC(ctk.CTk):
             except Exception as e:
                 resultados['errores'].append(f"Error eliminando dictámenes asociados: {e}")
 
+            # 7) Eliminar constancias en data/Constancias que coincidan
+            try:
+                const_dir = os.path.join(APP_DIR, 'data', 'Constancias')
+                if os.path.exists(const_dir) and (folios_a_eliminar or solicitudes_a_eliminar or folio):
+                    for fn in os.listdir(const_dir):
+                        if not fn.lower().endswith('.json'):
+                            continue
+                        if 'style' in fn.lower():
+                            continue
+                        fp = os.path.join(const_dir, fn)
+                        try:
+                            with open(fp, 'r', encoding='utf-8') as jf:
+                                cdata = json.load(jf)
+                        except Exception:
+                            continue
+
+                        match = False
+                        # Revisar campo 'folio_constancia'
+                        try:
+                            fol_file = str(cdata.get('folio_constancia') or '').strip()
+                            if fol_file:
+                                fol_file_digits = ''.join([c for c in fol_file if c.isdigit()])
+                                # comparar con folios_a_eliminar
+                                for f_candidate in folios_a_eliminar:
+                                    f_c = ''.join([c for c in str(f_candidate) if c.isdigit()]) or str(f_candidate)
+                                    if f_c and (f_c == fol_file_digits.lstrip('0') or f_c == fol_file_digits or f_c == fol_file_digits.zfill(6) or f_c == fol_file):
+                                        match = True
+                                        break
+                                if not match:
+                                    if fol_file == str(folio):
+                                        match = True
+                        except Exception:
+                            pass
+
+                        # Revisar campo 'origen_visita' para folio_visita u otros identificadores
+                        if not match:
+                            try:
+                                ov = cdata.get('origen_visita') or {}
+                                if isinstance(ov, dict):
+                                    ov_candidates = [ov.get('folio_visita'), ov.get('folio'), ov.get('folio_acta'), ov.get('folio_acta_visita')]
+                                else:
+                                    ov_candidates = [ov]
+                                for oc in ov_candidates:
+                                    try:
+                                        if not oc:
+                                            continue
+                                        oc_str = str(oc).strip()
+                                        oc_digits = ''.join([c for c in oc_str if c.isdigit()])
+                                        for f_candidate in folios_a_eliminar:
+                                            f_c = ''.join([c for c in str(f_candidate) if c.isdigit()]) or str(f_candidate)
+                                            if f_c and (f_c == oc_digits.lstrip('0') or f_c == oc_digits or f_c == oc_digits.zfill(6) or f_c == oc_str):
+                                                match = True
+                                                break
+                                        if match:
+                                            break
+                                    except Exception:
+                                        continue
+                            except Exception:
+                                pass
+
+                        if match:
+                            try:
+                                os.remove(fp)
+                                resultados['eliminados'].append(f"Constancia eliminada: {fn}")
+                            except Exception as e:
+                                resultados['errores'].append(f"Error eliminando constancia {fn}: {e}")
+            except Exception as e:
+                resultados['errores'].append(f"Error eliminando constancias asociadas: {e}")
+
         except Exception as e:
             resultados['errores'].append(f"Error general en eliminación: {str(e)}")
 
@@ -7192,6 +9617,13 @@ class SistemaDictamenesVC(ctk.CTk):
                 resultados["eliminados"].append("✅ Entrada en historial visitas")
             else:
                 resultados["errores"].append("⚠️ Error al sincronizar historial")
+
+            # Forzar actualización de la etiqueta de siguiente folio tras eliminación
+            try:
+                if hasattr(self, '_update_siguiente_folio_label'):
+                    self._update_siguiente_folio_label()
+            except Exception:
+                pass
             
             # Adicional: eliminar entradas de data/tabla_de_relacion.json que pertenezcan a estos folios
             try:
@@ -7277,11 +9709,11 @@ class SistemaDictamenesVC(ctk.CTk):
                         except Exception:
                             pass
 
-                tabla_relacion_path = os.path.join(APP_DIR, 'data', 'tabla_de_relacion.json')
+                tabla_relacion_path = os.path.join(DATA_DIR, 'tabla_de_relacion.json')
                 if os.path.exists(tabla_relacion_path):
                     # Hacer backup antes de modificar
                     try:
-                        backup_dir = os.path.join(APP_DIR, 'data', 'tabla_relacion_backups')
+                        backup_dir = os.path.join(DATA_DIR, 'tabla_relacion_backups')
                         os.makedirs(backup_dir, exist_ok=True)
                         ts = datetime.now().strftime('%Y%m%d%H%M%S')
                         # Crear solo un PERSIST por CP: si ya existe, no crear nuevos backups.
@@ -7469,6 +9901,10 @@ class SistemaDictamenesVC(ctk.CTk):
             # Recalcular folio actual en memoria y UI para que tome efecto inmediato
             try:
                 self.cargar_ultimo_folio()
+                try:
+                    self._update_siguiente_folio_label()
+                except Exception:
+                    pass
             except Exception:
                 pass
             
@@ -7493,7 +9929,7 @@ class SistemaDictamenesVC(ctk.CTk):
             print(f"❌ Error en hist_eliminar_registro: {e}")
             messagebox.showerror("Error", f"No se pudo eliminar el registro:\n{e}")
 
-    def hist_create_visita(self, payload, es_automatica=False):
+    def hist_create_visita(self, payload, es_automatica=False, show_notification=True):
         """Crea una nueva visita en el historial"""
         try:
             # Generar ID único
@@ -7530,6 +9966,40 @@ class SistemaDictamenesVC(ctk.CTk):
                     for k in ('direccion','calle_numero','colonia','municipio','ciudad_estado','cp'):
                         if k not in payload:
                             payload[k] = ''
+                    # ---------- Validación de unicidad (CP/AC) ----------
+                    try:
+                        new_fv = str(payload.get('folio_visita', '') or '').strip()
+                        new_fa = str(payload.get('folio_acta', '') or '').strip()
+                        # Leer versión en disco para evitar duplicados entre procesos
+                        try:
+                            hist_path = getattr(self, 'historial_path', None) or os.path.join(DATA_DIR, 'historial_visitas.json')
+                            if os.path.exists(hist_path):
+                                with open(hist_path, 'r', encoding='utf-8') as hf:
+                                    hobj = json.load(hf) or {}
+                                    disk_visitas = hobj.get('visitas', []) if isinstance(hobj, dict) else (hobj or [])
+                            else:
+                                disk_visitas = self.historial.get('visitas', []) or []
+                        except Exception:
+                            disk_visitas = self.historial.get('visitas', []) or []
+
+                        if new_fv:
+                            # Utilizar helper centralizado que chequea historial en disco
+                            if self._folio_visita_exists(new_fv, exclude_id=None if existing_idx is None else self.historial.get('visitas', [])[existing_idx].get('_id')):
+                                messagebox.showwarning("Folio duplicado", f"El folio de visita {new_fv} ya está en uso. No se puede duplicar CP.")
+                                return
+                        if new_fa:
+                            for idx2, vv in enumerate(disk_visitas or []):
+                                try:
+                                    if idx2 == existing_idx:
+                                        continue
+                                    other_fa = str(vv.get('folio_acta', '') or '').strip()
+                                    if other_fa and other_fa.lower() == new_fa.lower():
+                                        messagebox.showwarning("Folio duplicado", f"El folio de acta {new_fa} ya está en uso. No se puede duplicar AC.")
+                                        return
+                                except Exception:
+                                    continue
+                    except Exception:
+                        pass
                     # Asegurar que cp sea string (preservar ceros a la izquierda si los hay)
                     try:
                         if payload.get('cp') is not None and payload.get('cp') != '':
@@ -7623,6 +10093,18 @@ class SistemaDictamenesVC(ctk.CTk):
                         self.cargar_ultimo_folio()
                     except Exception:
                         pass
+                    try:
+                        if hasattr(self, '_update_siguiente_folio_label'):
+                            self._update_siguiente_folio_label()
+                    except Exception:
+                        pass
+
+                    # Forzar actualización visual de la etiqueta de siguiente folio
+                    try:
+                        if hasattr(self, '_update_siguiente_folio_label'):
+                            self._update_siguiente_folio_label()
+                    except Exception:
+                        pass
 
                     # Refrescar dropdown de folios pendientes al añadir una visita
                     try:
@@ -7631,7 +10113,7 @@ class SistemaDictamenesVC(ctk.CTk):
                     except Exception:
                         pass
 
-                    if not es_automatica:
+                    if not es_automatica and show_notification:
                         messagebox.showinfo("OK", f"Visita {payload.get('folio_visita','-')} guardada correctamente")
 
                     # DEBUG: mostrar resumen mínimo del historial después de añadir
@@ -7833,6 +10315,42 @@ class SistemaDictamenesVC(ctk.CTk):
                                             continue
                                 except Exception:
                                     pass
+                    except Exception:
+                        pass
+
+                    # Antes de reemplazar, validar unicidad CP/AC frente a otros registros
+                    try:
+                        new_fv = str(actualizado.get('folio_visita','') or '').strip()
+                        new_fa = str(actualizado.get('folio_acta','') or '').strip()
+                        # Leer versión en disco para evitar duplicados entre procesos
+                        try:
+                            hist_path = getattr(self, 'historial_path', None) or os.path.join(DATA_DIR, 'historial_visitas.json')
+                            if os.path.exists(hist_path):
+                                with open(hist_path, 'r', encoding='utf-8') as hf:
+                                    hobj = json.load(hf) or {}
+                                    disk_visitas = hobj.get('visitas', []) if isinstance(hobj, dict) else (hobj or [])
+                            else:
+                                disk_visitas = visitas
+                        except Exception:
+                            disk_visitas = visitas
+
+                        # Usar helper para validar folio de visita (excluir el registro actual por _id)
+                        exclude_id = actualizado.get('_id') or None
+                        if new_fv and self._folio_visita_exists(new_fv, exclude_id=exclude_id):
+                            messagebox.showwarning("Folio duplicado", f"El folio de visita {new_fv} ya está en uso por otro registro. No se puede duplicar CP.")
+                            return
+
+                        for j, other in enumerate(disk_visitas or []):
+                            try:
+                                # si es el mismo índice ignorar
+                                if j == i:
+                                    continue
+                                ofa = str(other.get('folio_acta','') or '').strip()
+                                if new_fa and ofa and ofa.lower() == new_fa.lower():
+                                    messagebox.showwarning("Folio duplicado", f"El folio de acta {new_fa} ya está en uso por otro registro. No se puede duplicar AC.")
+                                    return
+                            except Exception:
+                                continue
                     except Exception:
                         pass
 
@@ -9195,11 +11713,14 @@ class SistemaDictamenesVC(ctk.CTk):
             except Exception:
                 pass
 
-            # DEBUG: mostrar payload recogido del modal
+            # Log breve desde modal: mostrar sólo folio y cliente
             try:
-                print(f"[DEBUG] modal _guardar payload: {json.dumps(payload, ensure_ascii=False)}")
+                print(f"[INFO] Modal guardar: folio={payload.get('folio_visita','-')} cliente={payload.get('cliente','-')}")
             except Exception:
-                print(f"[DEBUG] modal _guardar payload: {payload}")
+                try:
+                    print("[INFO] Modal guardar")
+                except Exception:
+                    pass
 
             # usar id seguro (soporta _id, id o folio) para actualizar
             target_id = datos.get('_id') or datos.get('id') or datos.get('folio_visita') or datos.get('folio_acta')
@@ -9507,7 +12028,7 @@ class SistemaDictamenesVC(ctk.CTk):
 
         # Preguntar por el archivo Excel que contiene la hoja 'CONCENTRADO'
         excel_path = filedialog.askopenfilename(
-            title="Seleccionar archivo Excel con hoja CONCENTRADO (columnas A,B,C)",
+            title="Seleccionar archivo Excel con hoja CONCENTRADO",
             filetypes=[("Excel Files", "*.xlsx *.xlsm *.xls *.xlsb")]
         )
 
@@ -9639,6 +12160,110 @@ class SistemaDictamenesVC(ctk.CTk):
             self.pegado_status_label.configure(text=text, text_color=color)
             try:
                 self.pegado_path_loaded_var.set(bool(loaded))
+            except Exception:
+                pass
+        except Exception:
+            pass
+# Método auxiliar: auto-ajustar columnas del Treeview
+    def _auto_resize_tree_columns(self, tree):
+        """Ajusta el ancho de las columnas del Treeview según el contenido y encabezados."""
+        try:
+            font_obj = tkfont.Font()
+        except Exception:
+            try:
+                font_obj = tkfont.Font(family="Inter", size=10)
+            except Exception:
+                font_obj = None
+
+        for col in tree["columns"]:
+            try:
+                # empezar con el ancho del encabezado
+                max_w = font_obj.measure(col) + 12 if font_obj else 100
+            except Exception:
+                max_w = 100
+            for iid in tree.get_children():
+                try:
+                    val = tree.set(iid, col)
+                    w = font_obj.measure(str(val)) + 12 if font_obj else 100
+                    if w > max_w:
+                        max_w = w
+                except Exception:
+                    continue
+            # Establecer un mínimo razonable
+            if max_w < 80:
+                max_w = 80
+            try:
+                tree.column(col, width=max_w)
+            except Exception:
+                pass
+
+    def _adjust_clientes_columns(self):
+        """Ajusta anchos de columnas en `self.tree_clientes` para asegurar que
+        la columna 'ACCIONES' permanezca visible dentro del ancho del contenedor.
+        Se distribuye el espacio disponible entre las otras columnas con mínimos.
+        """
+        try:
+            tree = getattr(self, 'tree_clientes', None)
+            cont = getattr(self, 'tree_clientes_container', None)
+            if not tree or not cont:
+                return
+            total_w = cont.winfo_width() or tree.winfo_width()
+            if not total_w or total_w < 100:
+                return
+
+            padding = 8
+            acc_min = 120
+            cols = list(tree['columns'])
+            if 'ACCIONES' not in cols:
+                return
+            other_cols = [c for c in cols if c != 'ACCIONES']
+
+            # mínimos sugeridos por columna
+            desired_mins = {
+                'RFC': 90,
+                'CLIENTE': 200,
+                'NÚMERO DE CONTRATO': 140,
+                'ACTIVIDAD': 100,
+                'SERVICIO': 100
+            }
+
+            # espacio disponible para las columnas distintas de ACCIONES
+            available = max(50, total_w - acc_min - padding)
+
+            # suma de mínimos (solo para las columnas presentes)
+            sum_mins = sum(desired_mins.get(c, 80) for c in other_cols)
+
+            new_widths = {}
+            if sum_mins <= available:
+                # Asignar al menos el mínimo y expandir CLIENTE si sobra
+                extra = available - sum_mins
+                for c in other_cols:
+                    base = desired_mins.get(c, 80)
+                    add = 0
+                    if c == 'CLIENTE' and extra > 0:
+                        add = extra
+                    new_widths[c] = max(60, int(base + add))
+            else:
+                # No hay espacio suficiente: escalar proporcionalmente pero respetar un mínimo duro
+                min_hard = 60
+                total_weight = sum(desired_mins.get(c, 80) for c in other_cols)
+                for c in other_cols:
+                    weight = desired_mins.get(c, 80)
+                    w = int(max(min_hard, available * (weight / total_weight)))
+                    new_widths[c] = w
+
+            # Aplicar anchos calculados
+            try:
+                for c, w in new_widths.items():
+                    try:
+                        tree.column(c, width=w)
+                    except Exception:
+                        pass
+                # ACCIONES fijo al mínimo
+                try:
+                    tree.column('ACCIONES', width=acc_min)
+                except Exception:
+                    pass
             except Exception:
                 pass
         except Exception:

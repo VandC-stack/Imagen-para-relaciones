@@ -67,7 +67,6 @@ def obtener_ruta_recurso(ruta_relativa):
 
     return os.path.join(os.path.abspath('.'), ruta_relativa)
 
-
 # ---------------- Folio counter (reserva atómica) ----------------
 def _get_folio_paths():
     carpeta = obtener_ruta_recurso('data')
@@ -285,8 +284,27 @@ class PDFGeneratorConDatos(PDFGenerator):
     # ---------------- páginas ----------------
     def agregar_primera_pagina_con_datos(self):
         print("   📄 Construyendo primera página...")
+        # Preferir fecha de entrada (tabla) en múltiples variantes antes de
+        # usar la fecha de verificación. Esto cubre nombres de columna variados
+        # que provienen de la tabla de relación.
+        # Preferir la fecha de entrada que `preparar_datos_familia` coloca en
+        # `femision` (fecha corta). Luego probar otras variantes conocidas.
+        fecha_entrada = (
+            self.datos.get('femision') or self.datos.get('fentradalarga') or
+            self.datos.get('fentrada') or self.datos.get('fecha_entrada') or
+            self.datos.get('FECHA DE ENTRADA') or self.datos.get('fverificacion') or ''
+        )
+
+        # Fecha de inspección: usar la fecha de verificación proveniente de la tabla
+        # (`preparar_datos_familia` la expone como `fverificacion`).
         texto_fecha_inspeccion = f"<b>Fecha de Inspección:</b> {str(self.datos.get('fverificacion',''))}"
-        texto_fecha_emision = f"<b>Fecha de Emisión:</b> {str(self.datos.get('femision',''))}"
+        # Fecha de emisión: preferir la fecha de creación de la visita si está disponible
+        # (ej. `fecha_inicio` en `historial_visitas.json`), si no usar la fecha actual.
+        fecha_emision_visita = (
+            self.datos.get('fecha_inicio') or self.datos.get('fecha_creacion') or
+            self.datos.get('fecha_emision') or datetime.now().strftime("%d/%m/%Y")
+        )
+        texto_fecha_emision = f"<b>Fecha de Emisión:</b> {str(fecha_emision_visita)}"
         self.elements.append(Paragraph(texto_fecha_inspeccion, self.normal_style))
         self.elements.append(Paragraph(texto_fecha_emision, self.normal_style))
         self.elements.append(Spacer(1, 0.2 * inch))
@@ -306,7 +324,7 @@ class PDFGeneratorConDatos(PDFGenerator):
             "modificaciones; esta Unidad de Inspección a solicitud de la persona moral denominada "
             f"<b>{str(self.datos.get('cliente',''))}</b> dictamina el Producto: <b>{str(self.datos.get('producto',''))}</b>; "
             f"que la mercancía importada bajo el pedimento aduanal No. <b>{str(self.datos.get('pedimento',''))}</b> "
-            f"de fecha <b>{str(self.datos.get('fverificacionlarga',''))}</b>, fue etiquetada conforme a los requisitos "
+            f"de fecha <b>{str(fecha_entrada)}</b>, fue etiquetada conforme a los requisitos "
             f"de Información Comercial en el capítulo <b>{str(self.datos.get('capitulo',''))}</b> "
             f"de la Norma Oficial Mexicana <b>{str(self.datos.get('norma',''))}</b> <b>{str(self.datos.get('normades',''))}</b>. "
             "Cualquier otro requisito establecido en la norma referida es responsabilidad del titular de este Dictamen."
@@ -431,7 +449,146 @@ class PDFGeneratorConDatos(PDFGenerator):
             self.agregar_hoja_firmas()
             return
 
-        # Procesar evidencias y normalizarlas a flowables RLImage
+        try:
+            import os as _os
+            import hashlib
+
+            seen = set()
+            uniq = []
+            seen_hashes = set()
+
+            try:
+                DEDUPE_CONTENT = bool(self.datos.get('dedupe_by_content', False))
+            except Exception:
+                DEDUPE_CONTENT = False
+
+            def _image_normalized_hash_path(p, size=(64,64)):
+                try:
+                    from PIL import Image as _Image
+                    with _Image.open(p) as _im:
+                        im = _im.convert('RGB')
+                        im = im.resize(size, resample=_Image.LANCZOS)
+                        data = im.tobytes()
+                    import hashlib as _hashlib
+                    return _hashlib.md5(data).hexdigest()
+                except Exception:
+                    try:
+                        import hashlib as _hashlib
+                        h = _hashlib.md5()
+                        with open(p, 'rb') as fh:
+                            for chunk in iter(lambda: fh.read(8192), b''):
+                                h.update(chunk)
+                        return h.hexdigest()
+                    except Exception:
+                        return None
+
+            for ev in evidencias:
+                try:
+                    key = None
+                    if isinstance(ev, str):
+                        try:
+                            key = _os.path.normcase(_os.path.normpath(ev))
+                        except Exception:
+                            key = ev
+
+                    elif isinstance(ev, dict):
+                        p = ev.get('imagen_path')
+                        if p:
+                            try:
+                                key = _os.path.normcase(_os.path.normpath(p))
+                            except Exception:
+                                key = p
+                        else:
+                            b = ev.get('imagen_bytes') or ev.get('imagen_path_bytes')
+                            if b is None:
+                                # no path nor bytes; fallback to id
+                                key = ('dict', id(ev))
+                            else:
+                                # compute full md5 of bytes/file-like
+                                try:
+                                    if hasattr(b, 'read'):
+                                        pos = None
+                                        try:
+                                            pos = b.tell()
+                                        except Exception:
+                                            pos = None
+                                        try:
+                                            b.seek(0)
+                                            data = b.read()
+                                        finally:
+                                            try:
+                                                if pos is not None:
+                                                    b.seek(pos)
+                                            except Exception:
+                                                pass
+                                    else:
+                                        data = b if isinstance(b, (bytes, bytearray)) else bytes(b)
+                                    key = ('bytes', hashlib.md5(data).hexdigest())
+                                except Exception:
+                                    key = ('bytes', None)
+
+                    else:
+                        try:
+                            if hasattr(ev, 'read'):
+                                pos = None
+                                try:
+                                    pos = ev.tell()
+                                except Exception:
+                                    pos = None
+                                try:
+                                    ev.seek(0)
+                                    data = ev.read()
+                                finally:
+                                    try:
+                                        if pos is not None:
+                                            ev.seek(pos)
+                                    except Exception:
+                                        pass
+                                key = ('filelike', hashlib.md5(data).hexdigest() if data is not None else None)
+                            else:
+                                key = ('obj', id(ev))
+                        except Exception:
+                            key = ('obj', id(ev))
+
+                    # Si ya vimos esta key por ruta, omitir
+                    if key in seen:
+                        continue
+
+                    if DEDUPE_CONTENT:
+                        try:
+                            pth = None
+                            if isinstance(ev, str):
+                                pth = _os.path.normcase(_os.path.normpath(ev))
+                            elif isinstance(ev, dict):
+                                pth = ev.get('imagen_path')
+                            if pth and _os.path.exists(pth):
+                                hval = _image_normalized_hash_path(pth)
+                                if hval and hval in seen_hashes:
+                                    # marcar ruta como vista y omitir
+                                    seen.add(key)
+                                    continue
+                                if hval:
+                                    seen_hashes.add(hval)
+                        except Exception:
+                            pass
+                    seen.add(key)
+                    uniq.append(ev)
+
+                except Exception:
+                    uniq.append(ev)
+
+            if len(uniq) != len(evidencias):
+                try:
+                    print(f"   🔁 Deduplicadas evidencias: {len(evidencias)} -> {len(uniq)}")
+                except Exception:
+                    pass
+
+            evidencias = uniq
+
+        except Exception:
+            pass
+
+        
         from io import BytesIO
         from PIL import Image as PILImage
         import traceback
@@ -440,7 +597,6 @@ class PDFGeneratorConDatos(PDFGenerator):
         for idx, ev in enumerate(evidencias, start=1):
             try:
                 bio = None
-                # cadena = ruta en disco
                 if isinstance(ev, str):
                     ruta = os.path.normpath(ev)
                     if not os.path.exists(ruta):
@@ -512,7 +668,6 @@ class PDFGeneratorConDatos(PDFGenerator):
                 try:
                     img = RLImage(bio, width=3.4*inch, height=3.0*inch)
                 except Exception:
-                    # reintentar creando desde BytesIO copy
                     try:
                         tmp = BytesIO(bio.read() if hasattr(bio, 'read') else bio)
                         tmp.seek(0)
@@ -658,7 +813,7 @@ class PDFGeneratorConDatos(PDFGenerator):
     def agregar_encabezado_pie_pagina(self, canvas, doc):
         canvas.saveState()
         
-        image_path = obtener_ruta_recurso("img/Fondo.jpeg")
+        image_path = obtener_ruta_recurso("img/Fondo.jpg")
         if os.path.exists(image_path):
             try:
                 canvas.drawImage(image_path, 0, 0, width=8.5*inch, height=11*inch)
@@ -790,8 +945,9 @@ def convertir_dictamen_a_json(datos):
         "identificacion": {
             "cadena_identificacion": cadena_identificacion,
             "year": year,
-            "folio": datos.get("folio", ""),
-            "solicitud": datos.get("solicitud", ""),
+            # Guardar folio y solicitud en formato normalizado (folio 6 dígitos, solicitud sin año)
+            "folio": folio_formateado,
+            "solicitud": solicitud_formateado or datos.get("solicitud", ""),
             "lista": datos.get("lista", "")
         },
         "norma": {
@@ -800,10 +956,20 @@ def convertir_dictamen_a_json(datos):
             "capitulo": datos.get("capitulo", "")
         },
         "fechas": {
-            "verificacion": datos.get("fverificacion", ""),
-            "verificacion_larga": datos.get("fverificacionlarga", ""),
-            "emision": datos.get("femision", "")
-        },
+                # Mostrar la fecha de ENTRADA (tabla_de_relacion) en lugar de la
+                # fecha de verificación. Soportar varios nombres de campo por
+                # compatibilidad con distintas transformaciones previas.
+                "verificacion": (
+                    # Mostrar la fecha de verificación primaria (`fverificacion`) cuando exista;
+                    # si no, caer a variantes largas o a la fecha de entrada como último recurso.
+                    datos.get("fverificacion") or datos.get("fentradalarga") or datos.get("femision") or
+                    datos.get("fentrada") or datos.get("fecha_entrada") or datos.get("FECHA DE ENTRADA") or ""
+                ),
+                "verificacion_larga": datos.get("fentradalarga", ""),
+                # Guardar la fecha de emisión real del dictamen: preferir `fecha_inicio`
+                # (creación de la visita) si está presente, si no dejar la fecha de entrada.
+                "emision": datos.get("fecha_inicio") or datos.get("fecha_creacion") or datos.get("femision", "")
+            },
         "cliente": {
             "nombre": datos.get("cliente", ""),
             "rfc": datos.get("rfc", "")
@@ -937,6 +1103,32 @@ def generar_dictamenes_completos(directorio_destino, cliente_manual=None, rfc_ma
     except Exception:
         evidencia_cfg = {}
 
+    try:
+        appdata = os.environ.get('APPDATA') or ''
+        if appdata:
+            cfg_path = os.path.join(appdata, 'ImagenesVC', 'config.json')
+            if os.path.exists(cfg_path):
+                try:
+                    with open(cfg_path, 'r', encoding='utf-8') as _cf:
+                        cfg_json = json.load(_cf) or {}
+                except Exception:
+                    cfg_json = {}
+                ruta_imgs = cfg_json.get('ruta_imagenes') or cfg_json.get('ruta_imgs')
+                if ruta_imgs:
+                    # Añadir bajo una clave de grupo clara si no existe ya
+                    try:
+                        # normalizar a lista
+                        if isinstance(evidencia_cfg, dict):
+                            if 'app_ruta_imagenes' not in evidencia_cfg:
+                                evidencia_cfg['app_ruta_imagenes'] = [ruta_imgs]
+                            else:
+                                if ruta_imgs not in evidencia_cfg.get('app_ruta_imagenes', []):
+                                    evidencia_cfg['app_ruta_imagenes'].append(ruta_imgs)
+                    except Exception:
+                        pass
+    except Exception:
+        pass
+
     IMG_EXTS = {'.png', '.jpg', '.jpeg', '.bmp', '.tif', '.tiff', '.webp'}
     import re
     def _normalizar(s):
@@ -952,26 +1144,68 @@ def generar_dictamenes_completos(directorio_destino, cliente_manual=None, rfc_ma
             for carpeta in lst:
                 try:
                     for root, _, files in os.walk(carpeta):
-                        for nombre in files:
-                            base, ext = os.path.splitext(nombre)
-                            if ext.lower() not in IMG_EXTS:
-                                continue
-                            path = os.path.join(root, nombre)
-                            key = _normalizar(base)
-                            if not key:
-                                continue
-                            index.setdefault(key, []).append(path)
-                            total += 1
+                            for nombre in files:
+                                base, ext = os.path.splitext(nombre)
+                                if ext.lower() not in IMG_EXTS:
+                                    continue
+                                path = os.path.join(root, nombre)
+                                # Extraer core del nombre eliminando sufijos tipo ' (2)', '-2', '_2'
+                                try:
+                                    import re
+                                    core = re.sub(r"[\s\-_]*\(\s*\d+\s*\)$", "", base)
+                                    core = re.sub(r"[\s\-_]+\d+$", "", core)
+                                except Exception:
+                                    core = base
+                                key = _normalizar(core)
+                                if not key:
+                                    continue
+                                index.setdefault(key, []).append(path)
+                                # Además indexar por el nombre de la carpeta padre normalizado.
+                                try:
+                                    parent = os.path.basename(root or "")
+                                    parent_core = re.sub(r"[\s\-_]*\(\s*\d+\s*\)$", "", parent)
+                                    parent_core = re.sub(r"[\s\-_]+\d+$", "", parent_core)
+                                    parent_key = _normalizar(parent_core)
+                                    if parent_key and parent_key != key:
+                                        index.setdefault(parent_key, []).append(path)
+                                except Exception:
+                                    pass
+                                total += 1
                 except Exception:
                     continue
         return index, total
 
-    indice_evidencias_global, total_indexadas = _construir_indice_de_carpetas(evidencia_cfg)
+    # Evitar recorrer todo el árbol de evidencias; usaremos búsquedas determinísticas
+    # por carpeta de código cuando sea necesario. Construir un índice completo con
+    # os.walk puede ser muy costoso y produce falsos positivos.
+    indice_evidencias_global = {}
+    total_indexadas = 0
     try:
-        claves = list(indice_evidencias_global.keys())[:20]
+        # Mostrar resumen de configuración en lugar de indexado pesado
+        grupo_muestras = {g: (v[:3] if isinstance(v, list) else []) for g, v in (evidencia_cfg or {}).items()}
     except Exception:
-        claves = []
-    print(f"🔎 Índice global de evidencias construido: {total_indexadas} imágenes indexadas, {len(indice_evidencias_global)} claves únicas. Muestras: {claves}")
+        grupo_muestras = {}
+    print(f"🔎 Configuración de rutas de evidencias: {len(evidencia_cfg or {})} grupos, muestras: {grupo_muestras}")
+
+    # Intentar cargar índice externo generado por la herramienta de Pegado por Índice
+    index_indice = {}
+    try:
+        appdata = os.environ.get('APPDATA') or ''
+        if appdata:
+            idx_path = os.path.join(appdata, 'ImagenesVC', 'index_indice.json')
+            if os.path.exists(idx_path):
+                try:
+                    with open(idx_path, 'r', encoding='utf-8') as _f:
+                        index_indice = json.load(_f) or {}
+                except Exception:
+                    index_indice = {}
+    except Exception:
+        index_indice = {}
+    try:
+        sample_index_keys = list(index_indice.keys())[:10]
+    except Exception:
+        sample_index_keys = []
+    print(f"   🗂️ Índice externo (keys muestra): {sample_index_keys}")
 
     os.makedirs(directorio_destino, exist_ok=True)
     
@@ -1242,57 +1476,506 @@ def generar_dictamenes_completos(directorio_destino, cliente_manual=None, rfc_ma
                 except Exception:
                     codigos_a_buscar = []
 
-                def _buscar_imagen(code):
-                    key = _normalizar(code)
-                    if not key:
+                def _buscar_imagen(key, code_hint=None):
+                    """
+                    Búsqueda determinística de evidencias.
+
+                    - Si se proporciona `code_hint`, busca `base/code_hint/key.ext`
+                      en cada carpeta configurada en `evidence_cfg` y devuelve
+                      la ruta si existe.
+                    - Si no se proporciona `code_hint` y `key` parece un código
+                      (contiene dígitos), devuelve la lista de ficheros dentro
+                      de `base/key/`.
+                    - No recorre todo el árbol.
+                    """
+                    try:
+                        from pathlib import Path
+                        if not key:
+                            return None
+
+                        # extensiones válidas (usar la definida arriba si es posible)
+                        exts = IMG_EXTS if 'IMG_EXTS' in locals() or 'IMG_EXTS' in globals() else {'.jpg', '.jpeg', '.png'}
+
+                        # Si se proporcionó code_hint, buscar archivo exacto dentro de la carpeta del código
+                        if code_hint:
+                            for grp, lst in (evidencia_cfg or {}).items():
+                                for base in lst:
+                                    try:
+                                        carpeta_codigo = Path(base) / str(code_hint)
+                                        # Si la carpeta exacta no existe, intentar búsqueda insensible a mayúsculas
+                                        if not carpeta_codigo.exists() or not carpeta_codigo.is_dir():
+                                            carpeta_encontrada = None
+                                            try:
+                                                target = str(code_hint).lower()
+                                                for root, dirs, files in os.walk(base):
+                                                    for d in dirs:
+                                                        if d.lower() == target:
+                                                            carpeta_encontrada = Path(root) / d
+                                                            break
+                                                    if carpeta_encontrada:
+                                                        break
+                                            except Exception:
+                                                carpeta_encontrada = None
+
+                                            if carpeta_encontrada:
+                                                carpeta_codigo = carpeta_encontrada
+                                            else:
+                                                # No hay carpeta con el código; como fallback, buscar
+                                                # en la raíz de la base archivos cuyo nombre normalizado
+                                                # coincida o contenga el código.
+                                                try:
+                                                    found_root = []
+                                                    code_norm = _re.sub(r"[^A-Za-z0-9]", "", str(code_hint or "")).upper()
+                                                    for fn in os.listdir(base):
+                                                        fpath = Path(base) / fn
+                                                        if not fpath.is_file():
+                                                            continue
+                                                        if fpath.suffix.lower() not in exts:
+                                                            continue
+                                                        name_core = re.sub(r"[^A-Za-z0-9]", "", fpath.stem).upper()
+                                                        if not name_core:
+                                                            continue
+                                                        if code_norm == name_core or code_norm in name_core or name_core in code_norm:
+                                                            found_root.append(str(fpath))
+                                                    if found_root:
+                                                        try:
+                                                            print(f"         → Imágenes encontradas en raíz {base}: {found_root[:3]}")
+                                                        except Exception:
+                                                            pass
+                                                        return found_root
+                                                except Exception:
+                                                    pass
+                                                continue
+                                        found = []
+                                        for ext in exts:
+                                            candidato = carpeta_codigo / f"{str(key)}{ext}"
+                                            if candidato.exists():
+                                                found.append(str(candidato))
+                                        # Si no encontramos archivo con nombre del código, devolver todas las imágenes en la carpeta
+                                        if not found:
+                                            try:
+                                                for f in carpeta_codigo.iterdir():
+                                                    if f.is_file() and f.suffix.lower() in exts:
+                                                        found.append(str(f))
+                                            except Exception:
+                                                pass
+                                        if found:
+                                            # Logear muestra
+                                            try:
+                                                print(f"         → Imágenes encontradas en {carpeta_codigo}: {found[:3]}")
+                                            except Exception:
+                                                pass
+                                            return found
+                                    except Exception:
+                                        continue
+                            return None
+
+                        # Si key parece un código (contiene dígitos), devolver todos los ficheros en base/key
+                        import re as _re
+                        if _re.search(r"\d", str(key)):
+                            out = []
+                            try:
+                                code_norm = _re.sub(r"[^A-Za-z0-9]", "", str(key or "")).upper()
+                            except Exception:
+                                code_norm = str(key)
+                            for grp, lst in (evidencia_cfg or {}).items():
+                                for base in lst:
+                                    try:
+                                        carpeta_codigo = Path(base) / str(key)
+                                        if carpeta_codigo.exists() and carpeta_codigo.is_dir():
+                                            for ext in exts:
+                                                for f in carpeta_codigo.glob(f"*{ext}"):
+                                                    out.append(str(f))
+                                        else:
+                                            # Fallback: buscar en la raíz de la base archivos
+                                            # cuyo nombre normalizado coincida o contenga el código.
+                                            try:
+                                                for fn in os.listdir(base):
+                                                    fpath = Path(base) / fn
+                                                    if not fpath.is_file():
+                                                        continue
+                                                    if fpath.suffix.lower() not in exts:
+                                                        continue
+                                                    name_core = re.sub(r"[^A-Za-z0-9]", "", fpath.stem).upper()
+                                                    if not name_core:
+                                                        continue
+                                                    if code_norm == name_core or code_norm in name_core or name_core in code_norm:
+                                                        out.append(str(fpath))
+                                            except Exception:
+                                                pass
+                                    except Exception:
+                                        continue
+                            return out if out else None
+
+                        # No hay información suficiente para buscar sin code_hint
                         return None
-                    # 1) coincidencia exacta en claves del índice
-                    if key in indice_evidencias_global:
-                        lst = indice_evidencias_global.get(key) or []
-                        if lst:
-                            return lst[0]
+                    except Exception:
+                        return None
 
-                    # 2) coincidencias parciales en las claves (key dentro de clave o viceversa)
-                    candidatos = [k for k in indice_evidencias_global.keys() if key in k or k in key]
-                    if candidatos:
-                        # ordenar por diferencia de longitud (más cercano) y lexicográficamente
-                        candidatos.sort(key=lambda k: (abs(len(k) - len(key)), k))
-                        primera = candidatos[0]
-                        lst = indice_evidencias_global.get(primera) or []
-                        if lst:
-                            return lst[0]
+                def _map_code_to_assignment(code):
+                    """Intentar mapear un código (EAN/UPC/SKU) a la columna de asignación
+                    presente en `tabla_datos` (tabla de relación). Devuelve el valor
+                    de asignación si se encuentra, o None si no.
+                    """
+                    try:
+                        if tabla_datos is None or tabla_datos.empty:
+                            return None
 
-                    # 3) fallback: buscar claves que contienen la mayor secuencia numérica del código
-                    import re as _re
-                    dig = ''.join(_re.findall(r"\d+", key))
-                    if dig:
-                        candidatos2 = [k for k in indice_evidencias_global.keys() if dig in k]
-                        if candidatos2:
-                            candidatos2.sort(key=lambda k: (abs(len(k) - len(dig)), k))
-                            lst = indice_evidencias_global.get(candidatos2[0]) or []
-                            if lst:
-                                return lst[0]
+                        s = str(code).strip()
+                        if not s:
+                            return None
 
-                    # No encontrado
+                        # Normalizar nombres de columnas: quitar caracteres no alfanuméricos y uppercase
+                        def _colnorm(c):
+                            return re.sub(r"[^A-Z0-9]", "", str(c).upper())
+
+                        cols = list(tabla_datos.columns)
+                        norm_map = {c: _colnorm(c) for c in cols}
+                        # Depuración: mostrar columnas detectadas y su normalización
+                        try:
+                            print(f"   🐞 tabla_de_relacion columns: {cols}")
+                            print(f"   🐞 normalized columns: {norm_map}")
+                        except Exception:
+                            pass
+
+                        possible_code_keys = set()
+                        for c, nc in norm_map.items():
+                            if any(k in nc for k in ("UPC", "EAN", "CODIGO", "SKU", "ESTILO")):
+                                possible_code_keys.add(c)
+
+                        possible_asign_keys = [c for c, nc in norm_map.items() if any(k in nc for k in ("ASIG", "ASIGN", "ASIGNACION"))]
+
+                        # If none found, attempt looser heuristics
+                        if not possible_code_keys:
+                            for c, nc in norm_map.items():
+                                # columnas que son mayormente numéricas pueden ser códigos
+                                if nc.isdigit() or any(ch.isdigit() for ch in nc):
+                                    possible_code_keys.add(c)
+
+                        try:
+                            print(f"   🐞 possible_code_keys: {possible_code_keys}")
+                            print(f"   🐞 possible_asign_keys: {possible_asign_keys}")
+                        except Exception:
+                            pass
+
+                        # Comparación directa: intentar coincidencia exacta en las columnas de código
+                        for col in possible_code_keys:
+                            try:
+                                series = tabla_datos[col].astype(str).str.strip()
+                                # comparar tanto como string como números (ignorar no dígitos)
+                                mask = series == s
+                                if not mask.any():
+                                    # intentar comparar sólo dígitos
+                                    digits_s = ''.join(ch for ch in s if ch.isdigit())
+                                    if digits_s:
+                                        series_digits = series.apply(lambda x: ''.join(ch for ch in str(x) if ch.isdigit()))
+                                        mask = series_digits == digits_s
+
+                                if mask.any():
+                                    idx = mask.idxmax()
+                                    row = tabla_datos.loc[idx]
+                                    try:
+                                        print(f"   🐞 matched row idx={idx} row={{}}".format(row.to_dict()))
+                                    except Exception:
+                                        pass
+                                    # Preferir columna de asignación si existe
+                                    for ac in possible_asign_keys:
+                                        try:
+                                            v = row.get(ac)
+                                            if v is not None and str(v).strip() != "":
+                                                return str(v).strip()
+                                        except Exception:
+                                            continue
+                                    # Si no hay columna de asignación conocida, devolver la columna 'ASIGNACION' con acento alternativa
+                                    for ac in cols:
+                                        if _colnorm(ac).startswith(('ASIG','ASIGN')):
+                                            v = row.get(ac)
+                                            if v is not None and str(v).strip() != "":
+                                                return str(v).strip()
+                                    # No hay asignación clara -> return None
+                                    return None
+                            except Exception:
+                                continue
+
+                        # Último recurso: buscar en todo el dataframe coincidencias exactas y devolver columna B (segunda columna)
+                        for _, row in tabla_datos.iterrows():
+                            for col in cols:
+                                try:
+                                    if str(row.get(col, "")).strip() == s:
+                                        # devolver la segunda columna (si existe) como la asignación esperada
+                                        if len(cols) >= 2:
+                                            val = row.get(cols[1])
+                                            try:
+                                                print(f"   🐞 fallback: matched in col={col}, returning cols[1]={cols[1]} value={val}")
+                                            except Exception:
+                                                pass
+                                            if val and str(val).strip():
+                                                return str(val).strip()
+                                        return None
+                                except Exception:
+                                    continue
+
+                    except Exception:
+                        return None
                     return None
 
                 rutas_encontradas = []
+                mapping_codes = {}
                 if codigos_a_buscar:
                     print(f"   🔎 Buscando evidencias para códigos: {codigos_a_buscar}")
+                    # Helper: determina si una ruta contiene el código como carpeta/segmento
+                    import re as _re
+                    def _path_contains_code(path, code):
+                        try:
+                            if not path or not code:
+                                return False
+                            # normalizar código
+                            code_norm = _re.sub(r"[^A-Za-z0-9]", "", str(code or "")).upper()
+                            if not code_norm:
+                                return False
+                            # dividir en segmentos de ruta y comparar alfanuméricos
+                            parts = [p for p in _re.split(r"[\\/]+", str(path)) if p]
+                            for seg in parts:
+                                seg_norm = _re.sub(r"[^A-Za-z0-9]", "", seg).upper()
+                                if not seg_norm:
+                                    continue
+                                # coincidencia si segmento contiene el código o viceversa
+                                if code_norm == seg_norm or code_norm in seg_norm or seg_norm in code_norm:
+                                    return True
+                            return False
+                        except Exception:
+                            return False
                     for codigo in codigos_a_buscar:
-                        p = _buscar_imagen(codigo)
-                        print(f"      → {codigo} => {p}")
-                        if p:
-                            rutas_encontradas.append(p)
-                            # Si etiquetas son dicts, anexar la ruta a la etiqueta correspondiente
-                            if etiquetas and isinstance(etiquetas[0], dict):
-                                for e in etiquetas:
-                                    if str(e.get('codigo')) == str(codigo) or str(e.get('ean')) == str(codigo):
-                                        e['imagen_path'] = p
+                        ps = None
+                        try:
+                            # 0) Intentar usar índice externo (Excel CONCENTRADO) si tiene una entrada para el código
+                            try:
+                                import re as _re
+                                canon_code = _re.sub(r"[^A-Za-z0-9]", "", str(codigo or "")).upper()
+                            except Exception:
+                                canon_code = str(codigo or "").strip()
+                            destino_idx = index_indice.get(canon_code)
+                            if destino_idx:
+                                print(f"      🔁 Código {codigo} -> destino por índice: {destino_idx}")
+                                try:
+                                    # Si destino_idx parece ser un nombre de archivo con extensión de imagen,
+                                    # buscar ese archivo EXACTO dentro de las rutas configuradas en evidencia_cfg.
+                                    dest_lower = str(destino_idx or "").lower()
+                                    found_paths = None
+                                    if any(dest_lower.endswith(ext) for ext in IMG_EXTS):
+                                        # Buscar filename en todas las bases (recursivo, pero limitado por filesystem)
+                                        cand_list = []
+                                        for grp, bases in (evidencia_cfg or {}).items():
+                                            for base in bases:
+                                                try:
+                                                    for root, _, files in os.walk(base):
+                                                        for fn in files:
+                                                            if fn.lower() == str(destino_idx).lower():
+                                                                cand_list.append(os.path.join(root, fn))
+                                                except Exception:
+                                                    continue
+                                        if cand_list:
+                                            found_paths = cand_list
+                                            print(f"         → Encontrado por nombre de archivo (índice): {found_paths[:3]}")
+                                        else:
+                                            print(f"         → No se encontró el archivo {destino_idx} en rutas de evidencia")
+                                    else:
+                                        # Tratar destino_idx como carpeta/nombre de base y usar la búsqueda existente
+                                        try:
+                                            found_paths = _buscar_imagen(codigo, destino_idx)
+                                        except Exception as _e:
+                                            print(f"   ⚠️ Error buscando evidencias usando índice como carpeta para {codigo}: {_e}")
+                                            found_paths = None
+
+                                    ps = found_paths
+                                except Exception as _e:
+                                    print(f"   ⚠️ Error buscando evidencias usando índice para {codigo}: {_e}")
+                                    ps = None
+
+                            # 1) si no se encontró por índice, intentar mapear el código a la columna de asignación (columna B)
+                            if not ps:
+                                asign = _map_code_to_assignment(codigo)
+                                if asign:
+                                    print(f"      🔁 Código {codigo} mapeado a asignación: {asign} (tabla_de_relacion)")
+                                    try:
+                                        ps = _buscar_imagen(asign, codigo)
+                                    except Exception as _e:
+                                        print(f"   ⚠️ Error buscando evidencias para asignación {asign}: {_e}")
+                                        ps = None
+
+                            # 2) si no se encontró por asignación, intentar búsqueda directa por el código
+                            if not ps:
+                                try:
+                                    ps = _buscar_imagen(codigo)
+                                except Exception as _e:
+                                    print(f"   ⚠️ Error buscando evidencias para {codigo}: {_e}")
+                                    ps = None
+
+                        except Exception as _e:
+                            print(f"   ⚠️ Error procesando código {codigo}: {_e}")
+                            ps = None
+
+                            # Si la búsqueda devolvió múltiples rutas, preferir
+                            # aquellas que están dentro de una carpeta con el código.
+                            try:
+                                if isinstance(ps, (list, tuple)) and ps:
+                                    filtered = [p for p in ps if _path_contains_code(p, codigo)]
+                                    if filtered:
+                                        ps = filtered
+                            except Exception:
+                                pass
+
+                            print(f"      → {codigo} => {ps}")
+                        mapping_codes[str(codigo)] = ps
+                        if not ps:
+                            continue
+
+                        # preparar variable para la primera ruta añadida por este código
+                        first_p = None
+                        # _buscar_imagen puede devolver una lista de rutas; anexar todas
+                        # pero evitar añadir la misma ruta más de una vez si varios
+                        # códigos comparten la misma imagen.
+                        try:
+                            import os as _os
+                        except Exception:
+                            _os = None
+
+                        if isinstance(ps, (list, tuple)):
+                            added_first = None
+                            for candidate in ps:
+                                try:
+                                    key = _os.path.normcase(_os.path.normpath(str(candidate))) if _os else str(candidate)
+                                except Exception:
+                                    key = str(candidate)
+                                # añadir solo si no presente aún
+                                already = any((
+                                    (isinstance(p, str) and (_os.path.normcase(_os.path.normpath(p)) if _os else p) == key)
+                                    or (isinstance(p, dict) and p.get('imagen_path') and (_os.path.normcase(_os.path.normpath(p.get('imagen_path'))) if _os else p.get('imagen_path')) == key)
+                                    for p in rutas_encontradas
+                                ))
+                                if already:
+                                    continue
+                                rutas_encontradas.append(candidate)
+                                if added_first is None:
+                                    added_first = candidate
+                            first_p = added_first
+                        else:
+                            # simple string path
+                            try:
+                                key = _os.path.normcase(_os.path.normpath(str(ps))) if _os else str(ps)
+                            except Exception:
+                                key = str(ps)
+                            already = any((
+                                (isinstance(p, str) and (_os.path.normcase(_os.path.normpath(p)) if _os else p) == key)
+                                or (isinstance(p, dict) and p.get('imagen_path') and (_os.path.normcase(_os.path.normpath(p.get('imagen_path'))) if _os else p.get('imagen_path')) == key)
+                                for p in rutas_encontradas
+                            ))
+                            if not already:
+                                rutas_encontradas.append(ps)
+                                first_p = ps
+
+                        # Si etiquetas son dicts, anexar la primera ruta a la etiqueta correspondiente
+                        if first_p and etiquetas and isinstance(etiquetas[0], dict):
+                            for e in etiquetas:
+                                if str(e.get('codigo')) == str(codigo) or str(e.get('ean')) == str(codigo):
+                                    e['imagen_path'] = first_p
+
+                # Imprimir resumen del mapeo código -> rutas (incluso si vacío)
+                try:
+                    print(f"   🔗 Mapeo códigos->evidencias: {mapping_codes}")
+                except Exception:
+                    pass
 
                 if rutas_encontradas:
+                    # Eliminar duplicados conservando orden (algunos códigos pueden mapear a las mismas rutas)
+                    try:
+                        import os as _os
+                        # Decidir si deduplicar por contenido (hash) además de por ruta
+                        # Por defecto no desduplicar por contenido a menos que la
+                        # configuración explícita lo indique. Esto evita colapsar
+                        # rutas distintas que apuntan al mismo archivo físico.
+                        DEDUPE_CONTENT = False
+                        try:
+                            DEDUPE_CONTENT = bool(evidencia_cfg.get('dedupe_by_content', False))
+                        except Exception:
+                            DEDUPE_CONTENT = False
+
+                        seen_paths = set()
+                        seen_hashes = set()
+                        uniq = []
+
+                        def _image_normalized_hash_local(path, size=(64, 64)):
+                            try:
+                                from PIL import Image as _Image
+                                with _Image.open(path) as _im:
+                                    im = _im.convert('RGB')
+                                    im = im.resize(size, resample=_Image.LANCZOS)
+                                    data = im.tobytes()
+                                import hashlib as _hashlib
+                                return _hashlib.md5(data).hexdigest()
+                            except Exception:
+                                try:
+                                    import hashlib as _hashlib
+                                    h = _hashlib.md5()
+                                    with open(path, 'rb') as fh:
+                                        for chunk in iter(lambda: fh.read(8192), b''):
+                                            h.update(chunk)
+                                    return h.hexdigest()
+                                except Exception:
+                                    return None
+
+                        for p in rutas_encontradas:
+                            try:
+                                candidate = p.get('imagen_path') if isinstance(p, dict) else p
+                                k = _os.path.normcase(_os.path.normpath(str(candidate)))
+                            except Exception:
+                                k = str(p)
+
+                            # saltar rutas inexistentes
+                            try:
+                                if not os.path.exists(k):
+                                    continue
+                            except Exception:
+                                pass
+
+                            if k in seen_paths:
+                                continue
+
+                            # dedupe por contenido opcional
+                            if DEDUPE_CONTENT:
+                                try:
+                                    h = _image_normalized_hash_local(k)
+                                except Exception:
+                                    h = None
+                                if h and h in seen_hashes:
+                                    seen_paths.add(k)
+                                    continue
+                                if h:
+                                    seen_hashes.add(h)
+
+                            seen_paths.add(k)
+                            uniq.append(k)
+
+                        rutas_encontradas = uniq
+                    except Exception:
+                        pass
+
+                    # Propagar la preferencia de deduplicación por contenido
+                    try:
+                        datos['dedupe_by_content'] = bool(evidencia_cfg.get('dedupe_by_content', False))
+                    except Exception:
+                        datos['dedupe_by_content'] = False
+
                     datos['evidencias_lista'] = rutas_encontradas
                     print(f"   ✅ Evidencias asignadas: {rutas_encontradas}")
+                else:
+                    # Si no se asignaron evidencias, mostrar pistas útiles
+                    print(f"   ⚠️ No se asignaron evidencias para los códigos provistos.")
+                    try:
+                        sample_keys = list(indice_evidencias_global.keys())[:20]
+                        print(f"   ℹ️ Claves indexadas (muestra): {sample_keys}")
+                    except Exception:
+                        pass
             except Exception:
                 pass
 
@@ -1612,3 +2295,4 @@ if __name__ == "__main__":
         print(f"\n🎉 {mensaje}")
     else:
         print(f"\n❌ {mensaje}")
+
