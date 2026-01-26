@@ -61,22 +61,16 @@ if getattr(sys, 'frozen', False):
 else:
     BASE_DIR = os.path.abspath(os.path.dirname(__file__))
 
-# Directorio de la aplicación (donde queremos crear la carpeta `data` cuando
-# se ejecute el .exe). En ejecución congelada, `sys.executable` apunta al .exe.
 if getattr(sys, 'frozen', False):
     APP_DIR = os.path.dirname(sys.executable)
 else:
     APP_DIR = os.path.abspath(os.path.dirname(__file__))
 
-# Directorio de datos: permitir carpeta central mediante variable de entorno
-# Si `IMAGENESVC_DATA_DIR` está definida, usarla; en caso contrario, usar
-# la carpeta `data` junto a `APP_DIR` (comportamiento por defecto).
 DATA_DIR = os.getenv('IMAGENESVC_DATA_DIR')
 if DATA_DIR:
     DATA_DIR = os.path.abspath(DATA_DIR)
 else:
     DATA_DIR = os.path.join(APP_DIR, 'data')
-# Asegurar que folio_manager use la misma carpeta de datos (cuando busque folio_counter)
 try:
     os.environ['FOLIO_DATA_DIR'] = DATA_DIR
 except Exception:
@@ -5433,28 +5427,34 @@ class SistemaDictamenesVC(ctk.CTk):
                             except Exception:
                                 pdf_ok = False
 
-                            # Guardar JSON auxiliar dentro de data/Constancias (raíz)
                             try:
                                 json_name = f"Constancia_Lista_{lista}_{folio_for_name}_{sol_no}_{sol_year}.json"
                                 json_name = limpiar_nombre(json_name)
                                 json_path = os.path.join(out_base_json, json_name)
+                                try:
+                                    if mod is not None and hasattr(mod, 'convertir_constancia_a_json'):
+                                        json_data = getattr(mod, 'convertir_constancia_a_json')(datos_const)
+                                    else:
+                                        # convertir de forma básica local
+                                        def _basic_convert(d):
+                                            return d
+                                        json_data = _basic_convert(datos_const)
+                                except Exception:
+                                    json_data = datos_const
                                 with open(json_path, 'w', encoding='utf-8') as jf:
-                                    json.dump(datos_const, jf, ensure_ascii=False, indent=2)
+                                    json.dump(json_data, jf, ensure_ascii=False, indent=2)
                             except Exception:
                                 pass
 
                             if pdf_ok:
                                 created.append(ruta_pdf)
-                                # --- Persistir folios y crear respaldo persistente de tabla_de_relacion
                                 try:
-                                    # Guardar folios específicos para esta visita (persistir contador)
                                     try:
                                         if filas_grp:
                                             self.guardar_folios_visita(folio_vis, filas_grp, persist_counter=True)
                                     except Exception:
                                         pass
 
-                                    # Crear respaldo persistente de tabla_de_relacion para constancias
                                     try:
                                         tabla_relacion_path = os.path.join(DATA_DIR, 'tabla_de_relacion.json')
                                         if os.path.exists(tabla_relacion_path):
@@ -5595,6 +5595,7 @@ class SistemaDictamenesVC(ctk.CTk):
                                         except Exception:
                                             arr = [p for p in arr if p.get('folio_visita') != (getattr(self, 'entry_folio_visita', None).get() if hasattr(self, 'entry_folio_visita') else None)]
                                         with open(pf, 'w', encoding='utf-8') as f:
+                                  
                                             json.dump(arr, f, ensure_ascii=False, indent=2)
                                         self.pending_folios = arr
                                 except Exception:

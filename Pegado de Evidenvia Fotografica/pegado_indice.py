@@ -264,24 +264,22 @@ def buscar_destino(ruta_base, destino):
 
     nombre_base = base if ext.lower() in IMG_EXTS else destino
     # Buscar coincidencias de nombre base, incluyendo variantes tipo "1234(2)", "1234-2", "1234_2"
+    # Primer intento: buscar coincidencias directas en el directorio raíz
     matches = []
+    nb = nombre_base.strip().lower()
     for archivo in _cached_listdir(ruta_base):
         archivo_base, archivo_ext = os.path.splitext(archivo)
         if archivo_ext.lower() not in IMG_EXTS:
             continue
         ab = archivo_base.strip().lower()
-        nb = nombre_base.strip().lower()
         if ab == nb:
             matches.append(os.path.join(ruta_base, archivo))
             continue
-        # permitir sufijos de continuación: (N), -N, _N
         try:
-            import re
             m = re.match(rf"^{re.escape(nb)}(?:\s*\(\d+\)|[-_]\d+)$", ab, flags=re.IGNORECASE)
             if m:
                 matches.append(os.path.join(ruta_base, archivo))
         except Exception:
-            # fallback: si empieza con nb and remainder is digits/paren, accept
             if ab.startswith(nb):
                 rem = ab[len(nb):].strip()
                 if rem.startswith('(') and rem.endswith(')') and rem[1:-1].isdigit():
@@ -290,10 +288,32 @@ def buscar_destino(ruta_base, destino):
                     matches.append(os.path.join(ruta_base, archivo))
 
     if matches:
-        # Si hay múltiples coincidencias, devolver la lista para que el llamador inserte todas
         if len(matches) == 1:
             return "imagen", matches[0]
         return "imagen", matches
+
+    # Segundo intento: buscar recursivamente (busca carpetas y archivos con el nombre)
+    try:
+        for root, dirs, files in os.walk(ruta_base):
+            # carpetas con el nombre exacto -> devolver carpeta
+            for d in dirs:
+                if d.strip().lower() == nb:
+                    return "carpeta", os.path.join(root, d)
+            # archivos con nombre base o nombre exacto
+            for f in files:
+                f_base, f_ext = os.path.splitext(f)
+                if f_ext.lower() not in IMG_EXTS:
+                    continue
+                if f.strip().lower() == destino.strip().lower():
+                    return "imagen", os.path.join(root, f)
+                if f_base.strip().lower() == nb:
+                    matches.append(os.path.join(root, f))
+        if matches:
+            if len(matches) == 1:
+                return "imagen", matches[0]
+            return "imagen", matches
+    except Exception:
+        pass
 
     carpeta_buscada = nombre_base
     for item in _cached_listdir(ruta_base):
@@ -310,10 +330,11 @@ def procesar_doc_con_indice_docx(ruta_doc, ruta_imagenes, indice):
     fallo_registrado = False
     imagenes_insertadas = 0
 
+    # Recoger problemas detectados durante el procesamiento para reportar al final
+    doc_issues = []
+
     if not codigos:
-        if not fallo_registrado:
-            registrar_fallo(os.path.basename(ruta_doc))
-            fallo_registrado = True
+        registrar_fallo(os.path.basename(ruta_doc), reason="no_codes", details={"ruta_doc": ruta_doc})
         return
 
     _log_index(f"Procesando DOCX: {ruta_doc}; codigos_found={len(codigos)}; ruta_imagenes={ruta_imagenes}")
@@ -344,6 +365,7 @@ def procesar_doc_con_indice_docx(ruta_doc, ruta_imagenes, indice):
                 codigo_norm = normalizar_codigo(codigo)
                 canon = normalizar_cadena_alnum_mayus(codigo_norm)
                 if canon not in indice and codigo_norm not in indice:
+                    doc_issues.append({"type": "code_not_in_index", "codigo": codigo})
                     continue
 
                 destino = indice[canon]
@@ -362,20 +384,27 @@ def procesar_doc_con_indice_docx(ruta_doc, ruta_imagenes, indice):
                         imagenes_insertadas += 1
 
                 elif tipo == "carpeta":
-                    for archivo in _cached_listdir(ruta):
-                        if os.path.splitext(archivo)[1].lower() in IMG_EXTS:
+                    archivos_en_carpeta = [a for a in _cached_listdir(ruta) if os.path.splitext(a)[1].lower() in IMG_EXTS]
+                    if not archivos_en_carpeta:
+                        doc_issues.append({"type": "carpeta_vacia", "carpeta": ruta, "codigo": codigo})
+                    else:
+                        for archivo in archivos_en_carpeta:
                             insertar_imagen_con_transparencia(run, os.path.join(ruta, archivo))
                             imagenes_insertadas += 1
 
                 else:
-                    if not fallo_registrado:
-                        registrar_fallo(os.path.basename(ruta_doc))
-                        fallo_registrado = True
+                    doc_issues.append({"type": "destino_no_encontrado", "codigo": codigo, "destino": destino})
 
             break
 
-    if imagenes_insertadas == 0 and not fallo_registrado:
-        registrar_fallo(os.path.basename(ruta_doc))
+    if imagenes_insertadas == 0:
+        # Registrar un único fallo por documento con las razones detectadas
+        detalles = {
+            "codigos": codigos,
+            "issues": doc_issues,
+            "ruta_imagenes": ruta_imagenes,
+        }
+        registrar_fallo(os.path.basename(ruta_doc), reason="no_images_inserted", details=detalles)
         fallo_registrado = True
 
     doc.save(ruta_doc)
@@ -388,10 +417,11 @@ def procesar_doc_con_indice_pdf(ruta_doc, ruta_imagenes, indice):
     fallo_registrado = False
     imagenes_insertadas = 0
 
+    # Recoger problemas detectados durante el procesamiento
+    doc_issues = []
+
     if not codigos:
-        if not fallo_registrado:
-            registrar_fallo(os.path.basename(ruta_doc))
-            fallo_registrado = True
+        registrar_fallo(os.path.basename(ruta_doc), reason="no_codes", details={"ruta_doc": ruta_doc})
         return
 
     rutas_imagenes = []
@@ -401,6 +431,7 @@ def procesar_doc_con_indice_pdf(ruta_doc, ruta_imagenes, indice):
         codigo_norm = normalizar_codigo(codigo)
         canon = normalizar_cadena_alnum_mayus(codigo_norm)
         if canon not in indice and codigo_norm not in indice:
+            doc_issues.append({"type": "code_not_in_index", "codigo": codigo})
             continue
 
         # Preferir destino por canon, si no existe usar la clave literal
@@ -420,24 +451,30 @@ def procesar_doc_con_indice_pdf(ruta_doc, ruta_imagenes, indice):
                 imagenes_insertadas += 1
 
         elif tipo == "carpeta":
-            for archivo in _cached_listdir(ruta):
-                if os.path.splitext(archivo)[1].lower() in IMG_EXTS:
+            archivos_en_carpeta = [a for a in _cached_listdir(ruta) if os.path.splitext(a)[1].lower() in IMG_EXTS]
+            if not archivos_en_carpeta:
+                doc_issues.append({"type": "carpeta_vacia", "carpeta": ruta, "codigo": codigo})
+            else:
+                for archivo in archivos_en_carpeta:
                     rutas_imagenes.append(os.path.join(ruta, archivo))
                     imagenes_insertadas += 1
 
         else:
-            if not fallo_registrado:
-                registrar_fallo(os.path.basename(ruta_doc))
-                fallo_registrado = True
+            doc_issues.append({"type": "destino_no_encontrado", "codigo": codigo, "destino": destino})
 
-    if imagenes_insertadas == 0 and not fallo_registrado:
-        registrar_fallo(os.path.basename(ruta_doc))
+    if imagenes_insertadas == 0:
+        detalles = {
+            "codigos": codigos,
+            "issues": doc_issues,
+            "ruta_imagenes": ruta_imagenes,
+        }
+        registrar_fallo(os.path.basename(ruta_doc), reason="no_images_inserted", details=detalles)
         fallo_registrado = True
         return
 
     exito = insertar_imagenes_en_pdf_placeholder(ruta_doc, rutas_imagenes)
     if not exito and not fallo_registrado:
-        registrar_fallo(os.path.basename(ruta_doc))
+        registrar_fallo(os.path.basename(ruta_doc), reason="insert_failed", details={"ruta_doc": ruta_doc, "rutas_imagenes_len": len(rutas_imagenes)})
 
 
 def procesar_doc_con_indice(ruta_doc, ruta_imagenes, indice):

@@ -17,6 +17,7 @@ from reportlab.lib.units import mm, inch
 from reportlab.lib.utils import ImageReader
 from reportlab.lib import colors
 import tempfile
+import time
 
 
 # Canvas personalizado para numerar páginas como "Página X de Y"
@@ -1299,24 +1300,63 @@ def _reserve_next_folio(data_dir: str) -> str:
 
     Archivo: data/folio_counter.json con formato {"last": N}
     """
+    # Preferir delegar a folio_manager (reserva atómica). Si no está disponible,
+    # usar un fallback local que adquiere un lock por archivo para evitar
+    # condiciones de carrera entre procesos.
     try:
-        p = os.path.join(data_dir, 'folio_counter.json')
-        # crear si no existe
-        if not os.path.exists(p):
-            with open(p, 'w', encoding='utf-8') as f:
-                json.dump({'last': 0}, f)
-        with open(p, 'r', encoding='utf-8') as f:
-            data = json.load(f) or {}
-        last = int(data.get('last') or 0)
-        nxt = last + 1
-        data['last'] = nxt
-        # escribir de vuelta
         try:
-            with open(p, 'w', encoding='utf-8') as f:
-                json.dump(data, f, ensure_ascii=False, indent=2)
+            # import dinámico para no forzar dependencias en entornos limitados
+            from folio_manager import reserve_next
+            nxt = reserve_next()
+            return str(int(nxt))
         except Exception:
-            pass
-        return str(nxt)
+            # Fallback: archivo counter + lock en el mismo directorio `data_dir`
+            p = os.path.join(data_dir, 'folio_counter.json')
+            lock = os.path.join(data_dir, 'folio_counter.lock')
+            timeout = 5.0
+            start = time.time()
+            # intentar adquirir lock simple mediante os.open O_EXCL
+            acquired = False
+            while True:
+                try:
+                    fd = os.open(lock, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+                    os.close(fd)
+                    acquired = True
+                    break
+                except FileExistsError:
+                    if (time.time() - start) >= timeout:
+                        break
+                    time.sleep(0.05)
+            try:
+                if not os.path.exists(p):
+                    with open(p, 'w', encoding='utf-8') as f:
+                        json.dump({'last': 0}, f)
+                with open(p, 'r', encoding='utf-8') as f:
+                    data = json.load(f) or {}
+                last = int(data.get('last') or 0)
+                nxt = last + 1
+                data['last'] = nxt
+                # escribir de forma atómica
+                tmp = p + '.tmp'
+                with open(tmp, 'w', encoding='utf-8') as f:
+                    json.dump(data, f, ensure_ascii=False, indent=2)
+                try:
+                    os.replace(tmp, p)
+                except Exception:
+                    try:
+                        if os.path.exists(p):
+                            os.remove(p)
+                    except Exception:
+                        pass
+                    os.replace(tmp, p)
+                return str(nxt)
+            finally:
+                if acquired:
+                    try:
+                        if os.path.exists(lock):
+                            os.remove(lock)
+                    except Exception:
+                        pass
     except Exception:
         return '1'
 
@@ -1732,6 +1772,116 @@ def generar_json_constancias_desde_historial(salida_dir: str | None = None, max_
     return created
 
 
+def convertir_constancia_a_json(datos: dict) -> dict:
+    """Convierte una estructura de constancia a un JSON con el mismo acomodo que el dictamen.
+
+    Devuelve un dict serializable; intenta normalizar identificador, norma, fechas,
+    cliente, producto, tabla_productos, cantidad_total, observaciones y firmas.
+    """
+    try:
+        # Intentar reconstruir cadena identificadora
+        cadena = datos.get('cadena') or ''
+        try:
+            gen = ConstanciaPDFGenerator(datos)
+            cadena = gen.construir_cadena_identificacion() or cadena
+        except Exception:
+            pass
+
+        # Extraer year/folio/solicitud/lista
+        solicitud_raw = str(datos.get('solicitud') or '')
+        year = ''
+        if '/' in solicitud_raw:
+            parts = solicitud_raw.split('/')
+            if parts[-1].strip().isdigit():
+                year = parts[-1].strip()[-2:]
+        if not year:
+            fem = str(datos.get('fecha_emision') or '')
+            m = re.search(r"(\d{4})", fem)
+            if m:
+                year = m.group(1)[-2:]
+
+        folio_raw = str(datos.get('folio_constancia') or datos.get('folio_formateado') or '')
+        fol_digits = ''.join([c for c in folio_raw if c.isdigit()])
+        folio = fol_digits.zfill(6) if fol_digits else folio_raw
+
+        solicitud_num = ''
+        if solicitud_raw:
+            if '/' in solicitud_raw:
+                solicitud_num = solicitud_raw.split('/')[0].strip()
+            else:
+                solicitud_num = ''.join([c for c in solicitud_raw if c.isdigit()])
+        solicitud = solicitud_num.zfill(6) if solicitud_num and solicitud_num.isdigit() else solicitud_num
+
+        lista = str(datos.get('lista') or '')
+
+        norma_codigo = str(datos.get('norma') or '')
+        nombre_norma = datos.get('nombre_norma') or datos.get('normades') or ''
+
+        verificacion = str(datos.get('fecha_verificacion') or '')
+        emision = str(datos.get('fecha_emision') or '')
+
+        cliente_nombre = datos.get('cliente','')
+        cliente_rfc = datos.get('rfc','')
+        producto_desc = datos.get('producto','')
+
+        tabla_productos = []
+        total_cantidad = 0
+        for row in (datos.get('tabla_relacion') or []):
+            marca = row.get('MARCA') or row.get('marca') or ''
+            codigo = row.get('CODIGO') or row.get('codigo') or ''
+            factura = row.get('FACTURA') or row.get('factura') or ''
+            cantidad = row.get('CANTIDAD') or row.get('CANTIDAD ') or 0
+            try:
+                cant_num = int(cantidad) if isinstance(cantidad, (int, float)) or str(cantidad).isdigit() else 0
+            except Exception:
+                cant_num = 0
+            total_cantidad += cant_num
+            tabla_productos.append({'marca': marca, 'codigo': codigo, 'factura': factura, 'cantidad': cant_num})
+
+        cantidad_texto = f"{total_cantidad} unidades" if total_cantidad else '0 unidades'
+
+        # Observaciones y firmas
+        observaciones = datos.get('obs_dictamen') or datos.get('obs') or datos.get('OBSERVACIONES') or ''
+        firmas_map = cargar_firmas()
+        firma1 = {'nombre': datos.get('nfirma1',''), 'valida': False, 'codigo_solicitado': '', 'razon_sin_firma': ''}
+        firma2 = {'nombre': datos.get('nfirma2','') or 'Arturo Flores Gomez'}
+        try:
+            tr0 = list(datos.get('tabla_relacion') or [])
+            pref = ''
+            if tr0:
+                pref = (tr0[0].get('FIRMA') or tr0[0].get('firma') or '').strip()
+            if pref and pref in firmas_map:
+                entry = firmas_map.get(pref)
+                nombre = entry.get('NOMBRE DE INSPECTOR') or entry.get('nombre') or entry.get('NOMBRE') or ''
+                firma1['nombre'] = nombre
+                firma1['codigo_solicitado'] = pref
+                normas_ac = entry.get('Normas acreditadas') or entry.get('normas_acreditadas') or entry.get('Normas') or []
+                if norma_codigo and normas_ac and (norma_codigo in normas_ac or any(norma_codigo in na for na in normas_ac)):
+                    firma1['valida'] = True
+                else:
+                    firma1['valida'] = False
+                    firma1['razon_sin_firma'] = f"Inspector {nombre} no acreditado para {norma_codigo}"
+        except Exception:
+            pass
+
+        json_data = {
+            'identificacion': {'cadena_identificacion': cadena, 'year': year, 'folio': folio, 'solicitud': solicitud, 'lista': lista},
+            'norma': {'codigo': norma_codigo, 'descripcion': nombre_norma, 'capitulo': ''},
+            'fechas': {'verificacion': verificacion, 'verificacion_larga': '', 'emision': emision},
+            'cliente': {'nombre': cliente_nombre, 'rfc': cliente_rfc},
+            'producto': {'descripcion': producto_desc, 'pedimento': ''},
+            'tabla_productos': tabla_productos,
+            'cantidad_total': {'valor': total_cantidad, 'texto': cantidad_texto},
+            'observaciones': observaciones,
+            'firmas': {'firma1': firma1, 'firma2': firma2},
+            'modo_insertado': datos.get('modo_insertado', 'etiqueta'),
+            'etiquetas': {'cantidad': len(datos.get('evidencias_lista', []) or [])}
+        }
+        return json_data
+    except Exception:
+        return {}
+
+
 def generar_constancias_desde_tabla(salida_dir: str | None = None) -> list:
     """Genera una constancia PDF por cada fila en data/tabla_de_relacion.json.
 
@@ -1810,6 +1960,36 @@ def generar_constancias_desde_tabla(salida_dir: str | None = None) -> list:
             gen = ConstanciaPDFGenerator(datos, base_dir=base)
             out = gen.generar(out_path)
             created.append(out)
+            # Guardar JSON en formato similar al dictamen usando el convertidor
+            try:
+                # construir nombre similar al que usa la app: incluir lista/folio/solicitud
+                sol_no = ''
+                sol_year = ''
+                if '/' in solicitud_raw:
+                    parts = solicitud_raw.split('/')
+                    sol_no = parts[0].strip()
+                    sol_year = parts[1].strip() if len(parts) > 1 else ''
+                else:
+                    sol_no = solicitud_raw
+
+                json_name = f"Constancia_Lista_{datos.get('lista','')}_{fol_display}_{sol_no}_{sol_year}.json"
+                json_name = json_name.replace('/', '_').replace(' ', '_')
+                json_path = os.path.join(out_dir, json_name)
+                try:
+                    json_data = convertir_constancia_a_json(datos)
+                except Exception:
+                    json_data = datos
+                # añadir metadata
+                try:
+                    json_data.setdefault('metadata', {})
+                    json_data['metadata']['pdf_generado'] = True
+                    json_data['metadata']['pdf_path'] = out
+                except Exception:
+                    pass
+                with open(json_path, 'w', encoding='utf-8') as jf:
+                    json.dump(json_data, jf, ensure_ascii=False, indent=2)
+            except Exception:
+                pass
             print('Generated:', out)
         except Exception as e:
             print('Error generating for row', i, e)
