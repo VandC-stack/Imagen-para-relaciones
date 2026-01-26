@@ -288,17 +288,28 @@ class ControlFoliosAnual:
             # Si viene con formato 'XXXX/25', usar la parte antes de la barra
             sol_base = sol_search.split('/')[0] if '/' in sol_search else sol_search
 
+            # Buscar en `Dictamenes` y también en `Constancias` (nuevo tipo)
             dicts_dir = os.path.join(self.data_dir, 'Dictamenes')
-            if dicts_dir in self._dictamen_cache:
-                files = self._dictamen_cache[dicts_dir]
-            else:
-                if not os.path.exists(dicts_dir):
-                    return None
-                # Index both JSON and PDF files so we can match dictamen info even
-                # when only a PDF exists for a folio.
-                files = [os.path.join(dicts_dir, f) for f in os.listdir(dicts_dir)
-                         if f.lower().endswith('.json') or f.lower().endswith('.pdf')]
-                self._dictamen_cache[dicts_dir] = files
+            consts_dir = os.path.join(self.data_dir, 'Constancias')
+
+            files = []
+            for dpath in (dicts_dir, consts_dir):
+                try:
+                    if dpath in self._dictamen_cache:
+                        files.extend(self._dictamen_cache[dpath])
+                        continue
+                    if not os.path.exists(dpath):
+                        # no existe -> skip
+                        continue
+                    found = [os.path.join(dpath, f) for f in os.listdir(dpath)
+                             if f.lower().endswith('.json') or f.lower().endswith('.pdf')]
+                    self._dictamen_cache[dpath] = found
+                    files.extend(found)
+                except Exception:
+                    continue
+
+            if not files:
+                return None
 
             # Buscamos coincidencias estrictas: preferir igualdad de folio+solicitud.
             for fp in files:
@@ -646,7 +657,13 @@ class ControlFoliosAnual:
 
         # Tipo de documento (mapear letra a texto)
         tipo_raw = primer_registro.get("TIPO DE DOCUMENTO") or primer_registro.get("TIPO DE DOCUMENTO OFICIAL EMITIDO", "D")
-        tipo_display = "Dictamen" if str(tipo_raw).strip().upper() == 'D' else str(tipo_raw)
+        _t = str(tipo_raw).strip().upper() if tipo_raw is not None else ''
+        if _t == 'D':
+            tipo_display = "Dictamen"
+        elif _t == 'C':
+            tipo_display = "Constancia"
+        else:
+            tipo_display = str(tipo_raw)
 
         # NOM: preferir norma del dictamen, si no mapear CLASIF UVA usando Normas.json
         if norma_codigo:
@@ -1011,9 +1028,11 @@ class ControlFoliosAnual:
             except Exception:
                 pass
 
-            # Crear lista ordenada de folios a exportar, empezando desde 849 en adelante
-            all_folios_sorted = sorted(k for k in folio_map_int.keys() if k >= 849)
-            print(f"📊 Folios detectados para exportar (>=849): {len(all_folios_sorted)}")
+            candidates = [k for k in folio_map_int.keys() if k >= 849]
+            if not candidates:
+                candidates = list(folio_map_int.keys())
+            all_folios_sorted = sorted(candidates)
+            print(f"📊 Folios detectados para exportar: {len(all_folios_sorted)} (threshold applied: {any(k>=849 for k in candidates)})")
 
             # Generar filas: iterar por folio entero ordenado para evitar saltos
             fila_actual = 2
@@ -1178,8 +1197,6 @@ def generar_control_folios_anual(
     except Exception:
         pass
 
-    # Resolver data_dir: si se pasó explícitamente lo usamos, si no
-    # lo calculamos desde el historial_path como antes.
     if not data_dir:
         base_dir = os.path.dirname(os.path.dirname(historial_path))
         data_dir = os.path.join(base_dir, "data")
@@ -1201,9 +1218,6 @@ def generar_control_folios_anual(
     if not exito:
         raise Exception(mensaje)
 
-    # Si recibimos una lista de historial (p.e. desde export_cache), usarla
-    # en lugar de leer el `historial_visitas.json` del data_dir. Luego
-    # regenerar el mapeo folio->cliente.
     if historial_list is not None:
         # historial_list puede venir como {'visitas': [...]} o directamente como lista
         if isinstance(historial_list, dict) and 'visitas' in historial_list:
@@ -1341,7 +1355,14 @@ def generar_reporte_ema(tabla_de_relacion_path, historial_path, output_path, exp
         fecha_inspeccion = primer.get('FECHA DE VERIFICACION', 'N/A')
         numero_dictamen = generador.formatear_folio_ema(folio)
         numero_contrato = cliente_info.get('NÚMERO_DE_CONTRATO', 'N/A') if cliente_info else 'N/A'
-        tipo_doc = primer.get('TIPO DE DOCUMENTO', primer.get('TIPO DE DOCUMENTO OFICIAL EMITIDO', 'D'))
+        tipo_raw = primer.get('TIPO DE DOCUMENTO', primer.get('TIPO DE DOCUMENTO OFICIAL EMITIDO', 'D'))
+        _tt = str(tipo_raw).strip().upper() if tipo_raw is not None else ''
+        if _tt == 'D':
+            tipo_doc = 'Dictamen'
+        elif _tt == 'C':
+            tipo_doc = 'Constancia'
+        else:
+            tipo_doc = str(tipo_raw)
         fecha_doc_emitido = primer.get('FECHA DE EMISION DE SOLICITUD', 'N/A')
 
         # Productos, noms

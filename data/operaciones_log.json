@@ -69,6 +69,20 @@
       "folio": "CP000002",
       "status": "exitosa",
       "detalles": "Archivos: 9, Errores: 0"
+    },
+    {
+      "timestamp": "2026-01-26T17:48:11.927432",
+      "tipo": "eliminar_registro",
+      "folio": "CP000001",
+      "status": "exitosa",
+      "detalles": "Archivos: 10, Errores: 0"
+    },
+    {
+      "timestamp": "2026-01-26T17:48:14.419271",
+      "tipo": "eliminar_registro",
+      "folio": "CP000002",
+      "status": "exitosa",
+      "detalles": "Archivos: 8, Errores: 0"
     }
   ]
 }

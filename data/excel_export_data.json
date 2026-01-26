@@ -16,7 +16,7 @@
       "PEDIMENTO_IMPORTACION": null,
       "FECHA_DESADUANAMIENTO": "",
       "MODELOS": "SC",
-      "FOLIO_EMA": "000004"
+      "FOLIO_EMA": "000003"
     },
     {
       "NUMERO_SOLICITUD": "000333/25",
@@ -34,9 +34,9 @@
       "PEDIMENTO_IMPORTACION": null,
       "FECHA_DESADUANAMIENTO": "",
       "MODELOS": "SC",
-      "FOLIO_EMA": "000005"
+      "FOLIO_EMA": "000004"
     }
   ],
   "anual": [],
-  "generated_at": "2026-01-26T15:52:21.066501"
+  "generated_at": "2026-01-26T17:48:14.393973"
 }
