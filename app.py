@@ -7789,20 +7789,46 @@ class SistemaDictamenesVC(ctk.CTk):
                 except Exception:
                     pass
                 
+                # intentar resolver LISTA desde posibles ubicaciones si no viene en item
+                try:
+                    lista_val = ''
+                    if 'LISTA' in item and item.get('LISTA') is not None and str(item.get('LISTA')).strip() != '':
+                        lista_val = str(item.get('LISTA')).strip()
+                    elif 'lista' in item and item.get('lista') is not None and str(item.get('lista')).strip() != '':
+                        lista_val = str(item.get('lista')).strip()
+                    else:
+                        # buscar en estructuras anidadas comunes (p.ej. 'identificacion':{'lista': '2'})
+                        try:
+                            ident = item.get('identificacion') if isinstance(item, dict) else None
+                            if isinstance(ident, dict):
+                                lv = ident.get('lista') or ident.get('LISTA')
+                                if lv is not None and str(lv).strip() != '':
+                                    lista_val = str(lv).strip()
+                        except Exception:
+                            lista_val = lista_val
+                except Exception:
+                    lista_val = ''
+
+                folio_data['LISTA'] = lista_val
+
                 # Agregar solo si tiene folio
                 if folio_data["FOLIOS"]:
                     folios_data.append(folio_data)
 
-            # Deduplicar por número de folio (mantener primer registro para cada folio)
+            # Deduplicar por número de folio y por LISTA (mantener primer registro para cada par)
+            # Algunos documentos (p.ej. Constancias) pueden compartir el mismo número de folio
+            # pero pertenecer a listas diferentes; en ese caso queremos mantener ambos registros.
             seen = set()
             deduped = []
             for f in folios_data:
-                val = f.get('FOLIOS')
-                if not val:
+                fol_val = f.get('FOLIOS') or ''
+                lista_val = f.get('LISTA') or ''
+                if not fol_val:
                     continue
-                if val in seen:
+                key = (str(fol_val).strip(), str(lista_val).strip())
+                if key in seen:
                     continue
-                seen.add(val)
+                seen.add(key)
                 deduped.append(f)
             folios_data = deduped
             
@@ -7812,6 +7838,19 @@ class SistemaDictamenesVC(ctk.CTk):
             
             # Crear archivo JSON
             archivo_folios = os.path.join(self.folios_visita_path, f"folios_{folio_visita}.json")
+
+            # Si ya existe un archivo de folios para esta visita, cargarlo y fusionar
+            try:
+                if os.path.exists(archivo_folios):
+                    with open(archivo_folios, 'r', encoding='utf-8') as ef:
+                        existing = json.load(ef) or {}
+                        existing_list = existing.get('folios') if isinstance(existing, dict) else existing
+                        if isinstance(existing_list, list) and existing_list:
+                            # Prepend existing so their entries keep priority on dedupe
+                            folios_data = existing_list + folios_data
+            except Exception:
+                # Si falla la carga, continuar con los datos nuevos
+                pass
 
             # Capturar contador actual antes de persistir (meta) para poder
             # restaurarlo si la visita se elimina posteriormente.
