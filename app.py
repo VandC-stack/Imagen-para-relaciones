@@ -12159,42 +12159,21 @@ class SistemaDictamenesVC(ctk.CTk):
             
             with open(self.archivo_json_generado, 'r', encoding='utf-8') as f:
                 datos = json.load(f)
-            # Agrupar por SOLICITUD (si existe) para determinar carpetas que se crearán
             from collections import defaultdict
-            solicitudes_map = defaultdict(list)
-            any_solicitud = False
-            for item in (datos or []):
-                sol_raw = item.get('SOLICITUD') or item.get('Solicitud') or item.get('solicitud') or ''
-                sol = str(sol_raw).strip()
-                if sol:
-                    any_solicitud = True
-                    solicitudes_map[sol].append(item)
-                else:
-                    # agrupar sin solicitud bajo etiqueta especial
-                    solicitudes_map['(Sin solicitud)'].append(item)
-
-            # Si no hay SOLICITUD en ningún registro, intentar agrupar por LISTA
-            if not any_solicitud:
-                solicitudes_map = defaultdict(list)
-                for item in (datos or []):
-                    lista_raw = item.get('LISTA') or item.get('Lista') or item.get('lista') or ''
-                    lista = str(lista_raw).strip() or '(Sin lista)'
-                    solicitudes_map[lista].append(item)
-
-            solicitudes_indices = defaultdict(list)
+            solicitudes_by_sol = defaultdict(list)  # sol -> list of (idx, item, lista)
+            solicitudes_indices = defaultdict(list)  # sol -> list of indices
             for idx, item in enumerate(datos or []):
                 sol_raw = item.get('SOLICITUD') or item.get('Solicitud') or item.get('solicitud') or ''
-                sol = str(sol_raw).strip()
-                if sol:
-                    solicitudes_indices[sol].append(idx)
-                else:
-                    lista_raw = item.get('LISTA') or item.get('Lista') or item.get('lista') or ''
-                    lista = str(lista_raw).strip() or '(Sin lista)'
-                    solicitudes_indices[lista].append(idx)
+                sol = str(sol_raw).strip() or '(Sin solicitud)'
+                lista_raw = item.get('LISTA') or item.get('Lista') or item.get('lista') or ''
+                lista = str(lista_raw).strip() or '(Sin lista)'
+                solicitudes_by_sol[sol].append((idx, item, lista))
+                solicitudes_indices[sol].append(idx)
 
-            total_carpetas = len(solicitudes_map)
-            carpetas_info = sorted(((k, len(v)) for k, v in solicitudes_map.items()), key=lambda x: -x[1])
-            total_dictamenes = total_carpetas
+            # Número de carpetas estimadas = solicitudes distintas
+            total_carpetas = len(solicitudes_by_sol)
+            carpetas_info = []
+            total_dictamenes = 0
 
             possible_keys = ['TIPO DE DOCUMENTO', 'Tipo de documento', 'TIPO_DOCUMENTO', 'TIPO', 'TIPO_DOC', 'TIPO DE DOC', 'tipo', 'Tipo']
             tipo_map = {'D': 'Dictamen', 'C': 'Constancia', 'ND': 'Negación Dictamen', 'NC': 'Negación Constancia'}
@@ -12274,57 +12253,62 @@ class SistemaDictamenesVC(ctk.CTk):
             if folios_unicos_por_registro:
                 # contar folios únicos válidos
                 total_dictamenes = len(set(x for x in folios_unicos_por_registro if x))
-
-            # Detalle por carpeta: si hay tipos, contar solo filas con tipo reconocido por carpeta
             carpetas_detalle = []
-            if has_tipo:
-                def _get_type_key(item):
-                    # reproducir la misma heurística usada arriba para una sola fila
-                    tipo_raw = None
-                    for k in possible_keys:
-                        if k in item and item.get(k) not in (None, ''):
-                            tipo_raw = item.get(k)
-                            break
-                    if tipo_raw is None:
-                        for kk in list(item.keys()):
-                            if 'TIPO' in kk.upper() and item.get(kk) not in (None, ''):
-                                tipo_raw = item.get(kk)
-                                break
-                    t = str(tipo_raw).strip().upper() if tipo_raw is not None else ''
-                    if t in tipo_map:
-                        return t
-                    if t.startswith('NEG') and 'D' in t:
-                        return 'ND'
-                    if t.startswith('NEG') and 'C' in t:
-                        return 'NC'
-                    if t.startswith('D'):
-                        return 'D'
-                    if t.startswith('C'):
-                        return 'C'
-                    return None
 
-                for name, items in solicitudes_map.items():
-                    cnt = 0
-                    for it in items:
+            def _get_type_key(item):
+                tipo_raw = None
+                for k in possible_keys:
+                    if k in item and item.get(k) not in (None, ''):
+                        tipo_raw = item.get(k)
+                        break
+                if tipo_raw is None:
+                    for kk in list(item.keys()):
+                        if 'TIPO' in kk.upper() and item.get(kk) not in (None, ''):
+                            tipo_raw = item.get(kk)
+                            break
+                t = str(tipo_raw).strip().upper() if tipo_raw is not None else ''
+                if t in tipo_map:
+                    return t
+                if t.startswith('NEG') and 'D' in t:
+                    return 'ND'
+                if t.startswith('NEG') and 'C' in t:
+                    return 'NC'
+                if t.startswith('D'):
+                    return 'D'
+                if t.startswith('C'):
+                    return 'C'
+                return None
+
+            # Recorrer por solicitud
+            for sol, entries in solicitudes_by_sol.items():
+                # entries: list of (idx, item, lista)
+                if has_tipo:
+                    listas_set = set()
+                    for idx, it, lista in entries:
                         if _get_type_key(it) is not None:
-                            cnt += 1
-                    carpetas_detalle.append((name, cnt))
-                carpetas_info = sorted(carpetas_detalle, key=lambda x: -x[1])
-            else:
-                # Si disponemos de folios únicos, calcular por carpeta el número de folios únicos
-                if folios_unicos_por_registro:
-                    # usar solicitudes_indices para identificar posiciones dentro de `datos`
-                    for name, indices in solicitudes_indices.items():
+                            listas_set.add(lista)
+                    cnt = len(listas_set)
+                else:
+                    # Preferir folios únicos cuando existan
+                    if folios_unicos_por_registro:
                         folios_set = set()
-                        for pos in indices:
-                            if pos < len(folios_unicos_por_registro):
-                                fol = folios_unicos_por_registro[pos]
+                        for idx, it, lista in entries:
+                            if idx < len(folios_unicos_por_registro):
+                                fol = folios_unicos_por_registro[idx]
                                 if fol:
                                     folios_set.add(fol)
-                        carpetas_detalle.append((name, len(folios_set)))
-                    carpetas_info = sorted(carpetas_detalle, key=lambda x: -x[1])
-                else:
-                    carpetas_info = sorted(((k, len(v)) for k, v in solicitudes_map.items()), key=lambda x: -x[1])
+                        if folios_set:
+                            cnt = len(folios_set)
+                        else:
+                            # Fallback: contar listas únicas
+                            cnt = len(set(lista for _, __, lista in entries))
+                    else:
+                        cnt = len(set(lista for _, __, lista in entries))
+                carpetas_detalle.append((sol, cnt))
+
+            carpetas_info = sorted(carpetas_detalle, key=lambda x: -x[1])
+            # Recalcular total de dictámenes como suma de documentos por solicitud
+            total_dictamenes = sum(c for _, c in carpetas_info)
 
             lines = []
             lines.append("📊 VISTA PREVIA DE LA VISITA\n")
