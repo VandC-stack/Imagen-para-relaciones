@@ -9,6 +9,7 @@ import customtkinter as ctk
 from tkinter import filedialog, messagebox, simpledialog
 from tkinter import ttk
 import tkinter as tk
+import tkinter as tk
 import tkinter.font as tkfont
 import threading
 import subprocess
@@ -1565,14 +1566,6 @@ class SistemaDictamenesVC(ctk.CTk):
         except Exception:
             pass
 
-
-
-
-
-
-
-
-
     def _construir_tab_clientes(self, parent):
         """Consulta de clientes y agregar nuevos clientes"""
         cont = ctk.CTkFrame(parent, fg_color=STYLE["surface"], corner_radius=8)
@@ -1805,7 +1798,6 @@ class SistemaDictamenesVC(ctk.CTk):
             self._refrescar_tabla_clientes()
         except Exception:
             pass
-
 
     def mostrar_inspectores(self):
         """Muestra la sección de Inspectores y oculta las demás"""
@@ -5821,6 +5813,47 @@ class SistemaDictamenesVC(ctk.CTk):
                 if hasattr(self, 'boton_generar_dictamen'):
                     self.boton_generar_dictamen.configure(state='normal')
 
+            # Ocultar / deshabilitar el campo Folio Acta para las Constancias (no requerido)
+            try:
+                folio_widget = getattr(self, 'entry_folio_acta', None)
+                if folio_widget is not None:
+                    parent = getattr(folio_widget, 'master', None)
+                    is_constancia = 'constancia' in seleccionado.lower()
+                    if is_constancia:
+                        # borrar valor y ocultar
+                        try:
+                            folio_widget.delete(0, 'end')
+                        except Exception:
+                            pass
+                        try:
+                            folio_widget.configure(state='disabled')
+                        except Exception:
+                            pass
+                        try:
+                            if parent and getattr(parent, 'winfo_ismapped', lambda: False)():
+                                parent.pack_forget()
+                        except Exception:
+                            pass
+                    else:
+                        # volver a mostrar y activar
+                        try:
+                            if parent and not getattr(parent, 'winfo_ismapped', lambda: False)():
+                                parent.pack(fill='x', pady=(0, 10))
+                        except Exception:
+                            pass
+                        try:
+                            folio_widget.configure(state='normal')
+                        except Exception:
+                            pass
+                        # si está vacío, rellenar con valor por defecto
+                        try:
+                            if folio_widget.get().strip() == '':
+                                folio_widget.delete(0, 'end')
+                                folio_widget.insert(0, f"AC{self.current_folio}")
+                        except Exception:
+                            pass
+            except Exception:
+                pass
         except Exception as e:
             # No bloquear la aplicación por errores en esta actualización
             print(f"Error actualizando tipo de documento UI: {e}")
@@ -11104,18 +11137,132 @@ class SistemaDictamenesVC(ctk.CTk):
                             if name:
                                 clientes_lista.append(name)
                     
-                    # Crear combobox para clientes
-                    ent = ctk.CTkComboBox(
-                        field_frame,
-                        values=clientes_lista,
-                        font=FONT_SMALL,
-                        dropdown_font=FONT_SMALL,
-                        state="readonly",
-                        height=35,
-                        corner_radius=8,
-                        width=250
-                    )
-                    ent.pack(fill="x")
+                    # Crear widget de autocompletado para clientes (mejor rendimiento con listas largas)
+                    class AutocompleteWidget:
+                        def __init__(self, parent, values, font=None, width=250):
+                            self.parent = parent
+                            self.values = values or []
+                            self.entry = ctk.CTkEntry(parent, font=font or FONT_SMALL, height=35, corner_radius=8)
+                            self.entry.pack(fill='x')
+                            self._popup = None
+                            self._listbox = None
+                            self._command = None
+                            self.max_shown = 50
+                            self.entry.bind('<KeyRelease>', self._on_keyrelease)
+                            self.entry.bind('<Down>', self._on_down)
+
+                        def _on_keyrelease(self, event=None):
+                            txt = self.entry.get().strip().lower()
+                            if txt == '' or txt == 'seleccione un cliente...':
+                                self._close_popup()
+                                return
+                            # filtrar valores
+                            matches = [v for v in self.values if txt in (v or '').lower()]
+                            if not matches:
+                                self._close_popup()
+                                return
+                            self._show_popup(matches[:self.max_shown])
+
+                        def _on_down(self, event=None):
+                            if self._listbox:
+                                try:
+                                    self._listbox.focus_set()
+                                    self._listbox.selection_set(0)
+                                    self._listbox.activate(0)
+                                except Exception:
+                                    pass
+
+                        def _show_popup(self, items):
+                            self._close_popup()
+                            try:
+                                x = self.entry.winfo_rootx()
+                                y = self.entry.winfo_rooty() + self.entry.winfo_height()
+                                self._popup = tk.Toplevel(self.entry)
+                                self._popup.wm_overrideredirect(True)
+                                self._popup.wm_geometry(f"+{x}+{y}")
+                                lb = tk.Listbox(self._popup, height=min(len(items), self.max_shown), activestyle='none')
+                                lb.pack(side='left', fill='both')
+                                for it in items:
+                                    lb.insert('end', it)
+                                lb.bind('<Button-1>', self._on_list_click)
+                                lb.bind('<Return>', self._on_list_return)
+                                lb.bind('<Escape>', lambda e: self._close_popup())
+                                lb.bind('<Up>', self._on_list_key)
+                                lb.bind('<Down>', self._on_list_key)
+                                self._listbox = lb
+                            except Exception:
+                                self._close_popup()
+
+                        def _on_list_key(self, event):
+                            # allow keyboard navigation inside listbox
+                            try:
+                                if event.keysym == 'Up' and self._listbox.curselection() and self._listbox.curselection()[0] == 0:
+                                    # at top, move focus back to entry
+                                    self.entry.focus_set()
+                                    return
+                            except Exception:
+                                pass
+
+                        def _on_list_return(self, event=None):
+                            try:
+                                sel = self._listbox.curselection()
+                                if sel:
+                                    val = self._listbox.get(sel[0])
+                                    self.set(val)
+                            except Exception:
+                                pass
+                            finally:
+                                self._close_popup()
+
+                        def _on_list_click(self, event=None):
+                            try:
+                                idx = self._listbox.nearest(event.y)
+                                val = self._listbox.get(idx)
+                                self.set(val)
+                            except Exception:
+                                pass
+                            finally:
+                                self._close_popup()
+
+                        def _close_popup(self):
+                            try:
+                                if self._popup:
+                                    self._popup.destroy()
+                            except Exception:
+                                pass
+                            self._popup = None
+                            self._listbox = None
+
+                        def get(self):
+                            return self.entry.get()
+
+                        def set(self, val):
+                            try:
+                                self.entry.delete(0, 'end')
+                                self.entry.insert(0, val)
+                                if self._command:
+                                    try:
+                                        self._command(val)
+                                    except Exception:
+                                        pass
+                            except Exception:
+                                pass
+
+                        def pack(self, **kwargs):
+                            return self.entry.pack(**kwargs)
+
+                        def configure(self, **kwargs):
+                            # support configure(command=...)
+                            if 'command' in kwargs:
+                                self._command = kwargs.get('command')
+                            return None
+
+                        def bind(self, *args, **kwargs):
+                            return self.entry.bind(*args, **kwargs)
+
+                    ent = AutocompleteWidget(field_frame, clientes_lista, font=FONT_SMALL, width=250)
+                    # Exponer en entries para que otros handlers lo usen
+                    entries[key] = ent
                     # Callback cuando se seleccione un cliente en el modal
                     def _on_cliente_modal_select(val):
                         nombre = val
@@ -11500,6 +11647,79 @@ class SistemaDictamenesVC(ctk.CTk):
         insp_placeholder.pack(fill='both', expand=True)
         ctk.CTkLabel(insp_placeholder, text='Cargando...', font=FONT_SMALL, text_color=STYLE['texto_oscuro']).pack(anchor='center', pady=20)
         entries['_insp_placeholder'] = insp_placeholder
+
+        # --- Comportamiento: ocultar/deshabilitar Folio Acta en el modal si el tipo es Constancia ---
+        try:
+            def _toggle_modal_folio_acta(val=None):
+                try:
+                    tipo_val = ''
+                    try:
+                        tipo_val = entries.get('tipo_documento').get().strip() if entries.get('tipo_documento') else ''
+                    except Exception:
+                        tipo_val = str(val or '').strip()
+                    is_const = 'constancia' in (tipo_val or '').lower()
+                    fa = entries.get('folio_acta')
+                    if not fa:
+                        return
+                    parent = getattr(fa, 'master', None)
+                    if is_const:
+                        try:
+                            fa.delete(0, 'end')
+                        except Exception:
+                            pass
+                        try:
+                            fa.configure(state='disabled')
+                        except Exception:
+                            pass
+                        try:
+                            if parent and getattr(parent, 'winfo_ismapped', lambda: False)():
+                                parent.pack_forget()
+                        except Exception:
+                            pass
+                    else:
+                        try:
+                            if parent and not getattr(parent, 'winfo_ismapped', lambda: False)():
+                                parent.pack(fill='x', pady=(0, 10))
+                        except Exception:
+                            pass
+                        try:
+                            fa.configure(state='normal')
+                        except Exception:
+                            pass
+                        try:
+                            if fa.get().strip() == '':
+                                fa.delete(0, 'end')
+                                fa.insert(0, f"AC{self.current_folio}")
+                        except Exception:
+                            pass
+                except Exception:
+                    pass
+
+            # asignar callback al combo del modal si existe
+            if entries.get('tipo_documento') and hasattr(entries.get('tipo_documento'), 'configure'):
+                try:
+                    entries.get('tipo_documento').configure(command=lambda v: _toggle_modal_folio_acta(v))
+                except Exception:
+                    try:
+                        # intentar trace si es StringVar-backed
+                        v = getattr(entries.get('tipo_documento'), 'variable', None)
+                        if v:
+                            try:
+                                v.trace_add('write', lambda *a: _toggle_modal_folio_acta())
+                            except Exception:
+                                pass
+                    except Exception:
+                        pass
+
+            # aplicar estado inicial según datos (si vienen)
+            try:
+                if entries.get('tipo_documento'):
+                    current = entries.get('tipo_documento').get()
+                    _toggle_modal_folio_acta(current)
+            except Exception:
+                pass
+        except Exception:
+            pass
 
         def _populate_heavy_ui_chunked():
             try:
@@ -11886,6 +12106,14 @@ class SistemaDictamenesVC(ctk.CTk):
             if not target_id:
                 messagebox.showerror("Error", "No se pudo determinar el identificador de la visita para actualizar")
                 return
+            # Si el tipo es Constancia, eliminar/limpiar folio_acta del payload (no requerido)
+            try:
+                tipo_payload = (payload.get('tipo_documento') or payload.get('tipo') or '').strip().lower()
+                if 'constancia' in tipo_payload:
+                    payload['folio_acta'] = ''
+            except Exception:
+                pass
+
             self.hist_update_visita(target_id, payload)
             modal.destroy()
         
@@ -11953,14 +12181,21 @@ class SistemaDictamenesVC(ctk.CTk):
                     lista = str(lista_raw).strip() or '(Sin lista)'
                     solicitudes_map[lista].append(item)
 
+            solicitudes_indices = defaultdict(list)
+            for idx, item in enumerate(datos or []):
+                sol_raw = item.get('SOLICITUD') or item.get('Solicitud') or item.get('solicitud') or ''
+                sol = str(sol_raw).strip()
+                if sol:
+                    solicitudes_indices[sol].append(idx)
+                else:
+                    lista_raw = item.get('LISTA') or item.get('Lista') or item.get('lista') or ''
+                    lista = str(lista_raw).strip() or '(Sin lista)'
+                    solicitudes_indices[lista].append(idx)
+
             total_carpetas = len(solicitudes_map)
-            # número de documentos por carpeta (sort por tamaño descendente para mostrar primero)
             carpetas_info = sorted(((k, len(v)) for k, v in solicitudes_map.items()), key=lambda x: -x[1])
-            # contar dictámenes estimados: si agrupamos por LISTA lo consideramos como dictámenes, else sum de carpetas
             total_dictamenes = total_carpetas
 
-            # Detectar y resumir tipos de documento según la columna de la tabla de relación
-            # Se buscan varias claves posibles para robustez
             possible_keys = ['TIPO DE DOCUMENTO', 'Tipo de documento', 'TIPO_DOCUMENTO', 'TIPO', 'TIPO_DOC', 'TIPO DE DOC', 'tipo', 'Tipo']
             tipo_map = {'D': 'Dictamen', 'C': 'Constancia', 'ND': 'Negación Dictamen', 'NC': 'Negación Constancia'}
             tipos_contador = defaultdict(int)
@@ -11998,12 +12233,106 @@ class SistemaDictamenesVC(ctk.CTk):
                         # valores inesperados los contamos como no identificados
                         tipos_no_identificados += 1
 
-            # Construir reporte detallado (sin mostrar registros duplicados)
+            # Construir reporte detallado
+            total_tipos = sum(tipos_contador.values())
+            has_tipo = total_tipos > 0
+
+            # Preparar información de folios si está disponible (convertir a conjunto único por registro)
+            folios_unicos_por_registro = None
+            if hasattr(self, 'info_folios_actual') and isinstance(self.info_folios_actual, dict):
+                info_f = self.info_folios_actual
+                if info_f.get('total_folios', 0) > 0:
+                    # construir un mapa registro->folio normalizado (formato de lista en info_folios puede contener números formateados)
+                    folios_unicos_por_registro = []
+                    for item in (datos or []):
+                        folio_val = None
+                        if 'FOLIO' in item and item.get('FOLIO') not in (None, ''):
+                            folio_val = str(item.get('FOLIO')).strip()
+                        else:
+                            # intentar detectar cualquier clave que contenga 'FOLIO'
+                            for kk in list(item.keys()):
+                                if 'FOLIO' in kk.upper() and item.get(kk) not in (None, ''):
+                                    folio_val = str(item.get(kk)).strip()
+                                    break
+                        if folio_val is None or folio_val == '' or folio_val.lower() in ('nan', 'none'):
+                            folios_unicos_por_registro.append(None)
+                        else:
+                            try:
+                                num = int(float(folio_val))
+                                folios_unicos_por_registro.append(f"{num:06d}")
+                            except Exception:
+                                folios_unicos_por_registro.append(folio_val)
+
+            # Si existe columna de tipo, computar totales basados en tipos reconocidos
+            if has_tipo:
+                total_detectados = total_tipos
+                total_dictamenes = tipos_contador.get('D', 0) + tipos_contador.get('ND', 0)
+            else:
+                total_detectados = len(datos)
+
+            # Determinar el conteo de dictámenes estimados: preferir folios únicos si se extrajeron
+            if folios_unicos_por_registro:
+                # contar folios únicos válidos
+                total_dictamenes = len(set(x for x in folios_unicos_por_registro if x))
+
+            # Detalle por carpeta: si hay tipos, contar solo filas con tipo reconocido por carpeta
+            carpetas_detalle = []
+            if has_tipo:
+                def _get_type_key(item):
+                    # reproducir la misma heurística usada arriba para una sola fila
+                    tipo_raw = None
+                    for k in possible_keys:
+                        if k in item and item.get(k) not in (None, ''):
+                            tipo_raw = item.get(k)
+                            break
+                    if tipo_raw is None:
+                        for kk in list(item.keys()):
+                            if 'TIPO' in kk.upper() and item.get(kk) not in (None, ''):
+                                tipo_raw = item.get(kk)
+                                break
+                    t = str(tipo_raw).strip().upper() if tipo_raw is not None else ''
+                    if t in tipo_map:
+                        return t
+                    if t.startswith('NEG') and 'D' in t:
+                        return 'ND'
+                    if t.startswith('NEG') and 'C' in t:
+                        return 'NC'
+                    if t.startswith('D'):
+                        return 'D'
+                    if t.startswith('C'):
+                        return 'C'
+                    return None
+
+                for name, items in solicitudes_map.items():
+                    cnt = 0
+                    for it in items:
+                        if _get_type_key(it) is not None:
+                            cnt += 1
+                    carpetas_detalle.append((name, cnt))
+                carpetas_info = sorted(carpetas_detalle, key=lambda x: -x[1])
+            else:
+                # Si disponemos de folios únicos, calcular por carpeta el número de folios únicos
+                if folios_unicos_por_registro:
+                    # usar solicitudes_indices para identificar posiciones dentro de `datos`
+                    for name, indices in solicitudes_indices.items():
+                        folios_set = set()
+                        for pos in indices:
+                            if pos < len(folios_unicos_por_registro):
+                                fol = folios_unicos_por_registro[pos]
+                                if fol:
+                                    folios_set.add(fol)
+                        carpetas_detalle.append((name, len(folios_set)))
+                    carpetas_info = sorted(carpetas_detalle, key=lambda x: -x[1])
+                else:
+                    carpetas_info = sorted(((k, len(v)) for k, v in solicitudes_map.items()), key=lambda x: -x[1])
+
             lines = []
             lines.append("📊 VISTA PREVIA DE LA VISITA\n")
-            lines.append(f"📁 Total de registros: {len(datos)}")
+            # Mostrar también folios únicos si existen
+            if folios_unicos_por_registro:
+                lines.append(f"🔢 Folios únicos detectados: {len(set(x for x in folios_unicos_por_registro if x))}")
             lines.append(f"🗂️ Carpetas estimadas: {total_carpetas}")
-            lines.append(f"📋 Dictámenes estimados (agrupados): {total_dictamenes}")
+            lines.append(f"📋 Dictámenes estimados: {total_dictamenes}")
             lines.append("")
             lines.append("📂 Detalle por carpeta (nombre : documentos):")
             for name, count in carpetas_info:
@@ -12155,9 +12484,6 @@ class SistemaDictamenesVC(ctk.CTk):
             base = os.path.join(APP_DIR, "Pegado de Evidenvia Fotografica")
             main_path = os.path.join(base, "main.py")
 
-            # Asegurar que la carpeta del pegado esté en sys.path para que
-            # los imports relativos como `from registro_fallos import ...`
-            # funcionen cuando el script se ejecute.
             added_to_path = False
             if base not in sys.path:
                 sys.path.insert(0, base)

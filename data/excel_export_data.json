@@ -1,42 +1,5 @@
 {
-  "ema": [
-    {
-      "NUMERO_SOLICITUD": "000333/25",
-      "CLIENTE": "",
-      "NUMERO_CONTRATO": "",
-      "RFC": "",
-      "CURP": "N/A",
-      "PRODUCTO_VERIFICADO": "BEBIDA SABOR GUARANÁ-LIMON ADICIONADA CON CAFEÍNA",
-      "MARCAS": "BURST",
-      "NOM": 51,
-      "TIPO_DOCUMENTO": "C",
-      "DOCUMENTO_EMITIDO": "000333/25 ",
-      "FECHA_DOCUMENTO_EMITIDO": "2025-01-17",
-      "VERIFICADOR": "",
-      "PEDIMENTO_IMPORTACION": null,
-      "FECHA_DESADUANAMIENTO": "",
-      "MODELOS": "SC",
-      "FOLIO_EMA": "000003"
-    },
-    {
-      "NUMERO_SOLICITUD": "000333/25",
-      "CLIENTE": "",
-      "NUMERO_CONTRATO": "",
-      "RFC": "",
-      "CURP": "N/A",
-      "PRODUCTO_VERIFICADO": "BEBIDA SABOR UVA PARA DEPORTISTAS",
-      "MARCAS": "BURST",
-      "NOM": 51,
-      "TIPO_DOCUMENTO": "C",
-      "DOCUMENTO_EMITIDO": "000333/25 ",
-      "FECHA_DOCUMENTO_EMITIDO": "2025-01-17",
-      "VERIFICADOR": "",
-      "PEDIMENTO_IMPORTACION": null,
-      "FECHA_DESADUANAMIENTO": "",
-      "MODELOS": "SC",
-      "FOLIO_EMA": "000004"
-    }
-  ],
+  "ema": [],
   "anual": [],
-  "generated_at": "2026-01-26T17:48:14.393973"
+  "generated_at": "2026-01-27T12:23:19.594801"
 }

@@ -844,11 +844,9 @@ class PDFGeneratorConDatos(PDFGenerator):
         canvas.setFont("Helvetica", 9)
         canvas.drawCentredString(8.5*inch/2, 11*inch-80, linea_completa)
 
-        # Numeración
-        pagina_actual = canvas.getPageNumber()
-        numeracion = f"Página {pagina_actual} de {self.total_pages}"
-        canvas.setFont("Helvetica", 9)
-        canvas.drawRightString(8.5*inch-72, 11*inch-50, numeracion)
+        # Numeración: se omite aquí para evitar duplicados.
+        # El `NumberedCanvas` realiza el render final de "Página X de Y"
+        # al reconstruir las páginas en `save()`.
 
         # Pie
         footer_text = ("Este Dictamen de Cumplimiento se emitió por medios electrónicos, conforme al oficio "

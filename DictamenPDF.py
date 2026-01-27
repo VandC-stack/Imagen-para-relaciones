@@ -104,15 +104,11 @@ class NumberedCanvas(Canvas):
         num_pages = len(self._saved_page_states)
         for state in self._saved_page_states:
             self.__dict__.update(state)
-            # draw the page number (the header/footer already drawn by callbacks)
-            try:
-                page = self.getPageNumber()
-            except Exception:
-                page = 0
-            # place page number at same position used previously
+            # obtener el número de página guardado en el estado (más fiable que getPageNumber en este punto)
+            page = state.get('_pageNumber', state.get('pageNumber', 0))
             try:
                 self.setFont("Helvetica", 9)
-                self.drawRightString(LETTER_WIDTH - 72, LETTER_HEIGHT - 50, f"Página {page} de {num_pages}")
+                self.drawRightString(LETTER_WIDTH - 72, LETTER_HEIGHT - 40, f"Página {page} de {num_pages}")
             except Exception:
                 pass
             super().showPage()
@@ -121,7 +117,7 @@ class NumberedCanvas(Canvas):
             try:
                 page = self.getPageNumber()
                 self.setFont("Helvetica", 9)
-                self.drawRightString(LETTER_WIDTH - 72, LETTER_HEIGHT - 50, f"Página {page} de {page}")
+                self.drawRightString(LETTER_WIDTH - 72, LETTER_HEIGHT - 40, f"Página {page} de {page}")
             except Exception:
                 pass
         super().save()
@@ -166,12 +162,14 @@ class NumberedCanvas(Canvas):
             ['MARCA', 'CÓDIGO', 'FACTURA', 'CANTIDAD'],
             ['${rowMarca}', '${rowCodigo}', '${rowFactura}', '${rowCantidad}']
         ]
-        
-        productos_table = Table(productos_data, colWidths=[1.5*inch, 1.5*inch, 1.5*inch, 1.5*inch])
+        # Dar más espacio a la columna MARCA y alinear a la izquierda el contenido
+        productos_table = Table(productos_data, colWidths=[2.0*inch, 1.25*inch, 2.0*inch, 1.25*inch])
         productos_table.setStyle(TableStyle([
             ('GRID', (0,0), (-1,-1), 1, colors.black),
             ('BACKGROUND', (0,0), (-1,0), colors.lightgrey),
-            ('ALIGN', (0,0), (-1,-1), 'CENTER'),
+            ('ALIGN', (0,0), (-1,0), 'CENTER'),  # encabezado centrado
+            ('ALIGN', (0,1), (0,1), 'LEFT'),      # MARCA en la fila de datos a la izquierda
+            ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
             ('FONTNAME', (0,0), (-1,-1), 'Helvetica'),
             ('FONTSIZE', (0,0), (-1,-1), 8),
             ('BOLD', (0,0), (-1,0), True),
