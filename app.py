@@ -111,6 +111,11 @@ class SistemaDictamenesVC(ctk.CTk):
         self.archivo_json_generado = None
         self.json_filename = None
         self.generando_dictamenes = False
+        # Progreso: watcher para animar barra cuando el generador no emite actualizaciones frecuentes
+        self._progress_watcher_thread = None
+        self._progress_watcher_stop_event = None
+        self._last_progress_value = 0.0
+        self._last_progress_ts = 0.0
         self.clientes_data = []
         self.cliente_seleccionado = None
         self.domicilio_seleccionado = None
@@ -1026,11 +1031,11 @@ class SistemaDictamenesVC(ctk.CTk):
         )
         # Empacar los botones en la card de pegado para que siempre estén visibles.
         try:
-            # pack horizontalmente con separación
-            self.boton_pegado_simple.pack(side="left", padx=(0, 8))
-            self.boton_pegado_carpetas.pack(side="left", padx=(0, 8))
-            self.boton_pegado_indice.pack(side="left", padx=(0, 8))
-            self.boton_limpiar_rutas_evidencias.pack(side="left", padx=(8, 0))
+            # pack horizontalmente con separación uniforme
+            self.boton_pegado_simple.pack(side="left", padx=(0, 12))
+            self.boton_pegado_carpetas.pack(side="left", padx=(0, 12))
+            self.boton_pegado_indice.pack(side="left", padx=(0, 12))
+            self.boton_limpiar_rutas_evidencias.pack(side="left", padx=(0, 12))
         except Exception:
             pass
 
@@ -1105,7 +1110,7 @@ class SistemaDictamenesVC(ctk.CTk):
             width=110,
             corner_radius=8
         )
-        self.boton_cargar_excel.pack(side="left", padx=(0, 8))
+        self.boton_cargar_excel.pack(side="left", padx=(0, 12))
 
         # Botón Verificar Datos movido aquí
         ctk.CTkButton(
@@ -1119,7 +1124,7 @@ class SistemaDictamenesVC(ctk.CTk):
             height=35,
             width=100,
             corner_radius=8
-        ).pack(side="left", padx=(0, 8))
+        ).pack(side="left", padx=(0, 12))
 
         self.boton_limpiar = ctk.CTkButton(
             botones_fila1,
@@ -1134,12 +1139,8 @@ class SistemaDictamenesVC(ctk.CTk):
             corner_radius=8,
             state="disabled"
         )
-        self.boton_limpiar.pack(side="left", padx=(0, 8))
+        self.boton_limpiar.pack(side="left", padx=(0, 12))
 
-        # Dropdown de folios pendientes reubicado debajo del selector de cliente
-        # (se crea más abajo en la sección de cliente para mejor flujo UX)
-
-        # Botón de etiquetado DECATHLON (inicialmente oculto)
         self.boton_subir_etiquetado = ctk.CTkButton(
             botones_fila1,
             text="📦 Subir Base de Etiquetado",
@@ -1153,7 +1154,7 @@ class SistemaDictamenesVC(ctk.CTk):
             corner_radius=8
         )
         # Inicialmente no se muestra
-        self.boton_subir_etiquetado.pack(side="left", padx=(0, 8))
+        self.boton_subir_etiquetado.pack(side="left", padx=(12, 12))
         self.boton_subir_etiquetado.pack_forget()  # Ocultar inicialmente
 
         self.info_etiquetado = ctk.CTkLabel(
@@ -1248,7 +1249,7 @@ class SistemaDictamenesVC(ctk.CTk):
             state="disabled"
         )
         try:
-            self.boton_guardar_folio.pack(side="left", padx=(8, 0))
+            self.boton_guardar_folio.pack(side="left", padx=(0, 12))
         except Exception:
             try:
                 self.boton_guardar_folio.pack(pady=(0, 6))
@@ -1261,7 +1262,7 @@ class SistemaDictamenesVC(ctk.CTk):
         # Botón de generación
         self.boton_generar_dictamen = ctk.CTkButton(
             generar_section,
-            text="🧾 Generar Documentos",
+            text="🧾 Generar Dictámenes",
             command=self.generar_dictamenes,
             font=("Inter", 13, "bold"),
             fg_color=STYLE["exito"],
@@ -3574,11 +3575,11 @@ class SistemaDictamenesVC(ctk.CTk):
             self.safe_forget(self.info_etiquetado)
             # Mostrar botones de pegado (no persisten rutas)
             try:
-                self.safe_pack(self.boton_pegado_simple, side="left", padx=(0, 8))
-                self.safe_pack(self.boton_pegado_carpetas, side="left", padx=(0, 8))
-                self.safe_pack(self.boton_pegado_indice, side="left", padx=(0, 8))
+                self.safe_pack(self.boton_pegado_simple, side="left", padx=(0, 12))
+                self.safe_pack(self.boton_pegado_carpetas, side="left", padx=(0, 12))
+                self.safe_pack(self.boton_pegado_indice, side="left", padx=(0, 12))
                 # Empacar el botón Limpiar (Reservar Folio está en la fila de carga)
-                self.safe_pack(self.boton_limpiar_rutas_evidencias, side="left", padx=(8, 0))
+                self.safe_pack(self.boton_limpiar_rutas_evidencias, side="left", padx=(0, 12))
             except Exception:
                 pass
 
@@ -5145,15 +5146,17 @@ class SistemaDictamenesVC(ctk.CTk):
             thread = threading.Thread(target=self._ejecutar_generador_con_progreso)
             thread.daemon = True
             thread.start()
+            try:
+                # iniciar watcher que mantiene la barra moviéndose si el generador no informa progreso
+                self._start_progress_watcher()
+            except Exception:
+                pass
 
         except Exception as e:
             self.mostrar_error(f"No se pudo iniciar el generador:\n{e}")
 
     def _actualizar_ui_conversion_exitosa(self, output_path, num_registros):
         self.archivo_json_generado = output_path
-        
-        # Mostrar información de folios en la interfaz si está disponible.
-        # Ahora mostramos el rango propuesto partiendo del siguiente folio
         info_folios_text = ""
         try:
             if hasattr(self, 'info_folios_actual') and self.info_folios_actual:
@@ -5185,17 +5188,13 @@ class SistemaDictamenesVC(ctk.CTk):
 
     def _ejecutar_generador_con_progreso(self):
         try:
-            # VERIFICAR SI LA VENTANA SIGUE ABIERTA
             if not self.winfo_exists():
                 return
                 
-            # Seleccionar flujo según tipo de documento
             tipo_sel = (self.combo_tipo_documento.get().strip() if hasattr(self, 'combo_tipo_documento') else 'Dictamen')
             tipo_upper = tipo_sel.upper() if tipo_sel else 'DICTAMEN'
 
             if 'CONSTANCIA' in tipo_upper:
-                # Generar JSONs de constancias en data/Constancias (siempre)
-                # Para los PDFs: abrir diálogo para que el usuario elija carpeta destino (si cancela: no se guardan PDFs)
                 try:
                     import importlib.util, time
                     const_file = os.path.join(BASE_DIR, 'Documentos Inspeccion', 'Constancia.py')
@@ -5243,6 +5242,13 @@ class SistemaDictamenesVC(ctk.CTk):
                         lista = r.get('LISTA') or r.get('Lista') or r.get('lista') or '0'
                         grupos.setdefault(str(lista), []).append(r)
 
+                    # Preparar seguimiento de progreso para Constancias
+                    try:
+                        total_listas = len(grupos) if grupos else 0
+                    except Exception:
+                        total_listas = 0
+                    listas_procesadas = 0
+
                     try:
                         sys.path.append(BASE_DIR)
                         import generador_dictamen as gd
@@ -5288,6 +5294,22 @@ class SistemaDictamenesVC(ctk.CTk):
 
                     for lista, filas_grp in grupos.items():
                         try:
+                            # Actualizar progreso por lista (evitar bloquear UI)
+                            try:
+                                listas_procesadas += 1
+                                pct = 0
+                                if total_listas:
+                                    pct = min(95, int((listas_procesadas / float(total_listas)) * 90))
+                                else:
+                                    pct = 10
+                                # usar el callback seguro si existe
+                                try:
+                                    if self.winfo_exists():
+                                        self.actualizar_progreso(pct, f"Generando constancias: lista {lista} ({listas_procesadas}/{total_listas})")
+                                except Exception:
+                                    pass
+                            except Exception:
+                                pass
                             solicitud_raw = ''
                             if filas_grp:
                                 solicitud_raw = str(filas_grp[0].get('SOLICITUD') or '').strip()
@@ -5475,7 +5497,17 @@ class SistemaDictamenesVC(ctk.CTk):
                                 # sólo registrar error si intentó generar y falló
                                 if ruta_pdf:
                                     errores.append(lista)
-
+                            # Actualizar progreso tras procesar la lista
+                            try:
+                                if self.winfo_exists():
+                                    # Incrementar un poco el progreso localmente
+                                    pct2 = min(98, int((listas_procesadas / float(total_listas)) * 95) if total_listas else 10)
+                                    try:
+                                        self.actualizar_progreso(pct2, f"Procesadas {listas_procesadas}/{total_listas} listas")
+                                    except Exception:
+                                        pass
+                            except Exception:
+                                pass
                         except Exception as e:
                             errores.append((lista, str(e)))
 
@@ -5509,6 +5541,27 @@ class SistemaDictamenesVC(ctk.CTk):
                     try:
                         resultado['folios_utilizados_info'] = getattr(self, 'folios_utilizados_actual', [])
                         self.registrar_visita_automatica(resultado)
+                        # Forzar recarga y refresco del historial en el hilo principal
+                        try:
+                            def _refresh_hist_ui():
+                                try:
+                                    self._cargar_historial()
+                                except Exception:
+                                    pass
+                                try:
+                                    self._poblar_historial_ui()
+                                except Exception:
+                                    pass
+                            if self.winfo_exists():
+                                self.after(150, _refresh_hist_ui)
+                        except Exception:
+                            pass
+                        # Marcar progreso final
+                        try:
+                            if self.winfo_exists():
+                                self.after(200, lambda: self.actualizar_progreso(100, "Completado") if self.winfo_exists() else None)
+                        except Exception:
+                            pass
                     except Exception:
                         pass
 
@@ -5658,8 +5711,69 @@ class SistemaDictamenesVC(ctk.CTk):
                 else:
                     self.etiqueta_progreso.configure(text=f"{int(pct)}%")
                 self.update_idletasks()
+                # Registrar marca de tiempo y valor para el watcher
+                try:
+                    self._last_progress_value = float(pct)
+                    self._last_progress_ts = time.time()
+                except Exception:
+                    pass
         
         self.after(0, _actualizar)
+
+    def _start_progress_watcher(self):
+        """Inicia un hilo que anima ligeramente la barra de progreso mientras
+        `self.generando_dictamenes` es True y el generador no actualiza con frecuencia.
+        """
+        try:
+            # Si ya existe, no crear otro
+            if getattr(self, '_progress_watcher_thread', None) and self._progress_watcher_thread.is_alive():
+                return
+            stop_event = threading.Event()
+            self._progress_watcher_stop_event = stop_event
+
+            def _watcher():
+                try:
+                    while not stop_event.is_set() and getattr(self, 'generando_dictamenes', False):
+                        try:
+                            now = time.time()
+                            last_ts = getattr(self, '_last_progress_ts', 0) or 0
+                            last_val = getattr(self, '_last_progress_value', 0.0) or 0.0
+                            # Si no hubo actualización en 1.2s, animar un pequeño paso
+                            if now - last_ts > 1.2 and last_val < 95:
+                                # avanzar un paso pequeño entre 1-4%
+                                step = 1 + int((now - last_ts) % 4)
+                                new_val = min(95.0, last_val + step)
+                                try:
+                                    if self.winfo_exists():
+                                        self.after(0, lambda nv=new_val: self.actualizar_progreso(nv, "Procesando...") )
+                                except Exception:
+                                    pass
+                        except Exception:
+                            pass
+                        time.sleep(0.8)
+                except Exception:
+                    pass
+
+            t = threading.Thread(target=_watcher, daemon=True)
+            self._progress_watcher_thread = t
+            t.start()
+        except Exception:
+            pass
+
+    def _stop_progress_watcher(self):
+        try:
+            ev = getattr(self, '_progress_watcher_stop_event', None)
+            if ev:
+                ev.set()
+            th = getattr(self, '_progress_watcher_thread', None)
+            try:
+                if th and th.is_alive():
+                    # give it a moment to exit
+                    th.join(timeout=0.5)
+            except Exception:
+                pass
+        except Exception:
+            pass
 
     def actualizar_tipo_documento(self, valor=None):
         """Actualiza la UI del panel Generador según el tipo de documento seleccionado."""
@@ -5670,7 +5784,7 @@ class SistemaDictamenesVC(ctk.CTk):
 
             # Actualizar título del panel de generación
             title_map = {
-                'Dictamen': 'Generar Documentos',
+                'Dictamen': 'Generar Dictámenes',
                 'Negación de Dictamen': 'Generar Negación de Dictamen',
                 'Constancia': 'Generar Constancias',
                 'Negación de Constancia': 'Generar Negación de Constancia'
@@ -5683,8 +5797,6 @@ class SistemaDictamenesVC(ctk.CTk):
             if hasattr(self, 'boton_generar_dictamen'):
                 self.boton_generar_dictamen.configure(text=f"{nuevo_titulo}")
 
-            # Mostrar/ocultar controles de carga según requerimiento (siempre mostrar cliente + subir/limpiar/verificar)
-            # Habilitar el botón de guardar folio para permitir reservar folio incompleto
             if hasattr(self, 'boton_guardar_folio'):
                 self.boton_guardar_folio.configure(state='normal')
 
@@ -5896,10 +6008,6 @@ class SistemaDictamenesVC(ctk.CTk):
         `data/tabla_de_relacion.json` asignando un folio por familia (LISTA).
         """
         try:
-            # Esta función fue simplificada: ya no requiere ni usa
-            # `tabla_de_relacion.json`. El botón "Reservar Folio" únicamente
-            # guarda la visita actual como pendiente en el historial y en
-            # `pending_folios.json` para que el usuario la seleccione después.
             try:
                 self.guardar_folio_historial()
             except Exception as e:
@@ -5915,6 +6023,17 @@ class SistemaDictamenesVC(ctk.CTk):
         if self.winfo_exists():  # Verificar si la ventana aún existe
             self.generando_dictamenes = False
             self.boton_generar_dictamen.configure(state="normal")
+        # Detener watcher si existe
+        try:
+            self._stop_progress_watcher()
+        except Exception:
+            pass
+        # Asegurar que la barra muestre completado cuando terminemos
+        try:
+            if self.winfo_exists():
+                self.after(50, lambda: self.actualizar_progreso(100, "Completado"))
+        except Exception:
+            pass
 
     def mostrar_error(self, mensaje):
         if self.winfo_exists():  # Verificar si la ventana aún existe
@@ -11812,43 +11931,107 @@ class SistemaDictamenesVC(ctk.CTk):
             
             with open(self.archivo_json_generado, 'r', encoding='utf-8') as f:
                 datos = json.load(f)
-            
-            # Contar valores únicos en LISTA para determinar familias/dictámenes
-            listas_unicas = set()
-            for item in datos:
-                if 'LISTA' in item and item['LISTA'] is not None:
-                    # Convertir a string y eliminar espacios para consistencia
-                    lista_valor = str(item['LISTA']).strip()
-                    if lista_valor:  # Solo agregar si no está vacío
-                        listas_unicas.add(lista_valor)
-            
-            # Si no hay campo LISTA, contar cada registro como un dictamen
-            if not listas_unicas:
-                total_dictamenes = len(datos)
-            else:
-                total_dictamenes = len(listas_unicas)
-            
-            # Verificar duplicados por ID único
-            ids_vistos = set()
-            duplicados = 0
-            for item in datos:
-                item_id = str(item.get('ID', '') or str(item.get('FOLIO', '')) or str(item))
-                if item_id in ids_vistos:
-                    duplicados += 1
-                ids_vistos.add(item_id)
-            
-            # Mostrar reporte
-            reporte = f"""
-    📊 REPORTE DE INTEGRIDAD DE DATOS
+            # Agrupar por SOLICITUD (si existe) para determinar carpetas que se crearán
+            from collections import defaultdict
+            solicitudes_map = defaultdict(list)
+            any_solicitud = False
+            for item in (datos or []):
+                sol_raw = item.get('SOLICITUD') or item.get('Solicitud') or item.get('solicitud') or ''
+                sol = str(sol_raw).strip()
+                if sol:
+                    any_solicitud = True
+                    solicitudes_map[sol].append(item)
+                else:
+                    # agrupar sin solicitud bajo etiqueta especial
+                    solicitudes_map['(Sin solicitud)'].append(item)
 
-    📁 Total de registros: {len(datos)}
-    📋 Dictámenes que generara el sistema: {total_dictamenes}
-            """
-            
-            messagebox.showinfo("Reporte de Integridad", reporte)
+            # Si no hay SOLICITUD en ningún registro, intentar agrupar por LISTA
+            if not any_solicitud:
+                solicitudes_map = defaultdict(list)
+                for item in (datos or []):
+                    lista_raw = item.get('LISTA') or item.get('Lista') or item.get('lista') or ''
+                    lista = str(lista_raw).strip() or '(Sin lista)'
+                    solicitudes_map[lista].append(item)
+
+            total_carpetas = len(solicitudes_map)
+            # número de documentos por carpeta (sort por tamaño descendente para mostrar primero)
+            carpetas_info = sorted(((k, len(v)) for k, v in solicitudes_map.items()), key=lambda x: -x[1])
+            # contar dictámenes estimados: si agrupamos por LISTA lo consideramos como dictámenes, else sum de carpetas
+            total_dictamenes = total_carpetas
+
+            # Detectar y resumir tipos de documento según la columna de la tabla de relación
+            # Se buscan varias claves posibles para robustez
+            possible_keys = ['TIPO DE DOCUMENTO', 'Tipo de documento', 'TIPO_DOCUMENTO', 'TIPO', 'TIPO_DOC', 'TIPO DE DOC', 'tipo', 'Tipo']
+            tipo_map = {'D': 'Dictamen', 'C': 'Constancia', 'ND': 'Negación Dictamen', 'NC': 'Negación Constancia'}
+            tipos_contador = defaultdict(int)
+            tipos_no_identificados = 0
+            for item in (datos or []):
+                tipo_raw = None
+                for k in possible_keys:
+                    if k in item and item.get(k) not in (None, ''):
+                        tipo_raw = item.get(k)
+                        break
+                if tipo_raw is None:
+                    # intentar buscar por claves en mayúsculas/minúsculas dinámicamente
+                    for k in list(item.keys()):
+                        if 'TIPO' in k.upper() and item.get(k) not in (None, ''):
+                            tipo_raw = item.get(k)
+                            break
+
+                t = str(tipo_raw).strip().upper() if tipo_raw is not None else ''
+                # Normalizar casos como 'D', 'ND', 'C', 'NC' o palabras completas
+                if t in tipo_map:
+                    tipos_contador[t] += 1
+                else:
+                    # si viene la palabra completa, intentar mapear por iniciales
+                    if t.startswith('NEG') and 'D' in t:
+                        tipos_contador['ND'] += 1
+                    elif t.startswith('NEG') and 'C' in t:
+                        tipos_contador['NC'] += 1
+                    elif t.startswith('D'):
+                        tipos_contador['D'] += 1
+                    elif t.startswith('C'):
+                        tipos_contador['C'] += 1
+                    elif t == '':
+                        tipos_no_identificados += 1
+                    else:
+                        # valores inesperados los contamos como no identificados
+                        tipos_no_identificados += 1
+
+            # Construir reporte detallado (sin mostrar registros duplicados)
+            lines = []
+            lines.append("📊 VISTA PREVIA DE LA VISITA\n")
+            lines.append(f"📁 Total de registros: {len(datos)}")
+            lines.append(f"🗂️ Carpetas estimadas: {total_carpetas}")
+            lines.append(f"📋 Dictámenes estimados (agrupados): {total_dictamenes}")
+            lines.append("")
+            lines.append("📂 Detalle por carpeta (nombre : documentos):")
+            for name, count in carpetas_info:
+                lines.append(f" - {name}: {count}")
+            lines.append("")
+
+            # Resumen de tipos de documento
+            if sum(tipos_contador.values()) == 0 and tipos_no_identificados == 0:
+                lines.append("ℹ️ No se detectó columna de tipo de documento.")
+            else:
+                total_tipos = sum(tipos_contador.values())
+                # si hay registros no identificados, incluirlos en totales
+                if tipos_no_identificados:
+                    lines.append(f"❓ Registros sin tipo reconocido: {tipos_no_identificados}")
+                if total_tipos > 0:
+                    # Si todos los documentos pertenecen al mismo tipo conocido
+                    if total_tipos == len(datos) and len(tipos_contador) == 1:
+                        only_key = next(iter(tipos_contador))
+                        lines.append(f"✅ Todos los documentos son: {tipo_map.get(only_key, only_key)}")
+                    else:
+                        lines.append("✅ Distribución por tipo de documento:")
+                        for k, cnt in tipos_contador.items():
+                            lines.append(f" - {tipo_map.get(k, k)}: {cnt}")
+
+            messagebox.showinfo("Reporte de Visita", "\n".join(lines))
             
         except Exception as e:
-            messagebox.showerror("Error", f"No se pudo verificar integridad:\n{e}")
+            messagebox.showerror("Error", f"No se pudo verificar la visita:\n{e}")
 
     # ------------------ EVIDENCIAS: carga y persistencia ------------------
     def _load_evidence_paths(self):
