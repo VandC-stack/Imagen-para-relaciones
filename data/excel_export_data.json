@@ -1,5 +1,24 @@
 {
-  "ema": [],
+  "ema": [
+    {
+      "NUMERO_SOLICITUD": "000571/26",
+      "CLIENTE": "",
+      "NUMERO_CONTRATO": "",
+      "RFC": "",
+      "CURP": "N/A",
+      "PRODUCTO_VERIFICADO": "CORTINA DE TELA PARA BAÑO",
+      "MARCAS": "HOMETRENDS",
+      "NOM": 4,
+      "TIPO_DOCUMENTO": "C",
+      "DOCUMENTO_EMITIDO": "000571/26",
+      "FECHA_DOCUMENTO_EMITIDO": "2026-01-27",
+      "VERIFICADOR": "",
+      "PEDIMENTO_IMPORTACION": null,
+      "FECHA_DESADUANAMIENTO": "",
+      "MODELOS": "HTCI-5429",
+      "FOLIO_EMA": "010716"
+    }
+  ],
   "anual": [],
-  "generated_at": "2026-01-28T11:06:22.780500"
+  "generated_at": "2026-01-28T11:38:46.533144"
 }
