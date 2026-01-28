@@ -237,6 +237,34 @@
       "folio": "CP000003",
       "status": "exitosa",
       "detalles": "Archivos: 6, Errores: 0"
+    },
+    {
+      "timestamp": "2026-01-28T16:00:53.654849",
+      "tipo": "eliminar_registro",
+      "folio": "CP000001",
+      "status": "exitosa",
+      "detalles": "Archivos: 42, Errores: 0"
+    },
+    {
+      "timestamp": "2026-01-28T17:04:32.148669",
+      "tipo": "eliminar_registro",
+      "folio": "CP000001",
+      "status": "exitosa",
+      "detalles": "Archivos: 88, Errores: 0"
+    },
+    {
+      "timestamp": "2026-01-28T17:12:25.593441",
+      "tipo": "eliminar_registro",
+      "folio": "CP000001",
+      "status": "exitosa",
+      "detalles": "Archivos: 21, Errores: 0"
+    },
+    {
+      "timestamp": "2026-01-28T17:18:37.701834",
+      "tipo": "eliminar_registro",
+      "folio": "CP000001",
+      "status": "exitosa",
+      "detalles": "Archivos: 30, Errores: 0"
     }
   ]
 }

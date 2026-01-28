@@ -3393,10 +3393,6 @@ class SistemaDictamenesVC(ctk.CTk):
         # ─────────────────────────────────────────────
         #  1) CLIENTES QUE SE TRATAN COMO EVIDENCIA
         # ─────────────────────────────────────────────
-        # Por defecto tratamos TODOS los clientes como flujo de EVIDENCIA
-        # excepto los explícitos en `CLIENTES_ETIQUETA` más abajo.
-        # Dejamos esta constante vacía por compatibilidad si se quisiera
-        # mantener una lista blanca en el futuro.
         CLIENTES_EVIDENCIA = set()
 
         # ─────────────────────────────────────────────
@@ -3404,7 +3400,7 @@ class SistemaDictamenesVC(ctk.CTk):
         # ─────────────────────────────────────────────
         CLIENTES_ETIQUETA = {
             "ARTICULOS DEPORTIVOS DECATHLON SA DE CV",
-            "FERRAGAMO MEXICO S. DE RL DE C.V.",
+            "FERRAGAMO MEXICO S. DE R.L. DE C.V.",
             "ULTA BEAUTY S.A.P.I. DE C.V.",  # Regla especial
         }
 
@@ -12421,7 +12417,6 @@ class SistemaDictamenesVC(ctk.CTk):
             total_dictamenes = sum(c for _, c in carpetas_info)
 
             lines = []
-            lines.append("📊 VISTA PREVIA DE LA VISITA\n")
             # Mostrar también folios únicos si existen
             if folios_unicos_por_registro:
                 lines.append(f"🔢 Folios únicos detectados: {len(set(x for x in folios_unicos_por_registro if x))}")
@@ -12532,7 +12527,6 @@ class SistemaDictamenesVC(ctk.CTk):
                 # Si falla la validación de firmas, no bloquear la operación por defecto
                 pass
 
-            messagebox.showinfo("Reporte de Visita", "\n".join(lines))
             # --- Comprobar rutas de Pegado de Evidencia (si existen) ---
             try:
                 pegado_paths = self._load_evidence_paths() or {}
@@ -12542,70 +12536,328 @@ class SistemaDictamenesVC(ctk.CTk):
                     solicitudes_imgs = {}
                     # helper: comprobar si hay archivos que contengan el código
                     import fnmatch
-                    def has_images_for_code(code):
+                    def _simple_normalize_key(s):
+                        try:
+                            return "".join(ch for ch in str(s or "") if ch.isalnum()).upper()
+                        except Exception:
+                            return str(s or "").upper()
+
+                    def _search_destino_in_base(ruta_base, destino):
+                        """Intento liviano de buscar un 'destino' (archivo o carpeta) dentro de la ruta base.
+                        No falla si hay permisos restringidos; devuelve True si encuentra al menos una coincidencia."""
+                        try:
+                            # Comparar por nombre exacto (archivo o carpeta)
+                            items = os.listdir(ruta_base)
+                        except Exception:
+                            items = []
+
+                        base, ext = os.path.splitext(destino)
+                        # Si destino apunta a un archivo (ext conocida), buscar archivo exacto
+                        if ext:
+                            for it in items:
+                                if it.lower() == destino.lower():
+                                    return True
+
+                        # Buscar carpetas con nombre exacto
+                        for it in items:
+                            p = os.path.join(ruta_base, it)
+                            if os.path.isdir(p) and it.strip().lower() == destino.strip().lower():
+                                # carpeta encontrada
+                                # comprobar si tiene imágenes dentro
+                                try:
+                                    for f in os.listdir(p):
+                                        if os.path.splitext(f)[1].lower() in ('.png', '.jpg', '.jpeg', '.webp', '.bmp', '.tif'):
+                                            return True
+                                except Exception:
+                                    return True
+
+                        # Buscar recursivamente archivos que empiecen por la base del destino o contengan el nombre
+                        try:
+                            for root, dirs, files in os.walk(ruta_base):
+                                for f in files:
+                                    if base and base.lower() in f.lower():
+                                        if os.path.splitext(f)[1].lower() in ('.png', '.jpg', '.jpeg', '.webp', '.bmp', '.tif'):
+                                            return True
+                                for d in dirs:
+                                    if d.lower() == destino.strip().lower():
+                                        # carpeta exacta
+                                        return True
+                        except Exception:
+                            pass
+                        return False
+
+                    def has_images_info(code):
+                        """Devuelve (found:bool, reason:str).
+                        reason: 'indice' si el código NO está en el índice (index_indice.json),
+                                'ruta' si el código está en el índice pero no se encontró el destino en las rutas persistidas.
+                        En caso de found==True, reason puede ser 'ruta' o 'indice' (origen del hallazgo).
+                        """
                         code_low = str(code).strip()
                         if not code_low:
-                            return False
+                            return False, 'indice'
+
+                        # 1) Búsqueda clásica en rutas: carpeta o archivo que contenga el código
                         for grp, base in pegado_paths.items():
-                            try:
-                                for root, dirs, files in os.walk(base):
-                                    # comprobar por nombre de carpeta o por archivo que contenga el código
-                                    # carpeta exacta
-                                    if os.path.basename(root).lower() == code_low.lower():
-                                        return True
-                                    for fname in files:
-                                        if code_low.lower() in fname.lower():
-                                            return True
-                            except Exception:
-                                continue
-                        return False
+                            bases = base if isinstance(base, (list, tuple)) else [base]
+                            for b in bases:
+                                try:
+                                    for root, dirs, files in os.walk(b):
+                                        if os.path.basename(root).lower() == code_low.lower():
+                                            return True, 'ruta'
+                                        for fname in files:
+                                            if code_low.lower() in fname.lower():
+                                                return True, 'ruta'
+                                except Exception:
+                                    continue
+
+                        # 2) Intentar con índice (index_indice.json)
+                        try:
+                            appdata = os.getenv('APPDATA') or ''
+                            idx_path = os.path.join(appdata, 'ImagenesVC', 'index_indice.json')
+                            if os.path.exists(idx_path):
+                                try:
+                                    with open(idx_path, 'r', encoding='utf-8') as f:
+                                        idx = json.load(f) or {}
+                                except Exception:
+                                    idx = {}
+
+                                cand_keys = {k: v for k, v in idx.items()}
+                                norm_key = _simple_normalize_key(code_low)
+                                possibles = []
+                                if code_low in cand_keys:
+                                    possibles.append(cand_keys[code_low])
+                                if norm_key in cand_keys:
+                                    possibles.append(cand_keys[norm_key])
+                                try:
+                                    raw = str(code_low)
+                                    if raw.endswith('.0'):
+                                        alt = raw[:-2]
+                                        if alt in cand_keys:
+                                            possibles.append(cand_keys[alt])
+                                except Exception:
+                                    pass
+
+                                if possibles:
+                                    # si el índice tiene destino(s), comprobar si alguno existe en las rutas persistidas
+                                    found_any = False
+                                    for destino in possibles:
+                                        for grp, base in pegado_paths.items():
+                                            bases = base if isinstance(base, (list, tuple)) else [base]
+                                            for b in bases:
+                                                try:
+                                                    if _search_destino_in_base(b, destino):
+                                                        return True, 'indice'
+                                                except Exception:
+                                                    continue
+                                    # índice tenía entrada(s) pero no se encontró en rutas
+                                    return False, 'ruta'
+                                else:
+                                    # índice no tiene la clave
+                                    return False, 'indice'
+                            else:
+                                # no existe índice -> considerar como no encontrado en índice
+                                return False, 'indice'
+                        except Exception:
+                            return False, 'indice'
 
                     for sol, entries in solicitudes_by_sol.items():
                         docs_with = []
                         docs_without = []
                         for idx, item, lista in entries:
                             # intentar extraer todos los códigos posibles para este registro
-                            codes = set()
+                            codes = []
                             for k in codigo_keys:
                                 if k in item and item.get(k) not in (None, ''):
                                     raw = str(item.get(k))
                                     for part in raw.split(','):
                                         p = part.strip()
                                         if p:
-                                            codes.add(p)
-                            # si no hay códigos, marcar como sin evidencia
+                                            codes.append(p)
+
+                            # si no hay códigos, marcar como sin evidencia (sin códigos detectados)
                             if not codes:
-                                docs_without.append(lista or f"registro_{idx}")
+                                docs_without.append((lista or f"registro_{idx}", []))
                                 continue
-                            # si alguno de los códigos tiene imágenes, consideramos que el documento recibirá evidencia
-                            found = False
+
+                            # Para cada código, comprobar si tiene imágenes; recoger los códigos que sí/no
+                            matched_codes = []
+                            missing_codes = []
                             for c in codes:
                                 try:
-                                    if has_images_for_code(c):
-                                        found = True
-                                        break
+                                    found, reason = has_images_info(c)
+                                    if found:
+                                        matched_codes.append(c)
+                                    else:
+                                        if reason == 'indice':
+                                            missing_codes.append(f"{c} (falta en índice)")
+                                        else:
+                                            missing_codes.append(f"{c} (falta en ruta)")
                                 except Exception:
-                                    continue
-                            if found:
-                                docs_with.append(lista or f"registro_{idx}")
+                                    missing_codes.append(f"{c} (falla comprobación)")
+
+                            # Si encontramos al menos una coincidencia, consideramos el documento como 'con imágenes'
+                            if matched_codes:
+                                docs_with.append((lista or f"registro_{idx}", matched_codes, missing_codes))
                             else:
-                                docs_without.append(lista or f"registro_{idx}")
+                                docs_without.append((lista or f"registro_{idx}", missing_codes))
+
                         solicitudes_imgs[sol] = (docs_with, docs_without)
 
-                    # Append summary to lines and reprompt dialog with extended info
+                    # Añadir resumen de pegado al reporte (se mostrará más abajo en un único diálogo)
                     lines.append("")
-                    lines.append('📸 Pegado de Evidencia (resumen):')
+                    lines.append('📸 Estado de evidencias - imagenes encontradas')
+                    # Mostrar las rutas donde se buscó evidencia (acortadas) para ayudar al usuario
+                    try:
+                        rutas = []
+                        for grp, base in (pegado_paths or {}).items():
+                            if isinstance(base, (list, tuple)):
+                                rutas.extend(base)
+                            else:
+                                rutas.append(base)
+                        if rutas:
+                            short = []
+                            for r in rutas[:3]:
+                                rp = str(r)
+                                if len(rp) > 80:
+                                    rp = '...' + rp[-77:]
+                                short.append(rp)
+                            lines.append(f"Rutas buscadas: {', '.join(short)}{'...' if len(rutas)>3 else ''}")
+                    except Exception:
+                        pass
+
                     for sol, (with_list, without_list) in solicitudes_imgs.items():
-                        lines.append(f" - {sol}: {len(with_list)} documentos con imágenes, {len(without_list)} sin imágenes")
+                        # Resumen claro por solicitud
+                        lines.append("")
+                        lines.append(f"Solicitud: {sol}")
+                        lines.append(f"  - Documentos con imágenes detectadas: {len(with_list)} (se pegarán)")
                         if with_list:
-                            lines.append(f"    • Se pegará evidencia en: {', '.join(with_list[:6])}{'...' if len(with_list)>6 else ''}")
+                            # obtener solo identificadores para la muestra
+                            ids_example = [str(x[0]) for x in with_list[:6]]
+                            examples = ', '.join(ids_example) + ('...' if len(with_list)>6 else '')
+                            lines.append(f"    • Muestra de documentos que recibirán imágenes: {examples}")
+                            # Opcional: mostrar códigos que NO se pegarán para esos documentos (si existen)
+                            any_missing = any(x[2] for x in with_list)
+                            if any_missing:
+                                lines.append("    • Códigos SIN evidencia en algunos documentos (ejemplo):")
+                                for x in with_list[:6]:
+                                    cid = str(x[0])
+                                    miss = x[2]
+                                    if miss:
+                                        lines.append(f"       - {cid}: {', '.join(miss)}")
+
+                        lines.append(f"  - Documentos SIN imágenes detectadas: {len(without_list)}")
                         if without_list:
-                            lines.append(f"    • Sin imágenes en: {', '.join(without_list[:6])}{'...' if len(without_list)>6 else ''}")
-                    # Mostrar nuevamente el informe extendido
-                    messagebox.showinfo("Reporte de Visita", "\n".join(lines))
+                            # Mostrar lista completa pero sin duplicados (muchas entradas son familias)
+                            seen = set()
+                            unique = []
+                            for ident, miss_codes in without_list:
+                                key = str(ident)
+                                if key not in seen:
+                                    seen.add(key)
+                                    unique.append((ident, miss_codes))
+
+                            lines.append("    • Documentos SIN imágenes (lista completa, sin duplicados):")
+                            for ident, miss_codes in unique:
+                                try:
+                                    if miss_codes:
+                                        lines.append(f"       - {ident}: códigos sin evidencia -> {', '.join(miss_codes)}")
+                                    else:
+                                        lines.append(f"       - {ident}: (sin códigos detectados)")
+                                except Exception:
+                                    lines.append(f"       - {str(ident)}")
+
+                    # Sugerencias útiles para el usuario
+                    lines.append("")
+                    lines.append("Sugerencias:")
+                    lines.append("  - Si faltan imágenes, verifique que las imágenes estén en alguna de las rutas listadas arriba.")
+                    lines.append("  - Asegúrese de que los nombres de archivo o el nombre de la carpeta contengan el código/CODIGO indicado en la tabla de relación.")
+                    lines.append("  - Puede configurar o limpiar rutas en 'Pegado de evidencia' -> 'Seleccionar carpeta' antes de generar los dictámenes.")
             except Exception:
                 # No bloquear si falla la comprobación de rutas
                 pass
+
+            # Mostrar el informe (unificado: firmas + resumen de pegado si existe)
+            try:
+                # Crear modal scrollable para asegurar visibilidad aunque haya muchas solicitudes
+                modal = ctk.CTkToplevel(self)
+                modal.title("Reporte de Visita")
+                modal.transient(self)
+                modal.grab_set()
+
+                sw = self.winfo_screenwidth()
+                sh = self.winfo_screenheight()
+                mw = min(int(sw * 0.8), 500)
+                mh = min(int(sh * 0.8), 600)
+                mx = (sw - mw) // 2
+                my = (sh - mh) // 2
+                try:
+                    modal.geometry(f"{mw}x{mh}+{mx}+{my}")
+                except Exception:
+                    pass
+
+                # Header visual acorde al STYLE
+                header = ctk.CTkFrame(modal, fg_color=STYLE.get('fondo'))
+                header.pack(fill='x')
+                ctk.CTkLabel(header, text="📊 VISTA PREVIA DE LA VISITA", font=FONT_SUBTITLE, text_color=STYLE.get('texto_oscuro')).pack(side='left', padx=12, pady=8)
+                
+
+                container = ctk.CTkFrame(modal, fg_color=STYLE.get('surface'))
+                container.pack(fill='both', expand=True, padx=8, pady=8)
+
+                # Usar tk.Text con scrollbar para compatibilidad y rendimiento
+                text_frame = tk.Frame(container, bg=STYLE.get('surface'))
+                text_frame.pack(fill='both', expand=True)
+
+                scrollbar = tk.Scrollbar(text_frame)
+                scrollbar.pack(side='right', fill='y')
+
+                # Configurar apariencia del Text para coincidir con el estilo del sistema
+                text_widget = tk.Text(
+                    text_frame,
+                    wrap='word',
+                    yscrollcommand=scrollbar.set,
+                    bg=STYLE.get('surface'),
+                    fg=STYLE.get('texto_oscuro'),
+                    bd=0,
+                    highlightthickness=0,
+                    padx=6,
+                    pady=6,
+                    font=(FONT_LABEL[0], 12)
+                )
+                text_widget.pack(side='left', fill='both', expand=True)
+                scrollbar.config(command=text_widget.yview)
+
+                try:
+                    text_widget.insert('1.0', "\n".join(lines))
+                    text_widget.configure(state='disabled')
+                except Exception:
+                    try:
+                        text_widget.insert('1.0', str(lines))
+                        text_widget.configure(state='disabled')
+                    except Exception:
+                        pass
+
+                # Botones de acción
+                btns = ctk.CTkFrame(modal, fg_color='transparent')
+                btns.pack(fill='x', padx=8, pady=(0,8))
+
+                def _copy():
+                    try:
+                        self.clipboard_clear()
+                        self.clipboard_append("\n".join(lines))
+                        messagebox.showinfo("Copiado", "El texto del reporte fue copiado al portapapeles.")
+                    except Exception:
+                        pass
+
+                ctk.CTkButton(btns, text="Copiar texto", command=_copy, width=140, fg_color=STYLE.get('primario'), text_color=STYLE.get('secundario')).pack(side='left', padx=6)
+                ctk.CTkButton(btns, text="Aceptar", command=modal.destroy, width=140, fg_color=STYLE.get('surface'), text_color=STYLE.get('texto_oscuro'), border_color=STYLE.get('borde')).pack(side='right', padx=6)
+
+                # Mantener modal en primer plano
+                modal.lift()
+                modal.focus_force()
+            except Exception:
+                # Fallback mínimo si falla el modal
+                messagebox.showinfo("Reporte de Visita", "\n".join(lines))
             
         except Exception as e:
             messagebox.showerror("Error", f"No se pudo verificar la visita:\n{e}")

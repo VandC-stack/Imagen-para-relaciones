@@ -40,6 +40,15 @@ SET ADD2=--add-data "Documentos Inspeccion;Documentos Inspeccion"
 SET ADD3=--add-data "Pegado de Evidenvia Fotografica;Pegado de Evidenvia Fotografica"
 SET ADD4=--add-data "Firmas;Firmas"
 SET ADD5=--add-data "img;img"
+REM Detectar automáticamente la DLL de Python usada por el intérprete y agregarla al bundle
+FOR /F "usebackq delims=" %%p IN (`py -c "import sys,os; print(os.path.join(os.path.dirname(sys.executable), f'python{sys.version_info.major}{sys.version_info.minor}.dll'))"`) DO SET PY_DLL=%%p
+IF EXIST "%PY_DLL%" (
+    ECHO Including Python DLL: %PY_DLL%
+    SET ADD6=--add-binary "%PY_DLL%;."
+) ELSE (
+    ECHO WARNING: Python DLL not found at %PY_DLL% - you may need to add it manually with --add-binary
+    SET ADD6=
+)
 
 
 REM Construct mode flags
