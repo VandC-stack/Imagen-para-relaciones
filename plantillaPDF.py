@@ -223,15 +223,41 @@ def validar_acreditacion_inspector(codigo_firma, norma_requerida, firmas_map):
     nombre = inspector.get("nombre")
     imagen = inspector.get("imagen")
     normas_acreditadas = inspector.get("normas_acreditadas", [])
-    
-    # Validar acreditación
-    if norma_requerida in normas_acreditadas:
+
+    # Normalizar valores para comparación
+    try:
+        req = (norma_requerida or "").strip().upper()
+    except Exception:
+        req = str(norma_requerida or "").strip().upper()
+
+    normas_norm = [str(n).strip().upper() for n in normas_acreditadas if n]
+
+    # Caso simple: coincidencia exacta
+    if req and req in normas_norm:
         print(f"   ✅ Firma validada: {nombre} - {norma_requerida}")
         return nombre, imagen, True
-    else:
-        print(f"   ⚠️ {nombre} NO está acreditado para {norma_requerida}")
-        print(f"   📋 Normas acreditadas: {', '.join(normas_acreditadas)}")
-        return nombre, imagen, False
+
+    # Intentar coincidencia por partes (por número de norma o substring)
+    try:
+        import re
+        nums = re.findall(r"\d+", req) if req else []
+        for na in normas_norm:
+            # coincidencia por substring
+            if req and req in na:
+                print(f"   ✅ Firma validada por substring: {nombre} - {norma_requerida} ~ {na}")
+                return nombre, imagen, True
+            # coincidencia por número (ej: '141' dentro de 'NOM-141-...')
+            for n in nums:
+                if n and n in na:
+                    print(f"   ✅ Firma validada por número: {nombre} - {norma_requerida} ~ {na}")
+                    return nombre, imagen, True
+    except Exception:
+        pass
+
+    # No acreditada
+    print(f"   ⚠️ {nombre} NO está acreditado para {norma_requerida}")
+    print(f"   📋 Normas acreditadas: {', '.join(normas_acreditadas)}")
+    return nombre, imagen, False
 
 # ---------------------------------------------------------
 # PROCESAMIENTO DE FAMILIAS

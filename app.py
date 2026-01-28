@@ -1,5 +1,5 @@
 # -- SISTEMA V&C - GENERADOR DE DICTÁMENES -- #
-import os
+import os, re
 import sys
 import uuid
 import shutil
@@ -136,12 +136,7 @@ class SistemaDictamenesVC(ctk.CTk):
         self.historial = {"visitas": []}
 
         # ===== NUEVA VARIABLE PARA FOLIOS POR VISITA =====
-        # Crear directorios necesarios. Usar `APP_DIR` para que la carpeta
-        # `data` se cree junto al ejecutable cuando esté generado.
         data_dir = DATA_DIR
-        # Si estamos en un ejecutable congelado y no existe la carpeta externa
-        # `APP_DIR/data`, extraer (copiar) la carpeta `data` embebida dentro
-        # del bundle (BASE_DIR apunta a sys._MEIPASS cuando está congelado).
         if getattr(sys, 'frozen', False):
             try:
                 # asegúrate de que exista data
@@ -8104,6 +8099,44 @@ class SistemaDictamenesVC(ctk.CTk):
             
             # Crear DataFrame con el orden de columnas específico
             df = pd.DataFrame(folios_data)
+            # Garantizar columna CLIENTE incluso si no se enriquece desde la tabla de relación
+            if 'CLIENTE' not in df.columns:
+                df['CLIENTE'] = ''
+
+            # Rellenar columna CLIENTE a partir del registro de la visita (o historial)
+            cliente_default = ''
+            try:
+                cliente_default = registro.get('cliente') or registro.get('cliente_nombre') or ''
+            except Exception:
+                cliente_default = ''
+
+            # Si no viene en el registro, intentar cargar desde data/historial_visitas.json
+            if not cliente_default:
+                try:
+                    hist_path = os.path.join(DATA_DIR, 'historial_visitas.json')
+                    if os.path.exists(hist_path):
+                        with open(hist_path, 'r', encoding='utf-8') as hf:
+                            hist = json.load(hf) or {}
+                            visitas = hist.get('visitas') or []
+                            for v in visitas:
+                                if str(v.get('folio_visita', '')).strip() == str(folio_visita).strip():
+                                    cliente_default = v.get('cliente', '') or v.get('cliente_nombre', '') or ''
+                                    break
+                except Exception:
+                    cliente_default = ''
+
+            # Aplicar cliente por defecto a las filas que no tengan CLIENTE
+            try:
+                if cliente_default:
+                    # Asegurar no sobrescribir valores ya extraídos
+                    df['CLIENTE'] = df['CLIENTE'].fillna('').astype(str)
+                    df.loc[df['CLIENTE'].str(strip=True) == '', 'CLIENTE'] = cliente_default
+            except Exception:
+                # Fallback simple
+                try:
+                    df['CLIENTE'] = df['CLIENTE'].fillna('').replace('', cliente_default)
+                except Exception:
+                    pass
 
             # Intentar enriquecer el reporte con `LISTA` y `CODIGO` usando el backup
             try:
@@ -8172,6 +8205,12 @@ class SistemaDictamenesVC(ctk.CTk):
                             codigo_col = c
                             break
 
+                        cliente_col = None
+                        for c in ('CLIENTE', 'Cliente', 'cliente', 'NOMBRE CLIENTE'):
+                            if c in rel.columns:
+                                cliente_col = c
+                                break
+
                     folio_col = None
                     for c in ('FOLIO', 'FOLIOS', 'folio'):
                         if c in rel.columns:
@@ -8186,6 +8225,7 @@ class SistemaDictamenesVC(ctk.CTk):
 
                     listas_vals = []
                     codigos_vals = []
+                    clientes_vals = []
 
                     for _, r in df.iterrows():
                         fol = str(r.get('FOLIOS', '')).strip()
@@ -8230,14 +8270,22 @@ class SistemaDictamenesVC(ctk.CTk):
 
                             listas_vals.append(','.join(map(str, listas_set)) if listas_set else '')
                             codigos_vals.append(','.join(codigos_set) if codigos_set else '')
+                            # Extraer nombre(s) de cliente desde la tabla de relación si existe
+                            if cliente_col:
+                                cliente_set = sorted({str(v).strip() for v in matches[cliente_col].tolist() if v is not None and str(v).strip() != ''})
+                                clientes_vals.append(','.join(cliente_set) if cliente_set else '')
+                            else:
+                                clientes_vals.append('')
                             print(f"→ Folio {fol} | Solicitud '{sol}' → LISTA: {','.join(map(str, listas_set))} | CODIGO: {','.join(codigos_set)}")
                         else:
                             listas_vals.append('')
                             codigos_vals.append('')
+                            clientes_vals.append('')
                             print(f"→ Folio {fol} | Solicitud '{sol}' → No se encontraron coincidencias en backups de tabla_de_relacion")
 
                     df['LISTA'] = listas_vals
                     df['CODIGO'] = codigos_vals
+                    df['CLIENTE'] = clientes_vals
             except Exception as e:
                 print(f"⚠️ No se pudo enriquecer reporte con tabla de relación: {e}")
             
@@ -8246,6 +8294,7 @@ class SistemaDictamenesVC(ctk.CTk):
                 "LISTA",
                 "CODIGO",
                 "FOLIOS",
+                "CLIENTE",
                 "MARCA",
                 "SOLICITUDES",
                 "FECHA DE IMPRESION",
@@ -9500,6 +9549,62 @@ class SistemaDictamenesVC(ctk.CTk):
             except Exception:
                 pass
 
+            # 5b) Extraer candidatos directamente desde el registro (útil para Constancias)
+            try:
+                if registro and isinstance(registro, dict):
+                    keys = ['folio_constancia', 'folio_acta', 'folio_acta_visita', 'folio', 'folio_visita', 'folio_acta_visita']
+                    for k in keys:
+                        try:
+                            v = registro.get(k) or ''
+                            if not v:
+                                continue
+                            s = str(v).strip()
+                            if not s:
+                                continue
+                            digits = ''.join([c for c in s if c.isdigit()])
+                            if digits:
+                                folios_a_eliminar.add(digits.lstrip('0') or '0')
+                                folios_a_eliminar.add(digits.zfill(6))
+                            else:
+                                folios_a_eliminar.add(s)
+                        except Exception:
+                            continue
+
+                    # también intentar extraer solicitudes/solicitud
+                    for sk in ('solicitud', 'solicitudes', 'SOLICITUD', 'SOLICITUDES', 'folios_utilizados'):
+                        try:
+                            sv = registro.get(sk) or ''
+                            if not sv:
+                                continue
+                            # puede ser lista o string
+                            if isinstance(sv, list):
+                                for it in sv:
+                                    try:
+                                        ss = str(it).strip()
+                                        if not ss:
+                                            continue
+                                        sd = ''.join([c for c in ss if c.isdigit()])
+                                        if sd:
+                                            solicitudes_a_eliminar.add(sd)
+                                            solicitudes_a_eliminar.add(sd.zfill(6))
+                                        else:
+                                            solicitudes_a_eliminar.add(ss)
+                                    except Exception:
+                                        continue
+                            else:
+                                ss = str(sv).strip()
+                                if ss:
+                                    sd = ''.join([c for c in ss if c.isdigit()])
+                                    if sd:
+                                        solicitudes_a_eliminar.add(sd)
+                                        solicitudes_a_eliminar.add(sd.zfill(6))
+                                    else:
+                                        solicitudes_a_eliminar.add(ss)
+                        except Exception:
+                            continue
+            except Exception:
+                pass
+
             # 6) Eliminar dictámenes en data/Dictamenes que coincidan
             try:
                 dicts_dir = os.path.join(APP_DIR, 'data', 'Dictamenes')
@@ -9646,6 +9751,52 @@ class SistemaDictamenesVC(ctk.CTk):
                                 resultados['eliminados'].append(f"Constancia eliminada: {fn}")
                             except Exception as e:
                                 resultados['errores'].append(f"Error eliminando constancia {fn}: {e}")
+                        else:
+                            # Si no hubo coincidencia por contenido, intentar eliminar
+                            # por nombre de archivo si el folio/solicitud aparece en el nombre.
+                            try:
+                                lower_fn = fn.lower()
+                                filename_matchers = set()
+                                try:
+                                    cp_digits = ''.join([c for c in str(folio) if c.isdigit()])
+                                except Exception:
+                                    cp_digits = ''
+                                if cp_digits:
+                                    filename_matchers.add(cp_digits)
+                                    filename_matchers.add(cp_digits.zfill(6))
+                                    filename_matchers.add(f"cp{cp_digits.zfill(6)}")
+                                # agregar candidatos desde folios_a_eliminar y solicitudes_a_eliminar
+                                for fcan in list(folios_a_eliminar) + list(solicitudes_a_eliminar):
+                                    try:
+                                        s = str(fcan).lower()
+                                        if s:
+                                            filename_matchers.add(s)
+                                            digits = ''.join([c for c in s if c.isdigit()])
+                                            if digits:
+                                                filename_matchers.add(digits)
+                                                filename_matchers.add(digits.zfill(6))
+                                    except Exception:
+                                        continue
+
+                                should_remove = False
+                                for m in filename_matchers:
+                                    try:
+                                        if not m:
+                                            continue
+                                        if m in lower_fn:
+                                            should_remove = True
+                                            break
+                                    except Exception:
+                                        continue
+
+                                if should_remove:
+                                    try:
+                                        os.remove(fp)
+                                        resultados['eliminados'].append(f"Constancia eliminada (por nombre): {fn}")
+                                    except Exception as e:
+                                        resultados['errores'].append(f"Error eliminando constancia {fn}: {e}")
+                            except Exception:
+                                pass
             except Exception as e:
                 resultados['errores'].append(f"Error eliminando constancias asociadas: {e}")
 
@@ -9752,19 +9903,42 @@ class SistemaDictamenesVC(ctk.CTk):
 
     def hist_eliminar_registro(self, registro):
         """Eliminar un registro del historial con persistencia completa"""
-        try:
-            folio = registro.get('folio_visita', '')
-            confirmacion = messagebox.askyesno(
-                "Confirmar eliminación", 
-                f"¿Está seguro de que desea eliminar el registro del folio {folio}?\n\nSe eliminarán todos los archivos asociados."
-            )
-            
-            if not confirmacion:
-                return
+        folio = registro.get('folio_visita', '')
+        confirmacion = messagebox.askyesno(
+            "Confirmar eliminación",
+            f"¿Está seguro de que desea eliminar el registro del folio {folio}?\n\nSe eliminarán todos los archivos asociados."
+        )
 
-            # Intentar leer meta de folios antes de eliminar archivos (para
-            # poder restaurar el contador). Debemos leer *antes* porque
-            # _eliminar_archivos_asociados_folio borra el archivo.
+        if not confirmacion:
+            return
+
+        # Mostrar diálogo de progreso modal (compacto)
+        try:
+            prog_win = tk.Toplevel(self)
+            prog_win.title("Eliminando...")
+            prog_win.geometry("420x110")
+            prog_win.transient(self)
+            prog_win.grab_set()
+            prog_win.resizable(False, False)
+
+            lbl = tk.Label(prog_win, text=f"Eliminando archivos del folio {folio}...", anchor='w')
+            lbl.pack(fill='x', padx=12, pady=(12, 6))
+
+            pb = ttk.Progressbar(prog_win, mode='indeterminate')
+            pb.pack(fill='x', padx=12, pady=(0, 8))
+            pb.start(10)
+
+            info_lbl = tk.Label(prog_win, text="Esto puede tardar un momento. El detalle se guardará en un archivo de registro.")
+            info_lbl.pack(fill='x', padx=12, pady=(0, 8))
+        except Exception:
+            prog_win = None
+            pb = None
+
+        # Ejecutar eliminación en hilo para no bloquear la UI
+        def _worker():
+            resultados = {'eliminados': [], 'errores': []}
+
+            # Intentar leer meta de folios antes de eliminar archivos
             meta_counter_before = None
             try:
                 folios_visita_file = os.path.join(self.folios_visita_path, f"folios_{folio}.json")
@@ -9784,226 +9958,146 @@ class SistemaDictamenesVC(ctk.CTk):
             except Exception:
                 meta_counter_before = None
 
-            # Eliminar archivos asociados de forma segura (folios file + backups)
-            resultados = self._eliminar_archivos_asociados_folio(folio, registro)
-
-            # Eliminar SOLO la fila correspondiente en memoria (preferir _id cuando exista)
-            registro_id = registro.get('_id')
-            if registro_id:
-                # Eliminar únicamente el registro con ese _id
-                original_len = len(self.historial_data)
-                self.historial_data = [r for r in self.historial_data if r.get('_id') != registro_id]
-                self.historial_data_original = [r for r in self.historial_data_original if r.get('_id') != registro_id]
-                if len(self.historial_data) < original_len:
-                    resultados['eliminados'].append(f"Entrada en historial (id={registro_id})")
-            else:
-                # Fallback por folio si no hay _id
-                self.historial_data = [r for r in self.historial_data if r.get('folio_visita') != folio]
-                self.historial_data_original = [r for r in self.historial_data_original if r.get('folio_visita') != folio]
-                resultados['eliminados'].append("Entrada en historial (por folio)")
-            
-            # Sincronizar con el archivo JSON (esto actualiza self.historial y guarda)
-            sincronizacion_exitosa = self._sincronizar_historial()
-            
-            if sincronizacion_exitosa:
-                resultados["eliminados"].append("✅ Entrada en historial visitas")
-            else:
-                resultados["errores"].append("⚠️ Error al sincronizar historial")
-
-            # Forzar actualización de la etiqueta de siguiente folio tras eliminación
             try:
-                if hasattr(self, '_update_siguiente_folio_label'):
-                    self._update_siguiente_folio_label()
-            except Exception:
-                pass
-            
-            # Adicional: eliminar entradas de data/tabla_de_relacion.json que pertenezcan a estos folios
-            try:
-                # Determinar folios numéricos asociados a esta visita (preferir archivo folios_{folio}.json)
-                folios_asociados = set()
-                folios_visita_file = os.path.join(self.folios_visita_path, f"folios_{folio}.json")
-                if os.path.exists(folios_visita_file):
-                    try:
-                        with open(folios_visita_file, 'r', encoding='utf-8') as f:
-                            fv = json.load(f)
-                            # Compatibilidad: el archivo podía ser una lista (antiguo formato)
-                            if isinstance(fv, list):
-                                for v in fv:
-                                    try:
-                                        # v puede ser dict con 'FOLIOS' o simple string
-                                        if isinstance(v, dict):
-                                            fol = v.get('FOLIOS') or v.get('FOLIO') or ''
-                                            digits = ''.join([c for c in str(fol) if c.isdigit()])
-                                            if digits:
-                                                folios_asociados.add(int(digits))
-                                        else:
-                                            digits = ''.join([c for c in str(v) if c.isdigit()])
-                                            if digits:
-                                                folios_asociados.add(int(digits))
-                                    except Exception:
-                                        pass
-                            elif isinstance(fv, dict):
-                                # Nuevo formato: {'_meta': {'counter_before': ...}, 'folios': [ ... ]}
-                                try:
-                                    meta = fv.get('_meta') or {}
-                                    if isinstance(meta, dict) and 'counter_before' in meta:
-                                        try:
-                                            meta_counter_before = int(meta.get('counter_before') or 0)
-                                        except Exception:
-                                            meta_counter_before = None
-                                except Exception:
-                                    meta_counter_before = None
+                # 1) Borrar archivos asociados (método existente)
+                try:
+                    res = self._eliminar_archivos_asociados_folio(folio, registro)
+                    # merge resultados
+                    for k in ('eliminados', 'errores'):
+                        if k in res:
+                            resultados[k].extend(res[k])
+                except Exception as e:
+                    resultados['errores'].append(f"Error eliminando archivos asociados: {e}")
 
-                                fl = fv.get('folios') or []
-                                if isinstance(fl, list):
-                                    for entry in fl:
+                # 2) Eliminar fila en memoria
+                registro_id = registro.get('_id')
+                if registro_id:
+                    original_len = len(self.historial_data)
+                    self.historial_data = [r for r in self.historial_data if r.get('_id') != registro_id]
+                    self.historial_data_original = [r for r in self.historial_data_original if r.get('_id') != registro_id]
+                    if len(self.historial_data) < original_len:
+                        resultados['eliminados'].append(f"Entrada en historial (id={registro_id})")
+                else:
+                    self.historial_data = [r for r in self.historial_data if r.get('folio_visita') != folio]
+                    self.historial_data_original = [r for r in self.historial_data_original if r.get('folio_visita') != folio]
+                    resultados['eliminados'].append("Entrada en historial (por folio)")
+
+                # 3) Sincronizar historial
+                try:
+                    sincronizacion_exitosa = self._sincronizar_historial()
+                    if sincronizacion_exitosa:
+                        resultados['eliminados'].append('✅ Entrada en historial visitas')
+                    else:
+                        resultados['errores'].append('⚠️ Error al sincronizar historial')
+                except Exception as e:
+                    resultados['errores'].append(f'Error sincronizando historial: {e}')
+
+                # 4) Limpiar tabla_de_relacion (se deja como antes, pero en hilo)
+                try:
+                    # extraer folios asociados (int)
+                    folios_asociados = set()
+                    folios_visita_file = os.path.join(self.folios_visita_path, f"folios_{folio}.json")
+                    if os.path.exists(folios_visita_file):
+                        try:
+                            with open(folios_visita_file, 'r', encoding='utf-8') as f:
+                                fv = json.load(f)
+                                if isinstance(fv, list):
+                                    for v in fv:
                                         try:
-                                            fol = ''
-                                            if isinstance(entry, dict):
-                                                fol = entry.get('FOLIOS') or entry.get('FOLIO') or ''
+                                            if isinstance(v, dict):
+                                                fol = v.get('FOLIOS') or v.get('FOLIO') or ''
                                             else:
-                                                fol = entry
+                                                fol = v
                                             digits = ''.join([c for c in str(fol) if c.isdigit()])
                                             if digits:
                                                 folios_asociados.add(int(digits))
                                         except Exception:
                                             pass
-                    except Exception as e:
-                        resultados['errores'].append(f"Error leyendo folios de {folios_visita_file}: {e}")
-                # Fallback: extraer números del campo 'folios_utilizados' del registro
-                # Ignorar números que correspondan al folio de visita (CP) o folio de acta (AC).
-                if not folios_asociados:
-                    posibles = []
-                    raw = registro.get('folios_utilizados', '')
-                    import re
-                    posibles = re.findall(r"\d{1,6}", str(raw))
-
-                    # Obtener dígitos del folio de la visita (CP) para excluirlos
-                    try:
-                        cp_digits = ''.join([c for c in str(folio) if c.isdigit()])
-                    except Exception:
-                        cp_digits = ''
-                    # Intentar obtener folio de acta si existe
-                    try:
-                        acta = registro.get('folio_acta') or registro.get('folio_acta_visita') or ''
-                        acta_digits = ''.join([c for c in str(acta) if c.isdigit()])
-                    except Exception:
-                        acta_digits = ''
-
-                    for p in posibles:
-                        try:
-                            # Excluir coincidencias que sean el CP/AC de la visita
-                            if cp_digits and str(p).lstrip('0') == str(int(cp_digits)).lstrip('0'):
-                                continue
-                            if acta_digits and str(p).lstrip('0') == str(int(acta_digits)).lstrip('0'):
-                                continue
-                            folios_asociados.add(int(p))
+                                elif isinstance(fv, dict):
+                                    fl = fv.get('folios') or []
+                                    for entry in fl:
+                                        try:
+                                            fol = entry.get('FOLIOS') or entry.get('FOLIO') or entry if isinstance(entry, dict) else entry
+                                            digits = ''.join([c for c in str(fol) if c.isdigit()])
+                                            if digits:
+                                                folios_asociados.add(int(digits))
+                                        except Exception:
+                                            pass
                         except Exception:
                             pass
 
-                tabla_relacion_path = os.path.join(DATA_DIR, 'tabla_de_relacion.json')
-                if os.path.exists(tabla_relacion_path):
-                    # Hacer backup antes de modificar
-                    try:
-                        backup_dir = os.path.join(DATA_DIR, 'tabla_relacion_backups')
-                        os.makedirs(backup_dir, exist_ok=True)
-                        ts = datetime.now().strftime('%Y%m%d%H%M%S')
-                        # Crear solo un PERSIST por CP: si ya existe, no crear nuevos backups.
+                    if not folios_asociados:
+                        posibles = re.findall(r"\d{1,6}", str(registro.get('folios_utilizados', '') or ''))
+                        cp_digits = ''.join([c for c in str(folio) if c.isdigit()])
+                        acta = registro.get('folio_acta') or registro.get('folio_acta_visita') or ''
+                        acta_digits = ''.join([c for c in str(acta) if c.isdigit()])
+                        for p in posibles:
+                            try:
+                                if cp_digits and str(p).lstrip('0') == str(int(cp_digits)).lstrip('0'):
+                                    continue
+                                if acta_digits and str(p).lstrip('0') == str(int(acta_digits)).lstrip('0'):
+                                    continue
+                                folios_asociados.add(int(p))
+                            except Exception:
+                                pass
+
+                    tabla_relacion_path = os.path.join(DATA_DIR, 'tabla_de_relacion.json')
+                    if os.path.exists(tabla_relacion_path):
                         try:
+                            backup_dir = os.path.join(DATA_DIR, 'tabla_relacion_backups')
+                            os.makedirs(backup_dir, exist_ok=True)
+                            ts = datetime.now().strftime('%Y%m%d%H%M%S')
                             cp_digits = ''.join([c for c in str(folio) if c.isdigit()]) or ''
                             cp = f"CP{int(cp_digits):06d}" if cp_digits else f"CP{str(folio)}"
-                        except Exception:
-                            cp = f"CP{str(folio)}"
-
-                        existing = [fn for fn in os.listdir(backup_dir) if fn.upper().startswith(f"TABLA_DE_RELACION_{cp}_PERSIST_")]
-                        if existing:
-                            # Ya existe un respaldo persistente; crear solo un respaldo no-persistente.
-                            print(f"   ℹ️ Ya existe PERSIST para {cp}, creando respaldo BACKUP en su lugar: {existing[0]}")
                             dest_name = f"tabla_de_relacion_{cp}_BACKUP_{ts}.json"
-                        else:
-                            # No hay PERSIST aún: crear respaldo no-persistente (la copia persistente
-                            # definitiva se crea en la ruta de generación exitosa).
-                            dest_name = f"tabla_de_relacion_{cp}_BACKUP_{ts}.json"
-                        shutil.copyfile(tabla_relacion_path, os.path.join(backup_dir, dest_name))
-                        print(f"   💾 Backup de tabla_de_relacion creado (no-persistente): {dest_name}")
-                    except Exception as e:
-                        resultados['errores'].append(f"No se pudo crear backup de tabla_de_relacion: {e}")
-
-                    try:
-                        with open(tabla_relacion_path, 'r', encoding='utf-8') as f:
-                            tabla = json.load(f)
-
-                        # Filtrar filas cuya columna 'FOLIO' coincida con alguno de los folios asociados
-                        nueva_tabla = []
-                        for row in tabla:
-                            try:
-                                val = row.get('FOLIO', None)
-                                if val is None:
-                                    nueva_tabla.append(row)
-                                    continue
-                                # Normalizar y comparar
-                                try:
-                                    val_int = int(float(val))
-                                except Exception:
-                                    val_int = None
-
-                                if val_int is not None and val_int in folios_asociados:
-                                    # Saltar -> será eliminado
-                                    continue
-                                # Si val no es numérico, comparar como string con alguno de los folios formateados
-                                if str(val).strip() in {str(f).zfill(6) for f in folios_asociados}:
-                                    continue
-                                nueva_tabla.append(row)
-                            except Exception:
-                                nueva_tabla.append(row)
-
-                        # Guardar nueva tabla
-                        with open(tabla_relacion_path, 'w', encoding='utf-8') as f:
-                            json.dump(nueva_tabla, f, ensure_ascii=False, indent=2)
-                        resultados['eliminados'].append('Entradas en tabla_de_relacion.json')
-
-                        # Eliminar backups relacionados con este folio en tabla_relacion_backups
-                        try:
-                            backup_dir = os.path.join(APP_DIR, 'data', 'tabla_relacion_backups')
-                            if os.path.exists(backup_dir):
-                                deleted_backups = []
-                                for bfn in os.listdir(backup_dir):
-                                    # Solo considerar archivos que parezcan backups de tabla_de_relacion
-                                    lower = bfn.lower()
-                                            # Omitir backups persistentes marcados con PERSIST
-                                    if ('tabla' in lower and 'relacion' in lower) and str(folio) in bfn and 'PERSIST' not in bfn.upper():
-                                        pathb = os.path.join(backup_dir, bfn)
-                                        try:
-                                            os.remove(pathb)
-                                            deleted_backups.append(bfn)
-                                        except Exception as e:
-                                            resultados['errores'].append(f"No se pudo eliminar backup {bfn}: {e}")
-                                if deleted_backups:
-                                    resultados['eliminados'].append(f"Backups eliminados en tabla_relacion_backups: {len(deleted_backups)}")
+                            shutil.copyfile(tabla_relacion_path, os.path.join(backup_dir, dest_name))
                         except Exception as e:
-                            resultados['errores'].append(f"Error limpiando backups de tabla_relacion_backups: {e}")
-                    except Exception as e:
-                        resultados['errores'].append(f"Error modificando tabla_de_relacion.json: {e}")
+                            resultados['errores'].append(f"No se pudo crear backup de tabla_de_relacion: {e}")
 
-            except Exception as e:
-                resultados['errores'].append(f"Error eliminando entradas de tabla de relación: {e}")
+                        try:
+                            with open(tabla_relacion_path, 'r', encoding='utf-8') as f:
+                                tabla = json.load(f)
+                            nueva_tabla = []
+                            for row in tabla:
+                                try:
+                                    val = row.get('FOLIO', None)
+                                    if val is None:
+                                        nueva_tabla.append(row)
+                                        continue
+                                    try:
+                                        val_int = int(float(val))
+                                    except Exception:
+                                        val_int = None
+                                    if val_int is not None and val_int in folios_asociados:
+                                        continue
+                                    if str(val).strip() in {str(f).zfill(6) for f in folios_asociados}:
+                                        continue
+                                    nueva_tabla.append(row)
+                                except Exception:
+                                    nueva_tabla.append(row)
+                            with open(tabla_relacion_path, 'w', encoding='utf-8') as f:
+                                json.dump(nueva_tabla, f, ensure_ascii=False, indent=2)
+                            resultados['eliminados'].append('Entradas en tabla_de_relacion.json')
+                        except Exception as e:
+                            resultados['errores'].append(f"Error modificando tabla_de_relacion.json: {e}")
+                except Exception as e:
+                    resultados['errores'].append(f"Error eliminando entradas de tabla de relación: {e}")
 
-            # Garantizar persistencia completa (verificar que no queden rastros)
-            persistencia_garantizada = self._garantizar_persistencia(folio)
-            
-            if persistencia_garantizada:
-                resultados["eliminados"].append("✅ Persistencia verificada y garantizada")
-
-            # Intentar recomputar el mayor folio restante y ajustar el contador
-            try:
+                # Garantizar persistencia completa
                 try:
-                    last_counter = int(folio_manager.get_last() or 0)
+                    persistencia_garantizada = self._garantizar_persistencia(folio)
+                    if persistencia_garantizada:
+                        resultados['eliminados'].append('✅ Persistencia verificada y garantizada')
                 except Exception:
-                    last_counter = 0
+                    pass
 
-                # Buscar mayor folio numérico entre archivos restantes en folios_visitas
-                max_remain = 0
+                # Intentar recomputar y ajustar contador
                 try:
+                    try:
+                        last_counter = int(folio_manager.get_last() or 0)
+                    except Exception:
+                        last_counter = 0
+                    max_remain = 0
                     dirp = self.folios_visita_path
                     if os.path.exists(dirp):
                         for fn in os.listdir(dirp):
@@ -10012,65 +10106,37 @@ class SistemaDictamenesVC(ctk.CTk):
                                 try:
                                     with open(pathf, 'r', encoding='utf-8') as fh:
                                         obj = json.load(fh) or []
-                                        # aceptar ambos formatos: lista antigua o dict nuevo
-                                        if isinstance(obj, dict) and 'folios' in obj:
-                                            arr = obj.get('folios') or []
-                                        else:
-                                            arr = obj
+                                        arr = obj.get('folios') if isinstance(obj, dict) and 'folios' in obj else obj
                                         for entry in arr:
                                             try:
-                                                fol = ''
-                                                if isinstance(entry, dict):
-                                                    fol = entry.get('FOLIOS') or entry.get('FOLIO') or ''
-                                                else:
-                                                    fol = entry
-                                                if not fol:
-                                                    continue
+                                                fol = entry.get('FOLIOS') or entry.get('FOLIO') or entry if isinstance(entry, dict) else entry
                                                 digits = ''.join([c for c in str(fol) if c.isdigit()])
                                                 if digits:
-                                                    try:
-                                                        n = int(digits)
-                                                        if n > max_remain:
-                                                            max_remain = n
-                                                    except Exception:
-                                                        pass
+                                                    n = int(digits)
+                                                    if n > max_remain:
+                                                        max_remain = n
                                             except Exception:
                                                 continue
                                 except Exception:
                                     continue
-                except Exception:
-                    pass
-
-                # También comprobar tabla_de_relacion.json por si quedan folios ahí
-                try:
                     tabla_relacion_path = os.path.join(APP_DIR, 'data', 'tabla_de_relacion.json')
                     if os.path.exists(tabla_relacion_path):
-                        with open(tabla_relacion_path, 'r', encoding='utf-8') as tf:
-                            tabla = json.load(tf) or []
-                        for row in tabla:
-                            try:
-                                v = row.get('FOLIO') or row.get('FOLIOS') or ''
-                                digits = ''.join([c for c in str(v) if c.isdigit()])
-                                if digits:
-                                    n = int(digits)
-                                    if n > max_remain:
-                                        max_remain = n
-                            except Exception:
-                                continue
-                except Exception:
-                    pass
-
-                # Determinar valor final deseado: si hay meta 'counter_before' lo
-                # usamos como valor restaurado (restablecer exactamente al valor
-                # previo a la creación de la visita). Si no hay meta, usar el
-                # mayor folio restante.
-                try:
-                    if meta_counter_before is not None:
-                        desired = int(meta_counter_before)
-                    else:
-                        desired = max_remain
-
-                    # Aplicar cambio solo si realmente disminuye el contador.
+                        try:
+                            with open(tabla_relacion_path, 'r', encoding='utf-8') as tf:
+                                tabla = json.load(tf) or []
+                            for row in tabla:
+                                try:
+                                    v = row.get('FOLIO') or row.get('FOLIOS') or ''
+                                    digits = ''.join([c for c in str(v) if c.isdigit()])
+                                    if digits:
+                                        n = int(digits)
+                                        if n > max_remain:
+                                            max_remain = n
+                                except Exception:
+                                    continue
+                        except Exception:
+                            pass
+                    desired = int(meta_counter_before) if meta_counter_before is not None else max_remain
                     if desired < last_counter:
                         try:
                             folio_manager.set_last(int(desired))
@@ -10079,47 +10145,92 @@ class SistemaDictamenesVC(ctk.CTk):
                             resultados['errores'].append(f"No se pudo ajustar folio_counter: {e}")
                 except Exception:
                     pass
-            except Exception:
-                pass
-            except Exception:
-                pass
-            
-            # Registrar la operación para auditoría
-            detalles_eliminacion = f"Archivos: {len(resultados['eliminados'])}, Errores: {len(resultados['errores'])}"
-            self._registrar_operacion("eliminar_registro", folio, "exitosa", detalles_eliminacion)
-            
-            # Actualizar la UI
-            self._poblar_historial_ui()
-            # Recalcular folio actual en memoria y UI para que tome efecto inmediato
+
+                # Registrar operación
+                detalles_eliminacion = f"Archivos: {len(resultados.get('eliminados', []))}, Errores: {len(resultados.get('errores', []))}"
+                try:
+                    self._registrar_operacion("eliminar_registro", folio, "exitosa", detalles_eliminacion)
+                except Exception:
+                    pass
+
+            except Exception as e:
+                resultados['errores'].append(f"Error general en proceso de eliminación: {e}")
+
+            # Guardar log detallado en archivo para revisiones (no mostrar lista completa en mensaje)
             try:
-                self.cargar_ultimo_folio()
+                logs_dir = os.path.join(DATA_DIR, 'eliminacion_logs')
+                os.makedirs(logs_dir, exist_ok=True)
+                ts = datetime.now().strftime('%Y%m%d%H%M%S')
+                log_path = os.path.join(logs_dir, f'eliminacion_{folio}_{ts}.txt')
+                with open(log_path, 'w', encoding='utf-8') as lf:
+                    lf.write(f"Eliminación folio: {folio}\n")
+                    lf.write(f"Timestamp: {datetime.now().isoformat()}\n\n")
+                    lf.write(f"Elementos eliminados ({len(resultados.get('eliminados', []))}):\n")
+                    for it in resultados.get('eliminados', []):
+                        lf.write(f" - {it}\n")
+                    lf.write('\n')
+                    lf.write(f"Errores ({len(resultados.get('errores', []))}):\n")
+                    for er in resultados.get('errores', []):
+                        lf.write(f" - {er}\n")
+            except Exception:
+                log_path = None
+
+            # Actualizar UI en hilo principal cuando termine
+            def _on_done():
+                try:
+                    if pb:
+                        try:
+                            pb.stop()
+                        except Exception:
+                            pass
+                    if prog_win:
+                        try:
+                            prog_win.grab_release()
+                        except Exception:
+                            pass
+                        try:
+                            prog_win.destroy()
+                        except Exception:
+                            pass
+
+                except Exception:
+                    pass
+
+                # Actualizar interfaz y mostrar resumen compacto
+                try:
+                    self._poblar_historial_ui()
+                except Exception:
+                    pass
+                try:
+                    self.cargar_ultimo_folio()
+                except Exception:
+                    pass
                 try:
                     self._update_siguiente_folio_label()
                 except Exception:
                     pass
+
+                resumen = f"✅ Registro del folio {folio} eliminado correctamente.\nElementos eliminados: {len(resultados.get('eliminados', []))}\nErrores: {len(resultados.get('errores', []))}"
+                if log_path:
+                    resumen += f"\n\nDetalle guardado en: {log_path}"
+
+                try:
+                    messagebox.showinfo("Eliminación completada", resumen)
+                except Exception:
+                    print(resumen)
+
+            try:
+                self.after(50, _on_done)
             except Exception:
-                pass
-            
-            # Mostrar resumen de eliminación
-            mensaje = f"✅ Registro del folio {folio} eliminado correctamente\n\n"
-            
-            if resultados["eliminados"]:
-                mensaje += "📁 Elementos eliminados:\n"
-                for item in resultados["eliminados"]:
-                    mensaje += f"  {item}\n"
-            
-            if resultados["errores"]:
-                mensaje += "\n⚠️ Advertencias:\n"
-                for error in resultados["errores"]:
-                    mensaje += f"  {error}\n"
-            
-            messagebox.showinfo("Eliminación completada", mensaje)
-            print(f"✅ Folio {folio} eliminado exitosamente con persistencia")
-                
-        except Exception as e:
-            messagebox.showerror("Error", f"Error al eliminar registro:\n{str(e)}")
-            print(f"❌ Error en hist_eliminar_registro: {e}")
-            messagebox.showerror("Error", f"No se pudo eliminar el registro:\n{e}")
+                _on_done()
+
+        # lanzar hilo
+        try:
+            th = threading.Thread(target=_worker, daemon=True)
+            th.start()
+        except Exception:
+            # fallback: ejecutar sin hilo
+            _worker()
 
     def hist_create_visita(self, payload, es_automatica=False, show_notification=True):
         """Crea una nueva visita en el historial"""
@@ -12249,7 +12360,6 @@ class SistemaDictamenesVC(ctk.CTk):
             else:
                 total_detectados = len(datos)
 
-            # Determinar el conteo de dictámenes estimados: preferir folios únicos si se extrajeron
             if folios_unicos_por_registro:
                 # contar folios únicos válidos
                 total_dictamenes = len(set(x for x in folios_unicos_por_registro if x))
@@ -12340,6 +12450,87 @@ class SistemaDictamenesVC(ctk.CTk):
                         lines.append("✅ Distribución por tipo de documento:")
                         for k, cnt in tipos_contador.items():
                             lines.append(f" - {tipo_map.get(k, k)}: {cnt}")
+
+            # Intentar detectar firma(s) y validar acreditación
+            try:
+                from plantillaPDF import cargar_firmas, validar_acreditacion_inspector
+                firmas_map = cargar_firmas()
+                # Buscar columna FIRMA en los datos cargados
+                firma_keys = ['FIRMA', 'Firma', 'firma', 'CODIGO_FIRMA']
+                found_codes = set()
+                for item in (datos or []):
+                    for fk in firma_keys:
+                        if fk in item and item.get(fk) not in (None, ''):
+                            found_codes.add(str(item.get(fk)).strip())
+                # Si no se encontró en el archivo cargado, intentar buscar en tabla_de_relacion
+                if not found_codes:
+                    df_rel = None
+                    try:
+                        df_rel = cargar_tabla_relacion()
+                    except Exception:
+                        df_rel = None
+
+                    if df_rel is not None and not df_rel.empty:
+                        # detectar nombre de columna posible para firma
+                        firma_col = None
+                        for c in ('FIRMA', 'Firma', 'firma', 'CODIGO_FIRMA'):
+                            if c in df_rel.columns:
+                                firma_col = c
+                                break
+                        solicitud_col = None
+                        for c in ('SOLICITUD', 'Solicitud', 'solicitud', 'NUMERO_SOLICITUD'):
+                            if c in df_rel.columns:
+                                solicitud_col = c
+                                break
+                        if firma_col and solicitud_col:
+                            for sol in solicitudes_by_sol.keys():
+                                matches = df_rel[df_rel[solicitud_col].astype(str).str.strip() == str(sol).strip()]
+                                for _, r in matches.iterrows():
+                                    v = r.get(firma_col)
+                                    if v not in (None, ''):
+                                        found_codes.add(str(v).strip())
+                # Preparar reporte de firmas
+                if found_codes:
+                    norma_req = None
+                    # intentar extraer norma desde los datos
+                    for k in ('NORMA UVA', 'NORMA', 'NORMA_UVA'):
+                        if any(k in it and it.get(k) not in (None, '') for it in (datos or [])):
+                            norma_req = next((it.get(k) for it in (datos or []) if it.get(k) not in (None, '')), None)
+                            break
+
+                    any_accredited = False
+                    lines.append('')
+                    lines.append('✍️ Firma(s) detectada(s):')
+                    for code in sorted(found_codes):
+                        try:
+                            nombre, img, ok = validar_acreditacion_inspector(code, str(norma_req) if norma_req else '', firmas_map)
+                        except Exception:
+                            nombre, img, ok = (None, None, False)
+                        display_name = nombre if nombre else code
+                        status = '✅ Acreditado' if ok else '❌ NO acreditado'
+                        lines.append(f" - {display_name} ({code}): {status}")
+                        if ok:
+                            any_accredited = True
+                    # Si no hay firmas acreditadas, deshabilitar generación
+                    if hasattr(self, 'boton_generar_dictamen'):
+                        try:
+                            if any_accredited:
+                                self.boton_generar_dictamen.configure(state='normal')
+                            else:
+                                self.boton_generar_dictamen.configure(state='disabled')
+                        except Exception:
+                            pass
+                else:
+                    lines.append('')
+                    lines.append('✍️ Firma: (no detectada)')
+                    if hasattr(self, 'boton_generar_dictamen'):
+                        try:
+                            self.boton_generar_dictamen.configure(state='disabled')
+                        except Exception:
+                            pass
+            except Exception:
+                # Si falla la validación de firmas, no bloquear la operación por defecto
+                pass
 
             messagebox.showinfo("Reporte de Visita", "\n".join(lines))
             
