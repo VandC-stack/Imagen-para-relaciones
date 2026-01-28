@@ -1,0 +1,12 @@
+Eliminación folio: CP000004
+Timestamp: 2026-01-28T12:33:53.958998
+
+Elementos eliminados (6):
+ - Archivo de folios: folios_CP000004.json
+ - Tabla backup: tabla_de_relacion_CP000004_PERSIST_20260128123328.json
+ - Entrada en historial (id=808b238f-df02-48c3-894f-17c05d4cddc7)
+ - ✅ Entrada en historial visitas
+ - Entradas en tabla_de_relacion.json
+ - ✅ Persistencia verificada y garantizada
+
+Errores (0):

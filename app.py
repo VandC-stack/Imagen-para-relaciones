@@ -12533,6 +12533,79 @@ class SistemaDictamenesVC(ctk.CTk):
                 pass
 
             messagebox.showinfo("Reporte de Visita", "\n".join(lines))
+            # --- Comprobar rutas de Pegado de Evidencia (si existen) ---
+            try:
+                pegado_paths = self._load_evidence_paths() or {}
+                if pegado_paths:
+                    # Construir mapa de búsqueda por solicitud
+                    codigo_keys = ('CODIGO', 'Codigo', 'codigo', 'CODIGOS', 'Codigos')
+                    solicitudes_imgs = {}
+                    # helper: comprobar si hay archivos que contengan el código
+                    import fnmatch
+                    def has_images_for_code(code):
+                        code_low = str(code).strip()
+                        if not code_low:
+                            return False
+                        for grp, base in pegado_paths.items():
+                            try:
+                                for root, dirs, files in os.walk(base):
+                                    # comprobar por nombre de carpeta o por archivo que contenga el código
+                                    # carpeta exacta
+                                    if os.path.basename(root).lower() == code_low.lower():
+                                        return True
+                                    for fname in files:
+                                        if code_low.lower() in fname.lower():
+                                            return True
+                            except Exception:
+                                continue
+                        return False
+
+                    for sol, entries in solicitudes_by_sol.items():
+                        docs_with = []
+                        docs_without = []
+                        for idx, item, lista in entries:
+                            # intentar extraer todos los códigos posibles para este registro
+                            codes = set()
+                            for k in codigo_keys:
+                                if k in item and item.get(k) not in (None, ''):
+                                    raw = str(item.get(k))
+                                    for part in raw.split(','):
+                                        p = part.strip()
+                                        if p:
+                                            codes.add(p)
+                            # si no hay códigos, marcar como sin evidencia
+                            if not codes:
+                                docs_without.append(lista or f"registro_{idx}")
+                                continue
+                            # si alguno de los códigos tiene imágenes, consideramos que el documento recibirá evidencia
+                            found = False
+                            for c in codes:
+                                try:
+                                    if has_images_for_code(c):
+                                        found = True
+                                        break
+                                except Exception:
+                                    continue
+                            if found:
+                                docs_with.append(lista or f"registro_{idx}")
+                            else:
+                                docs_without.append(lista or f"registro_{idx}")
+                        solicitudes_imgs[sol] = (docs_with, docs_without)
+
+                    # Append summary to lines and reprompt dialog with extended info
+                    lines.append("")
+                    lines.append('📸 Pegado de Evidencia (resumen):')
+                    for sol, (with_list, without_list) in solicitudes_imgs.items():
+                        lines.append(f" - {sol}: {len(with_list)} documentos con imágenes, {len(without_list)} sin imágenes")
+                        if with_list:
+                            lines.append(f"    • Se pegará evidencia en: {', '.join(with_list[:6])}{'...' if len(with_list)>6 else ''}")
+                        if without_list:
+                            lines.append(f"    • Sin imágenes en: {', '.join(without_list[:6])}{'...' if len(without_list)>6 else ''}")
+                    # Mostrar nuevamente el informe extendido
+                    messagebox.showinfo("Reporte de Visita", "\n".join(lines))
+            except Exception:
+                # No bloquear si falla la comprobación de rutas
+                pass
             
         except Exception as e:
             messagebox.showerror("Error", f"No se pudo verificar la visita:\n{e}")
