@@ -11105,17 +11105,6 @@ class SistemaDictamenesVC(ctk.CTk):
         entries = {}
         # Variable closure para almacenar la dirección raw seleccionada
         selected_address_raw = {}
-        # Helper para enfocar el listado de normas desde distintos botones
-        def _focus_normas():
-            try:
-                target = entries.get('_normas_frame') or entries.get('_norma_container')
-                if target:
-                    try:
-                        target.focus_set()
-                    except Exception:
-                        pass
-            except Exception:
-                pass
         # Cargar listas de normas e inspectores para helpers del modal
         try:
             normas_path = os.path.join(APP_DIR, 'data', 'Normas.json')
@@ -11203,8 +11192,40 @@ class SistemaDictamenesVC(ctk.CTk):
                     continue
 
                 if key == "norma":
-                    # No crear campo arriba del listado de normas; el listado se muestra abajo.
-                    entries[key] = None
+                    # Mostrar resumen de Normas (NOM) seleccionadas y botón para editar (focus en listado)
+                    try:
+                        ent = ctk.CTkEntry(field_frame, height=35, corner_radius=8, font=FONT_SMALL)
+                        ent.pack(side='left', fill='x', expand=True)
+                        # poner valor inicial si viene en datos
+                        try:
+                            if datos and datos.get('norma'):
+                                ent.insert(0, str(datos.get('norma')))
+                        except Exception:
+                            pass
+                        # mantener en modo no editable por defecto
+                        try:
+                            ent.configure(state='disabled')
+                        except Exception:
+                            pass
+                        # Botón para saltar al listado de normas/editar selección
+                        def _focus_normas():
+                            try:
+                                target = entries.get('_normas_frame') or entries.get('_norma_container')
+                                if target:
+                                    try:
+                                        target.focus_set()
+                                    except Exception:
+                                        pass
+                            except Exception:
+                                pass
+
+                        btn = ctk.CTkButton(field_frame, text='Editar', width=90, command=_focus_normas, height=30)
+                        btn.pack(side='right', padx=(8,0))
+                        entries[key] = ent
+                        # Guardar referencia para que update_inspector_statuses pueda actualizar el resumen
+                        entries['_norma_summary'] = ent
+                    except Exception:
+                        pass
                     continue
                 if key in ("fecha_inicio", "fecha_termino"):
                     # intentar usar DateEntry de tkcalendar si está disponible
@@ -11266,7 +11287,7 @@ class SistemaDictamenesVC(ctk.CTk):
                             self.parent = parent
                             self.values = values or []
                             self.entry = ctk.CTkEntry(parent, font=font or FONT_SMALL, height=35, corner_radius=8)
-                            self.entry.pack(side='left', fill='x', expand=True)
+                            self.entry.pack(fill='x')
                             self._popup = None
                             self._listbox = None
                             self._command = None
@@ -11383,8 +11404,7 @@ class SistemaDictamenesVC(ctk.CTk):
                         def bind(self, *args, **kwargs):
                             return self.entry.bind(*args, **kwargs)
 
-                    ent = ctk.CTkComboBox(field_frame, values=clientes_lista, font=FONT_SMALL, dropdown_font=FONT_SMALL, state='readonly', height=35, corner_radius=8)
-                    ent.pack(fill='x')
+                    ent = AutocompleteWidget(field_frame, clientes_lista, font=FONT_SMALL, width=250)
                     # Exponer en entries para que otros handlers lo usen
                     entries[key] = ent
                     # Callback cuando se seleccione un cliente en el modal

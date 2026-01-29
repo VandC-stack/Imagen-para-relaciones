@@ -449,7 +449,6 @@ class ConstanciaPDFGenerator:
         # Preparar contenido
         self.cursor_y = title_y - 12
         producto = str(self.datos.get('producto', '') or '').strip()
-        marca = str(self.datos.get('marca', '') or '').strip()
         condiciones = [
             '1. Este documento sólo ampara la información contenida en el producto cuya etiqueta muestra se presenta en esta Constancia.',
             '2. Cualquier modificación a la etiqueta debe ser sometida a la consideración de la Unidad de Inspección Acreditada y Aprobada en los términos de la Ley de Infraestructura de la Calidad, para que inspeccione su cumplimiento con la Norma Oficial Mexicana aplicable.',
@@ -469,7 +468,7 @@ class ConstanciaPDFGenerator:
             nombre_text = str(self.datos.get('nombre_norma', '')).strip()
             tercero_html = (
             "3. Esta Constancia sólo ampara el cumplimiento con la Norma Oficial Mexicana "
-            f"<b>{norma_text}</b> (<b>{nombre_text}</b>) para el producto: <b>{producto}</b> - Marca: <b>{marca}</b>."
+            f"<b>{norma_text}</b> (<b>{nombre_text}</b>) para el producto: <b>{producto}</b>."
             )
 
             style = ParagraphStyle('cond3', fontName='Helvetica', fontSize=9, leading=11, alignment=TA_JUSTIFY)
@@ -503,7 +502,7 @@ class ConstanciaPDFGenerator:
         self.cursor_y -= 20
 
     def dibujar_tabla_relacion(self, c: canvas.Canvas) -> None:
-        # tabla autoajustable a contenido (columnas y alturas dinámicas)
+        # Nuevo diseño: tabla autoajustable a contenido (columnas y alturas dinámicas)
         margin_x = 48 * mm
         left = margin_x
         right = self.width - margin_x
@@ -523,36 +522,34 @@ class ConstanciaPDFGenerator:
 
         # Preparar datos
         filas = self.datos.get('tabla_relacion') or []
-        headers = ['MARCA','CODIGO', 'MEDIDAS', 'CONTENIDO NETO']
+        headers = ['CODIGO', 'MEDIDAS', 'CONTENIDO NETO']
 
         # Medir ancho requerido por columna (sin wrapping)
         font_name = 'Helvetica'
         font_size = 8
         padding = 4 * mm
-        col_need = [0, 0, 0, 0]
+        col_need = [0, 0, 0]
         # incluir encabezados en la medición
         for idx, h in enumerate(headers):
             w = c.stringWidth(h, font_name, font_size)
             col_need[idx] = max(col_need[idx], w + padding)
 
-        # medir celdas (ahora incluyendo MARCA)
+        # medir celdas
         for row in filas:
             try:
-                marca = str(row.get('MARCA') or row.get('marca') or row.get('Marca') or '')
                 codigo = str(row.get('CODIGO') or row.get('codigo') or row.get('Codigo') or '')
                 medidas = str(row.get('MEDIDAS') or row.get('medidas') or row.get('Medidas') or '')
                 contenido = str(row.get('CONTENIDO') or row.get('CONTENIDO NETO') or row.get('CONTENIDO_NETO') or row.get('contenido') or '')
             except Exception:
-                marca = codigo = medidas = contenido = ''
-            col_need[0] = max(col_need[0], c.stringWidth(marca, font_name, font_size) + padding)
-            col_need[1] = max(col_need[1], c.stringWidth(codigo, font_name, font_size) + padding)
-            col_need[2] = max(col_need[2], c.stringWidth(medidas, font_name, font_size) + padding)
-            col_need[3] = max(col_need[3], c.stringWidth(contenido, font_name, font_size) + padding)
+                codigo = medidas = contenido = ''
+            col_need[0] = max(col_need[0], c.stringWidth(codigo, font_name, font_size) + padding)
+            col_need[1] = max(col_need[1], c.stringWidth(medidas, font_name, font_size) + padding)
+            col_need[2] = max(col_need[2], c.stringWidth(contenido, font_name, font_size) + padding)
 
         sum_need = sum(col_need)
         if sum_need == 0:
-            # fallback: dividir en cuatro columnas iguales
-            col_w = [total_w / 4.0] * 4
+            # fallback: dividir en tres columnas iguales
+            col_w = [total_w / 3.0] * 3
         else:
             if sum_need <= total_w:
                 # usar los anchos necesarios
@@ -569,22 +566,20 @@ class ConstanciaPDFGenerator:
         rows_cells = []
         for row in filas:
             try:
-                marca = str(row.get('MARCA') or row.get('marca') or row.get('Marca') or '')
                 codigo = str(row.get('CODIGO') or row.get('codigo') or row.get('Codigo') or '')
                 medidas = str(row.get('MEDIDAS') or row.get('medidas') or row.get('Medidas') or '')
                 contenido = str(row.get('CONTENIDO') or row.get('CONTENIDO NETO') or row.get('CONTENIDO_NETO') or row.get('contenido') or '')
             except Exception:
-                marca = codigo = medidas = contenido = ''
+                codigo = medidas = contenido = ''
 
             # dividir texto por columna con el ancho disponible
-            lines0 = _dividir_texto(c, marca, col_w[0], font_name=font_name, font_size=font_size)
-            lines1 = _dividir_texto(c, codigo, col_w[1], font_name=font_name, font_size=font_size)
-            lines2 = _dividir_texto(c, medidas, col_w[2], font_name=font_name, font_size=font_size)
-            lines3 = _dividir_texto(c, contenido, col_w[3], font_name=font_name, font_size=font_size)
-            max_lines = max(len(lines0), len(lines1), len(lines2), len(lines3), 1)
+            lines0 = _dividir_texto(c, codigo, col_w[0], font_name=font_name, font_size=font_size)
+            lines1 = _dividir_texto(c, medidas, col_w[1], font_name=font_name, font_size=font_size)
+            lines2 = _dividir_texto(c, contenido, col_w[2], font_name=font_name, font_size=font_size)
+            max_lines = max(len(lines0), len(lines1), len(lines2), 1)
             h = max_lines * leading + (4 * mm)
             row_heights.append(h)
-            rows_cells.append((lines0, lines1, lines2, lines3))
+            rows_cells.append((lines0, lines1, lines2))
 
         table_h = header_h + sum(row_heights)
         table_top = self.cursor_y
@@ -619,13 +614,13 @@ class ConstanciaPDFGenerator:
         # Dibujar filas de contenido
         y = table_top - header_h
         c.setFont(font_name, font_size)
-        for ri, cells in enumerate(rows_cells):
+        for ri, (lines0, lines1, lines2) in enumerate(rows_cells):
             y -= row_heights[ri]
             # dibujar línea horizontal que cierra la fila
             c.line(x, y, x + total_w, y)
             # dibujar cada celda
             cell_x = x
-            for ci, lines in enumerate(cells):
+            for ci, lines in enumerate((lines0, lines1, lines2)):
                 tx = cell_x + (3 * mm)
                 ty = y + row_heights[ri] - leading - (3 * mm)
                 for ln in lines:
