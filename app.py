@@ -12801,11 +12801,24 @@ class SistemaDictamenesVC(ctk.CTk):
                                 except Exception:
                                     missing_codes.append(f"{c} (falla comprobación)")
 
+                            # Construir un identificador descriptivo tipo 'Dictamen_Lista_<clasif>_<estilo>_<sol>_<lista>'
+                            try:
+                                clasif = str(item.get('CLASIF UVA') or item.get('CLASIF_UVA') or item.get('NORMA UVA') or item.get('NORMA_UVA') or '')
+                            except Exception:
+                                clasif = ''
+                            try:
+                                estilo = str(item.get('ESTILO') or '')
+                            except Exception:
+                                estilo = ''
+                            sol_clean = str(sol).replace('/', '_')
+                            lista_part = str(lista) if lista is not None else f"registro_{idx}"
+                            dictamen_name = f"Dictamen_Lista_{clasif}_{estilo}_{sol_clean}_{lista_part}"
+
                             # Si encontramos al menos una coincidencia, consideramos el documento como 'con imágenes'
                             if matched_codes:
-                                docs_with.append((lista or f"registro_{idx}", matched_codes, missing_codes))
+                                docs_with.append((dictamen_name, matched_codes, missing_codes, codes))
                             else:
-                                docs_without.append((lista or f"registro_{idx}", missing_codes))
+                                docs_without.append((dictamen_name, missing_codes, codes))
 
                         solicitudes_imgs[sol] = (docs_with, docs_without)
 
@@ -12832,45 +12845,60 @@ class SistemaDictamenesVC(ctk.CTk):
                         pass
 
                     for sol, (with_list, without_list) in solicitudes_imgs.items():
-                        # Resumen claro por solicitud
+                        # Resumen claro por solicitud en formato por Dictamen
                         lines.append("")
                         lines.append(f"Solicitud: {sol}")
-                        lines.append(f"  - Documentos con imágenes detectadas: {len(with_list)} (se pegarán)")
-                        if with_list:
-                            # obtener solo identificadores para la muestra
-                            ids_example = [str(x[0]) for x in with_list[:6]]
-                            examples = ', '.join(ids_example) + ('...' if len(with_list)>6 else '')
-                            lines.append(f"    • Muestra de documentos que recibirán imágenes: {examples}")
-                            # Opcional: mostrar códigos que NO se pegarán para esos documentos (si existen)
-                            any_missing = any(x[2] for x in with_list)
-                            if any_missing:
-                                lines.append("    • Códigos SIN evidencia en algunos documentos (ejemplo):")
-                                for x in with_list[:6]:
-                                    cid = str(x[0])
-                                    miss = x[2]
-                                    if miss:
-                                        lines.append(f"       - {cid}: {', '.join(miss)}")
 
-                        lines.append(f"  - Documentos SIN imágenes detectadas: {len(without_list)}")
-                        if without_list:
-                            # Mostrar lista completa pero sin duplicados (muchas entradas son familias)
-                            seen = set()
-                            unique = []
-                            for ident, miss_codes in without_list:
-                                key = str(ident)
-                                if key not in seen:
-                                    seen.add(key)
-                                    unique.append((ident, miss_codes))
-
-                            lines.append("    • Documentos SIN imágenes (lista completa, sin duplicados):")
-                            for ident, miss_codes in unique:
+                        # Procesar documentos con imágenes (se pegarán)
+                        for entry in with_list:
+                            try:
+                                dictamen_name, matched_codes, missing_codes, all_codes = entry
+                            except Exception:
+                                # compatibilidad si estructura antigua
                                 try:
-                                    if miss_codes:
-                                        lines.append(f"       - {ident}: códigos sin evidencia -> {', '.join(miss_codes)}")
-                                    else:
-                                        lines.append(f"       - {ident}: (sin códigos detectados)")
+                                    dictamen_name, matched_codes, missing_codes = entry
+                                    all_codes = matched_codes + missing_codes
                                 except Exception:
-                                    lines.append(f"       - {str(ident)}")
+                                    continue
+
+                            lines.append(f"{dictamen_name}")
+                            # todos los códigos
+                            try:
+                                lines.append(f"  codigos {' '.join(str(x) for x in all_codes)}")
+                            except Exception:
+                                lines.append(f"  codigos {all_codes}")
+
+                            # códigos que se pegarán
+                            if matched_codes:
+                                lines.append(f"  se pegaran en {' '.join(str(x) for x in matched_codes)}")
+                            else:
+                                lines.append(f"  se pegaran en (ninguno)")
+
+                            # códigos que NO se pegarán con motivo
+                            if missing_codes:
+                                lines.append(f"  no se pegara {' '.join(str(x) for x in missing_codes)}")
+
+                        # Procesar documentos SIN imágenes (todos serán no-pegados)
+                        for entry in without_list:
+                            try:
+                                dictamen_name, missing_codes, all_codes = entry
+                                matched_codes = []
+                            except Exception:
+                                try:
+                                    dictamen_name, missing_codes = entry
+                                    all_codes = missing_codes
+                                except Exception:
+                                    continue
+
+                            lines.append(f"{dictamen_name}")
+                            try:
+                                lines.append(f"  codigos {' '.join(str(x) for x in all_codes)}")
+                            except Exception:
+                                lines.append(f"  codigos {all_codes}")
+
+                            lines.append(f"  se pegaran en (ninguno)")
+                            if missing_codes:
+                                lines.append(f"  no se pegara {' '.join(str(x) for x in missing_codes)}")
 
                     # Sugerencias útiles para el usuario
                     lines.append("")
