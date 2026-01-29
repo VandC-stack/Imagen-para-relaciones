@@ -11190,6 +11190,43 @@ class SistemaDictamenesVC(ctk.CTk):
                     ent.set(datos.get("tipo_documento", "Dictamen"))
                     entries[key] = ent
                     continue
+
+                if key == "norma":
+                    # Mostrar resumen de Normas (NOM) seleccionadas y botón para editar (focus en listado)
+                    try:
+                        ent = ctk.CTkEntry(field_frame, height=35, corner_radius=8, font=FONT_SMALL)
+                        ent.pack(side='left', fill='x', expand=True)
+                        # poner valor inicial si viene en datos
+                        try:
+                            if datos and datos.get('norma'):
+                                ent.insert(0, str(datos.get('norma')))
+                        except Exception:
+                            pass
+                        # mantener en modo no editable por defecto
+                        try:
+                            ent.configure(state='disabled')
+                        except Exception:
+                            pass
+                        # Botón para saltar al listado de normas/editar selección
+                        def _focus_normas():
+                            try:
+                                target = entries.get('_normas_frame') or entries.get('_norma_container')
+                                if target:
+                                    try:
+                                        target.focus_set()
+                                    except Exception:
+                                        pass
+                            except Exception:
+                                pass
+
+                        btn = ctk.CTkButton(field_frame, text='Editar', width=90, command=_focus_normas, height=30)
+                        btn.pack(side='right', padx=(8,0))
+                        entries[key] = ent
+                        # Guardar referencia para que update_inspector_statuses pueda actualizar el resumen
+                        entries['_norma_summary'] = ent
+                    except Exception:
+                        pass
+                    continue
                 if key in ("fecha_inicio", "fecha_termino"):
                     # intentar usar DateEntry de tkcalendar si está disponible
                     DateEntry = None
@@ -11897,6 +11934,32 @@ class SistemaDictamenesVC(ctk.CTk):
                                     lbl.configure(text='', text_color=STYLE['texto_oscuro'])
                                 except Exception:
                                     pass
+                        # Actualizar resumen de normas (si existe widget de resumen)
+                        try:
+                            summary = entries.get('_norma_summary')
+                            if summary is not None:
+                                txt = ', '.join(selected_norms) if selected_norms else ''
+                                try:
+                                    summary.configure(state='normal')
+                                except Exception:
+                                    pass
+                                try:
+                                    # vaciar y escribir
+                                    summary.delete(0, 'end')
+                                    summary.insert(0, txt)
+                                except Exception:
+                                    try:
+                                        summary_var = getattr(summary, 'set', None)
+                                        if summary_var:
+                                            summary.set(txt)
+                                    except Exception:
+                                        pass
+                                try:
+                                    summary.configure(state='disabled')
+                                except Exception:
+                                    pass
+                        except Exception:
+                            pass
                     except Exception:
                         pass
 
@@ -12448,7 +12511,7 @@ class SistemaDictamenesVC(ctk.CTk):
 
             # Intentar detectar firma(s) y validar acreditación
             try:
-                from plantillaPDF import cargar_firmas, validar_acreditacion_inspector
+                from plantillaPDF import cargar_firmas, validar_acreditacion_inspector, cargar_normas
                 firmas_map = cargar_firmas()
                 # Buscar columna FIRMA en los datos cargados
                 firma_keys = ['FIRMA', 'Firma', 'firma', 'CODIGO_FIRMA']
@@ -12493,6 +12556,46 @@ class SistemaDictamenesVC(ctk.CTk):
                             norma_req = next((it.get(k) for it in (datos or []) if it.get(k) not in (None, '')), None)
                             break
 
+                    # Si no vino desde los datos, intentar extraer CLASIF_UVA desde la tabla de relación
+                    try:
+                        if not norma_req and df_rel is not None and not df_rel.empty and 'solicitud_col' in locals():
+                            clasif_vals = set()
+                            for sol in (solicitudes_by_sol.keys()):
+                                try:
+                                    matches = df_rel[df_rel[solicitud_col].astype(str).str.strip() == str(sol).strip()]
+                                    for _, r in matches.iterrows():
+                                        for cc in ('CLASIF UVA', 'CLASIF_UVA', 'CLASIFUVA', 'CLASIF_UVA'):
+                                            try:
+                                                v = r.get(cc)
+                                            except Exception:
+                                                v = None
+                                            if v not in (None, ''):
+                                                clasif_vals.add(str(v).strip())
+                                except Exception:
+                                    continue
+                            if clasif_vals:
+                                # intentar mapear a NOM completo usando cargar_normas
+                                try:
+                                    normas_map, normas_info = cargar_normas()
+                                except Exception:
+                                    normas_map, normas_info = ({}, {})
+                                mapped = []
+                                import re
+                                for cv in sorted(clasif_vals):
+                                    nums = re.findall(r"\d+", cv)
+                                    nom_text = cv
+                                    if nums:
+                                        num = nums[0]
+                                        try:
+                                            if num in normas_map:
+                                                nom_text = normas_map.get(num)
+                                        except Exception:
+                                            pass
+                                    mapped.append(nom_text)
+                                norma_req = ', '.join(sorted(set(mapped)))
+                    except Exception:
+                        pass
+
                     any_accredited = False
                     lines.append('')
                     lines.append('✍️ Firma(s) detectada(s):')
@@ -12503,7 +12606,10 @@ class SistemaDictamenesVC(ctk.CTk):
                             nombre, img, ok = (None, None, False)
                         display_name = nombre if nombre else code
                         status = '✅ Acreditado' if ok else '❌ NO acreditado'
-                        lines.append(f" - {display_name} ({code}): {status}")
+                        if norma_req:
+                            lines.append(f" - {display_name} ({code}): {status}  · Norma: {norma_req}")
+                        else:
+                            lines.append(f" - {display_name} ({code}): {status}")
                         if ok:
                             any_accredited = True
                     # Si no hay firmas acreditadas, deshabilitar generación
