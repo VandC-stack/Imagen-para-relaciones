@@ -12694,9 +12694,12 @@ class SistemaDictamenesVC(ctk.CTk):
 
                     def has_images_info(code):
                         """Devuelve (found:bool, reason:str).
-                        reason: 'indice' si el código NO está en el índice (index_indice.json),
-                                'ruta' si el código está en el índice pero no se encontró el destino en las rutas persistidas.
-                        En caso de found==True, reason puede ser 'ruta' o 'indice' (origen del hallazgo).
+                            reason: 'indice' si la evidencia se encontró usando el índice externo,
+                                'ruta' si la evidencia se encontró explorando las rutas cargadas o
+                                si el índice no aplica (modo simple/carpetas) y no se encontró.
+                            En caso de found==False, reason indica por qué no se encontró:
+                                - 'ruta' significa no encontrada en las rutas cargadas
+                                - 'indice' significa que no hay entrada en el índice (solo relevante si modo=indice)
                         """
                         code_low = str(code).strip()
                         if not code_low:
@@ -12717,6 +12720,20 @@ class SistemaDictamenesVC(ctk.CTk):
                                     continue
 
                         # 2) Intentar con índice (index_indice.json)
+                        # Respetar la preferencia de modo de pegado guardada por la UI
+                        try:
+                            evidencia_cfg_path = os.path.join(APP_DIR, 'data', 'evidence_paths.json')
+                            modo_cfg = ''
+                            if os.path.exists(evidencia_cfg_path):
+                                try:
+                                    with open(evidencia_cfg_path, 'r', encoding='utf-8') as _ef:
+                                        _cfg = json.load(_ef) or {}
+                                        modo_cfg = str(_cfg.get('modo_pegado', '')).strip().lower()
+                                except Exception:
+                                    modo_cfg = ''
+                            use_index_pref = modo_cfg in ('indice', 'pegado indice', 'pegado_indice')
+                        except Exception:
+                            use_index_pref = False
                         try:
                             appdata = os.getenv('APPDATA') or ''
                             idx_path = os.path.join(appdata, 'ImagenesVC', 'index_indice.json')
@@ -12758,8 +12775,14 @@ class SistemaDictamenesVC(ctk.CTk):
                                     # índice tenía entrada(s) pero no se encontró en rutas
                                     return False, 'ruta'
                                 else:
-                                    # índice no tiene la clave
-                                    return False, 'indice'
+                                    # índice no tiene la clave -> si el usuario NO usa modo 'indice'
+                                    # esto debe reportarse como 'ruta' (no encontrada en las rutas cargadas),
+                                    # no como 'falta en índice'. Solo reportar 'indice' cuando la
+                                    # preferencia indica uso del índice.
+                                    if use_index_pref:
+                                        return False, 'indice'
+                                    else:
+                                        return False, 'ruta'
                             else:
                                 # no existe índice -> considerar como no encontrado en índice
                                 return False, 'indice'
@@ -13008,8 +13031,15 @@ class SistemaDictamenesVC(ctk.CTk):
         except Exception:
             return {}
 
-    def _save_evidence_path(self, group, path):
-        """Guarda la ruta `path` bajo la clave `group` en `data/evidence_paths.json`."""
+
+
+    def _save_evidence_path(self, group, path, mode=None):
+        """Guarda la ruta `path` bajo la clave `group` en `data/evidence_paths.json`.
+
+        Si se especifica `mode`, lo guarda también bajo la clave especial
+        `modo_pegado` (valor normalizado: 'simple', 'carpetas' o 'indice') para
+        que el generador pueda respetar la preferencia de pegado.
+        """
         data_file = os.path.join(APP_DIR, "data", "evidence_paths.json")
         os.makedirs(os.path.dirname(data_file), exist_ok=True)
         data = self._load_evidence_paths() or {}
@@ -13017,6 +13047,22 @@ class SistemaDictamenesVC(ctk.CTk):
         if path not in existing:
             existing.append(path)
         data[group] = existing
+        # Normalizar y guardar el modo si se proporcionó
+        try:
+            if mode:
+                m = str(mode).strip().lower()
+                if m in ("pegado simple", "pegado_simple", "simple"):
+                    norm = "simple"
+                elif m in ("pegado carpetas", "pegado_carpetas", "carpetas", "carpeta"):
+                    norm = "carpetas"
+                elif m in ("pegado indice", "pegado_indice", "indice", "índice"):
+                    norm = "indice"
+                else:
+                    norm = m
+                data['modo_pegado'] = norm
+        except Exception:
+            pass
+
         with open(data_file, "w", encoding="utf-8") as f:
             json.dump(data, f, indent=2, ensure_ascii=False)
 
@@ -13180,7 +13226,7 @@ class SistemaDictamenesVC(ctk.CTk):
             return
         try:
             # Guardar la ruta bajo un grupo genérico 'manual_pegado'
-            self._save_evidence_path('manual_pegado', ruta_imgs)
+            self._save_evidence_path('manual_pegado', ruta_imgs, mode='simple')
             messagebox.showinfo("Pegado guardado", "Ruta de imágenes guardada. Cuando genere los dictámenes, se buscarán evidencias en esta carpeta.")
             try:
                 self._update_pegado_status(mode="Pegado Simple", path=ruta_imgs)
@@ -13194,7 +13240,7 @@ class SistemaDictamenesVC(ctk.CTk):
         if not ruta_imgs:
             return
         try:
-            self._save_evidence_path('manual_pegado', ruta_imgs)
+            self._save_evidence_path('manual_pegado', ruta_imgs, mode='carpetas')
             messagebox.showinfo("Pegado guardado", "Ruta de carpetas guardada. Cuando genere los dictámenes, se buscarán evidencias en estas carpetas.")
             try:
                 self._update_pegado_status(mode="Pegado Carpetas", path=ruta_imgs)
@@ -13217,7 +13263,7 @@ class SistemaDictamenesVC(ctk.CTk):
 
         try:
             # Guardar la ruta de evidencias para uso posterior
-            self._save_evidence_path('manual_pegado', ruta_imgs)
+            self._save_evidence_path('manual_pegado', ruta_imgs, mode='indice')
 
             # Si el usuario proporcionó un Excel, construir el índice usando el script pegado_indice.py
             if excel_path:

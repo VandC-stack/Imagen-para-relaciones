@@ -1747,7 +1747,18 @@ def generar_dictamenes_completos(directorio_destino, cliente_manual=None, rfc_ma
                                 canon_code = _re.sub(r"[^A-Za-z0-9]", "", str(codigo or "")).upper()
                             except Exception:
                                 canon_code = str(codigo or "").strip()
-                            destino_idx = index_indice.get(canon_code)
+                            # Respetar la preferencia de modo de pegado configurada por la UI.
+                            # Si el usuario eligió 'carpetas' o 'simple', no forzar el uso del índice.
+                            try:
+                                modo_cfg = str(evidencia_cfg.get('modo_pegado', '')).strip().lower() if isinstance(evidencia_cfg, dict) else ''
+                            except Exception:
+                                modo_cfg = ''
+                            use_index = modo_cfg in ('indice', 'pegado indice', 'pegado_indice')
+                            destino_idx = index_indice.get(canon_code) if use_index else None
+                            if not use_index:
+                                # Indicar que se está omitiendo índice por preferencia del usuario
+                                # (no es un error; sirve para diagnóstico en logs)
+                                pass
                             if destino_idx:
                                 print(f"      🔁 Código {codigo} -> destino por índice: {destino_idx}")
                                 try:
@@ -1821,6 +1832,22 @@ def generar_dictamenes_completos(directorio_destino, cliente_manual=None, rfc_ma
                             print(f"      → {codigo} => {ps}")
                         mapping_codes[str(codigo)] = ps
                         if not ps:
+                            # Mensajes claros según modo de pegado
+                            try:
+                                if use_index:
+                                    # Si el índice tenía una referencia pero no se encontró el archivo
+                                    try:
+                                        if destino_idx:
+                                            print(f"      ❌ Código {codigo}: referencia en índice ({destino_idx}) pero no se encontró el archivo en las rutas de evidencia cargadas.")
+                                        else:
+                                            print(f"      ❌ Código {codigo}: no se encontró referencia en el índice ni imagen en las rutas cargadas.")
+                                    except Exception:
+                                        print(f"      ❌ Código {codigo}: no se encontraron evidencias (modo índice).")
+                                else:
+                                    modo_txt = 'carpetas' if modo_cfg == 'carpetas' else 'simple'
+                                    print(f"      ❌ Código {codigo}: no se encontró imagen en las rutas cargadas (modo {modo_txt}).")
+                            except Exception:
+                                pass
                             continue
 
                         # preparar variable para la primera ruta añadida por este código

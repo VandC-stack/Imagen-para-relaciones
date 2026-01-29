@@ -1,0 +1,55 @@
+{
+  "identificacion": {
+    "cadena_identificacion": "26049UCCNOM-051-SCFI/SSA1-2010000001 Solicitud de Servicio: 25049UCCNOM-051-SCFI/SSA1-2010000333-2",
+    "year": "26",
+    "folio": "000001",
+    "solicitud": "",
+    "lista": "2"
+  },
+  "norma": {
+    "codigo": "NOM-051-SCFI/SSA1-2010",
+    "descripcion": "Especificaciones generales de etiquetado para alimentos y bebidas no alcohólicas \nPreenvasados-Información comercial y sanitaria",
+    "capitulo": ""
+  },
+  "fechas": {
+    "verificacion": "",
+    "verificacion_larga": "",
+    "emision": "29/01/2026"
+  },
+  "cliente": {
+    "nombre": "AJEMEX S.A. DE C.V.",
+    "rfc": "AJE010718ET5"
+  },
+  "producto": {
+    "descripcion": "BEBIDA SABOR UVA PARA DEPORTISTAS",
+    "pedimento": ""
+  },
+  "tabla_productos": [
+    {
+      "marca": "BURST",
+      "codigo": "SC",
+      "factura": "",
+      "cantidad": 0
+    }
+  ],
+  "cantidad_total": {
+    "valor": 0,
+    "texto": "0 unidades"
+  },
+  "observaciones": "",
+  "firmas": {
+    "firma1": {
+      "nombre": "Andrea Paola Ramos Santos",
+      "valida": true,
+      "codigo_solicitado": "ARAMOS",
+      "razon_sin_firma": ""
+    },
+    "firma2": {
+      "nombre": "Arturo Flores Gomez"
+    }
+  },
+  "modo_insertado": "etiqueta",
+  "etiquetas": {
+    "cantidad": 0
+  }
+}
