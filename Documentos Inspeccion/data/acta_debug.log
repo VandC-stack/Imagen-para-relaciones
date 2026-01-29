@@ -1,0 +1,6 @@
+[2026-01-29T10:42:52.882239] Checking candidate data dir: c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data
+[2026-01-29T10:42:52.882933] Selected data_dir: c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data
+[2026-01-29T10:42:52.883471] Historial path resolved to: c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data\historial_visitas.json (exists=True)
+[2026-01-29T10:42:52.884138] Loaded historial: type=dict, visitas_count=1
+[2026-01-29T10:42:52.884834] Using per-visit backup for tabla_de_relacion: c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data\tabla_relacion_backups\tabla_de_relacion_CP000001_PERSIST_20260129103608.json
+[2026-01-29T10:42:52.886781] Loaded tabla_path=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data\tabla_relacion_backups\tabla_de_relacion_CP000001_PERSIST_20260129103608.json; tabla_type=list; records=1
