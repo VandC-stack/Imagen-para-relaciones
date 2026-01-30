@@ -80,3 +80,126 @@ firmante1=David Garcia Alcantara  firmante2=  firma_map_keys=22
 [DEBUG firma] nombre1='David Garcia Alcantara' code1='DGARCIA' img1='Firmas/DGARCIA.png'
 [DEBUG firma] nombre2='Arturo Flores Gomez' code2='AFLORES' img2='Firmas/AFLORES.png'
 
+[2026-01-30 17:37:28] Generando constancia: salida=C:/Users/bost2/OneDrive/Escritorio\Constancia_20260130_173728\000645_26\Constancia_Lista_1_1_000645_26.pdf
+folio_formateado=000003  (folio_constancia=CP000001)  folio_visita=
+folio_counter.last=3
+evidencias.count=0
+firmante1=David Garcia Alcantara  firmante2=  firma_map_keys=22
+
+[DEBUG evidencia] total=27
+[DEBUG evidencia] path=C:/Users/bost2/V&C UVA Dropbox/Verificacion & Control UVA SC/Emisión/2026/1-ENERO/HUT/30 ENERO C.P. 000186/L.I\MNCI-4928 (1).jpg
+[DEBUG evidencia] path=C:/Users/bost2/V&C UVA Dropbox/Verificacion & Control UVA SC/Emisión/2026/1-ENERO/HUT/30 ENERO C.P. 000186/L.I\MNCI-4928 (2).jpg
+[DEBUG evidencia] path=C:/Users/bost2/V&C UVA Dropbox/Verificacion & Control UVA SC/Emisión/2026/1-ENERO/HUT/30 ENERO C.P. 000186/L.I\MNCI-4928 (3).jpg
+[DEBUG evidencia] path=C:/Users/bost2/V&C UVA Dropbox/Verificacion & Control UVA SC/Emisión/2026/1-ENERO/HUT/30 ENERO C.P. 000186/L.I\MNCI-4929 (1).jpg
+[DEBUG evidencia] path=C:/Users/bost2/V&C UVA Dropbox/Verificacion & Control UVA SC/Emisión/2026/1-ENERO/HUT/30 ENERO C.P. 000186/L.I\MNCI-4929 (2).jpg
+[DEBUG evidencia] path=C:/Users/bost2/V&C UVA Dropbox/Verificacion & Control UVA SC/Emisión/2026/1-ENERO/HUT/30 ENERO C.P. 000186/L.I\MNCI-4929 (3).jpg
+[DEBUG evidencia] path=C:/Users/bost2/V&C UVA Dropbox/Verificacion & Control UVA SC/Emisión/2026/1-ENERO/HUT/30 ENERO C.P. 000186/L.I\MNCI-4930 (1).jpg
+[DEBUG evidencia] path=C:/Users/bost2/V&C UVA Dropbox/Verificacion & Control UVA SC/Emisión/2026/1-ENERO/HUT/30 ENERO C.P. 000186/L.I\MNCI-4930 (2).jpg
+[DEBUG evidencia] path=C:/Users/bost2/V&C UVA Dropbox/Verificacion & Control UVA SC/Emisión/2026/1-ENERO/HUT/30 ENERO C.P. 000186/L.I\MNCI-4930 (3).jpg
+[DEBUG evidencia] path=C:/Users/bost2/V&C UVA Dropbox/Verificacion & Control UVA SC/Emisión/2026/1-ENERO/HUT/30 ENERO C.P. 000186/L.I\MNCI-4931 (1).jpg
+
+[DEBUG firma] nombre1='David Garcia Alcantara' code1='DGARCIA' img1='Firmas/DGARCIA.png'
+[DEBUG firma] nombre2='Arturo Flores Gomez' code2='AFLORES' img2='Firmas/AFLORES.png'
+
+[2026-01-30 17:37:36] Generando constancia: salida=C:/Users/bost2/OneDrive/Escritorio\Constancia_20260130_173728\000645_26\Constancia_Lista_2_2_000645_26.pdf
+folio_formateado=000003  (folio_constancia=CP000001)  folio_visita=
+folio_counter.last=3
+evidencias.count=0
+firmante1=David Garcia Alcantara  firmante2=  firma_map_keys=22
+
+[DEBUG evidencia] total=9
+[DEBUG evidencia] path=C:/Users/bost2/V&C UVA Dropbox/Verificacion & Control UVA SC/Emisión/2026/1-ENERO/HUT/30 ENERO C.P. 000186/L.I\HTCI-5427 (1).png
+[DEBUG evidencia] path=C:/Users/bost2/V&C UVA Dropbox/Verificacion & Control UVA SC/Emisión/2026/1-ENERO/HUT/30 ENERO C.P. 000186/L.I\HTCI-5427 (2).png
+[DEBUG evidencia] path=C:/Users/bost2/V&C UVA Dropbox/Verificacion & Control UVA SC/Emisión/2026/1-ENERO/HUT/30 ENERO C.P. 000186/L.I\HTCI-5427 (3).png
+[DEBUG evidencia] path=C:/Users/bost2/V&C UVA Dropbox/Verificacion & Control UVA SC/Emisión/2026/1-ENERO/HUT/30 ENERO C.P. 000186/L.I\HTCI-5428 (1).png
+[DEBUG evidencia] path=C:/Users/bost2/V&C UVA Dropbox/Verificacion & Control UVA SC/Emisión/2026/1-ENERO/HUT/30 ENERO C.P. 000186/L.I\HTCI-5428 (2).png
+[DEBUG evidencia] path=C:/Users/bost2/V&C UVA Dropbox/Verificacion & Control UVA SC/Emisión/2026/1-ENERO/HUT/30 ENERO C.P. 000186/L.I\HTCI-5428 (3).png
+[DEBUG evidencia] path=C:/Users/bost2/V&C UVA Dropbox/Verificacion & Control UVA SC/Emisión/2026/1-ENERO/HUT/30 ENERO C.P. 000186/L.I\HTCI-5429 (1).png
+[DEBUG evidencia] path=C:/Users/bost2/V&C UVA Dropbox/Verificacion & Control UVA SC/Emisión/2026/1-ENERO/HUT/30 ENERO C.P. 000186/L.I\HTCI-5429 (2).png
+[DEBUG evidencia] path=C:/Users/bost2/V&C UVA Dropbox/Verificacion & Control UVA SC/Emisión/2026/1-ENERO/HUT/30 ENERO C.P. 000186/L.I\HTCI-5429 (3).png
+
+[DEBUG firma] nombre1='David Garcia Alcantara' code1='DGARCIA' img1='Firmas/DGARCIA.png'
+[DEBUG firma] nombre2='Arturo Flores Gomez' code2='AFLORES' img2='Firmas/AFLORES.png'
+
+[2026-01-30 17:38:53] Generando constancia: salida=C:/Users/bost2/OneDrive/Escritorio\Constancia_20260130_173853\000645_26\Constancia_Lista_1_1_000645_26.pdf
+folio_formateado=000001  (folio_constancia=CP000001)  folio_visita=
+folio_counter.last=1
+evidencias.count=0
+firmante1=David Garcia Alcantara  firmante2=  firma_map_keys=22
+
+[DEBUG evidencia] total=27
+[DEBUG evidencia] path=C:/Users/bost2/V&C UVA Dropbox/Verificacion & Control UVA SC/Emisión/2026/1-ENERO/HUT/30 ENERO C.P. 000186/L.I\MNCI-4928 (1).jpg
+[DEBUG evidencia] path=C:/Users/bost2/V&C UVA Dropbox/Verificacion & Control UVA SC/Emisión/2026/1-ENERO/HUT/30 ENERO C.P. 000186/L.I\MNCI-4928 (2).jpg
+[DEBUG evidencia] path=C:/Users/bost2/V&C UVA Dropbox/Verificacion & Control UVA SC/Emisión/2026/1-ENERO/HUT/30 ENERO C.P. 000186/L.I\MNCI-4928 (3).jpg
+[DEBUG evidencia] path=C:/Users/bost2/V&C UVA Dropbox/Verificacion & Control UVA SC/Emisión/2026/1-ENERO/HUT/30 ENERO C.P. 000186/L.I\MNCI-4929 (1).jpg
+[DEBUG evidencia] path=C:/Users/bost2/V&C UVA Dropbox/Verificacion & Control UVA SC/Emisión/2026/1-ENERO/HUT/30 ENERO C.P. 000186/L.I\MNCI-4929 (2).jpg
+[DEBUG evidencia] path=C:/Users/bost2/V&C UVA Dropbox/Verificacion & Control UVA SC/Emisión/2026/1-ENERO/HUT/30 ENERO C.P. 000186/L.I\MNCI-4929 (3).jpg
+[DEBUG evidencia] path=C:/Users/bost2/V&C UVA Dropbox/Verificacion & Control UVA SC/Emisión/2026/1-ENERO/HUT/30 ENERO C.P. 000186/L.I\MNCI-4930 (1).jpg
+[DEBUG evidencia] path=C:/Users/bost2/V&C UVA Dropbox/Verificacion & Control UVA SC/Emisión/2026/1-ENERO/HUT/30 ENERO C.P. 000186/L.I\MNCI-4930 (2).jpg
+[DEBUG evidencia] path=C:/Users/bost2/V&C UVA Dropbox/Verificacion & Control UVA SC/Emisión/2026/1-ENERO/HUT/30 ENERO C.P. 000186/L.I\MNCI-4930 (3).jpg
+[DEBUG evidencia] path=C:/Users/bost2/V&C UVA Dropbox/Verificacion & Control UVA SC/Emisión/2026/1-ENERO/HUT/30 ENERO C.P. 000186/L.I\MNCI-4931 (1).jpg
+
+[DEBUG firma] nombre1='David Garcia Alcantara' code1='DGARCIA' img1='Firmas/DGARCIA.png'
+[DEBUG firma] nombre2='Arturo Flores Gomez' code2='AFLORES' img2='Firmas/AFLORES.png'
+
+[2026-01-30 17:38:59] Generando constancia: salida=C:/Users/bost2/OneDrive/Escritorio\Constancia_20260130_173853\000645_26\Constancia_Lista_2_2_000645_26.pdf
+folio_formateado=000002  (folio_constancia=CP000001)  folio_visita=
+folio_counter.last=2
+evidencias.count=0
+firmante1=David Garcia Alcantara  firmante2=  firma_map_keys=22
+
+[DEBUG evidencia] total=9
+[DEBUG evidencia] path=C:/Users/bost2/V&C UVA Dropbox/Verificacion & Control UVA SC/Emisión/2026/1-ENERO/HUT/30 ENERO C.P. 000186/L.I\HTCI-5427 (1).png
+[DEBUG evidencia] path=C:/Users/bost2/V&C UVA Dropbox/Verificacion & Control UVA SC/Emisión/2026/1-ENERO/HUT/30 ENERO C.P. 000186/L.I\HTCI-5427 (2).png
+[DEBUG evidencia] path=C:/Users/bost2/V&C UVA Dropbox/Verificacion & Control UVA SC/Emisión/2026/1-ENERO/HUT/30 ENERO C.P. 000186/L.I\HTCI-5427 (3).png
+[DEBUG evidencia] path=C:/Users/bost2/V&C UVA Dropbox/Verificacion & Control UVA SC/Emisión/2026/1-ENERO/HUT/30 ENERO C.P. 000186/L.I\HTCI-5428 (1).png
+[DEBUG evidencia] path=C:/Users/bost2/V&C UVA Dropbox/Verificacion & Control UVA SC/Emisión/2026/1-ENERO/HUT/30 ENERO C.P. 000186/L.I\HTCI-5428 (2).png
+[DEBUG evidencia] path=C:/Users/bost2/V&C UVA Dropbox/Verificacion & Control UVA SC/Emisión/2026/1-ENERO/HUT/30 ENERO C.P. 000186/L.I\HTCI-5428 (3).png
+[DEBUG evidencia] path=C:/Users/bost2/V&C UVA Dropbox/Verificacion & Control UVA SC/Emisión/2026/1-ENERO/HUT/30 ENERO C.P. 000186/L.I\HTCI-5429 (1).png
+[DEBUG evidencia] path=C:/Users/bost2/V&C UVA Dropbox/Verificacion & Control UVA SC/Emisión/2026/1-ENERO/HUT/30 ENERO C.P. 000186/L.I\HTCI-5429 (2).png
+[DEBUG evidencia] path=C:/Users/bost2/V&C UVA Dropbox/Verificacion & Control UVA SC/Emisión/2026/1-ENERO/HUT/30 ENERO C.P. 000186/L.I\HTCI-5429 (3).png
+
+[DEBUG firma] nombre1='David Garcia Alcantara' code1='DGARCIA' img1='Firmas/DGARCIA.png'
+[DEBUG firma] nombre2='Arturo Flores Gomez' code2='AFLORES' img2='Firmas/AFLORES.png'
+
+[2026-01-30 17:39:31] Generando constancia: salida=C:/Users/bost2/OneDrive/Escritorio\Constancia_20260130_173931\000645_26\Constancia_Lista_1_3_000645_26.pdf
+folio_formateado=000003  (folio_constancia=CP000002)  folio_visita=
+folio_counter.last=3
+evidencias.count=0
+firmante1=David Garcia Alcantara  firmante2=  firma_map_keys=22
+
+[DEBUG evidencia] total=27
+[DEBUG evidencia] path=C:/Users/bost2/V&C UVA Dropbox/Verificacion & Control UVA SC/Emisión/2026/1-ENERO/HUT/30 ENERO C.P. 000186/L.I\MNCI-4928 (1).jpg
+[DEBUG evidencia] path=C:/Users/bost2/V&C UVA Dropbox/Verificacion & Control UVA SC/Emisión/2026/1-ENERO/HUT/30 ENERO C.P. 000186/L.I\MNCI-4928 (2).jpg
+[DEBUG evidencia] path=C:/Users/bost2/V&C UVA Dropbox/Verificacion & Control UVA SC/Emisión/2026/1-ENERO/HUT/30 ENERO C.P. 000186/L.I\MNCI-4928 (3).jpg
+[DEBUG evidencia] path=C:/Users/bost2/V&C UVA Dropbox/Verificacion & Control UVA SC/Emisión/2026/1-ENERO/HUT/30 ENERO C.P. 000186/L.I\MNCI-4929 (1).jpg
+[DEBUG evidencia] path=C:/Users/bost2/V&C UVA Dropbox/Verificacion & Control UVA SC/Emisión/2026/1-ENERO/HUT/30 ENERO C.P. 000186/L.I\MNCI-4929 (2).jpg
+[DEBUG evidencia] path=C:/Users/bost2/V&C UVA Dropbox/Verificacion & Control UVA SC/Emisión/2026/1-ENERO/HUT/30 ENERO C.P. 000186/L.I\MNCI-4929 (3).jpg
+[DEBUG evidencia] path=C:/Users/bost2/V&C UVA Dropbox/Verificacion & Control UVA SC/Emisión/2026/1-ENERO/HUT/30 ENERO C.P. 000186/L.I\MNCI-4930 (1).jpg
+[DEBUG evidencia] path=C:/Users/bost2/V&C UVA Dropbox/Verificacion & Control UVA SC/Emisión/2026/1-ENERO/HUT/30 ENERO C.P. 000186/L.I\MNCI-4930 (2).jpg
+[DEBUG evidencia] path=C:/Users/bost2/V&C UVA Dropbox/Verificacion & Control UVA SC/Emisión/2026/1-ENERO/HUT/30 ENERO C.P. 000186/L.I\MNCI-4930 (3).jpg
+[DEBUG evidencia] path=C:/Users/bost2/V&C UVA Dropbox/Verificacion & Control UVA SC/Emisión/2026/1-ENERO/HUT/30 ENERO C.P. 000186/L.I\MNCI-4931 (1).jpg
+
+[DEBUG firma] nombre1='David Garcia Alcantara' code1='DGARCIA' img1='Firmas/DGARCIA.png'
+[DEBUG firma] nombre2='Arturo Flores Gomez' code2='AFLORES' img2='Firmas/AFLORES.png'
+
+[2026-01-30 17:39:38] Generando constancia: salida=C:/Users/bost2/OneDrive/Escritorio\Constancia_20260130_173931\000645_26\Constancia_Lista_2_4_000645_26.pdf
+folio_formateado=000004  (folio_constancia=CP000002)  folio_visita=
+folio_counter.last=4
+evidencias.count=0
+firmante1=David Garcia Alcantara  firmante2=  firma_map_keys=22
+
+[DEBUG evidencia] total=9
+[DEBUG evidencia] path=C:/Users/bost2/V&C UVA Dropbox/Verificacion & Control UVA SC/Emisión/2026/1-ENERO/HUT/30 ENERO C.P. 000186/L.I\HTCI-5427 (1).png
+[DEBUG evidencia] path=C:/Users/bost2/V&C UVA Dropbox/Verificacion & Control UVA SC/Emisión/2026/1-ENERO/HUT/30 ENERO C.P. 000186/L.I\HTCI-5427 (2).png
+[DEBUG evidencia] path=C:/Users/bost2/V&C UVA Dropbox/Verificacion & Control UVA SC/Emisión/2026/1-ENERO/HUT/30 ENERO C.P. 000186/L.I\HTCI-5427 (3).png
+[DEBUG evidencia] path=C:/Users/bost2/V&C UVA Dropbox/Verificacion & Control UVA SC/Emisión/2026/1-ENERO/HUT/30 ENERO C.P. 000186/L.I\HTCI-5428 (1).png
+[DEBUG evidencia] path=C:/Users/bost2/V&C UVA Dropbox/Verificacion & Control UVA SC/Emisión/2026/1-ENERO/HUT/30 ENERO C.P. 000186/L.I\HTCI-5428 (2).png
+[DEBUG evidencia] path=C:/Users/bost2/V&C UVA Dropbox/Verificacion & Control UVA SC/Emisión/2026/1-ENERO/HUT/30 ENERO C.P. 000186/L.I\HTCI-5428 (3).png
+[DEBUG evidencia] path=C:/Users/bost2/V&C UVA Dropbox/Verificacion & Control UVA SC/Emisión/2026/1-ENERO/HUT/30 ENERO C.P. 000186/L.I\HTCI-5429 (1).png
+[DEBUG evidencia] path=C:/Users/bost2/V&C UVA Dropbox/Verificacion & Control UVA SC/Emisión/2026/1-ENERO/HUT/30 ENERO C.P. 000186/L.I\HTCI-5429 (2).png
+[DEBUG evidencia] path=C:/Users/bost2/V&C UVA Dropbox/Verificacion & Control UVA SC/Emisión/2026/1-ENERO/HUT/30 ENERO C.P. 000186/L.I\HTCI-5429 (3).png
+
+[DEBUG firma] nombre1='David Garcia Alcantara' code1='DGARCIA' img1='Firmas/DGARCIA.png'
+[DEBUG firma] nombre2='Arturo Flores Gomez' code2='AFLORES' img2='Firmas/AFLORES.png'
+

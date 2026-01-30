@@ -5447,6 +5447,7 @@ class SistemaDictamenesVC(ctk.CTk):
                                 ruta_pdf = os.path.join(carpeta_solicitud, nombre_pdf)
 
                             pdf_ok = False
+                            gen_exception = None
                             # Persistir folios para la visita ANTES de generar el PDF
                             try:
                                 if filas_grp:
@@ -5466,13 +5467,17 @@ class SistemaDictamenesVC(ctk.CTk):
                                     try:
                                         ruta_generada = getattr(mod, 'generar_constancia_desde_visita')(folio_vis, salida=ruta_pdf)
                                         pdf_ok = True if ruta_generada and os.path.exists(ruta_generada) else False
-                                    except Exception:
+                                    except Exception as e:
                                         pdf_ok = False
+                                        import traceback
+                                        gen_exception = traceback.format_exc()
                                 else:
                                     # Usuario canceló selección de carpeta para PDFs -> no generar PDF
                                     pdf_ok = False
-                            except Exception:
+                            except Exception as e:
                                 pdf_ok = False
+                                import traceback
+                                gen_exception = traceback.format_exc()
 
                             try:
                                 json_name = f"Constancia_Lista_{lista}_{folio_for_name}_{sol_no}_{sol_year}.json"
@@ -5522,6 +5527,24 @@ class SistemaDictamenesVC(ctk.CTk):
                                 # sólo registrar error si intentó generar y falló
                                 if ruta_pdf:
                                     errores.append(lista)
+                                    # registrar traza detallada en el log de constancias
+                                    try:
+                                        import traceback
+                                        dbg_lines = []
+                                        dbg_lines.append(f"[{datetime.now().isoformat()}] GENERACION FAILED: lista={lista} ruta_pdf={ruta_pdf} folio_vis={folio_vis}")
+                                        if gen_exception:
+                                            dbg_lines.append("-- exception trace --")
+                                            dbg_lines.append(gen_exception)
+                                        else:
+                                            dbg_lines.append("-- no exception trace captured --")
+                                        log_path = os.path.join(DATA_DIR, 'constancia_debug.log')
+                                        os.makedirs(DATA_DIR, exist_ok=True)
+                                        with open(log_path, 'a', encoding='utf-8') as lf:
+                                            for L in dbg_lines:
+                                                lf.write(L + '\n')
+                                            lf.write('\n')
+                                    except Exception:
+                                        pass
                             # Actualizar progreso tras procesar la lista
                             try:
                                 if self.winfo_exists():
