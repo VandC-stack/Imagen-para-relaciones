@@ -1,0 +1,59 @@
+{
+  "_meta": {
+    "counter_before": 3
+  },
+  "folios": [
+    {
+      "FOLIOS": "000002",
+      "MARCA": "MAINSTAYS",
+      "SOLICITUDES": "000645/26",
+      "INSPECTOR": "",
+      "SUPERVISOR": "David Garcia Alcantara",
+      "NORMA": "NOM-004-SE-2021",
+      "LISTA": "1",
+      "CODIGO": "MNCI-4928",
+      "FECHA DE IMPRESION": "30/01/2026",
+      "FECHA DE VERIFICACION": "2026-01-30",
+      "TIPO DE DOCUMENTO": "C"
+    },
+    {
+      "FOLIOS": "000002",
+      "MARCA": "MAINSTAYS",
+      "SOLICITUDES": "000645/26",
+      "INSPECTOR": "",
+      "SUPERVISOR": "David Garcia Alcantara",
+      "NORMA": "NOM-004-SE-2021",
+      "LISTA": "1",
+      "CODIGO": "MNCI-4928",
+      "FECHA DE IMPRESION": "30/01/2026",
+      "FECHA DE VERIFICACION": "2026-01-30",
+      "TIPO DE DOCUMENTO": "C"
+    },
+    {
+      "FOLIOS": "000003",
+      "MARCA": "HOMETRENDS",
+      "SOLICITUDES": "000645/26",
+      "INSPECTOR": "",
+      "SUPERVISOR": "David Garcia Alcantara",
+      "NORMA": "NOM-004-SE-2021",
+      "LISTA": "2",
+      "CODIGO": "HTCI-5427",
+      "FECHA DE IMPRESION": "30/01/2026",
+      "FECHA DE VERIFICACION": "2026-01-30",
+      "TIPO DE DOCUMENTO": "C"
+    },
+    {
+      "FOLIOS": "000003",
+      "MARCA": "HOMETRENDS",
+      "SOLICITUDES": "000645/26",
+      "INSPECTOR": "",
+      "SUPERVISOR": "David Garcia Alcantara",
+      "NORMA": "NOM-004-SE-2021",
+      "LISTA": "2",
+      "CODIGO": "HTCI-5427",
+      "FECHA DE IMPRESION": "30/01/2026",
+      "FECHA DE VERIFICACION": "2026-01-30",
+      "TIPO DE DOCUMENTO": "C"
+    }
+  ]
+}

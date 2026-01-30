@@ -1,4 +1,33 @@
 {
   "last_folio_visita": 0,
-  "visitas": []
+  "visitas": [
+    {
+      "folio_visita": "CP000001",
+      "folio_acta": "AC000001",
+      "fecha_inicio": "30/01/2026",
+      "fecha_termino": "30/01/2026",
+      "hora_inicio_24h": "16:23",
+      "hora_termino_24h": "18:00",
+      "hora_inicio": "4:23 PM",
+      "hora_termino": "6:00 PM",
+      "norma": "NOM-004-SE-2021",
+      "cliente": "HUT INTERNACIONAL S.A. DE C.V.",
+      "nfirma1": "David Garcia Alcantara",
+      "nfirma2": "",
+      "estatus": "Completada",
+      "tipo_documento": "Constancia",
+      "folios_utilizados": "000002 - 000003",
+      "total_folios": 2,
+      "total_folios_numericos": 2,
+      "supervisores_tabla": "David Garcia Alcantara",
+      "supervisor_formulario": "",
+      "_id": "501369bc-f6fd-4ba3-9af5-31619864662c",
+      "direccion": "Anillo Periférico 5000, Insurgentes Cuicuilco, Coyoacán, Boulevard Adolfo Lopez Mateos, CIUDAD DE MEXICO, C.P. 04530",
+      "calle_numero": "Anillo Periférico 5000",
+      "colonia": "Insurgentes Cuicuilco",
+      "municipio": "Coyoacán, Boulevard Adolfo Lopez Mateos ",
+      "ciudad_estado": "CIUDAD DE MEXICO",
+      "cp": "04530"
+    }
+  ]
 }
