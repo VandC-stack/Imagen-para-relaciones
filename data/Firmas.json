@@ -74,10 +74,11 @@
   {
     "NOMBRE DE INSPECTOR": "Alberto Martinez Guzman",
     "CORREO": "tecnico9@vyc.com.mx",
-    "IMAGEN": "Firmas/AMARTINEZ.png",
     "FIRMA": "AMARTINEZ",
     "Puesto": "Inspector",
     "VIGENCIA": "INDEFINIDA",
+    "Fecha de acreditación": "2024-12-19",
+    "Referencia": "24U1740-24UI2509 - 24UI2663 / 24UI5052-24UI4952",
     "Normas acreditadas": [
       "NOM-004-SE-2021",
       "NOM-020-SCFI-1997",
@@ -85,9 +86,7 @@
       "NOM-050-SCFI-2004",
       "NOM-141-SSA1/SCFI-2012",
       "NOM-189-SSA1/SCFI-2018"
-    ],
-    "Referencia": "24U1740-24UI2509 - 24UI2663 / 24UI5052-24UI4952",
-    "Fecha de acreditación": "2024-12-19"
+    ]
   },
   {
     "NOMBRE DE INSPECTOR": "Alejandro Fernando Moreno Valdovinos",

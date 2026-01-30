@@ -1,0 +1,22 @@
+Eliminación folio: CP000004
+Timestamp: 2026-01-30T13:12:52.392746
+
+Elementos eliminados (16):
+ - Archivo de folios: folios_CP000004.json
+ - Backup: Folios_Visita_CP000004_backup_20260130_130210.xlsx
+ - Tabla backup: tabla_de_relacion_CP000004_PERSIST_20260130130128.json
+ - Dictamen eliminado: Dictamen_Lista_20_5_003848_25_1.json
+ - Dictamen eliminado: Dictamen_Lista_20_6_003987_25_1.json
+ - Dictamen eliminado: Dictamen_Lista_4_10_004230_25_1.json
+ - Dictamen eliminado: Dictamen_Lista_4_11_004232_25_1.json
+ - Dictamen eliminado: Dictamen_Lista_4_12_004232_25_2.json
+ - Dictamen eliminado: Dictamen_Lista_4_13_004233_25_1.json
+ - Dictamen eliminado: Dictamen_Lista_4_7_004227_25_1.json
+ - Dictamen eliminado: Dictamen_Lista_4_8_004227_25_2.json
+ - Dictamen eliminado: Dictamen_Lista_4_9_004228_25_1.json
+ - Entrada en historial (id=9a399957-b0d6-4a5d-b14b-8bbed55f3c24)
+ - ✅ Entrada en historial visitas
+ - Entradas en tabla_de_relacion.json
+ - ✅ Persistencia verificada y garantizada
+
+Errores (0):

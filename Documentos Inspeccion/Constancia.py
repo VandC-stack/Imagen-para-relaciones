@@ -228,17 +228,87 @@ class ConstanciaPDFGenerator:
         except Exception:
             pass
 
-        # folio_formateado: usar campo si existe, si no extraer dígitos del folio y formatear a 6 dígitos
-        folio = str(self.datos.get('folio_constancia',''))
-        folio_formateado = self.datos.get('folio_formateado')
+        # Prioridad para determinar folio_formateado (más robusta):
+        # 1) archivo per-visit en data/folios_visitas/folios_{folio_visita}.json (si existe)
+        # 2) `data/folio_counter.json` -> campo 'last' (preferir si es >= valor encontrado)
+        # 3) `self.datos['folio_formateado']` si ya fue establecido
+        # 4) extraer dígitos de `folio_constancia` o `folio`
+        folio_formateado = None
+
+        # 1) per-visit saved folio (re-check at generation time to catch recent writes)
+        try:
+            fid = str(self.datos.get('folio_visita') or self.datos.get('folio') or self.datos.get('folio_constancia') or '').strip()
+            if fid:
+                archivo_f = os.path.join(self.base_dir, 'data', 'folios_visitas', f"folios_{fid}.json")
+                if os.path.exists(archivo_f):
+                    with open(archivo_f, 'r', encoding='utf-8') as ff:
+                        obj = json.load(ff) or {}
+                    fols_list = obj.get('folios') if isinstance(obj, dict) else obj
+                    if isinstance(fols_list, list) and fols_list:
+                        first = fols_list[0] or {}
+                        fval = first.get('FOLIOS') or first.get('FOLIO') or ''
+                        fd = ''.join([c for c in str(fval) if c.isdigit()])
+                        if fd:
+                            folio_formateado = fd.zfill(6)
+                            self.datos['folio_formateado'] = folio_formateado
+        except Exception:
+            pass
+
+        # 2) folio_counter.json: preferir si es >= al valor encontrado
+        try:
+            fc_path = os.path.join(self.base_dir, 'data', 'folio_counter.json')
+            if os.path.exists(fc_path):
+                with open(fc_path, 'r', encoding='utf-8') as fcf:
+                    j = json.load(fcf) or {}
+                last = j.get('last')
+                if last is not None:
+                    try:
+                        last_int = int(last)
+                        if folio_formateado:
+                            try:
+                                curr_int = int(str(folio_formateado).lstrip('0') or folio_formateado)
+                            except Exception:
+                                curr_int = None
+                            if curr_int is None or last_int >= curr_int:
+                                folio_formateado = str(last_int).zfill(6)
+                                self.datos['folio_formateado'] = folio_formateado
+                        else:
+                            folio_formateado = str(last_int).zfill(6)
+                            self.datos['folio_formateado'] = folio_formateado
+                    except Exception:
+                        pass
+        except Exception:
+            pass
+
+        # 3) existing self.datos value (if still not set)
         if not folio_formateado:
-            nums = re.findall(r"\d+", folio)
-            digits = nums[-1] if nums else ''
-            if digits:
-                folio_formateado = digits.zfill(6)
+            try:
+                f_existing = str(self.datos.get('folio_formateado') or '').strip()
+                if f_existing:
+                    folio_formateado = f_existing
+            except Exception:
+                folio_formateado = None
+
+        # 4) fallback: extraer de folio_constancia o folio
+        if not folio_formateado:
+            folio_const = str(self.datos.get('folio_constancia','') or '').strip()
+            if folio_const:
+                nums = re.findall(r"\d+", folio_const)
+                digits = nums[-1] if nums else ''
+                if digits:
+                    folio_formateado = digits.zfill(6)
+                else:
+                    folio_formateado = folio_const
             else:
-                # fallback: si no hay dígitos, usar texto tal cual
-                folio_formateado = folio
+                folio = str(self.datos.get('folio') or '')
+                nums = re.findall(r"\d+", folio)
+                digits = nums[-1] if nums else ''
+                if digits:
+                    folio_formateado = digits.zfill(6)
+                else:
+                    folio_formateado = folio
+            if folio_formateado:
+                self.datos['folio_formateado'] = folio_formateado
 
         # Solicitud: preferir campo ya formateado; si no, intentar dividir "NNN.../YY" -> numero y año
         solicitud_raw = str(
@@ -589,55 +659,91 @@ class ConstanciaPDFGenerator:
         table_h = header_h + sum(row_heights)
         table_top = self.cursor_y
 
-        # Dibujar caja externa
-        c.rect(x, table_top - table_h, total_w, table_h, stroke=1, fill=0)
+        # paginación: si la tabla no cabe en el espacio restante, dividir en varias páginas
+        bottom_margin = 25 * mm
+        rows_count = len(rows_cells)
+        start_idx = 0
+        cur_table_top = table_top
 
-        # Dibujar líneas verticales
-        cur_x = x
-        acc = x
-        for w in col_w[:-1]:
-            acc += w
-            c.line(acc, table_top, acc, table_top - table_h)
+        while start_idx < rows_count:
+            # espacio disponible en esta "página" para la tabla
+            available = cur_table_top - bottom_margin
+            # reservar espacio para header
+            acc_h = header_h
+            end_idx = start_idx
+            while end_idx < rows_count and (acc_h + row_heights[end_idx]) <= available:
+                acc_h += row_heights[end_idx]
+                end_idx += 1
 
-        # Línea separadora entre header y contenido
-        c.setLineWidth(0.8)
-        c.line(x, table_top - header_h, x + total_w, table_top - header_h)
-        c.setLineWidth(0.6)
+            # si ninguna fila cabe (fila demasiado grande), forzar al menos una fila para evitar bucle infinito
+            if end_idx == start_idx and start_idx < rows_count:
+                acc_h = header_h + row_heights[start_idx]
+                end_idx = start_idx + 1
 
+            # dibujar caja externa para esta porción
+            c.rect(x, cur_table_top - acc_h, total_w, acc_h, stroke=1, fill=0)
 
-        # Encabezados
-        c.setFont('Helvetica-Bold', font_size)
-        cur_x = x
-        for i, h in enumerate(headers):
-            w = col_w[i]
-            cx = cur_x + w / 2
-            cy = table_top - (header_h / 2) - (font_size / 2)
-            c.drawCentredString(cx, cy, h)
-            cur_x += w
+            # dibujar líneas verticales
+            accx = x
+            for w in col_w[:-1]:
+                accx += w
+                c.line(accx, cur_table_top, accx, cur_table_top - acc_h)
 
+            # línea separadora entre header y contenido
+            c.setLineWidth(0.8)
+            c.line(x, cur_table_top - header_h, x + total_w, cur_table_top - header_h)
+            c.setLineWidth(0.6)
 
-        # Dibujar filas de contenido
-        y = table_top - header_h
-        c.setFont(font_name, font_size)
-        for ri, cells in enumerate(rows_cells):
-            y -= row_heights[ri]
-            # dibujar línea horizontal que cierra la fila
-            c.line(x, y, x + total_w, y)
-            # dibujar cada celda
-            cell_x = x
-            for ci, lines in enumerate(cells):
-                tx = cell_x + (3 * mm)
-                ty = y + row_heights[ri] - leading - (3 * mm)
-                for ln in lines:
-                    try:
-                        c.drawString(tx, ty, ln)
-                    except Exception:
-                        pass
-                    ty += -leading
-                cell_x += col_w[ci]
+            # Encabezados
+            c.setFont('Helvetica-Bold', font_size)
+            cur_x = x
+            for i, h in enumerate(headers):
+                w = col_w[i]
+                cx = cur_x + w / 2
+                cy = cur_table_top - (header_h / 2) - (font_size / 2)
+                c.drawCentredString(cx, cy, h)
+                cur_x += w
 
-        # actualizar cursor_y al final de la tabla (agregar espacio extra antes de observaciones)
-        self.cursor_y = table_top - table_h - (8 * mm)
+            # Dibujar filas de contenido para esta página
+            y = cur_table_top - header_h
+            c.setFont(font_name, font_size)
+            for ri in range(start_idx, end_idx):
+                y -= row_heights[ri]
+                # dibujar línea horizontal que cierra la fila
+                c.line(x, y, x + total_w, y)
+                # dibujar cada celda
+                cell_x = x
+                cells = rows_cells[ri]
+                for ci, lines in enumerate(cells):
+                    tx = cell_x + (3 * mm)
+                    ty = y + row_heights[ri] - leading - (3 * mm)
+                    for ln in lines:
+                        try:
+                            c.drawString(tx, ty, ln)
+                        except Exception:
+                            pass
+                        ty += -leading
+                    cell_x += col_w[ci]
+
+            # preparar para la siguiente página o finalizar
+            start_idx = end_idx
+            # si quedan más filas, crear nueva página y dibujar fondo
+            if start_idx < rows_count:
+                try:
+                    c.showPage()
+                except Exception:
+                    pass
+                try:
+                    self.dibujar_fondo(c)
+                except Exception:
+                    pass
+                # resetear cursor en la nueva página: dejar espacio para encabezado
+                cur_table_top = self.height - 120
+                self.cursor_y = cur_table_top
+            else:
+                # última porción: actualizar cursor_y y salir
+                self.cursor_y = cur_table_top - acc_h - (8 * mm)
+                break
 
     def dibujar_observaciones(self, c: canvas.Canvas) -> None:
         x = 25 * mm
@@ -1635,6 +1741,25 @@ def generar_constancia_desde_visita(folio_visita: str | None = None, salida: str
         fol_digits = ''.join([c for c in str(fol) if c.isdigit()])
     except Exception:
         fol_digits = ''
+    # Preferir folio reservado por el sistema (data/folio_counter.json) cuando exista
+    try:
+        fc_path = os.path.join(data_dir, 'folio_counter.json')
+        if os.path.exists(fc_path):
+            with open(fc_path, 'r', encoding='utf-8') as fcf:
+                j = json.load(fcf) or {}
+                last = j.get('last')
+                if last is not None:
+                    try:
+                        last_int = int(last)
+                        if fol_digits:
+                            if last_int >= int(fol_digits):
+                                fol_digits = str(last_int)
+                        else:
+                            fol_digits = str(last_int)
+                    except Exception:
+                        pass
+    except Exception:
+        pass
     if not fol_digits:
         try:
             fol_digits = _reserve_next_folio(data_dir)
@@ -1646,6 +1771,7 @@ def generar_constancia_desde_visita(folio_visita: str | None = None, salida: str
     datos = {
         'folio_constancia': fol,
         'fecha_emision': fecha,
+        'folio_visita': visita.get('folio_visita') or folio_visita or '',
         'cliente': cliente,
         'rfc': rfc,
         'no_contrato': no_contrato,
@@ -1675,6 +1801,28 @@ def generar_constancia_desde_visita(folio_visita: str | None = None, salida: str
         'medidas': extra.get('medidas',''),
         'pais_procedencia': extra.get('pais_procedencia',''),
     }
+
+    # Si existe un archivo con folios guardados para esta visita, preferir el folio guardado allí
+    try:
+        fid = str(visita.get('folio_visita') or folio_visita or '').strip()
+        if fid:
+            archivo_folios_visit = os.path.join(data_dir, 'folios_visitas', f"folios_{fid}.json")
+            if os.path.exists(archivo_folios_visit):
+                try:
+                    with open(archivo_folios_visit, 'r', encoding='utf-8') as ff:
+                        obj = json.load(ff) or {}
+                    fols_list = obj.get('folios') if isinstance(obj, dict) else obj
+                    if isinstance(fols_list, list) and fols_list:
+                        first = fols_list[0] or {}
+                        fval = first.get('FOLIOS') or first.get('FOLIO') or ''
+                        fdigits = ''.join([c for c in str(fval) if c.isdigit()])
+                        if fdigits:
+                            fol_display = fdigits.zfill(6)
+                            datos['folio_formateado'] = fol_display
+                except Exception:
+                    pass
+    except Exception:
+        pass
 
     if not salida:
         const_dir = os.path.join(data_dir, 'Constancias')

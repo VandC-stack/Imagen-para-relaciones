@@ -11191,41 +11191,10 @@ class SistemaDictamenesVC(ctk.CTk):
                     entries[key] = ent
                     continue
 
-                if key == "norma":
-                    # Mostrar resumen de Normas (NOM) seleccionadas y botón para editar (focus en listado)
-                    try:
-                        ent = ctk.CTkEntry(field_frame, height=35, corner_radius=8, font=FONT_SMALL)
-                        ent.pack(side='left', fill='x', expand=True)
-                        # poner valor inicial si viene en datos
-                        try:
-                            if datos and datos.get('norma'):
-                                ent.insert(0, str(datos.get('norma')))
-                        except Exception:
-                            pass
-                        # mantener en modo no editable por defecto
-                        try:
-                            ent.configure(state='disabled')
-                        except Exception:
-                            pass
-                        # Botón para saltar al listado de normas/editar selección
-                        def _focus_normas():
-                            try:
-                                target = entries.get('_normas_frame') or entries.get('_norma_container')
-                                if target:
-                                    try:
-                                        target.focus_set()
-                                    except Exception:
-                                        pass
-                            except Exception:
-                                pass
-
-                        btn = ctk.CTkButton(field_frame, text='Editar', width=90, command=_focus_normas, height=30)
-                        btn.pack(side='right', padx=(8,0))
-                        entries[key] = ent
-                        # Guardar referencia para que update_inspector_statuses pueda actualizar el resumen
-                        entries['_norma_summary'] = ent
-                    except Exception:
-                        pass
+                if key == "norma":                    
+                    ent = None
+                    entries[key] = None
+                    entries['_norma_summary'] = None
                     continue
                 if key in ("fecha_inicio", "fecha_termino"):
                     # intentar usar DateEntry de tkcalendar si está disponible
@@ -11270,9 +11239,37 @@ class SistemaDictamenesVC(ctk.CTk):
                             ent.insert(0, str(datos.get(key, '')))
                     entries[key] = ent
                     continue
+                if key == 'folios_utilizados':
+                    # Mostrar folios usados en modo solo lectura con formato legible
+                    ent = ctk.CTkEntry(field_frame, height=35, corner_radius=8, font=FONT_SMALL)
+                    ent.pack(fill='x')
+                    try:
+                        val = ''
+                        if datos and datos.get('folios_utilizados'):
+                            val = str(datos.get('folios_utilizados'))
+                        elif getattr(self, 'info_folios_actual', None):
+                            val = str(self.info_folios_actual)
+                        # si el valor numérico viene suelto, formatearlo
+                        if val and not val.lower().startswith('folio') and re.match(r'^\d{1,6}(-|\s|$)', val):
+                            # normalizar a 6 dígitos
+                            try:
+                                n = int(str(val).split()[0].split('-')[0])
+                                val = f"Folio: {n:06d}"
+                            except Exception:
+                                pass
+                        ent.insert(0, val)
+                        ent.configure(state='disabled')
+                    except Exception:
+                        try:
+                            ent.insert(0, '')
+                            ent.configure(state='disabled')
+                        except Exception:
+                            pass
+                    entries[key] = ent
+                    continue
                 if key == "cliente":
-                    # Obtener lista de clientes
-                    clientes_lista = ["Seleccione un cliente..."]
+                    # Obtener lista de clientes (para dropdown)
+                    clientes_lista = ['Seleccione un cliente...']
                     if hasattr(self, 'clientes_data') and self.clientes_data:
                         for cliente in self.clientes_data:
                             if not isinstance(cliente, dict):
@@ -11280,132 +11277,10 @@ class SistemaDictamenesVC(ctk.CTk):
                             name = cliente.get('CLIENTE') or cliente.get('RAZÓN SOCIAL ') or cliente.get('RAZON SOCIAL') or cliente.get('RAZON_SOCIAL') or cliente.get('RFC') or cliente.get('NÚMERO_DE_CONTRATO')
                             if name:
                                 clientes_lista.append(name)
-                    
-                    # Crear widget de autocompletado para clientes (mejor rendimiento con listas largas)
-                    class AutocompleteWidget:
-                        def __init__(self, parent, values, font=None, width=250):
-                            self.parent = parent
-                            self.values = values or []
-                            self.entry = ctk.CTkEntry(parent, font=font or FONT_SMALL, height=35, corner_radius=8)
-                            self.entry.pack(fill='x')
-                            self._popup = None
-                            self._listbox = None
-                            self._command = None
-                            self.max_shown = 50
-                            self.entry.bind('<KeyRelease>', self._on_keyrelease)
-                            self.entry.bind('<Down>', self._on_down)
 
-                        def _on_keyrelease(self, event=None):
-                            txt = self.entry.get().strip().lower()
-                            if txt == '' or txt == 'seleccione un cliente...':
-                                self._close_popup()
-                                return
-                            # filtrar valores
-                            matches = [v for v in self.values if txt in (v or '').lower()]
-                            if not matches:
-                                self._close_popup()
-                                return
-                            self._show_popup(matches[:self.max_shown])
-
-                        def _on_down(self, event=None):
-                            if self._listbox:
-                                try:
-                                    self._listbox.focus_set()
-                                    self._listbox.selection_set(0)
-                                    self._listbox.activate(0)
-                                except Exception:
-                                    pass
-
-                        def _show_popup(self, items):
-                            self._close_popup()
-                            try:
-                                x = self.entry.winfo_rootx()
-                                y = self.entry.winfo_rooty() + self.entry.winfo_height()
-                                self._popup = tk.Toplevel(self.entry)
-                                self._popup.wm_overrideredirect(True)
-                                self._popup.wm_geometry(f"+{x}+{y}")
-                                lb = tk.Listbox(self._popup, height=min(len(items), self.max_shown), activestyle='none')
-                                lb.pack(side='left', fill='both')
-                                for it in items:
-                                    lb.insert('end', it)
-                                lb.bind('<Button-1>', self._on_list_click)
-                                lb.bind('<Return>', self._on_list_return)
-                                lb.bind('<Escape>', lambda e: self._close_popup())
-                                lb.bind('<Up>', self._on_list_key)
-                                lb.bind('<Down>', self._on_list_key)
-                                self._listbox = lb
-                            except Exception:
-                                self._close_popup()
-
-                        def _on_list_key(self, event):
-                            # allow keyboard navigation inside listbox
-                            try:
-                                if event.keysym == 'Up' and self._listbox.curselection() and self._listbox.curselection()[0] == 0:
-                                    # at top, move focus back to entry
-                                    self.entry.focus_set()
-                                    return
-                            except Exception:
-                                pass
-
-                        def _on_list_return(self, event=None):
-                            try:
-                                sel = self._listbox.curselection()
-                                if sel:
-                                    val = self._listbox.get(sel[0])
-                                    self.set(val)
-                            except Exception:
-                                pass
-                            finally:
-                                self._close_popup()
-
-                        def _on_list_click(self, event=None):
-                            try:
-                                idx = self._listbox.nearest(event.y)
-                                val = self._listbox.get(idx)
-                                self.set(val)
-                            except Exception:
-                                pass
-                            finally:
-                                self._close_popup()
-
-                        def _close_popup(self):
-                            try:
-                                if self._popup:
-                                    self._popup.destroy()
-                            except Exception:
-                                pass
-                            self._popup = None
-                            self._listbox = None
-
-                        def get(self):
-                            return self.entry.get()
-
-                        def set(self, val):
-                            try:
-                                self.entry.delete(0, 'end')
-                                self.entry.insert(0, val)
-                                if self._command:
-                                    try:
-                                        self._command(val)
-                                    except Exception:
-                                        pass
-                            except Exception:
-                                pass
-
-                        def pack(self, **kwargs):
-                            return self.entry.pack(**kwargs)
-
-                        def configure(self, **kwargs):
-                            # support configure(command=...)
-                            if 'command' in kwargs:
-                                self._command = kwargs.get('command')
-                            return None
-
-                        def bind(self, *args, **kwargs):
-                            return self.entry.bind(*args, **kwargs)
-
-                    ent = AutocompleteWidget(field_frame, clientes_lista, font=FONT_SMALL, width=250)
-                    # Exponer en entries para que otros handlers lo usen
+                    # Crear combobox desplegable para clientes
+                    ent = ctk.CTkComboBox(field_frame, values=clientes_lista, font=FONT_SMALL, dropdown_font=FONT_SMALL, state='readonly', height=35, corner_radius=8)
+                    ent.pack(fill='x')
                     entries[key] = ent
                     # Callback cuando se seleccione un cliente en el modal
                     def _on_cliente_modal_select(val):

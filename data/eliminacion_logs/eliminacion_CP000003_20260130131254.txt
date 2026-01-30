@@ -1,0 +1,13 @@
+Eliminación folio: CP000003
+Timestamp: 2026-01-30T13:12:54.102721
+
+Elementos eliminados (7):
+ - Tabla backup: tabla_de_relacion_CP000003_PERSIST_20260130123655.json
+ - Dictamen eliminado: Dictamen_Lista_4_2_000262_26_1_20260130_122135.json
+ - Entrada en historial (id=1d0de7bf-3986-480f-9754-7b9eaeb563b8)
+ - ✅ Entrada en historial visitas
+ - Entradas en tabla_de_relacion.json
+ - ✅ Persistencia verificada y garantizada
+ - folio_counter.json ajustado a 000012
+
+Errores (0):
