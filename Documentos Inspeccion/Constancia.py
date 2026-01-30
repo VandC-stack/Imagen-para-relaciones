@@ -20,6 +20,19 @@ import tempfile
 import time
 
 
+# Determinar rutas base y data de manera consistente entre ejecución python y .exe
+try:
+    if getattr(sys, 'frozen', False):
+        PACKAGE_BASE = getattr(sys, '_MEIPASS', os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+    else:
+        PACKAGE_BASE = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+except Exception:
+    PACKAGE_BASE = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+
+# Ruta de datos persistentes (la misma que `app.py` exporta en FOLIO_DATA_DIR)
+DATA_DIR = os.getenv('FOLIO_DATA_DIR') or os.path.join(PACKAGE_BASE, 'data')
+
+
 # Canvas personalizado para numerar páginas como "Página X de Y"
 class NumberedCanvas(canvas.Canvas):
     def __init__(self, *args, **kwargs):
@@ -132,6 +145,7 @@ class ConstanciaPDFGenerator:
         self.base_dir = base_dir or os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
         # bajar la posición inicial para que las firmas queden más abajo en la hoja
         self.cursor_y = self.height - 90
+        
 
     def _fondo_path(self) -> str | None:
         p = os.path.join(self.base_dir, 'img', 'Fondo.jpg')
@@ -211,7 +225,7 @@ class ConstanciaPDFGenerator:
                 mnum = re.search(r"(\d{1,3})", clas)
                 if mnum:
                     code3 = f"{int(mnum.group(1)):03d}"
-                    normas_path = os.path.join(self.base_dir, 'data', 'Normas.json')
+                    normas_path = os.path.join(DATA_DIR, 'Normas.json')
                     if os.path.exists(normas_path):
                         with open(normas_path, 'r', encoding='utf-8') as nf:
                             ndata = json.load(nf)
@@ -239,7 +253,7 @@ class ConstanciaPDFGenerator:
         try:
             fid = str(self.datos.get('folio_visita') or self.datos.get('folio') or self.datos.get('folio_constancia') or '').strip()
             if fid:
-                archivo_f = os.path.join(self.base_dir, 'data', 'folios_visitas', f"folios_{fid}.json")
+                archivo_f = os.path.join(DATA_DIR, 'folios_visitas', f"folios_{fid}.json")
                 if os.path.exists(archivo_f):
                     with open(archivo_f, 'r', encoding='utf-8') as ff:
                         obj = json.load(ff) or {}
@@ -288,7 +302,7 @@ class ConstanciaPDFGenerator:
 
         # 2) folio_counter.json: preferir si es >= al valor encontrado
         try:
-            fc_path = os.path.join(self.base_dir, 'data', 'folio_counter.json')
+            fc_path = os.path.join(DATA_DIR, 'folio_counter.json')
             if os.path.exists(fc_path):
                 with open(fc_path, 'r', encoding='utf-8') as fcf:
                     j = json.load(fcf) or {}
@@ -408,7 +422,8 @@ class ConstanciaPDFGenerator:
         Busca la entrada que coincida con `self.datos['lista']`, `folio_tabla` o `codigo`.
         """
         try:
-            data_dir = os.path.join(self.base_dir, 'data')
+            # Leer desde DATA_DIR persistente (AppData cuando está empaquetado)
+            data_dir = DATA_DIR
             # Primero, si hay archivo per-visit, intentar usarlo (y buscar por lista)
             fid = str(self.datos.get('folio_visita') or self.datos.get('folio') or self.datos.get('folio_constancia') or '').strip()
             chosen = None
@@ -888,7 +903,7 @@ class ConstanciaPDFGenerator:
                 dbg_e = [f"[DEBUG evidencia] total={len(evidencias)}"]
                 for p in (evidencias or [])[:10]:
                     dbg_e.append(f"[DEBUG evidencia] path={p}")
-                log_path = os.path.join(self.base_dir, 'data', 'constancia_debug.log')
+                log_path = os.path.join(DATA_DIR, 'constancia_debug.log')
                 with open(log_path, 'a', encoding='utf-8') as lf:
                     for L in dbg_e:
                         lf.write(L + '\n')
@@ -1086,7 +1101,7 @@ class ConstanciaPDFGenerator:
             dbg.append(f"[DEBUG firma] nombre2={nombre2!r} code2={code2!r} img2={img2!r}")
             # escribir también al log de constancias
             try:
-                log_path = os.path.join(self.base_dir, 'data', 'constancia_debug.log')
+                log_path = os.path.join(DATA_DIR, 'constancia_debug.log')
                 with open(log_path, 'a', encoding='utf-8') as lf:
                     for L in dbg:
                         lf.write(L + '\n')
@@ -1187,7 +1202,8 @@ class ConstanciaPDFGenerator:
         if not salida:
             fol = str(self.datos.get('folio_formateado') or self.datos.get('folio_constancia') or '')
             safe = fol.replace('/', '_').replace(' ', '_') or datetime.now().strftime('%Y%m%d_%H%M%S')
-            const_dir = os.path.join(self.base_dir, 'data', 'Constancias')
+            # Usar DATA_DIR persistente (AppData cuando está en .exe) para salidas
+            const_dir = os.path.join(DATA_DIR, 'Constancias')
             os.makedirs(const_dir, exist_ok=True)
             salida = os.path.join(const_dir, f'Constancia_{safe}.pdf')
 
@@ -1232,8 +1248,8 @@ class ConstanciaPDFGenerator:
                     debug_lines.append(f"folio_formateado={ff}  (folio_constancia={fcandidate})  folio_visita={fvis}")
                     # folio_counter.json
                     try:
-                        data_dir = os.path.join(self.base_dir, 'data')
-                        fc_path = os.path.join(data_dir, 'folio_counter.json')
+                        # leer desde DATA_DIR persistente
+                        fc_path = os.path.join(DATA_DIR, 'folio_counter.json')
                         if os.path.exists(fc_path):
                             with open(fc_path, 'r', encoding='utf-8') as fcf:
                                 j = json.load(fcf) or {}
@@ -1244,7 +1260,7 @@ class ConstanciaPDFGenerator:
                     try:
                         fid = fvis or (self.datos.get('folio') or '')
                         if fid:
-                            archivo_f = os.path.join(self.base_dir, 'data', 'folios_visitas', f"folios_{fid}.json")
+                            archivo_f = os.path.join(DATA_DIR, 'folios_visitas', f"folios_{fid}.json")
                             if os.path.exists(archivo_f):
                                 with open(archivo_f, 'r', encoding='utf-8') as ffp:
                                     obj = json.load(ffc:=ffp) if False else json.load(ffp)
@@ -1294,7 +1310,7 @@ class ConstanciaPDFGenerator:
                     debug_lines.append(f"firmante1={f1}  firmante2={f2}  firma_map_keys={len(firmas_map)}")
                     # escribir log
                     try:
-                        log_path = os.path.join(self.base_dir, 'data', 'constancia_debug.log')
+                        log_path = os.path.join(DATA_DIR, 'constancia_debug.log')
                         with open(log_path, 'a', encoding='utf-8') as lf:
                             for L in debug_lines:
                                 lf.write(L + '\n')
@@ -1331,10 +1347,10 @@ class ConstanciaPDFGenerator:
                 pass
 
             # Cargar clientes, normas y firmas desde data/
-            data_dir = os.path.join(self.base_dir, 'data')
-            clientes_path = os.path.join(data_dir, 'Clientes.json')
-            normas_path = os.path.join(data_dir, 'Normas.json')
-            firmas_path = os.path.join(data_dir, 'Firmas.json')
+            data_dir = DATA_DIR
+            clientes_path = os.path.join(DATA_DIR, 'Clientes.json')
+            normas_path = os.path.join(DATA_DIR, 'Normas.json')
+            firmas_path = os.path.join(DATA_DIR, 'Firmas.json')
             try:
                 if _cargar_clientes_ext:
                     clientes_map = _cargar_clientes_ext(clientes_path)
@@ -1728,8 +1744,8 @@ def _get_last_historial_fecha(data_dir: str) -> str:
         return ''
 
 def generar_constancia_desde_visita(folio_visita: str | None = None, salida: str | None = None) -> str:
-    base = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
-    data_dir = os.path.join(base, 'data')
+    base = PACKAGE_BASE
+    data_dir = DATA_DIR
     hist = os.path.join(data_dir, 'historial_visitas.json')
     tabla = os.path.join(data_dir, 'tabla_de_relacion.json')
     clientes_p = os.path.join(data_dir, 'Clientes.json')

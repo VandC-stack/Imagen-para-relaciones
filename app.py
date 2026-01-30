@@ -71,7 +71,39 @@ DATA_DIR = os.getenv('IMAGENESVC_DATA_DIR')
 if DATA_DIR:
     DATA_DIR = os.path.abspath(DATA_DIR)
 else:
-    DATA_DIR = os.path.join(APP_DIR, 'data')
+
+    if getattr(sys, 'frozen', False):
+        user_data = os.path.join(os.path.expanduser("~"), 'AppData', 'Local', 'Sistema_Generador_VC', 'data')
+        try:
+            os.makedirs(user_data, exist_ok=True)
+        except Exception:
+            user_data = os.path.join(APP_DIR, 'data')
+
+        bundled_data = os.path.join(BASE_DIR, 'data')
+        try:
+            if os.path.exists(bundled_data) and (not os.listdir(user_data)):
+                import shutil
+                try:
+                    shutil.copytree(bundled_data, user_data, dirs_exist_ok=True)
+                except Exception:
+                    # intentar copia archivo por archivo si copytree falla
+                    for root, dirs, files in os.walk(bundled_data):
+                        rel = os.path.relpath(root, bundled_data)
+                        target_root = os.path.join(user_data, rel) if rel != '.' else user_data
+                        os.makedirs(target_root, exist_ok=True)
+                        for f in files:
+                            src = os.path.join(root, f)
+                            dst = os.path.join(target_root, f)
+                            try:
+                                shutil.copy2(src, dst)
+                            except Exception:
+                                pass
+        except Exception:
+            pass
+
+        DATA_DIR = os.path.abspath(user_data)
+    else:
+        DATA_DIR = os.path.join(APP_DIR, 'data')
 try:
     os.environ['FOLIO_DATA_DIR'] = DATA_DIR
 except Exception:
