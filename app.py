@@ -5415,6 +5415,16 @@ class SistemaDictamenesVC(ctk.CTk):
                                 ruta_pdf = os.path.join(carpeta_solicitud, nombre_pdf)
 
                             pdf_ok = False
+                            # Persistir folios para la visita ANTES de generar el PDF
+                            try:
+                                if filas_grp:
+                                    try:
+                                        self.guardar_folios_visita(folio_vis, filas_grp, persist_counter=True)
+                                    except Exception:
+                                        # no interrumpir generación si la persistencia falla
+                                        pass
+                            except Exception:
+                                pass
                             try:
                                 if ruta_pdf and ConstGen:
                                     gen_inst = ConstGen(datos_const, base_dir=BASE_DIR)

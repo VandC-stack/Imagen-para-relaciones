@@ -384,6 +384,41 @@
       "folio": "CP000001",
       "status": "exitosa",
       "detalles": "Archivos: 7, Errores: 0"
+    },
+    {
+      "timestamp": "2026-01-30T15:20:32.176142",
+      "tipo": "eliminar_registro",
+      "folio": "CP000001",
+      "status": "exitosa",
+      "detalles": "Archivos: 13, Errores: 0"
+    },
+    {
+      "timestamp": "2026-01-30T15:20:34.200698",
+      "tipo": "eliminar_registro",
+      "folio": "CP000002",
+      "status": "exitosa",
+      "detalles": "Archivos: 10, Errores: 0"
+    },
+    {
+      "timestamp": "2026-01-30T15:20:36.686356",
+      "tipo": "eliminar_registro",
+      "folio": "CP000003",
+      "status": "exitosa",
+      "detalles": "Archivos: 6, Errores: 0"
+    },
+    {
+      "timestamp": "2026-01-30T15:20:38.339227",
+      "tipo": "eliminar_registro",
+      "folio": "CP000004",
+      "status": "exitosa",
+      "detalles": "Archivos: 7, Errores: 0"
+    },
+    {
+      "timestamp": "2026-01-30T15:20:40.051042",
+      "tipo": "eliminar_registro",
+      "folio": "CP000005",
+      "status": "exitosa",
+      "detalles": "Archivos: 6, Errores: 0"
     }
   ]
 }

@@ -1,0 +1,19 @@
+Eliminación folio: CP000001
+Timestamp: 2026-01-30T15:20:32.178006
+
+Elementos eliminados (13):
+ - Archivo de folios: folios_CP000001.json
+ - Tabla backup: tabla_de_relacion_CP000001_PERSIST_20260130132711.json
+ - Tabla backup: tabla_de_relacion_CP000001_PERSIST_20260130132717.json
+ - Constancia eliminada (por nombre): Constancia_Lista_1_1_000645_26.json
+ - Constancia eliminada (por nombre): Constancia_Lista_1_3_000645_26.json
+ - Constancia eliminada (por nombre): Constancia_Lista_1_5_000645_26.json
+ - Constancia eliminada (por nombre): Constancia_Lista_1_7_000645_26.json
+ - Constancia eliminada (por nombre): Constancia_Lista_1_9_000645_26.json
+ - Constancia eliminada (por nombre): Constancia_Lista_2_10_000645_26.json
+ - Entrada en historial (id=7aaa7b63-5ecb-40f4-a0fa-8551a85c2d37)
+ - ✅ Entrada en historial visitas
+ - ✅ Persistencia verificada y garantizada
+ - folio_counter.json ajustado a 000001
+
+Errores (0):

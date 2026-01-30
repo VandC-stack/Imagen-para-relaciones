@@ -1,0 +1,12 @@
+Eliminación folio: CP000005
+Timestamp: 2026-01-30T15:20:40.053029
+
+Elementos eliminados (6):
+ - Archivo de folios: folios_CP000005.json
+ - Tabla backup: tabla_de_relacion_CP000005_PERSIST_20260130140030.json
+ - Tabla backup: tabla_de_relacion_CP000005_PERSIST_20260130140035.json
+ - Entrada en historial (id=ff25a52c-fe80-4154-b86c-8b77e043fbac)
+ - ✅ Entrada en historial visitas
+ - ✅ Persistencia verificada y garantizada
+
+Errores (0):

@@ -245,7 +245,39 @@ class ConstanciaPDFGenerator:
                         obj = json.load(ff) or {}
                     fols_list = obj.get('folios') if isinstance(obj, dict) else obj
                     if isinstance(fols_list, list) and fols_list:
-                        first = fols_list[0] or {}
+                        # Try to find the folio that matches the current 'lista' in datos.
+                        preferred = None
+                        lista_pref = str(self.datos.get('lista') or '').strip()
+                        for ent in fols_list:
+                            try:
+                                if not ent:
+                                    continue
+                                ent_lista = str(ent.get('LISTA') or ent.get('lista') or '').strip()
+                                if lista_pref and ent_lista and ent_lista == lista_pref:
+                                    preferred = ent
+                                    break
+                            except Exception:
+                                continue
+                        if not preferred:
+                            # fallback: try to match by CODIGO or MARCA if available
+                            codigo_pref = ''
+                            try:
+                                tr = self.datos.get('tabla_relacion') or []
+                                if isinstance(tr, list) and tr:
+                                    codigo_pref = str((tr[0] or {}).get('CODIGO') or '').strip()
+                            except Exception:
+                                codigo_pref = ''
+                            if codigo_pref:
+                                for ent in fols_list:
+                                    try:
+                                        if str(ent.get('CODIGO') or '').strip() == codigo_pref:
+                                            preferred = ent
+                                            break
+                                    except Exception:
+                                        continue
+                        if not preferred:
+                            preferred = fols_list[0]
+                        first = preferred or fols_list[0] or {}
                         fval = first.get('FOLIOS') or first.get('FOLIO') or ''
                         fd = ''.join([c for c in str(fval) if c.isdigit()])
                         if fd:
@@ -369,6 +401,87 @@ class ConstanciaPDFGenerator:
         cadena = f"{year_left_two}049UCC{norma}{folio_formateado} Solicitud de Servicio: {sol_year_two}049UCC{norma}{solicitud_formatted}-{lista}"
         self.datos['cadena'] = cadena
         return cadena
+
+    def _refresh_folio_from_disk(self) -> None:
+        """Re-lee `data/folio_counter.json` y `data/folios_visitas/folios_{id}.json`
+        para asegurar que `self.datos['folio_formateado']` refleja lo que hay en disco.
+        Busca la entrada que coincida con `self.datos['lista']`, `folio_tabla` o `codigo`.
+        """
+        try:
+            data_dir = os.path.join(self.base_dir, 'data')
+            # Primero, si hay archivo per-visit, intentar usarlo (y buscar por lista)
+            fid = str(self.datos.get('folio_visita') or self.datos.get('folio') or self.datos.get('folio_constancia') or '').strip()
+            chosen = None
+            if fid:
+                archivo_f = os.path.join(data_dir, 'folios_visitas', f"folios_{fid}.json")
+                if os.path.exists(archivo_f):
+                    try:
+                        with open(archivo_f, 'r', encoding='utf-8') as ff:
+                            obj = json.load(ff) or {}
+                        fols_list = obj.get('folios') if isinstance(obj, dict) else obj
+                        if isinstance(fols_list, list) and fols_list:
+                            lista_pref = str(self.datos.get('lista') or '').strip()
+                            for ent in fols_list:
+                                try:
+                                    if not ent:
+                                        continue
+                                    ent_lista = str(ent.get('LISTA') or ent.get('lista') or '').strip()
+                                    if lista_pref and ent_lista and ent_lista == lista_pref:
+                                        chosen = ent
+                                        break
+                                except Exception:
+                                    continue
+                            if not chosen:
+                                # fallback matches
+                                folio_tabla_pref = str(self.datos.get('folio_tabla') or '').strip()
+                                codigo_pref = str(self.datos.get('codigo') or '').strip()
+                                if folio_tabla_pref:
+                                    for ent in fols_list:
+                                        try:
+                                            if str(ent.get('FOLIO') or ent.get('FOLIOS') or '').strip() == folio_tabla_pref:
+                                                chosen = ent
+                                                break
+                                        except Exception:
+                                            continue
+                                if not chosen and codigo_pref:
+                                    for ent in fols_list:
+                                        try:
+                                            if str(ent.get('CODIGO') or '').strip() == codigo_pref:
+                                                chosen = ent
+                                                break
+                                        except Exception:
+                                            continue
+                            if not chosen:
+                                chosen = fols_list[0]
+                            try:
+                                fval = chosen.get('FOLIOS') or chosen.get('FOLIO') or ''
+                                fd = ''.join([c for c in str(fval) if c.isdigit()])
+                                if fd:
+                                    self.datos['folio_formateado'] = fd.zfill(6)
+                                    return
+                            except Exception:
+                                pass
+                    except Exception:
+                        pass
+
+            # Si no hallamos por visita, leer folio_counter.json
+            try:
+                fc_path = os.path.join(data_dir, 'folio_counter.json')
+                if os.path.exists(fc_path):
+                    with open(fc_path, 'r', encoding='utf-8') as fcf:
+                        j = json.load(fcf) or {}
+                    last = j.get('last')
+                    if last is not None:
+                        try:
+                            last_int = int(last)
+                            self.datos['folio_formateado'] = str(last_int).zfill(6)
+                            return
+                        except Exception:
+                            pass
+            except Exception:
+                pass
+        except Exception:
+            pass
 
     def dibujar_encabezado(self, c: canvas.Canvas) -> None:
         # Logo (if present) at top-left (fallback to background watermark)
@@ -770,6 +883,20 @@ class ConstanciaPDFGenerator:
 
             evidencias = self.datos.get('evidencias_lista', []) or []
 
+            # DEBUG: listar evidencias encontradas
+            try:
+                dbg_e = [f"[DEBUG evidencia] total={len(evidencias)}"]
+                for p in (evidencias or [])[:10]:
+                    dbg_e.append(f"[DEBUG evidencia] path={p}")
+                log_path = os.path.join(self.base_dir, 'data', 'constancia_debug.log')
+                with open(log_path, 'a', encoding='utf-8') as lf:
+                    for L in dbg_e:
+                        lf.write(L + '\n')
+                    lf.write('\n')
+                for L in dbg_e:
+                    print(L)
+            except Exception:
+                pass
             # Si no hay evidencias, añadir placeholder ${IMAGEN} centrado
             if not evidencias:
                 c.setFont('Helvetica-Bold', 14)
@@ -952,6 +1079,24 @@ class ConstanciaPDFGenerator:
         left_x = 25 * mm
         right_x = self.width / 2 + 10 * mm
 
+        # --- DEBUG: información sobre firmantes que se imprimirán ---
+        try:
+            dbg = []
+            dbg.append(f"[DEBUG firma] nombre1={nombre1!r} code1={code1!r} img1={img1!r}")
+            dbg.append(f"[DEBUG firma] nombre2={nombre2!r} code2={code2!r} img2={img2!r}")
+            # escribir también al log de constancias
+            try:
+                log_path = os.path.join(self.base_dir, 'data', 'constancia_debug.log')
+                with open(log_path, 'a', encoding='utf-8') as lf:
+                    for L in dbg:
+                        lf.write(L + '\n')
+                    lf.write('\n')
+            except Exception:
+                pass
+            for L in dbg:
+                print(L)
+        except Exception:
+            pass
         
 
         # Draw images if available
@@ -1053,6 +1198,12 @@ class ConstanciaPDFGenerator:
             c = canvas.Canvas(salida, pagesize=letter)
         # Asegurar que el canvas tenga título/cadena para que se impriman en todas las páginas
         try:
+            # Forzar re-lectura final de folios desde disco: esto evita que se use
+            # un valor cacheado en `self.datos` que pueda estar desincronizado.
+            try:
+                self._refresh_folio_from_disk()
+            except Exception:
+                pass
             # construir cadena identificadora y su versión para mostrar (2 dígitos)
             cadena = self.datos.get('cadena') or ''
             if not cadena:
@@ -1069,6 +1220,92 @@ class ConstanciaPDFGenerator:
             try:
                 c.header_title = 'CONSTANCIA DE CONFORMIDAD'
                 c.header_chain = display_cadena
+                # --- DEBUG: registrar información de generación ---
+                try:
+                    debug_lines = []
+                    ts = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                    debug_lines.append(f"[{ts}] Generando constancia: salida={salida}")
+                    # Folio valores
+                    ff = str(self.datos.get('folio_formateado') or '')
+                    fcandidate = str(self.datos.get('folio_constancia') or '')
+                    fvis = str(self.datos.get('folio_visita') or '')
+                    debug_lines.append(f"folio_formateado={ff}  (folio_constancia={fcandidate})  folio_visita={fvis}")
+                    # folio_counter.json
+                    try:
+                        data_dir = os.path.join(self.base_dir, 'data')
+                        fc_path = os.path.join(data_dir, 'folio_counter.json')
+                        if os.path.exists(fc_path):
+                            with open(fc_path, 'r', encoding='utf-8') as fcf:
+                                j = json.load(fcf) or {}
+                            debug_lines.append(f"folio_counter.last={j.get('last')}")
+                    except Exception as e:
+                        debug_lines.append(f"folio_counter.read_error={e}")
+                    # per-visit file contents (if any)
+                    try:
+                        fid = fvis or (self.datos.get('folio') or '')
+                        if fid:
+                            archivo_f = os.path.join(self.base_dir, 'data', 'folios_visitas', f"folios_{fid}.json")
+                            if os.path.exists(archivo_f):
+                                with open(archivo_f, 'r', encoding='utf-8') as ffp:
+                                    obj = json.load(ffc:=ffp) if False else json.load(ffp)
+                                # include meta and first folios entries
+                                if isinstance(obj, dict):
+                                    meta = obj.get('_meta') or {}
+                                    debug_lines.append(f"per_visit._meta={meta}")
+                                    fols = obj.get('folios') or []
+                                else:
+                                    fols = obj if isinstance(obj, list) else []
+                                debug_lines.append(f"per_visit.total_folios={len(fols)}")
+                                if fols:
+                                    # show first two entries summary
+                                    for i, e in enumerate(fols[:2], start=1):
+                                        try:
+                                            debug_lines.append(f"per_visit.folio[{i}]={e.get('FOLIOS') or e.get('FOLIO') or e}")
+                                        except Exception:
+                                            debug_lines.append(f"per_visit.folio[{i}]={str(e)}")
+                    except Exception as e:
+                        debug_lines.append(f"per_visit.read_error={e}")
+                    # evidencias
+                    try:
+                        evids = list(self.datos.get('evidencias_lista') or [])
+                        debug_lines.append(f"evidencias.count={len(evids)}")
+                        for p in evids[:5]:
+                            debug_lines.append(f"evidencia.path={p}")
+                    except Exception:
+                        pass
+                    # firmantes previstos
+                    try:
+                        firmas_map = cargar_firmas()
+                    except Exception:
+                        firmas_map = {}
+                    f1 = self.datos.get('nfirma1') or ''
+                    f2 = self.datos.get('nfirma2') or ''
+                    # intentar resolver desde tabla_relacion FIRMA
+                    try:
+                        tr0 = list(self.datos.get('tabla_relacion') or [])
+                        pref = ''
+                        if tr0:
+                            pref = (tr0[0].get('FIRMA') or tr0[0].get('firma') or '').strip()
+                        if pref and pref in firmas_map:
+                            entry = firmas_map.get(pref)
+                            f1 = f1 or (entry.get('NOMBRE DE INSPECTOR') or entry.get('nombre') or entry.get('NOMBRE') or '')
+                    except Exception:
+                        pass
+                    debug_lines.append(f"firmante1={f1}  firmante2={f2}  firma_map_keys={len(firmas_map)}")
+                    # escribir log
+                    try:
+                        log_path = os.path.join(self.base_dir, 'data', 'constancia_debug.log')
+                        with open(log_path, 'a', encoding='utf-8') as lf:
+                            for L in debug_lines:
+                                lf.write(L + '\n')
+                            lf.write('\n')
+                    except Exception:
+                        pass
+                    # también imprimir en consola para retroalimentación rápida
+                    for L in debug_lines:
+                        print(L)
+                except Exception:
+                    pass
                 # Dibujar encabezado inmediatamente en la primera página (titulo arriba, cadena debajo)
                 try:
                     c.setFont('Helvetica-Bold', 20)
@@ -1786,7 +2023,6 @@ def generar_constancia_desde_visita(folio_visita: str | None = None, salida: str
         'modelo': modelo,
         'tabla_relacion': tabla_rows,
         'folio_formateado': fol_display,
-        # Campos extra desde tabla_de_relacion (si existen)
         'lista': extra.get('lista',''),
         'fecha_verificacion': extra.get('fecha_verificacion',''),
         'codigo': extra.get('codigo',''),
@@ -1813,7 +2049,42 @@ def generar_constancia_desde_visita(folio_visita: str | None = None, salida: str
                         obj = json.load(ff) or {}
                     fols_list = obj.get('folios') if isinstance(obj, dict) else obj
                     if isinstance(fols_list, list) and fols_list:
-                        first = fols_list[0] or {}
+                        # Prefer the folio entry that matches the requested 'lista'
+                        preferred = None
+                        lista_pref = str(datos.get('lista') or '').strip()
+                        for ent in fols_list:
+                            try:
+                                if not ent:
+                                    continue
+                                ent_lista = str(ent.get('LISTA') or ent.get('lista') or '').strip()
+                                if lista_pref and ent_lista and ent_lista == lista_pref:
+                                    preferred = ent
+                                    break
+                            except Exception:
+                                continue
+                        if not preferred:
+                            # fallback: try to match by FOLIO_TABLA or CODE if available
+                            folio_tabla_pref = str(datos.get('folio_tabla') or '').strip()
+                            codigo_pref = str(datos.get('codigo') or '').strip()
+                            if folio_tabla_pref:
+                                for ent in fols_list:
+                                    try:
+                                        if str(ent.get('FOLIO') or ent.get('FOLIOS') or '').strip() == folio_tabla_pref:
+                                            preferred = ent
+                                            break
+                                    except Exception:
+                                        continue
+                            if not preferred and codigo_pref:
+                                for ent in fols_list:
+                                    try:
+                                        if str(ent.get('CODIGO') or '').strip() == codigo_pref:
+                                            preferred = ent
+                                            break
+                                    except Exception:
+                                        continue
+                        if not preferred:
+                            preferred = fols_list[0]
+                        first = preferred or fols_list[0] or {}
                         fval = first.get('FOLIOS') or first.get('FOLIO') or ''
                         fdigits = ''.join([c for c in str(fval) if c.isdigit()])
                         if fdigits:
