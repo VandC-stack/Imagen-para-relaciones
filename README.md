@@ -1,3 +1,168 @@
+# Sistema Generador de Documentos V&C
+
+Este repositorio contiene el sistema "Sistema generador de documentos V&C", una aplicación en Python para generar documentos oficiales (dictámenes, constancias, oficios, etiquetas, etc.) a partir de plantillas y datos JSON.
+
+## Objetivo
+
+Proveer a un usuario externo (desarrollador o auditor técnico) de una visión clara del funcionamiento del sistema, los requisitos, y cómo se comunican los archivos entre sí, con diagramas y ejemplos de uso.
+
+## Vista rápida
+
+- **Entrada principal:** [app.py](app.py) (interfaz / punto de arranque)
+- **Generación de documentos:** [generador_dictamen.py](generador_dictamen.py), [DictamenPDF.py](DictamenPDF.py), [plantillaPDF.py](plantillaPDF.py)
+- **Gestión de folios:** [folio_manager.py](folio_manager.py)
+- **Etiquetas:** [etiqueta_dictamen.py](etiqueta_dictamen.py)
+- **Data y configuraciones:** carpeta `data/` (JSONs: `Clientes.json`, `Firmas.json`, `folio_counter.json`, etc.)
+
+## Requisitos
+
+- Python 3.11+ (probado con Python 3.13 en este entorno)
+- Instalar dependencias:
+
+```bash
+python -m pip install -r requirements.txt
+```
+
+- Herramientas auxiliares:
+  - `build_exe.bat` / `build_exe.ps1` para crear ejecutables (pyinstaller/auto). Ver [Sistema_Generador_Documentos_VC.spec](Sistema_Generador_Documentos_VC.spec).
+
+Comprueba el archivo `requirements.txt` para versiones detalladas de librerías necesarias.
+
+## Estructura principal y responsabilidades de archivos
+
+- `app.py` — Punto de arranque. Inicializa la aplicación (CLI/GUI según implementación) y coordina la ejecución.
+- `generador_dictamen.py` — Lógica de composición de contenido (reúne datos, estructura el documento antes de renderizar en PDF).
+- `DictamenPDF.py` — Funciones y utilidades para producir el PDF final, llamadas a `plantillaPDF.py` y a librerías de PDF.
+- `plantillaPDF.py` — Plantillas y layout (coloca texto, imágenes, firmas, tablas).
+- `folio_manager.py` — Asigna y registra folios (lee/escribe `data/folio_counter.json` y `data/pending_folios.json`).
+- `etiqueta_dictamen.py` — Genera etiquetas/pegatinas para documentación impresa o pegado de evidencia.
+- Carpeta `Documentos Inspeccion/` — Tipos específicos de documentos (Acta, Constancia, Negación, Formatos de supervisión). Cada archivo implementa una variante del documento.
+- Carpeta `Pegado de Evidenvia Fotografica/` — Herramientas para pegar imágenes e índices en documentos.
+
+## Archivos de datos importantes (carpeta `data/`)
+
+- `Clientes.json` — Datos de clientes.
+- `Firmas.json` — Plantillas/archivos de firmas digitales o referencias de imagen.
+- `folio_counter.json` — Contador central de folios usado por `folio_manager.py`.
+- `historial_visitas.json` — Registro histórico de operaciones/visitas.
+- `pending_folios.json` — Folios pendientes por procesar.
+
+Los módulos leen y escriben estas fuentes JSON para persistir estado y configuraciones.
+
+## Flujo general (resumen)
+
+1. El usuario ejecuta [app.py](app.py) o un script específico.
+2. La UI/CLI solicita datos (o lee un JSON de entrada) y selecciona el tipo de documento.
+3. `folio_manager.py` asigna un folio disponible y actualiza `data/folio_counter.json`.
+4. `generador_dictamen.py` compone el contenido del documento usando los datos de `data/` y las plantillas.
+5. `DictamenPDF.py` y `plantillaPDF.py` renderizan el PDF final y lo guardan en `data/Dictamenes/` o en la carpeta configurada.
+6. Si corresponde, `etiqueta_dictamen.py` produce una etiqueta y la guarda en `etiquetas_generadas/`.
+
+## Diagrama de alto nivel
+
+Diagrama ASCII (módulos y flujo de datos):
+
+```
+     [Usuario]
+         |
+         v
+      [app.py]
+         |
+   +-----+-----+
+   |           |
+   v           v
+ [folio_manager]  [generador_dictamen]
+   |                |
+   |                v
+   |           [plantillaPDF.py]
+   |                |
+   v                v
+ [data/folio_counter.json]  [DictamenPDF.py] ---> data/Dictamenes/*.pdf
+                         |
+                         v
+                 [etiqueta_dictamen.py] -> etiquetas_generadas/
+```
+
+Secuencia de lectura/escritura con los JSON:
+
+- `folio_manager.py`: lee/escribe `data/folio_counter.json`, actualiza `pending_folios.json`.
+- `generador_dictamen.py`: lee `Clientes.json`, `Firmas.json`, `excel_export_data.json` (si aplica) y fusiona datos.
+- `DictamenPDF.py`/`plantillaPDF.py`: consumen la estructura final y generan archivos PDF.
+
+## Diagrama de componentes (texto)
+
+- Interfaz (app.py)
+  - Controlador: decide qué generador llamar
+- Servicios
+  - Folio (folio_manager)
+  - Generación (generador_dictamen)
+  - Plantillas/PDF (plantillaPDF, DictamenPDF)
+  - Etiquetas (etiqueta_dictamen)
+  - Pegado de evidencia (Pegado de Evidenvia Fotografica/)
+- Persistencia
+  - JSONs en `data/`
+  - Carpetas de salida: `data/Dictamenes/`, `etiquetas_generadas/`, `etiquetas_generadas/`
+
+## Ejecución rápida
+
+1. Crear entorno virtual (recomendado):
+
+```bash
+python -m venv .venv
+source .venv/Scripts/activate   # Windows: .venv\\Scripts\\activate
+python -m pip install -r requirements.txt
+```
+
+2. Ejecutar la aplicación (modo desarrollo):
+
+```bash
+python app.py
+```
+
+3. Para construir un ejecutable (Windows):
+
+```powershell
+.\\build_exe.bat
+```
+
+## Ejemplo de caso de uso
+
+- Generar un dictamen nuevo:
+  1. Ejecutar `app.py`.
+  2. Ingresar o seleccionar cliente.
+  3. Seleccionar tipo de documento (ej. Dictamen).
+  4. El sistema solicita/valida datos, asigna folio y genera el PDF en `data/Dictamenes/`.
+
+## Notas de integración / cómo se comunican los archivos
+
+- Comunicación entre módulos se realiza por llamadas a funciones (imports locales) y por persistencia en JSON para conservar estado entre ejecuciones.
+- Para añadir un nuevo tipo de documento, crear un archivo en `Documentos Inspeccion/` que exponga una función de generación que acepte los datos requeridos y devuelva la estructura que `DictamenPDF.py` pueda renderizar.
+
+## Buenas prácticas para mantener el sistema
+
+- Respaldar `data/folio_counter.json` antes de operaciones masivas.
+- Versionar los `Clientes.json` y `Firmas.json` si se realizan cambios manuales.
+- Mantener `requirements.txt` actualizado.
+
+## Dónde leer el código relevante
+
+- Punto de entrada: [app.py](app.py)
+- Generación: [generador_dictamen.py](generador_dictamen.py)
+- PDF / Plantilla: [DictamenPDF.py](DictamenPDF.py), [plantillaPDF.py](plantillaPDF.py)
+- Folios: [folio_manager.py](folio_manager.py)
+
+## Próximos pasos sugeridos
+
+- Documento de API interna (opcional): describir funciones públicas de `generador_dictamen.py` y `DictamenPDF.py` con firmas.
+- Añadir diagramas gráficos (PlantUML/Mermaid) en la documentación si se desea visualización más rica.
+
+---
+
+Si quieres, puedo:
+
+- Ajustar el README con diagramas PlantUML/Mermaid.
+- Extraer y documentar las funciones públicas de los módulos clave.
+- Generar un diagrama en formato PNG/SVG para incluir en la documentación.
 # Generador de Dictámenes con Etiquetas Integradas
 
 Sistema completo para generar documentos en PDF con etiquetas visuales automáticas.
