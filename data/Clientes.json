@@ -112,9 +112,8 @@
   },
   {
     "RFC": "IBB060425DI8",
-    "CLIENTE": "SEAL AND FOAM DE MEXICO S. DE R.L. DE C.V.",
-    "NÚMERO_DE_CONTRATO": "22049UCS000004",
-    "FECHA_DE_CONTRATO": "29/03/2022",
+    "CLIENTE": "IMPORTADORA BBBMEX S. DE R.L. DE C.V.",
+    "NÚMERO_DE_CONTRATO": "",
     "ACTIVIDAD": "ACTIVO",
     "CURP": "",
     "DIRECCIONES": [
@@ -123,7 +122,7 @@
         "COLONIA O POBLACION": "LA ERA",
         "MUNICIPIO O ALCADIA": "TEOLOYUCAN",
         "CIUDAD O ESTADO": "Estado de México",
-        "CP": 54786,
+        "CP": "54786",
         "SERVICIO": "DICTAMEN"
       }
     ]

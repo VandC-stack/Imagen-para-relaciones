@@ -40,6 +40,8 @@ SET ADD2=--add-data "Documentos Inspeccion;Documentos Inspeccion"
 SET ADD3=--add-data "Pegado de Evidenvia Fotografica;Pegado de Evidenvia Fotografica"
 SET ADD4=--add-data "Firmas;Firmas"
 SET ADD5=--add-data "img;img"
+
+SET ADD7=--add-data "data\tabla_de_relacion.json;data\tabla_de_relacion.json"
 REM Detectar automáticamente la DLL de Python usada por el intérprete y agregarla al bundle
 FOR /F "usebackq delims=" %%p IN (`py -c "import sys,os; print(os.path.join(os.path.dirname(sys.executable), f'python{sys.version_info.major}{sys.version_info.minor}.dll'))"`) DO SET PY_DLL=%%p
 IF EXIST "%PY_DLL%" (
@@ -67,7 +69,17 @@ IF "%WINDOWED%"=="1" (
 
 REM Run PyInstaller using the same Python interpreter (py launcher)
 echo Building %EXE_NAME% (%MODE_FLAG%, %WINDOW_FLAG%) ...
-py -m PyInstaller --noconfirm %MODE_FLAG% %WINDOW_FLAG% --icon "img\icono.ico" --name %EXE_NAME% %HIDDEN_IMPORTS% %ADD1% %ADD2% %ADD3% %ADD4% %ADD5% %ADD6% %ADD7% %MAIN%
+REM Ensure script runs from its own directory so relative paths work
+pushd "%~dp0" >nul
+
+REM Allow user to pass extra --add-data entries via environment variable EXTRA_ADDS
+IF NOT DEFINED EXTRA_ADDS SET EXTRA_ADDS=
+
+REM Run PyInstaller with quoted arguments to handle spaces
+py -m PyInstaller --noconfirm %MODE_FLAG% %WINDOW_FLAG% --icon "img\icono.ico" --name "%EXE_NAME%" %HIDDEN_IMPORTS% %ADD1% %ADD2% %ADD3% %ADD4% %ADD5% %ADD6% %ADD7% %ADD8% %EXTRA_ADDS% "%MAIN%"
+
+REM Restore original directory
+popd >nul
 
 echo.
 echo Build finished. Review the "dist\%EXE_NAME%" folder (for --onedir) or "dist\%EXE_NAME%.exe" (for --onefile).
