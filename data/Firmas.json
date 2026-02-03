@@ -162,11 +162,10 @@
   {
     "NOMBRE DE INSPECTOR": "Arturo Ivan Cortes Flores",
     "CORREO": "ivan.cortes@vyc.com.mx",
+    "IMAGEN": "Firmas/ICORTES.png",
     "FIRMA": "ICORTES",
     "Puesto": "Inspector",
     "VIGENCIA": "INDEFINIDA",
-    "Fecha de acreditación": "2024-10-10T00:00:00",
-    "Referencia": "24UI4399",
     "Normas acreditadas": [
       "NOM-004-SE-2021",
       "NOM-015-SCFI-2007",
@@ -175,7 +174,9 @@
       "NOM-050-SCFI-2004",
       "NOM-051-SCFI/SSA1-2010",
       "NOM-141-SSA1/SCFI-2012"
-    ]
+    ],
+    "Referencia": "24UI4399",
+    "Fecha de acreditación": "2024-10-10T00:00:00"
   },
   {
     "NOMBRE DE INSPECTOR": "Brayan Arano Chontal",

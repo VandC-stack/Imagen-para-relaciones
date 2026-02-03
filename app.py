@@ -5226,39 +5226,6 @@ class SistemaDictamenesVC(ctk.CTk):
                 except Exception:
                     mod = None
 
-                # --- Diagnostic logging: write basic state to constancia_debug.log and Desktop ---
-                try:
-                    dbg_lines = []
-                    dbg_lines.append(f"[{datetime.now().isoformat()}] START CONSTANCIA DIAG")
-                    dbg_lines.append(f"BASE_DIR={BASE_DIR}")
-                    dbg_lines.append(f"APP_DIR={APP_DIR}")
-                    dbg_lines.append(f"DATA_DIR={DATA_DIR}")
-                    dbg_lines.append(f"const_file={const_file}")
-                    dbg_lines.append(f"const_file_exists={os.path.exists(const_file)}")
-                    dbg_lines.append(f"mod_loaded={'yes' if mod is not None else 'no'}")
-                    # write to DATA_DIR log
-                    try:
-                        os.makedirs(DATA_DIR, exist_ok=True)
-                        log_path = os.path.join(DATA_DIR, 'constancia_debug.log')
-                        with open(log_path, 'a', encoding='utf-8') as lf:
-                            for L in dbg_lines:
-                                lf.write(L + '\n')
-                            lf.write('\n')
-                    except Exception:
-                        pass
-                    # also try to write a short file to the Desktop so it's easy to find
-                    try:
-                        desktop = os.path.join(os.path.expanduser('~'), 'Desktop')
-                        dpath = os.path.join(desktop, 'constancia_runtime_debug.txt')
-                        with open(dpath, 'a', encoding='utf-8') as df:
-                            for L in dbg_lines:
-                                df.write(L + '\n')
-                            df.write('\n')
-                    except Exception:
-                        pass
-                except Exception:
-                    pass
-
                 created = []
                 errores = []
                 try:
@@ -5305,53 +5272,6 @@ class SistemaDictamenesVC(ctk.CTk):
                         limpiar_nombre = lambda n: n.replace('/', '_')
 
                     ConstGen = getattr(mod, 'ConstanciaPDFGenerator', None) if mod is not None else None
-
-                    # Additional diagnostics: log presence of ConstGen, tabla_de_relacion size and resource listing
-                    try:
-                        dbg_lines = []
-                        dbg_lines.append(f"[{datetime.now().isoformat()}] PRE-GENERATION DIAG")
-                        dbg_lines.append(f"ConstGen_present={'yes' if ConstGen is not None else 'no'}")
-                        dbg_lines.append(f"mod_has_generar={'yes' if (mod is not None and hasattr(mod,'generar_constancia_desde_visita')) else 'no'}")
-                        try:
-                            tabla_path = os.path.join(DATA_DIR, 'tabla_de_relacion.json')
-                            if os.path.exists(tabla_path):
-                                try:
-                                    with open(tabla_path, 'r', encoding='utf-8') as tf:
-                                        tdata = json.load(tf) or []
-                                except Exception:
-                                    tdata = []
-                                dbg_lines.append(f"tabla_de_relacion_exists=yes count={len(tdata)}")
-                            else:
-                                dbg_lines.append("tabla_de_relacion_exists=no")
-                        except Exception:
-                            dbg_lines.append("tabla_de_relacion_check_failed")
-
-                        try:
-                            di = os.path.join(BASE_DIR, 'Documentos Inspeccion')
-                            if os.path.exists(di):
-                                try:
-                                    items = os.listdir(di)
-                                    dbg_lines.append(f"Documentos_Inspeccion_listed={len(items)} items")
-                                    dbg_lines.append(f"Documentos_Inspeccion_sample={items[:10]}")
-                                except Exception:
-                                    dbg_lines.append("Documentos_Inspeccion_list_failed")
-                            else:
-                                dbg_lines.append("Documentos_Inspeccion_missing")
-                        except Exception:
-                            dbg_lines.append("Documentos_Inspeccion_check_failed")
-
-                        # write to DATA_DIR log
-                        try:
-                            os.makedirs(DATA_DIR, exist_ok=True)
-                            log_path = os.path.join(DATA_DIR, 'constancia_debug.log')
-                            with open(log_path, 'a', encoding='utf-8') as lf:
-                                for L in dbg_lines:
-                                    lf.write(L + '\n')
-                                lf.write('\n')
-                        except Exception:
-                            pass
-                    except Exception:
-                        pass
 
                     # Directorio para JSONs (siempre dentro de data/Constancias)
                     out_base_json = os.path.join(DATA_DIR, 'Constancias')
@@ -5528,13 +5448,13 @@ class SistemaDictamenesVC(ctk.CTk):
 
                             pdf_ok = False
                             gen_exception = None
-                           
+                            # Persistir folios para la visita ANTES de generar el PDF
                             try:
                                 if filas_grp:
                                     try:
                                         self.guardar_folios_visita(folio_vis, filas_grp, persist_counter=True)
                                     except Exception:
-                                       
+                                        # no interrumpir generación si la persistencia falla
                                         pass
                             except Exception:
                                 pass
@@ -5552,7 +5472,7 @@ class SistemaDictamenesVC(ctk.CTk):
                                         import traceback
                                         gen_exception = traceback.format_exc()
                                 else:
-                                   
+                                    # Usuario canceló selección de carpeta para PDFs -> no generar PDF
                                     pdf_ok = False
                             except Exception as e:
                                 pdf_ok = False
