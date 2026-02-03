@@ -16,23 +16,23 @@
         "tamaño_cm": "(5,5)"
     },
     "NOM-024-SCFI-2013": {
-        "campos": ["EAN", "MARCA", "DESCRIPTION", "CARACTERISTICAS", "PAIS ORIGEN", "IMPORTADOR", "IMPORTADOR"],
+        "campos": ["EAN", "MARCA", "DESCRIPTION", "CARACTERISTICAS", "PAIS ORIGEN", "IMPORTADOR"],
         "tamaño_cm": "(5,5)"
     },
     "NOM-050-SCFI-2004-1": {
-        "campos": ["EAN", "MARCA", "IMPORTADOR"],
+        "campos": ["EAN", "MARCA", "DESCRIPTION", "CONTENIDO", "IMPORTADOR"],
         "tamaño_cm": "(5,5)"
     },
     "NOM-050-SCFI-2004-2": {
-        "campos": ["EAN", "MARCA", "INSUMOS", "IMPORTADOR"],
+        "campos": ["EAN", "MARCA", "DESCRIPTION", "CONTENIDO", "INSUMOS", "IMPORTADOR"],
         "tamaño_cm": "(5,5)"
     },
     "NOM-050-SCFI-2004-3": {
-        "campos": ["EAN", "MARCA", "CONTENIDO", "IMPORTADOR"],
+        "campos": ["EAN", "MARCA", "DESCRIPTION", "CONTENIDO", "IMPORTADOR"],
         "tamaño_cm": "(5,5)"
     },
     "NOM-050-SCFI-2004-4": {
-        "campos": ["EAN", "MARCA", "CONTENIDO NETO", "IMPORTADOR"],
+        "campos": ["EAN", "MARCA", "DESCRIPTION", "CONTENIDO NETO", "IMPORTADOR"],
         "tamaño_cm": "(5,5)"
     },
     "NOM-141-SSA1 SCFI-2012": {
