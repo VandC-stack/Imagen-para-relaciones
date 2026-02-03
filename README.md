@@ -7,7 +7,7 @@ Este repositorio contiene el sistema "Sistema generador de documentos V&C", una 
 Proveer a un usuario externo (desarrollador o auditor técnico) de una visión clara del funcionamiento del sistema, los requisitos, y cómo se comunican los archivos entre sí, con diagramas y ejemplos de uso.
 
 ## Vista rápida
-
+<  >
 - **Entrada principal:** [app.py](app.py) (interfaz / punto de arranque)
 - **Generación de documentos:** [generador_dictamen.py](generador_dictamen.py), [DictamenPDF.py](DictamenPDF.py), [plantillaPDF.py](plantillaPDF.py)
 - **Gestión de folios:** [folio_manager.py](folio_manager.py)
