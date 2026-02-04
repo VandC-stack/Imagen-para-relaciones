@@ -9,7 +9,6 @@ import customtkinter as ctk
 from tkinter import filedialog, messagebox, simpledialog
 from tkinter import ttk
 import tkinter as tk
-import tkinter as tk
 import tkinter.font as tkfont
 import threading
 import subprocess
