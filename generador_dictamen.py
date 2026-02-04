@@ -1039,16 +1039,8 @@ def detectar_flujo_cliente(cliente_nombre, norma_nombre=""):
     Detecta automáticamente qué flujo debe usar el cliente.
     Retorna: 'evidencia', 'etiqueta', 'mixto', o 'etiqueta' (default)
     """
-    import re
     cliente_upper = str(cliente_nombre).upper().strip()
     norma_upper = str(norma_nombre).upper().strip()
-
-    # Normalizador: eliminar todo lo que no sea A-Z o 0-9 para comparaciones robustas
-    def _norm_key(s: str) -> str:
-        try:
-            return re.sub(r'[^A-Z0-9]', '', str(s or '').upper())
-        except Exception:
-            return str(s or '').upper()
     
     # ─────────────────────────────────────────────
     # CLIENTES QUE PEGAN ETIQUETAS (EXCEPCIONES)
@@ -1057,32 +1049,22 @@ def detectar_flujo_cliente(cliente_nombre, norma_nombre=""):
     # salvo los listados aquí. Añadimos la regla especial de ULTA.
     CLIENTES_ETIQUETA = {
         "ARTICULOS DEPORTIVOS DECATHLON SA DE CV",
-        "FERRAGAMO MEXICO S. DE R.L. DE C.V.",
-        "ULTA BEAUTY S.A.P.I. DE C.V.",
+        "FERRAGAMO MEXICO S DE RL DE CV",
+        "ULTA BEAUTY SAPI DE CV",
     }
-
-    # normalized set for robust membership checks
-    try:
-        CLIENTES_ETIQUETA_NORM = set(_norm_key(x) for x in CLIENTES_ETIQUETA)
-    except Exception:
-        CLIENTES_ETIQUETA_NORM = set(_norm_key(x) for x in CLIENTES_ETIQUETA)
     
     # ─────────────────────────────────────────────
     # ULTA BEAUTY: MIXTO PARA NOM-024, ETIQUETA PARA OTRAS
     # ─────────────────────────────────────────────
-    if "ULTA BEAUTY" in cliente_upper or _norm_key(cliente_upper).find('ULTABEAUTY') != -1:
+    if "ULTA BEAUTY" in cliente_upper:
         if "NOM-024" in norma_upper:
             return "mixto"
         else:
             return "etiqueta"
 
-    # Si está en la lista de etiquetas -> modo etiqueta (comparación normalizada)
-    try:
-        if _norm_key(cliente_upper) in CLIENTES_ETIQUETA_NORM:
-            return "etiqueta"
-    except Exception:
-        if cliente_upper in CLIENTES_ETIQUETA:
-            return "etiqueta"
+    # Si está en la lista de etiquetas -> modo etiqueta
+    if cliente_upper in CLIENTES_ETIQUETA:
+        return "etiqueta"
 
     # Por defecto todos los demás clientes usan modo evidencia
     return "evidencia"
