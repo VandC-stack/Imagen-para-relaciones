@@ -1039,34 +1039,44 @@ def detectar_flujo_cliente(cliente_nombre, norma_nombre=""):
     Detecta automáticamente qué flujo debe usar el cliente.
     Retorna: 'evidencia', 'etiqueta', 'mixto', o 'etiqueta' (default)
     """
-    cliente_upper = str(cliente_nombre).upper().strip()
-    norma_upper = str(norma_nombre).upper().strip()
-    
-    # ─────────────────────────────────────────────
-    # CLIENTES QUE PEGAN ETIQUETAS (EXCEPCIONES)
-    # ─────────────────────────────────────────────
-    # Todos los clientes se tratan como flujo de EVIDENCIA por defecto,
-    # salvo los listados aquí. Añadimos la regla especial de ULTA.
-    CLIENTES_ETIQUETA = {
-        "ARTICULOS DEPORTIVOS DECATHLON SA DE CV",
-        "FERRAGAMO MEXICO S DE RL DE CV",
-        "ULTA BEAUTY SAPI DE CV",
-    }
-    
-    # ─────────────────────────────────────────────
-    # ULTA BEAUTY: MIXTO PARA NOM-024, ETIQUETA PARA OTRAS
-    # ─────────────────────────────────────────────
-    if "ULTA BEAUTY" in cliente_upper:
-        if "NOM-024" in norma_upper:
-            return "mixto"
-        else:
-            return "etiqueta"
+    import re
 
-    # Si está en la lista de etiquetas -> modo etiqueta
-    if cliente_upper in CLIENTES_ETIQUETA:
+    cliente_raw = str(cliente_nombre or "").strip()
+    cliente_upper = cliente_raw.upper()
+    norma_upper = str(norma_nombre or "").upper().strip()
+
+    # Normalizar: quitar puntuación común y reducir espacios para permitir
+    # coincidencias parciales (p.ej. 'FERRAGAMO', 'FERRAGAMO MEXICO S DE RL')
+    cliente_norm = re.sub(r"[\.\,\&\-/()\'\"]", " ", cliente_upper)
+    cliente_norm = re.sub(r"\s+", " ", cliente_norm).strip()
+
+    # Clientes que requieren subir una "base de etiquetado" y luego pegar
+    CLIENTES_BASE_ETIQUETADO = {
+        "FERRAGAMO",
+    }
+
+    # Clientes que simplemente usan modo etiqueta (pegado directo)
+    CLIENTES_ETIQUETA = {
+        "ARTICULOS DEPORTIVOS DECATHLON",
+        "ULTA BEAUTY",
+    }
+
+    # ULTA BEAUTY: MIXTO para NOM-024, etiqueta para otras normas
+    if "ULTA BEAUTY" in cliente_norm:
+        if "024" in norma_upper or "NOM-024" in norma_upper:
+            return "mixto"
         return "etiqueta"
 
-    # Por defecto todos los demás clientes usan modo evidencia
+    # Buscar coincidencias parciales en cliente_norm
+    for name in CLIENTES_BASE_ETIQUETADO:
+        if name in cliente_norm:
+            return "base_etiquetado"
+
+    for name in CLIENTES_ETIQUETA:
+        if name in cliente_norm:
+            return "etiqueta"
+
+    # Por defecto: evidencia
     return "evidencia"
 
 def generar_dictamenes_completos(directorio_destino, cliente_manual=None, rfc_manual=None):
@@ -1134,38 +1144,35 @@ def generar_dictamenes_completos(directorio_destino, cliente_manual=None, rfc_ma
         index = {}
         total = 0
         for grp, lst in (cfg or {}).items():
-            for carpeta in lst:
-                try:
-                    for root, _, files in os.walk(carpeta):
-                            for nombre in files:
-                                base, ext = os.path.splitext(nombre)
-                                if ext.lower() not in IMG_EXTS:
-                                    continue
-                                path = os.path.join(root, nombre)
-                                # Extraer core del nombre eliminando sufijos tipo ' (2)', '-2', '_2'
-                                try:
-                                    import re
-                                    core = re.sub(r"[\s\-_]*\(\s*\d+\s*\)$", "", base)
-                                    core = re.sub(r"[\s\-_]+\d+$", "", core)
-                                except Exception:
-                                    core = base
-                                key = _normalizar(core)
-                                if not key:
-                                    continue
-                                index.setdefault(key, []).append(path)
-                                # Además indexar por el nombre de la carpeta padre normalizado.
-                                try:
-                                    parent = os.path.basename(root or "")
-                                    parent_core = re.sub(r"[\s\-_]*\(\s*\d+\s*\)$", "", parent)
-                                    parent_core = re.sub(r"[\s\-_]+\d+$", "", parent_core)
-                                    parent_key = _normalizar(parent_core)
-                                    if parent_key and parent_key != key:
-                                        index.setdefault(parent_key, []).append(path)
-                                except Exception:
-                                    pass
+            try:
+                for carpeta in lst or []:
+                    try:
+                        if not carpeta:
+                            continue
+                        carpeta_abs = os.path.abspath(carpeta)
+                        # Si la carpeta no existe, saltar
+                        if not os.path.exists(carpeta_abs):
+                            continue
+                        # Listar archivos en la carpeta (no recorrer subdirectorios profundos)
+                        try:
+                            entradas = os.listdir(carpeta_abs)
+                        except Exception:
+                            entradas = []
+                        for nombre in entradas:
+                            ruta = os.path.join(carpeta_abs, nombre)
+                            if os.path.isdir(ruta):
+                                # Añadir carpeta completa al índice bajo la clave del grupo
+                                index.setdefault(grp, []).append(ruta)
                                 total += 1
-                except Exception:
-                    continue
+                            else:
+                                ext = os.path.splitext(nombre)[1].lower()
+                                if ext in IMG_EXTS:
+                                    index.setdefault(grp, []).append(ruta)
+                                    total += 1
+                    except Exception:
+                        continue
+            except Exception:
+                continue
         return index, total
 
     # Evitar recorrer todo el árbol de evidencias; usaremos búsquedas determinísticas
