@@ -7317,7 +7317,7 @@ class SistemaDictamenesVC(ctk.CTk):
         # Crear ventana modal
         modal = ctk.CTkToplevel(self)
         modal.title("Descargar Documentos")
-        modal.geometry("750x400")
+        modal.geometry("750x600")
         modal.transient(self)
         modal.grab_set()
         
@@ -7547,6 +7547,135 @@ class SistemaDictamenesVC(ctk.CTk):
                 # Importar dinámicamente y generar según tipo
                 try:
                     import importlib.util
+                    # --- Generador especial: Reporte Decathlon ---
+                    if tipo == 'decathlon':
+                        # Generar y guardar automáticamente en data/Reportes_Decathlon
+                        folio = registro.get('folio_visita', '')
+                        if not folio:
+                            messagebox.showwarning('Error', 'No se encontró el folio de la visita para generar el reporte Decathlon.')
+                            return
+
+                        # Buscar backup de tabla_relacion correspondiente al folio
+                        tabla_relacion_data = None
+                        try:
+                            if os.path.exists(backups_dir):
+                                archivos = [os.path.join(backups_dir, f) for f in os.listdir(backups_dir) if f.lower().endswith('.json')]
+                                # Prefer files that contain the folio identifier (CP...)
+                                matched = [a for a in archivos if folio in os.path.basename(a)]
+                                src = None
+                                if matched:
+                                    src = max(matched, key=os.path.getmtime)
+                                elif archivos:
+                                    src = max(archivos, key=os.path.getmtime)
+                                if src:
+                                    with open(src, 'r', encoding='utf-8') as tf:
+                                        try:
+                                            tabla_relacion_data = json.load(tf)
+                                        except Exception:
+                                            tabla_relacion_data = None
+                        except Exception:
+                            tabla_relacion_data = None
+
+                        # Ensure reports dir exists
+                        reports_dir = os.path.join(data_dir_local, 'Reportes_Decathlon')
+                        try:
+                            os.makedirs(reports_dir, exist_ok=True)
+                        except Exception:
+                            pass
+
+                        output_name = f"Reporte_Decathlon_{folio}.pdf"
+                        output_path = os.path.join(reports_dir, output_name)
+
+                        # Cargar módulo Reporte_Decathlon
+                        rep_file = os.path.join(BASE_DIR, 'Documentos Inspeccion', 'Reporte_Decathlon.py')
+                        if not os.path.exists(rep_file):
+                            messagebox.showerror('Error', f'No se encontró el generador de reportes: {rep_file}')
+                            return
+                        spec_rep = importlib.util.spec_from_file_location('Reporte_Decathlon', rep_file)
+                        if spec_rep is None or getattr(spec_rep, 'loader', None) is None:
+                            messagebox.showerror('Error', f'No se pudo cargar el módulo Reporte_Decathlon (spec inválido): {rep_file}')
+                            return
+                        rep_mod = importlib.util.module_from_spec(spec_rep)
+                        import sys as _sys
+                        _sys.modules['Reporte_Decathlon'] = rep_mod
+                        spec_rep.loader.exec_module(rep_mod)
+
+                        # Llamar al generador
+                        try:
+                            # Si el usuario seleccionó una ruta en el diálogo, usaremos esa ruta como salida final
+                            ruta_usuario = save_path if save_path else output_path
+
+                            rep_mod.generar_reporte_decathlon(
+                                nombre_cliente=registro.get('cliente',''),
+                                folio_inspeccion=registro.get('folio_visita',''),
+                                fecha_inspeccion=registro.get('fecha_termino') or registro.get('fecha_inicio') or datetime.now().strftime('%Y-%m-%d'),
+                                tabla_relacion=tabla_relacion_data,
+                                lista_equipos=None,
+                                observaciones_generales=registro.get('observaciones',''),
+                                ruta_guardado=ruta_usuario,
+                                folio_visita=registro.get('folio_visita',''),
+                                destinatario=registro.get('destinatario') or 'Diana Cumpean'
+                            )
+                            # No crear copia PDF en carpeta local (solo guardamos el JSON con metadatos)
+                        except Exception as e:
+                            messagebox.showerror('Error', f'Error generando Reporte Decathlon:\n{e}')
+                            return
+
+                        # Guardar JSON meta en carpeta local de Reportes_Decathlon
+                        try:
+                            # Construir JSON reducido con solo los datos impresos
+                            fecha_verif = None
+                            printed_rows = []
+                            if isinstance(tabla_relacion_data, list):
+                                seen = {}
+                                order = []
+                                for item in tabla_relacion_data:
+                                    if fecha_verif is None:
+                                        fecha_verif = item.get('FECHA DE VERIFICACION') or item.get('Fecha de Verificacion') or item.get('FECHA_VERIFICACION')
+                                    sol = item.get('SOLICITUD') or item.get('Solicitud') or item.get('solicitud') or ''
+                                    fol = item.get('FOLIO') or item.get('folio') or item.get('Folio') or ''
+                                    ped = item.get('PEDIMENTO') or item.get('pedimento') or item.get('Referencia') or item.get('referencia') or ''
+                                    key = str(fol)
+                                    if key not in seen:
+                                        seen[key] = {'SOLICITUD': sol, 'FOLIO': fol, 'PEDIMENTO': ped}
+                                        order.append(key)
+                                for k in order:
+                                    printed_rows.append(seen[k])
+
+                            meta = {
+                                'generado_en': datetime.now().isoformat(),
+                                'archivo_usuario': ruta_usuario,
+                                'folio_visita': folio,
+                                'cliente': registro.get('cliente',''),
+                                'destinatario': registro.get('destinatario') or 'Diana Cumpean',
+                                'fecha_verificacion': fecha_verif,
+                                'observaciones': registro.get('observaciones',''),
+                                'dictamenes_impresos': printed_rows
+                            }
+                            json_path = os.path.join(reports_dir, f"Reporte_Decathlon_{folio}.json")
+                            with open(json_path, 'w', encoding='utf-8') as jf:
+                                json.dump(meta, jf, ensure_ascii=False, indent=2)
+                        except Exception:
+                            json_path = None
+
+                        # Persistir ruta en historial (usar ruta de usuario si existe)
+                        try:
+                            for v in self.historial.get('visitas', []):
+                                if v.get('folio_visita') == folio:
+                                    v['ruta_reporte_decathlon'] = ruta_usuario
+                                    if json_path:
+                                        v['ruta_reporte_decathlon_meta'] = json_path
+                                    break
+                            self._guardar_historial()
+                        except Exception:
+                            pass
+
+                        # Informar al usuario rutas generadas
+                        info_msg = f'Reporte guardado en:\n{ruta_usuario}'
+                        if json_path:
+                            info_msg += f"\nCopia y metadatos locales: {json_path}"
+                        messagebox.showinfo('Reporte Decathlon generado', info_msg)
+                        return
                     if tipo == 'formato':
                         formato_file = os.path.join(BASE_DIR, 'Documentos Inspeccion', 'Formato_supervision.py')
                         if not os.path.exists(formato_file):
@@ -7864,6 +7993,25 @@ class SistemaDictamenesVC(ctk.CTk):
         # Frame para botón cerrar
         footer_frame = ctk.CTkFrame(main_frame, fg_color="transparent")
         footer_frame.pack(fill="x", pady=(20, 0))
+
+        # --- Tile especial: Reporte Decathlon (solo para cliente Decathlon) ---
+        try:
+            if registro.get('cliente','').strip().upper() == 'ARTICULOS DEPORTIVOS DECATHLON SA DE CV'.upper():
+                # Colocar en una fila nueva dentro de documentos_frame para que sea visible debajo de los 3 tiles
+                try:
+                    dec_frame = ctk.CTkFrame(documentos_frame, fg_color=STYLE["surface"], border_width=1, border_color=STYLE["borde"], corner_radius=10)
+                    # Grid en fila 1 y ocupar las 3 columnas
+                    dec_frame.grid(row=1, column=0, columnspan=3, padx=10, pady=(12,0), sticky='nsew')
+                    # Contenido centrado
+                    ctk.CTkLabel(dec_frame, text="📄", font=("Inter", 36), text_color=STYLE["primario"]).pack(pady=(8,4))
+                    ctk.CTkLabel(dec_frame, text="REPORTE DECATHLON", font=("Inter", 14, "bold"), text_color=STYLE["texto_oscuro"]).pack()
+                    ctk.CTkLabel(dec_frame, text="Reporte específico para Decathlon", font=("Inter", 10), text_color=STYLE["texto_oscuro"], wraplength=520, justify='center').pack(pady=(6,8), padx=10)
+                    btn_dec = ctk.CTkButton(dec_frame, text="Descargar", command=lambda: descargar_documento('decathlon', 'Reporte Decathlon'), font=("Inter",12,"bold"), fg_color=STYLE['secundario'], hover_color="#1a1a1a", text_color=STYLE['texto_claro'], height=36, corner_radius=6)
+                    btn_dec.pack(pady=(0,12), padx=120)
+                except Exception:
+                    pass
+        except Exception:
+            pass
         
     def guardar_folios_visita(self, folio_visita, datos_tabla, persist_counter=True):
         """Guarda los folios de una visita en un archivo JSON con formato 6 dígitos.
