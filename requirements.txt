@@ -11,3 +11,4 @@ reportlab
 Pillow
 pyxlsb
 pymupdf
+PyPDF2

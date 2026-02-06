@@ -1,3 +1,60 @@
 {
-  "operaciones": []
+  "operaciones": [
+    {
+      "timestamp": "2026-02-05T12:49:18.967180",
+      "tipo": "eliminar_registro",
+      "folio": "CP000001",
+      "status": "exitosa",
+      "detalles": "Archivos: 12, Errores: 0"
+    },
+    {
+      "timestamp": "2026-02-05T13:27:08.625779",
+      "tipo": "eliminar_registro",
+      "folio": "CP000001",
+      "status": "exitosa",
+      "detalles": "Archivos: 36, Errores: 0"
+    },
+    {
+      "timestamp": "2026-02-05T16:40:59.212744",
+      "tipo": "eliminar_registro",
+      "folio": "CP000001",
+      "status": "exitosa",
+      "detalles": "Archivos: 17, Errores: 0"
+    },
+    {
+      "timestamp": "2026-02-05T16:41:01.050613",
+      "tipo": "eliminar_registro",
+      "folio": "CP000002",
+      "status": "exitosa",
+      "detalles": "Archivos: 9, Errores: 0"
+    },
+    {
+      "timestamp": "2026-02-06T10:26:59.519492",
+      "tipo": "eliminar_registro",
+      "folio": "CP000001",
+      "status": "exitosa",
+      "detalles": "Archivos: 18, Errores: 0"
+    },
+    {
+      "timestamp": "2026-02-06T16:43:37.825313",
+      "tipo": "eliminar_registro",
+      "folio": "CP000003",
+      "status": "exitosa",
+      "detalles": "Archivos: 67, Errores: 0"
+    },
+    {
+      "timestamp": "2026-02-06T17:55:38.006723",
+      "tipo": "eliminar_registro",
+      "folio": "CP000002",
+      "status": "exitosa",
+      "detalles": "Archivos: 25, Errores: 0"
+    },
+    {
+      "timestamp": "2026-02-06T17:55:40.618252",
+      "tipo": "eliminar_registro",
+      "folio": "CP000001",
+      "status": "exitosa",
+      "detalles": "Archivos: 6, Errores: 0"
+    }
+  ]
 }

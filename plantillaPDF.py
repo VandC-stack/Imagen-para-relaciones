@@ -22,7 +22,21 @@ def obtener_ruta_recurso(ruta_relativa):
     except Exception:
         # Si no existe _MEIPASS, estamos corriendo como .py normal
         ruta_base = os.path.abspath(".")
-    
+
+    # Si el usuario o la app definieron un directorio de datos, comprobarlo primero
+    try:
+        env_data = os.environ.get('IMAGENESVC_DATA_DIR') or os.environ.get('FOLIO_DATA_DIR')
+        if env_data:
+            # Si la ruta relativa empieza por 'data/', ajustamos la cola
+            tail = ruta_relativa
+            if ruta_relativa.startswith('data' + os.path.sep) or ruta_relativa.startswith('data/'):
+                tail = ruta_relativa.split(os.path.sep, 1)[-1] if os.path.sep in ruta_relativa else ruta_relativa.split('/', 1)[-1]
+            candidate = os.path.join(env_data, tail)
+            if os.path.exists(candidate):
+                return candidate
+    except Exception:
+        pass
+
     # Preferir carpeta `data` ubicada junto al ejecutable (APP_DIR) si existe.
     try:
         if getattr(sys, 'frozen', False):
@@ -30,9 +44,15 @@ def obtener_ruta_recurso(ruta_relativa):
         else:
             app_dir = os.path.abspath(".")
 
-        posible_externo = os.path.join(app_dir, ruta_relativa)
-        if os.path.exists(posible_externo):
-            return posible_externo
+        candidates = [
+            os.path.join(app_dir, ruta_relativa),
+            os.path.join(app_dir, '_internal', ruta_relativa),
+            os.path.join(ruta_base, ruta_relativa),
+            os.path.join(ruta_base, '_internal', ruta_relativa),
+        ]
+        for p in candidates:
+            if os.path.exists(p):
+                return p
     except Exception:
         pass
 
@@ -242,15 +262,31 @@ def validar_acreditacion_inspector(codigo_firma, norma_requerida, firmas_map):
         import re
         nums = re.findall(r"\d+", req) if req else []
         for na in normas_norm:
-            # coincidencia por substring
-            if req and req in na:
+            # coincidencia exacta
+            if req and req == na:
+                print(f"   ✅ Firma validada: {nombre} - {norma_requerida} == {na}")
+                return nombre, imagen, True
+
+            # coincidencia por substring (solo si la cadena de búsqueda es significativa)
+            if req and len(req) > 3 and req in na:
                 print(f"   ✅ Firma validada por substring: {nombre} - {norma_requerida} ~ {na}")
                 return nombre, imagen, True
-            # coincidencia por número (ej: '141' dentro de 'NOM-141-...')
-            for n in nums:
-                if n and n in na:
-                    print(f"   ✅ Firma validada por número: {nombre} - {norma_requerida} ~ {na}")
-                    return nombre, imagen, True
+
+            # coincidencia por número: comparar tokens numéricos completos para evitar
+            # que '4' coincida dentro de '141'. Normalizamos eliminando ceros a la izquierda.
+            try:
+                nums_na = re.findall(r"\d+", na) if na else []
+                for n in nums:
+                    if not n:
+                        continue
+                    n_norm = n.lstrip('0') or '0'
+                    for m in nums_na:
+                        m_norm = m.lstrip('0') or '0'
+                        if n_norm == m_norm:
+                            print(f"   ✅ Firma validada por número: {nombre} - {norma_requerida} ~ {na}")
+                            return nombre, imagen, True
+            except Exception:
+                pass
     except Exception:
         pass
 

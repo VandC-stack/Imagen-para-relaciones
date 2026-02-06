@@ -24,19 +24,29 @@ def _get_paths() -> Tuple[str, str]:
     """
     candidates = []
     # 1) env override
-    env_dir = os.environ.get("FOLIO_DATA_DIR")
+    env_dir = os.environ.get("FOLIO_DATA_DIR") or os.environ.get('IMAGENESVC_DATA_DIR')
     if env_dir:
         candidates.append(env_dir)
 
-    # 2) when frozen, prefer folder next to the exe
+    # 2) when frozen, prefer folder next to the exe and also its _internal sibling
     try:
         if getattr(sys, "frozen", False):
             exe_dir = os.path.dirname(sys.executable)
             candidates.append(os.path.join(exe_dir, "data"))
+            candidates.append(os.path.join(exe_dir, "_internal", "data"))
     except Exception:
         pass
 
-    # 3) ascend from cwd and look for a data folder
+    # 3) consider BASE_DIR (sys._MEIPASS) and its _internal/data (when frozen)
+    try:
+        base_dir = getattr(sys, '_MEIPASS', None)
+        if base_dir:
+            candidates.append(os.path.join(base_dir, 'data'))
+            candidates.append(os.path.join(base_dir, '_internal', 'data'))
+    except Exception:
+        pass
+
+    # 4) ascend from cwd and look for a data folder
     try:
         cwd = os.path.abspath(os.getcwd())
         parts = cwd.split(os.path.sep)
@@ -46,26 +56,102 @@ def _get_paths() -> Tuple[str, str]:
     except Exception:
         pass
 
-    # 4) package-local data folder
+    # 5) package-local data folder
     candidates.append(os.path.join(os.path.dirname(__file__), "data"))
 
-    # pick the first candidate we can write to (or create)
-    for cand in candidates:
+    # Normalize candidates: only keep unique, existing or creatable paths
+    seen = set()
+    norm_cands = []
+    for c in candidates:
+        if not c:
+            continue
+        c_abs = os.path.abspath(c)
+        if c_abs in seen:
+            continue
+        seen.add(c_abs)
+        norm_cands.append(c_abs)
+
+    # Prefer candidate that contains expected data files (non-empty), score them
+    want_files = ["folio_counter.json", "historial_visitas.json", "Clientes.json"]
+    best = None
+    best_score = -1
+    # detect exe_dir to prefer the data folder next to the executable when frozen
+    exe_dir = None
+    try:
+        if getattr(sys, 'frozen', False):
+            exe_dir = os.path.dirname(sys.executable)
+    except Exception:
+        exe_dir = None
+
+    for cand in norm_cands:
         try:
             if not os.path.exists(cand):
-                # try to create
+                # try to create folder so file checks below can run
                 os.makedirs(cand, exist_ok=True)
-            if os.access(cand, os.W_OK):
-                counter = os.path.join(cand, "folio_counter.json")
-                lock = os.path.join(cand, "folio_counter.lock")
-                return counter, lock
         except Exception:
             continue
+        score = 0
+        for wf in want_files:
+            p = os.path.join(cand, wf)
+            try:
+                if os.path.exists(p) and os.path.isfile(p) and os.path.getsize(p) > 0:
+                    score += 1
+            except Exception:
+                pass
+        # small bonus if the folder is writable
+        try:
+            if os.access(cand, os.W_OK):
+                score += 0.1
+        except Exception:
+            pass
+        # big preference if this candidate is the folder next to the exe (dist\...\data)
+        try:
+            if exe_dir:
+                exe_data = os.path.abspath(os.path.join(exe_dir, 'data'))
+                if os.path.abspath(cand) == exe_data:
+                    score += 100
+        except Exception:
+            pass
+        if score > best_score:
+            best_score = score
+            best = cand
 
-    # As a last resort, use package-local path (create if necessary)
-    base = os.path.join(os.path.dirname(__file__), "data")
-    os.makedirs(base, exist_ok=True)
-    return os.path.join(base, "folio_counter.json"), os.path.join(base, "folio_counter.lock")
+    chosen = None
+    if best is not None and best_score >= 0:
+        chosen = best
+
+    # If we couldn't pick by score, fallback to first writable candidate
+    if not chosen:
+        for cand in norm_cands:
+            try:
+                if not os.path.exists(cand):
+                    os.makedirs(cand, exist_ok=True)
+                if os.access(cand, os.W_OK):
+                    chosen = cand
+                    break
+            except Exception:
+                continue
+
+    # final fallback: package-local
+    if not chosen:
+        base = os.path.join(os.path.dirname(__file__), "data")
+        try:
+            os.makedirs(base, exist_ok=True)
+        except Exception:
+            pass
+        chosen = base
+
+    # Write debug note about chosen candidate (best effort)
+    try:
+        dbg = os.path.join(chosen, 'startup_exe_debug.log')
+        with open(dbg, 'a', encoding='utf-8') as _f:
+            _f.write(f"folio_manager.chosen={chosen}\n")
+    except Exception:
+        pass
+
+    counter = os.path.join(chosen, "folio_counter.json")
+    lock = os.path.join(chosen, "folio_counter.lock")
+    return counter, lock
 
 
 def _acquire_lock(lock_path: str, timeout: float = 5.0, poll: float = 0.05) -> bool:

@@ -4,9 +4,9 @@
 a = Analysis(
     ['app.py'],
     pathex=[],
-    binaries=[],
+    binaries=[('C:\\Users\\bost2\\AppData\\Local\\Programs\\Python\\Python311\\python311.dll', '.')],
     datas=[('data', 'data'), ('Documentos Inspeccion', 'Documentos Inspeccion'), ('Pegado de Evidenvia Fotografica', 'Pegado de Evidenvia Fotografica'), ('Firmas', 'Firmas'), ('img', 'img')],
-    hiddenimports=['fitz', 'docx', 'PIL'],
+    hiddenimports=['fitz', 'docx', 'PIL', 'PyPDF2', 'reportlab'],
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],

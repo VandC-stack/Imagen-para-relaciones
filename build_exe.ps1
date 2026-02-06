@@ -15,11 +15,16 @@ try {
 
 # Build command
 $addData = @(
+    '"data;data"',
     '"Firmas;Firmas"',
     '"img;img"',
     '"Plantillas PDF;Plantillas PDF"',
     '"Documentos Inspeccion;Documentos Inspeccion"',
-    '"Otros archivos;Otros archivos"'
+    '"Pegado de Evidenvia Fotografica;Pegado de Evidenvia Fotografica"',
+    '"etiquetas_generadas;etiquetas_generadas"',
+    '"Otros archivos;Otros archivos"',
+    '"dictamenes_prueba;dictamenes_prueba"',
+    '"tools;tools"'
 ) -join ' '
 
 $iconPath = "img\icono.ico"

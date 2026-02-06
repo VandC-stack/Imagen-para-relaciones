@@ -147,10 +147,9 @@
     ]
   },
   {
-    "RFC": "GEP1202175Q6",
+    "RFC": "IBB060425DI8",
     "CLIENTE": "IMPORTADORA BBBMEX S. DE R.L. DE C.V.",
-    "NÚMERO_DE_CONTRATO": "21049UCS000003",
-    "FECHA_DE_CONTRATO": "27/01/2020",
+    "NÚMERO_DE_CONTRATO": "",
     "ACTIVIDAD": "ACTIVO",
     "CURP": "",
     "DIRECCIONES": [
@@ -159,7 +158,7 @@
         "COLONIA O POBLACION": "Lomas Boulevares, Reserva Ecologica 2",
         "MUNICIPIO O ALCADIA": "Tlalnepantla de Baz",
         "CIUDAD O ESTADO": "Estado de México",
-        "CP": 54020,
+        "CP": "54020",
         "SERVICIO": "DICTAMEN"
       },
       {
@@ -167,7 +166,7 @@
         "COLONIA O POBLACION": "Texcacoa",
         "MUNICIPIO O ALCADIA": "Tepotzotlán",
         "CIUDAD O ESTADO": "Estado de México",
-        "CP": 54605,
+        "CP": "54605",
         "SERVICIO": "DICTAMEN"
       }
     ]
@@ -1957,6 +1956,41 @@
         "CIUDAD O ESTADO": "Estado de mexico",
         "CP": "54020",
         "SERVICIO": "CONSTANCIA"
+      }
+    ]
+  },
+  {
+    "RFC": "CBM160824NRA",
+    "CLIENTE": "CARL BECHEM MÉXICO LUBRICATION TECHNOLOGY S DE RL DE CV",
+    "NÚMERO_DE_CONTRATO": "20049UCS000096",
+    "ACTIVIDAD": "NUEVO",
+    "CURP": "",
+    "DIRECCIONES": [
+      {
+        "CALLE Y NO": "Prologación Bernando Quintana Sur No. 302 piso 2",
+        "COLONIA O POBLACION": "Centro Sur",
+        "MUNICIPIO O ALCADIA": "Querétaro",
+        "CIUDAD O ESTADO": "Querétaro",
+        "CP": "76090",
+        "SERVICIO": "DICTAMEN"
+      }
+    ]
+  },
+  {
+    "RFC": "APM4412156V8",
+    "CLIENTE": "AGENCIA DE PUBLICACIONES MÉXICO CENTRAL AC",
+    "NÚMERO_DE_CONTRATO": "26049UCS000002",
+    "FECHA_DE_CONTRATO": "23/01/2026",
+    "ACTIVIDAD": "NUEVO",
+    "CURP": "",
+    "DIRECCIONES": [
+      {
+        "CALLE Y NO": "Lateral Perif. No. 14",
+        "COLONIA O POBLACION": "San Lorenzo Almecatlae4",
+        "MUNICIPIO O ALCADIA": "Cuautlancingo",
+        "CIUDAD O ESTADO": "Puebla",
+        "CP": "72710",
+        "SERVICIO": "DICTAMEN"
       }
     ]
   }

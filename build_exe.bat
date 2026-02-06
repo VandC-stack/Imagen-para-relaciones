@@ -30,16 +30,27 @@ py -m pip show pyinstaller >nul 2>&1 || (
 )
 
 REM Common hidden imports that PyInstaller sometimes misses for this project
-SET HIDDEN_IMPORTS=--hidden-import=fitz --hidden-import=docx --hidden-import=PIL
+SET HIDDEN_IMPORTS=--hidden-import=fitz --hidden-import=docx --hidden-import=PIL --hidden-import=PyPDF2 --hidden-import=reportlab
 
 REM We'll pass each --add-data explicitly to avoid batch quoting issues
 REM Data folders to include next to the exe (Windows syntax: src;dest)
-REM Add or remove entries below as needed
+REM Add or remove entries below as needed. We only include those that exist.
 SET ADD1=--add-data "data;data"
 SET ADD2=--add-data "Documentos Inspeccion;Documentos Inspeccion"
 SET ADD3=--add-data "Pegado de Evidenvia Fotografica;Pegado de Evidenvia Fotografica"
 SET ADD4=--add-data "Firmas;Firmas"
 SET ADD5=--add-data "img;img"
+
+
+
+REM Build ADD_FLAGS from existing source folders to avoid PyInstaller errors
+SET ADD_FLAGS=
+IF EXIST "data" SET ADD_FLAGS=%ADD_FLAGS% %ADD1%
+IF EXIST "Documentos Inspeccion" SET ADD_FLAGS=%ADD_FLAGS% %ADD2%
+IF EXIST "Pegado de Evidenvia Fotografica" SET ADD_FLAGS=%ADD_FLAGS% %ADD3%
+IF EXIST "Firmas" SET ADD_FLAGS=%ADD_FLAGS% %ADD4%
+IF EXIST "img" SET ADD_FLAGS=%ADD_FLAGS% %ADD5%
+
 REM Detectar automáticamente la DLL de Python usada por el intérprete y agregarla al bundle
 FOR /F "usebackq delims=" %%p IN (`py -c "import sys,os; print(os.path.join(os.path.dirname(sys.executable), f'python{sys.version_info.major}{sys.version_info.minor}.dll'))"`) DO SET PY_DLL=%%p
 IF EXIST "%PY_DLL%" (
@@ -67,10 +78,21 @@ IF "%WINDOWED%"=="1" (
 
 REM Run PyInstaller using the same Python interpreter (py launcher)
 echo Building %EXE_NAME% (%MODE_FLAG%, %WINDOW_FLAG%) ...
-py -m PyInstaller --noconfirm %MODE_FLAG% %WINDOW_FLAG% --icon "img\icono.ico" --name %EXE_NAME% %HIDDEN_IMPORTS% %ADD1% %ADD2% %ADD3% %ADD4% %ADD5% %ADD6% %ADD7% %MAIN%
+py -m PyInstaller --clean --noconfirm %MODE_FLAG% %WINDOW_FLAG% --icon "img\icono.ico" --name %EXE_NAME% %HIDDEN_IMPORTS% %ADD_FLAGS% %ADD6% %MAIN%
 
 echo.
 echo Build finished. Review the "dist\%EXE_NAME%" folder (for --onedir) or "dist\%EXE_NAME%.exe" (for --onefile).
 echo If the application fails at runtime, rebuild with the 'debug' argument to keep the console open:
 echo    build_exe.bat debug
+
+REM Post-build: if PyInstaller placed datas under _internal\data, copy them to top-level data
+IF EXIST "dist\%EXE_NAME%\_internal\data" (
+    ECHO Copying embedded data from _internal\data to dist\%EXE_NAME%\data ...
+    REM Create target folder if missing
+    if not exist "dist\%EXE_NAME%\data" mkdir "dist\%EXE_NAME%\data"
+    REM Use robocopy to copy files and directories recursively; exit code handling not critical here
+    robocopy "dist\%EXE_NAME%\_internal\data" "dist\%EXE_NAME%\data" /E /NFL /NDL /NJH /NJS >nul
+    ECHO Data copy finished.
+)
+
 pause

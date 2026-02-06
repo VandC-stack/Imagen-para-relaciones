@@ -17,24 +17,10 @@ import importlib.util
 from datetime import datetime
 import folio_manager
 from plantillaPDF import cargar_tabla_relacion
-import unicodedata
 import time
 import platform
-from datetime import datetime
-from tkinter import filedialog, messagebox, simpledialog
-from tkinter import ttk
-import tkinter as tk
-import threading
-import subprocess
-import importlib
-import importlib.util
-from datetime import datetime
-import folio_manager
-from plantillaPDF import cargar_tabla_relacion
 import unicodedata
-import time
-import platform
-from datetime import datetime
+from PyPDF2 import PdfReader
 
 # ---------- ESTILO VISUAL V&C ---------- #
 STYLE = {
@@ -78,25 +64,65 @@ else:
         except Exception:
             user_data = os.path.join(APP_DIR, 'data')
 
-        bundled_data = os.path.join(BASE_DIR, 'data')
+        def _bundle_candidates(subpath):
+            # Prefer top-level app data (next to exe) when present so behaviour
+            # matches running from source. PyInstaller may also store datas
+            # under BASE_DIR (sys._MEIPASS) in an "_internal" folder.
+            candidates = [
+                os.path.join(APP_DIR, subpath),
+                os.path.join(APP_DIR, '_internal', subpath),
+                os.path.join(BASE_DIR, subpath),
+                os.path.join(BASE_DIR, '_internal', subpath),
+            ]
+            return [p for p in candidates if os.path.exists(p)]
+
+        bundled_data = None
+        cands = _bundle_candidates('data')
+        if cands:
+            bundled_data = cands[0]
+        # Record which bundle candidate was selected so we can debug preference
         try:
-            if os.path.exists(bundled_data) and (not os.listdir(user_data)):
-                import shutil
-                try:
-                    shutil.copytree(bundled_data, user_data, dirs_exist_ok=True)
-                except Exception:
-                    # intentar copia archivo por archivo si copytree falla
-                    for root, dirs, files in os.walk(bundled_data):
-                        rel = os.path.relpath(root, bundled_data)
-                        target_root = os.path.join(user_data, rel) if rel != '.' else user_data
-                        os.makedirs(target_root, exist_ok=True)
-                        for f in files:
-                            src = os.path.join(root, f)
-                            dst = os.path.join(target_root, f)
-                            try:
+            bdbg = os.path.join(user_data, 'startup_exe_debug.log')
+            with open(bdbg, 'a', encoding='utf-8') as _bd:
+                _bd.write(f"bundle_candidates={cands}\nchosen={bundled_data}\n")
+        except Exception:
+            pass
+        try:
+            FORCE_REFRESH = os.environ.get('IMAGENESVC_FORCE_REFRESH') == '1'
+            if bundled_data and os.path.exists(bundled_data):
+                for root, dirs, files in os.walk(bundled_data):
+                    rel = os.path.relpath(root, bundled_data)
+                    target_root = os.path.join(user_data, rel) if rel != '.' else user_data
+                    os.makedirs(target_root, exist_ok=True)
+                    for f in files:
+                        src = os.path.join(root, f)
+                        dst = os.path.join(target_root, f)
+                        try:
+                            copy_it = False
+                            if FORCE_REFRESH:
+                                copy_it = True
+                            elif not os.path.exists(dst):
+                                copy_it = True
+                            else:
+                                try:
+                                    dst_size = os.path.getsize(dst)
+                                except Exception:
+                                    dst_size = None
+                                if dst_size == 0:
+                                    copy_it = True
+                                else:
+                                    try:
+                                        src_mtime = os.path.getmtime(src)
+                                        dst_mtime = os.path.getmtime(dst)
+                                        if src_mtime > dst_mtime + 1:
+                                            copy_it = True
+                                    except Exception:
+                                        pass
+
+                            if copy_it:
                                 shutil.copy2(src, dst)
-                            except Exception:
-                                pass
+                        except Exception:
+                            pass
         except Exception:
             pass
 
@@ -108,11 +134,64 @@ try:
 except Exception:
     pass
 
+# DEBUG: volcar información de rutas y existencia de archivos clave al iniciar
+try:
+    dbg_files = [
+        'Clientes.json', 'tabla_de_relacion.json', 'Firmas.json',
+        'folio_counter.json', 'historial_visitas.json', 'pending_folios.json'
+    ]
+    dbg_path = None
+    try:
+        dbg_path = os.path.join(DATA_DIR, 'startup_exe_debug.log')
+    except Exception:
+        dbg_path = os.path.join(os.path.expanduser('~'), 'startup_exe_debug.log')
+
+    with open(dbg_path, 'a', encoding='utf-8') as dbg:
+        import time
+        dbg.write('\n===== STARTUP DEBUG: ' + time.strftime('%Y-%m-%d %H:%M:%S') + ' =====\n')
+        try:
+            dbg.write(f"frozen={getattr(sys,'frozen',False)}\n")
+            dbg.write(f"BASE_DIR={BASE_DIR}\n")
+            dbg.write(f"APP_DIR={APP_DIR}\n")
+            dbg.write(f"DATA_DIR={DATA_DIR}\n")
+            dbg.write(f"CWD={os.path.abspath(os.getcwd())}\n")
+            dbg.write(f"ENV.IMAGENESVC_DATA_DIR={os.environ.get('IMAGENESVC_DATA_DIR')}\n")
+            dbg.write(f"ENV.FOLIO_DATA_DIR={os.environ.get('FOLIO_DATA_DIR')}\n")
+        except Exception as e:
+            dbg.write(f"ERROR writing basic info: {e}\n")
+
+        for fn in dbg_files:
+            try:
+                p = os.path.join(DATA_DIR, fn)
+                exists = os.path.exists(p)
+                size = os.path.getsize(p) if exists and os.path.isfile(p) else None
+                dbg.write(f"{fn}: exists={exists} size={size} path={p}\n")
+            except Exception as e:
+                dbg.write(f"{fn}: error checking: {e}\n")
+
+        # list top-level data files
+        try:
+            for root, dirs, files in os.walk(DATA_DIR):
+                rel = os.path.relpath(root, DATA_DIR)
+                dbg.write(f"DIR: {rel}\n")
+                for f in files:
+                    try:
+                        fp = os.path.join(root, f)
+                        dbg.write(f"  - {f} ({os.path.getsize(fp)} bytes)\n")
+                    except Exception:
+                        dbg.write(f"  - {f} (size error)\n")
+        except Exception as e:
+            dbg.write(f"ERROR walking DATA_DIR: {e}\n")
+
+        dbg.write('===== END STARTUP DEBUG =====\n')
+except Exception:
+    pass
+
 
 class SistemaDictamenesVC(ctk.CTk):
     # --- PAGINACIÓN HISTORIAL ---
     HISTORIAL_PAGINA_ACTUAL = 1
-    HISTORIAL_REGS_POR_PAGINA = 1000
+    HISTORIAL_REGS_POR_PAGINA = 100
 
     def __init__(self):
         super().__init__()
@@ -170,16 +249,46 @@ class SistemaDictamenesVC(ctk.CTk):
         data_dir = DATA_DIR
         if getattr(sys, 'frozen', False):
             try:
-                # asegúrate de que exista data
+                # asegúrate de que exista data (sincronizar desde bundle cuando procede)
                 if not os.path.exists(data_dir):
-                    embedded_data = os.path.join(BASE_DIR, 'data')
-                    if os.path.exists(embedded_data):
-                        try:
-                            shutil.copytree(embedded_data, data_dir)
-                        except Exception:
-                            os.makedirs(data_dir, exist_ok=True)
-                    else:
-                        os.makedirs(data_dir, exist_ok=True)
+                    os.makedirs(data_dir, exist_ok=True)
+
+                FORCE_REFRESH = os.environ.get('IMAGENESVC_FORCE_REFRESH') == '1'
+                embedded_data = os.path.join(BASE_DIR, 'data')
+                if os.path.exists(embedded_data):
+                    for root, dirs, files in os.walk(embedded_data):
+                        rel = os.path.relpath(root, embedded_data)
+                        target_root = os.path.join(data_dir, rel) if rel != '.' else data_dir
+                        os.makedirs(target_root, exist_ok=True)
+                        for f in files:
+                            sfile = os.path.join(root, f)
+                            dfile = os.path.join(target_root, f)
+                            try:
+                                copy_it = False
+                                if FORCE_REFRESH:
+                                    copy_it = True
+                                elif not os.path.exists(dfile):
+                                    copy_it = True
+                                else:
+                                    try:
+                                        dsize = os.path.getsize(dfile)
+                                    except Exception:
+                                        dsize = None
+                                    if dsize == 0:
+                                        copy_it = True
+                                    else:
+                                        try:
+                                            sm = os.path.getmtime(sfile)
+                                            dm = os.path.getmtime(dfile)
+                                            if sm > dm + 1:
+                                                copy_it = True
+                                        except Exception:
+                                            pass
+
+                                if copy_it:
+                                    shutil.copy2(sfile, dfile)
+                            except Exception:
+                                pass
 
                 # Asegurar que otros recursos estén disponibles junto al exe.
                 resource_folders = [
@@ -190,15 +299,28 @@ class SistemaDictamenesVC(ctk.CTk):
                     'img'
                 ]
                 for rf in resource_folders:
-                    src = os.path.join(BASE_DIR, rf)
+                    # buscar candidatos en BASE_DIR y en BASE_DIR/_internal
+                    candidates = [os.path.join(BASE_DIR, rf), os.path.join(BASE_DIR, '_internal', rf)]
+                    src = None
+                    for c in candidates:
+                        if os.path.exists(c):
+                            src = c
+                            break
+                    if not src:
+                        continue
                     dst = os.path.join(APP_DIR, rf)
-                    if not os.path.exists(dst) and os.path.exists(src):
-                        try:
-                            shutil.copytree(src, dst)
-                        except Exception:
-                            # fallback: create directory
+                    os.makedirs(dst, exist_ok=True)
+                    # copiar solo archivos/carpetas faltantes
+                    for root, dirs, files in os.walk(src):
+                        rel = os.path.relpath(root, src)
+                        target_root = os.path.join(dst, rel) if rel != '.' else dst
+                        os.makedirs(target_root, exist_ok=True)
+                        for f in files:
+                            sfile = os.path.join(root, f)
+                            dfile = os.path.join(target_root, f)
                             try:
-                                os.makedirs(dst, exist_ok=True)
+                                if (not os.path.exists(dfile)) or (os.path.exists(dfile) and os.path.getsize(dfile) == 0):
+                                    shutil.copy2(sfile, dfile)
                             except Exception:
                                 pass
             except Exception:
@@ -353,7 +475,13 @@ class SistemaDictamenesVC(ctk.CTk):
                 base_path = sys._MEIPASS
             except Exception:
                 base_path = os.path.abspath(".")
-            return os.path.join(base_path, relative_path)
+            # comprobar además la posible carpeta _internal donde PyInstaller coloca datas
+            candidates = [os.path.join(base_path, relative_path), os.path.join(base_path, '_internal', relative_path)]
+            for p in candidates:
+                if os.path.exists(p):
+                    return p
+            # por defecto, devolver primer candidato
+            return candidates[0]
 
         try:
             icon_path = resource_path("img/icono.ico")
@@ -471,8 +599,8 @@ class SistemaDictamenesVC(ctk.CTk):
         #         text="💾 Backup",
         #         command=self.hist_hacer_backup,
         #         height=34, width=110, corner_radius=8,
-        #         fg_color=STYLE["primario"], text_color=STYLE["secundario"], hover_color="#D4BF22"
-        #     )
+        #   except Exception:
+        #      return {}
         # except Exception:
         #     self.btn_backup = None
 
@@ -2053,8 +2181,7 @@ class SistemaDictamenesVC(ctk.CTk):
         # Normas seleccionadas desde checkboxes
         try:
             normas_sel = [n for n, var in (self.inspector_normas_vars or {}).items() if getattr(var, 'get', lambda: False)()]
-            if normas_sel:
-                nuevo['Normas acreditadas'] = normas_sel
+            nuevo['Normas acreditadas'] = normas_sel
         except Exception:
             pass
 
@@ -2075,7 +2202,11 @@ class SistemaDictamenesVC(ctk.CTk):
                 for i, rec in enumerate(datos):
                     try:
                         if str(rec.get('FIRMA','')) == str(edit_key):
-                            datos[i] = nuevo
+                            # Merge existing record with updated fields from form
+                            # to preserve keys like 'IMAGEN' when not provided in form.
+                            merged = rec.copy() if isinstance(rec, dict) else {}
+                            merged.update(nuevo)
+                            datos[i] = merged
                             actualizado = True
                             break
                     except Exception:
@@ -2393,52 +2524,42 @@ class SistemaDictamenesVC(ctk.CTk):
             return
         if not messagebox.askyesno('Confirmar', f'¿Eliminar el inspector {vals[0]}?'):
             return
+
         ruta = os.path.join(DATA_DIR, 'Firmas.json')
         try:
             with open(ruta, 'r', encoding='utf-8') as f:
                 datos = json.load(f) or []
         except Exception:
             datos = []
+
         nuevo_arr = []
         eliminado = False
-        for rec in datos:
+        for rec in (datos or []):
             try:
-                if str(rec.get('FIRMA','')) == str(key_firma):
+                if str(rec.get('FIRMA', '')).strip().upper() != str(key_firma).strip().upper():
+                    nuevo_arr.append(rec)
+                else:
                     eliminado = True
-                    continue
             except Exception:
-                pass
-            nuevo_arr.append(rec)
+                # si falla la comparación, mantener el registro para no perder datos
+                nuevo_arr.append(rec)
+
         try:
             with open(ruta, 'w', encoding='utf-8') as f:
-                json.dump(nuevo_arr, f, ensure_ascii=False, indent=2)
+                json.dump(nuevo_arr, f, indent=2, ensure_ascii=False)
         except Exception as e:
-            messagebox.showerror('Error', f'No se pudo eliminar el inspector: {e}')
+            messagebox.showerror('Error', f'No se pudo actualizar {ruta}: {e}')
             return
+
         if eliminado:
-            messagebox.showinfo('Eliminado', 'Inspector eliminado correctamente.')
+            messagebox.showinfo('Eliminado', 'Inspector eliminado correctamente')
         else:
-            messagebox.showinfo('No encontrado', 'No se encontró el inspector a eliminar.')
+            messagebox.showwarning('No encontrado', 'No se encontró el inspector en el archivo')
+
         try:
             self._refrescar_tabla_inspectores()
         except Exception:
             pass
-
-
-
-
-
-
-
-
-
-
-    def _formatear_hora_12h(self, hora_str):
-        """Convierte hora de formato 24h a formato 12h con AM/PM de forma consistente"""
-        if not hora_str or hora_str.strip() == "":
-            return ""
-        
-        try:
             # Limpiar y estandarizar la cadena
             hora_str = str(hora_str).strip()
             
@@ -2554,8 +2675,20 @@ class SistemaDictamenesVC(ctk.CTk):
         try:
             with open(archivo_encontrado, 'r', encoding='utf-8') as f:
                 datos = json.load(f)
+            try:
+                dbg = os.path.join(DATA_DIR, 'startup_exe_debug.log')
+                with open(dbg, 'a', encoding='utf-8') as _d:
+                    _d.write(f"cargar_clientes: opened {archivo_encontrado} size={os.path.getsize(archivo_encontrado)}\n")
+            except Exception:
+                pass
         except Exception:
             datos = []
+            try:
+                dbg = os.path.join(DATA_DIR, 'startup_exe_debug.log')
+                with open(dbg, 'a', encoding='utf-8') as _d:
+                    _d.write(f"cargar_clientes: FAILED to open {archivo_encontrado}\n")
+            except Exception:
+                pass
 
         # Guardar lista original en memoria
         self.clientes_data = datos if isinstance(datos, list) else []
@@ -3647,7 +3780,7 @@ class SistemaDictamenesVC(ctk.CTk):
 
             registros = df.to_dict(orient="records")
 
-            data_dir = os.path.join(APP_DIR, "data")
+            data_dir = DATA_DIR
             os.makedirs(data_dir, exist_ok=True)
 
             output_json = os.path.join(data_dir, "base_etiquetado.json")
@@ -4324,7 +4457,7 @@ class SistemaDictamenesVC(ctk.CTk):
                 print(f"⚠️ Error asignando folios automáticos secuenciales: {e}")
 
 
-            data_folder = os.path.join(APP_DIR, "data")
+            data_folder = DATA_DIR
             os.makedirs(data_folder, exist_ok=True)
 
             self.json_filename = "tabla_de_relacion.json"
@@ -4914,8 +5047,9 @@ class SistemaDictamenesVC(ctk.CTk):
         self.etiqueta_progreso.configure(text="")
 
         try:
-            data_dir = os.path.join(APP_DIR, "data")
-            
+            data_dir = DATA_DIR
+            os.makedirs(data_dir, exist_ok=True)
+
             archivos_a_eliminar = [
                 "base_etiquetado.json",
                 "tabla_de_relacion.json"
@@ -9150,7 +9284,7 @@ class SistemaDictamenesVC(ctk.CTk):
     def _cargar_config_exportacion(self):
         """Carga o crea la configuración persistente para las exportaciones Excel."""
         try:
-            data_folder = os.path.join(APP_DIR, "data")
+            data_folder = DATA_DIR
             os.makedirs(data_folder, exist_ok=True)
             cfg_path = os.path.join(data_folder, 'excel_export_config.json')
             if not os.path.exists(cfg_path):
@@ -9192,7 +9326,8 @@ class SistemaDictamenesVC(ctk.CTk):
 
     def _guardar_config_exportacion(self):
         try:
-            data_folder = os.path.join(APP_DIR, "data")
+            data_folder = DATA_DIR
+            os.makedirs(data_folder, exist_ok=True)
             cfg_path = os.path.join(data_folder, 'excel_export_config.json')
             with open(cfg_path, 'w', encoding='utf-8') as f:
                 json.dump(self.excel_export_config, f, ensure_ascii=False, indent=2)
@@ -9202,7 +9337,8 @@ class SistemaDictamenesVC(ctk.CTk):
     def _generar_datos_exportable(self):
         """Genera y persiste un JSON consolidado que será la fuente para las exportaciones EMA y anual."""
         try:
-            data_folder = os.path.join(APP_DIR, "data")
+            data_folder = DATA_DIR
+            os.makedirs(data_folder, exist_ok=True)
             tabla_path = self.excel_export_config.get('tabla_de_relacion') or os.path.join(data_folder, 'tabla_de_relacion.json')
             clientes_path = self.excel_export_config.get('clientes') or os.path.join(data_folder, 'Clientes.json')
             export_cache = self.excel_export_config.get('export_cache') or os.path.join(data_folder, 'excel_export_data.json')
@@ -11226,8 +11362,9 @@ class SistemaDictamenesVC(ctk.CTk):
         self.etiqueta_progreso.configure(text="")
 
         try:
-            data_dir = os.path.join(APP_DIR, "data")
-            
+            data_dir = DATA_DIR
+            os.makedirs(data_dir, exist_ok=True)
+
             # Archivos a eliminar (pero NO los de folios_visitas)
             archivos_a_eliminar = [
                 "base_etiquetado.json",
@@ -12636,17 +12773,25 @@ class SistemaDictamenesVC(ctk.CTk):
                                         found_codes.add(str(v).strip())
                 # Preparar reporte de firmas
                 if found_codes:
-                    norma_req = None
-                    # intentar extraer norma desde los datos
-                    for k in ('NORMA UVA', 'NORMA', 'NORMA_UVA'):
-                        if any(k in it and it.get(k) not in (None, '') for it in (datos or [])):
-                            norma_req = next((it.get(k) for it in (datos or []) if it.get(k) not in (None, '')), None)
-                            break
-
-                    # Si no vino desde los datos, intentar extraer CLASIF_UVA desde la tabla de relación
+                    # Construir lista de normas requeridas (puede haber varias)
+                    norma_reqs = []
+                    # intentar extraer todas las normas desde los datos
                     try:
-                        if not norma_req and df_rel is not None and not df_rel.empty and 'solicitud_col' in locals():
-                            clasif_vals = set()
+                        for k in ('NORMA UVA', 'NORMA', 'NORMA_UVA'):
+                            for it in (datos or []):
+                                try:
+                                    v = it.get(k)
+                                except Exception:
+                                    v = None
+                                if v not in (None, ''):
+                                    norma_reqs.append(str(v).strip())
+                    except Exception:
+                        pass
+
+                    # Si no vino desde los datos o hay clasificaciones adicionales, intentar extraer CLASIF_UVA desde la tabla de relación
+                    try:
+                        clasif_vals = set()
+                        if df_rel is not None and not df_rel.empty and 'solicitud_col' in locals():
                             for sol in (solicitudes_by_sol.keys()):
                                 try:
                                     matches = df_rel[df_rel[solicitud_col].astype(str).str.strip() == str(sol).strip()]
@@ -12660,52 +12805,102 @@ class SistemaDictamenesVC(ctk.CTk):
                                                 clasif_vals.add(str(v).strip())
                                 except Exception:
                                     continue
-                            if clasif_vals:
-                                # intentar mapear a NOM completo usando cargar_normas
-                                try:
-                                    normas_map, normas_info = cargar_normas()
-                                except Exception:
-                                    normas_map, normas_info = ({}, {})
-                                mapped = []
-                                import re
-                                for cv in sorted(clasif_vals):
-                                    nums = re.findall(r"\d+", cv)
-                                    nom_text = cv
-                                    if nums:
-                                        num = nums[0]
-                                        try:
-                                            if num in normas_map:
-                                                nom_text = normas_map.get(num)
-                                        except Exception:
-                                            pass
-                                    mapped.append(nom_text)
-                                norma_req = ', '.join(sorted(set(mapped)))
+                        if clasif_vals:
+                            try:
+                                normas_map, normas_info = cargar_normas()
+                            except Exception:
+                                normas_map, normas_info = ({}, {})
+                            import re
+                            for cv in sorted(clasif_vals):
+                                nums = re.findall(r"\d+", cv)
+                                nom_text = cv
+                                if nums:
+                                    num = nums[0]
+                                    try:
+                                        if num in normas_map:
+                                            nom_text = normas_map.get(num)
+                                    except Exception:
+                                        pass
+                                norma_reqs.append(nom_text)
                     except Exception:
                         pass
 
+                    # Normalizar y deduplicar
+                    try:
+                        norma_reqs = [str(n).strip() for n in norma_reqs if n and str(n).strip()]
+                        # preservar orden pero eliminar duplicados
+                        seen = set()
+                        uniq_norms = []
+                        for n in norma_reqs:
+                            if n not in seen:
+                                seen.add(n)
+                                uniq_norms.append(n)
+                        norma_reqs = uniq_norms
+                    except Exception:
+                        norma_reqs = []
+
                     any_accredited = False
+                    any_no = False
                     lines.append('')
                     lines.append('✍️ Firma(s) detectada(s):')
+
+                    # mapa para saber si cada norma tiene al menos una firma acreditada
+                    norm_ok = {nr: False for nr in norma_reqs} if norma_reqs else {}
+
                     for code in sorted(found_codes):
                         try:
-                            nombre, img, ok = validar_acreditacion_inspector(code, str(norma_req) if norma_req else '', firmas_map)
+                            nombre = None
+                            img = None
+                            display_name = code
+                            # Si hay múltiples normas, checar cada una y mostrar estado por norma
+                            if norma_reqs:
+                                for nr in norma_reqs:
+                                    try:
+                                        nombre, img, ok = validar_acreditacion_inspector(code, str(nr) if nr else '', firmas_map)
+                                    except Exception:
+                                        nombre, img, ok = (None, None, False)
+                                    display_name = nombre if nombre else code
+                                    if ok:
+                                        status = '✅ Acreditado'
+                                        norm_ok[nr] = True
+                                        any_accredited = True
+                                    else:
+                                        status = '❌ NO acreditado'
+                                        any_no = True
+                                    lines.append(f" - {display_name} ({code}): {status}  · Norma: {nr}")
+                            else:
+                                try:
+                                    nombre, img, ok = validar_acreditacion_inspector(code, '', firmas_map)
+                                except Exception:
+                                    nombre, img, ok = (None, None, False)
+                                display_name = nombre if nombre else code
+                                if ok:
+                                    status = '✅ Acreditado'
+                                    any_accredited = True
+                                else:
+                                    status = '❌ NO acreditado'
+                                    any_no = True
+                                lines.append(f" - {display_name} ({code}): {status}")
                         except Exception:
-                            nombre, img, ok = (None, None, False)
-                        display_name = nombre if nombre else code
-                        status = '✅ Acreditado' if ok else '❌ NO acreditado'
-                        if norma_req:
-                            lines.append(f" - {display_name} ({code}): {status}  · Norma: {norma_req}")
+                            # proteger contra fallos por firma concreta
+                            continue
+
+                    # Determinar estado final del botón: si aparece cualquier 'NO acreditado' -> bloquear.
+                    enabled = False
+                    try:
+                        if any_no:
+                            enabled = False
                         else:
-                            lines.append(f" - {display_name} ({code}): {status}")
-                        if ok:
-                            any_accredited = True
-                    # Si no hay firmas acreditadas, deshabilitar generación
+                            if norma_reqs:
+                                enabled = all(bool(v) for v in norm_ok.values()) if norm_ok else False
+                            else:
+                                enabled = any_accredited
+                    except Exception:
+                        enabled = False
+
                     if hasattr(self, 'boton_generar_dictamen'):
                         try:
-                            if any_accredited:
-                                self.boton_generar_dictamen.configure(state='normal')
-                            else:
-                                self.boton_generar_dictamen.configure(state='disabled')
+                            self.boton_generar_dictamen.configure(state='normal' if enabled else 'disabled')
                         except Exception:
                             pass
                 else:
@@ -13117,8 +13312,6 @@ class SistemaDictamenesVC(ctk.CTk):
             return {}
         except Exception:
             return {}
-
-
 
     def _save_evidence_path(self, group, path, mode=None):
         """Guarda la ruta `path` bajo la clave `group` en `data/evidence_paths.json`.

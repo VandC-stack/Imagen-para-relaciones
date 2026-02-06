@@ -779,29 +779,35 @@ class PDFGeneratorConDatos(PDFGenerator):
         imagen_firma1 = obtener_ruta_recurso(ruta_firma1) if ruta_firma1 else None
         imagen_firma2 = obtener_ruta_recurso(ruta_firma2) if ruta_firma2 else None
 
+        # Column containers for left and right signature blocks
         col1 = []
         if imagen_firma1 and os.path.exists(imagen_firma1):
-            img1 = RLImage(imagen_firma1, width=2.2*inch, height=0.9*inch)
+            # Reducir ligeramente el tamaño de la imagen para evitar overflow
+            img1 = RLImage(imagen_firma1, width=1.8*inch, height=0.7*inch)
             col1.append(img1)
-        col1.append(Paragraph("_______________________________", self.normal_style))
+        col1.append(Paragraph("__________________________", self.normal_style))
         col1.append(Paragraph(self.datos.get("nfirma1",""), bold_style))
         col1.append(Paragraph("Inspector", bold_style))
 
         col3 = []
         if imagen_firma2 and os.path.exists(imagen_firma2):
-            img2 = RLImage(imagen_firma2, width=2.2*inch, height=0.9*inch)
+            img2 = RLImage(imagen_firma2, width=1.8*inch, height=0.7*inch)
             col3.append(img2)
-        col3.append(Paragraph("_______________________________", self.normal_style))
+        col3.append(Paragraph("__________________________", self.normal_style))
         col3.append(Paragraph(self.datos.get("nfirma2",""), bold_style))
         col3.append(Paragraph("Responsable de Supervisión UI", bold_style))
 
-        firmas_table = Table([[col1, "", col3]], colWidths=[2.5*inch, 0.5*inch, 2.5*inch])
+        # Usar columnas un poco más estrechas y reducir el espacio superior
+        firmas_table = Table([[col1, "", col3]], colWidths=[2.2*inch, 0.6*inch, 2.2*inch])
         firmas_table.setStyle(TableStyle([
             ('ALIGN',(0,0),(-1,-1),'CENTER'),
             ('VALIGN',(0,0),(-1,-1),'TOP'),
+            ('LEFTPADDING',(0,0),(-1,-1),6),
+            ('RIGHTPADDING',(0,0),(-1,-1),6),
         ]))
 
-        elems.append(Spacer(1, 1 * inch))
+        # Reducir el espacio en blanco antes de las firmas para aprovechar la página
+        elems.append(Spacer(1, 0.6 * inch))
         elems.append(firmas_table)
         return elems
 

@@ -281,10 +281,10 @@ def generar_reporte_decathlon(nombre_cliente, folio_inspeccion, fecha_inspeccion
     cierre_text = ('Sin más por el momento me reitero a tus apreciables órdenes para cualquier aclaración o comentario al respecto.')
     elements.append(Spacer(1, 4*mm))
     elements.append(Paragraph(cierre_text, obs_style))
-    elements.append(Spacer(1, 12*mm))
+    elements.append(Spacer(1, 4*mm))
 
     # Firma personalizada: alinear a la derecha
-    elements.append(Spacer(1, 8*mm))
+    elements.append(Spacer(1, 4*mm))
     atentamente = ' '.join(list('ATENTAMENTE.'))
     elements.append(Paragraph(atentamente, ParagraphStyle('atn_center', parent=styles['Heading3'], alignment=1)))
     elements.append(Spacer(1, 4*mm))
