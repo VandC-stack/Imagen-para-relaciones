@@ -210,6 +210,69 @@ class GeneradorEtiquetasDecathlon:
             if str(item.get('CODIGO', '')).strip() == str(codigo).strip():
                 return item
         return None
+
+    def buscar_en_tabla_relacion_compuesta(self, codigo, solicitud='', marca='', pais_origen=''):
+        """Busca un registro en la tabla de relación usando una clave compuesta.
+
+        Intenta encontrar una entrada que coincida en `CODIGO`/`EAN` y además en
+        `SOLICITUD`, `MARCA` y `PAIS` cuando esos valores estén presentes.
+        Si no encuentra una coincidencia estricta, hace fallback a `buscar_en_tabla_relacion(codigo)`.
+        """
+        def _norm(v):
+            try:
+                return str(v or '').strip().upper()
+            except Exception:
+                return ''
+
+        target_codigo = _norm(codigo)
+        target_solicitud = _norm(solicitud)
+        target_marca = _norm(marca)
+        target_pais = _norm(pais_origen)
+
+        # Preferir coincidencias que cumplan todos los campos proporcionados
+        best = None
+        import re as _re
+        def _digits(s):
+            try:
+                d = _re.findall(r"\d+", str(s or ''))
+                return d[0] if d else ''
+            except Exception:
+                return ''
+
+        for item in self.tabla_relacion:
+            ean = _norm(item.get('EAN'))
+            cod = _norm(item.get('CODIGO'))
+            if not (ean == target_codigo or cod == target_codigo):
+                continue
+
+            # comprobar campos opcionales
+            sol_i_raw = item.get('SOLICITUD') or item.get('Solicitud') or item.get('solicitud') or ''
+            sol_i = _norm(sol_i_raw)
+            marca_i = _norm(item.get('MARCA') or item.get('Marca') or item.get('marca'))
+            pais_i = _norm(item.get('PAIS ORIGEN') or item.get('PAIS_DE_ORIGEN') or item.get('PAIS') or item.get('PAIS DE ORIGEN'))
+
+            # si se proporcionaron valores y coinciden, devolver inmediatamente
+            # comparar solicitudes preferentemente por dígitos (ej. '000191/26' vs '191')
+            target_sol_digits = _digits(target_solicitud)
+            sol_i_digits = _digits(sol_i)
+            if target_sol_digits and sol_i_digits:
+                ok_sol = (not target_solicitud) or (sol_i_digits == target_sol_digits)
+            else:
+                ok_sol = (not target_solicitud) or (sol_i == target_solicitud)
+            ok_marca = (not target_marca) or (marca_i == target_marca)
+            ok_pais = (not target_pais) or (pais_i == target_pais)
+
+            if ok_sol and ok_marca and ok_pais:
+                return item
+
+            # mantener el primer match por código como fallback
+            if best is None:
+                best = item
+
+        # fallback: devolver primer match por código si no hubo coincidencia compuesta
+        if best:
+            return best
+        return None
     
     def buscar_producto_por_ean(self, ean):
         """Busca un producto en la base por EAN"""
@@ -243,8 +306,14 @@ class GeneradorEtiquetasDecathlon:
         """Formatea los datos según el campo"""
         if str(valor).upper() in ['N/A', 'NAN', ''] or not valor:
             return None
-        
-        if campo == 'PAIS ORIGEN':
+        # Normalizar nombre de campo y aceptar variantes como
+        # 'PAIS DE ORIGEN', 'PAIS_ORIGEN' o 'PAIS ORIGEN'
+        try:
+            cn = str(campo or '').upper().replace('_', ' ').strip()
+        except Exception:
+            cn = str(campo or '').upper()
+
+        if cn in ('PAIS ORIGEN', 'PAIS DE ORIGEN', 'PAIS ORIG', 'PAIS'):
             return f"HECHO EN {valor}"
         
         if campo == 'TALLA':
@@ -442,13 +511,24 @@ class GeneradorEtiquetasDecathlon:
     def generar_etiquetas_por_codigos(self, codigos, output_dir="etiquetas_generadas", guardar_en_disco=False):
         """Genera etiquetas para una lista de códigos EAN y retorna objetos BytesIO para inserción directa"""
         etiquetas_generadas = []
-        
-        for codigo in codigos:
-            print(f"   🔍 Procesando código EAN: {codigo}")
+        for entrada in codigos:
+            # aceptar tanto strings como dicts compuestos
+            if isinstance(entrada, dict):
+                codigo = entrada.get('codigo')
+                solicitud = entrada.get('solicitud', '')
+                marca = entrada.get('marca', '')
+                pais_origen = entrada.get('pais_origen', '')
+            else:
+                codigo = entrada
+                solicitud = ''
+                marca = ''
+                pais_origen = ''
+
+            print(f"   🔍 Procesando código EAN: {codigo} (solicitud={solicitud}, marca={marca}, pais={pais_origen})")
             
-            producto_relacionado = self.buscar_en_tabla_relacion(codigo)
+            producto_relacionado = self.buscar_en_tabla_relacion_compuesta(codigo, solicitud=solicitud, marca=marca, pais_origen=pais_origen)
             if not producto_relacionado:
-                print(f"      ❌ EAN {codigo} no encontrado en tabla de relación")
+                print(f"      ❌ EAN {codigo} no encontrado en tabla de relación (clave compuesta)")
                 continue
             
             norma_uva = producto_relacionado.get('NORMA UVA')
@@ -458,10 +538,42 @@ class GeneradorEtiquetasDecathlon:
             
             print(f"      📋 NORMA UVA encontrada: {norma_uva}")
             
-            producto = self.buscar_producto_por_ean(codigo)
-            if not producto:
-                print(f"      ❌ Producto con EAN {codigo} no encontrado en base de etiquetado")
-                continue
+            # Obtener producto base desde la base de etiquetado (puede ser None)
+            producto_base = self.buscar_producto_por_ean(codigo)
+            if not producto_base:
+                # No existe en la base; generar con los datos mínimos de tabla_relacion
+                producto = {}
+            else:
+                # Copiar para no mutar la base
+                producto = dict(producto_base)
+
+            # Campos desde la tabla de relación para respetar
+            # marca/pais/descripcion/insumos específicos por solicitud.
+            # Esto evita reutilizar la misma etiqueta base cuando el mismo EAN
+            # corresponde a productos distintos según solicitud/marca/pais.
+            try:
+                # Normalizar y mapear variantes de campos desde tabla_relacion
+                mapping = {
+                    'MARCA': ['MARCA', 'Marca', 'marca'],
+                    'PAIS ORIGEN': ['PAIS DE ORIGEN', 'PAIS_DE_ORIGEN'],
+                    'DESCRIPCION': ['DESCRIPCION', 'DESCRIPCIÓN'],
+                    'INSUMOS': ['INSUMOS', 'INSUMO'],
+                    'TALLA': ['TALLA'],
+                    'IMPORTADOR': ['IMPORTADOR'],
+                    'EAN': ['EAN', 'CODIGO', 'Codigo', 'codigo']
+                }
+
+                for target_key, variants in mapping.items():
+                    for var in variants:
+                        if var in producto_relacionado and producto_relacionado.get(var) not in (None, ''):
+                            producto[target_key] = producto_relacionado.get(var)
+                            break
+
+                # Asegurar EAN presente (fallback adicional)
+                if 'EAN' not in producto or not producto.get('EAN'):
+                    producto['EAN'] = producto_relacionado.get('EAN') or producto_relacionado.get('CODIGO') or codigo
+            except Exception:
+                pass
             
             norma = self.determinar_norma_por_uva(norma_uva, producto)
             if not norma:
@@ -474,6 +586,28 @@ class GeneradorEtiquetasDecathlon:
             if not config:
                 print(f"      ❌ No hay configuración para la norma {norma}")
                 continue
+
+            # Asegurar que los campos esperados por la configuración también
+            # estén presentes en `producto` usando nuestras claves canónicas.
+            # Ej: la config puede usar 'PAIS DE ORIGEN' pero nosotros normalizamos
+            # a 'PAIS ORIGEN' desde la tabla_relacion; copiar ambos para compat.
+            try:
+                campos_config = config.get('campos', [])
+                # Mapeo de canónicas a posibles variantes que aparecen en configs
+                canonical_map = {
+                    'PAIS ORIGEN': ['PAIS DE ORIGEN', 'PAIS_ORIGEN', 'PAIS ORIGEN'],
+                    'DESCRIPCION': ['DESCRIPTION', 'DESCRIPCION', 'DESCRIPCIÓN'],
+                    'INSUMOS': ['INSUMOS', 'INSUMOS O INGREDIENTES', 'INSUMOS O INGREDIENTES'],
+                    'TALLA': ['TALLA']
+                }
+
+                for canon, variants in canonical_map.items():
+                    if producto.get(canon):
+                        for var in variants:
+                            if var in campos_config and not producto.get(var):
+                                producto[var] = producto.get(canon)
+            except Exception:
+                pass
             
             try:
                 # Crear imagen en memoria

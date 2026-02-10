@@ -1,4 +1,33 @@
 {
   "last_folio_visita": 0,
-  "visitas": []
+  "visitas": [
+    {
+      "folio_visita": "CP000001",
+      "folio_acta": "AC000001",
+      "fecha_inicio": "10/02/2026",
+      "fecha_termino": "10/02/2026",
+      "hora_inicio_24h": "10:07",
+      "hora_termino_24h": "18:00",
+      "hora_inicio": "10:07 AM",
+      "hora_termino": "6:00 PM",
+      "norma": "NOM-004-SE-2021",
+      "cliente": "ARTICULOS DEPORTIVOS DECATHLON SA DE CV",
+      "nfirma1": "Gabriel Ramirez Castillo",
+      "nfirma2": "",
+      "estatus": "Completada",
+      "tipo_documento": "Dictamen",
+      "folios_utilizados": "000001 - 000006",
+      "total_folios": 6,
+      "total_folios_numericos": 6,
+      "supervisores_tabla": "Gabriel Ramirez Castillo",
+      "supervisor_formulario": "",
+      "_id": "085721c5-0a3b-43d8-a465-790bde12954e",
+      "direccion": "Parque industrial advance II, Capula, Tepotzotlán, Estado de México, C.P. 54603",
+      "calle_numero": "Parque industrial advance II",
+      "colonia": "Capula",
+      "municipio": "Tepotzotlán",
+      "ciudad_estado": "Estado de México",
+      "cp": "54603"
+    }
+  ]
 }

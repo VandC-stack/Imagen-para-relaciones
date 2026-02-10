@@ -70,10 +70,11 @@ def obtener_ruta_recurso(ruta_relativa):
 # ---------------- Folio counter (reserva atómica) ----------------
 def _get_folio_paths():
     carpeta = obtener_ruta_recurso('data')
-    try:
-        os.makedirs(carpeta, exist_ok=True)
-    except Exception:
-        pass
+    # No crear automáticamente la carpeta 'data' aquí: eso provoca que se creen
+    # directorios vacíos en la ubicación de trabajo (ej. Escritorio) cuando
+    # sólo se consultan rutas. La creación física se realizará sólo cuando
+    # realmente escribamos archivos (guardar_dictamen_json u operaciones de
+    # folio_manager deberían encargarse de crear si es necesario).
     return os.path.join(carpeta, 'folio_counter.json'), os.path.join(carpeta, 'folio_counter.lock')
 
 def _acquire_lock(lock_path, timeout=5.0):
@@ -417,6 +418,9 @@ class PDFGeneratorConDatos(PDFGenerator):
         # If we reach here, firmas were not placed; caller should add a separate firmas page
         print("   📌 Firmas mostradas en PÁGINA SEPARADA (5+ etiquetas)")
         return False
+
+
+
 
     # Agregar hoja para pegado de evidencias fotograficas #
     def agregar_hoja_evidencia(self):
@@ -1215,9 +1219,22 @@ def generar_dictamenes_completos(directorio_destino, cliente_manual=None, rfc_ma
 
     os.makedirs(directorio_destino, exist_ok=True)
     
-    # Crear directorio para JSON dentro de 'data/Dictamenes' para centralizar los dictámenes
-    directorio_json = obtener_ruta_recurso('data/Dictamenes')
-    os.makedirs(directorio_json, exist_ok=True)
+    # Determinar directorio donde guardar JSONs de dictámenes.
+    # Preferir la carpeta `data/Dictamenes` solo si existe el árbol `data` junto a la app;
+    # en caso contrario guardamos los JSONs dentro del destino elegido por el usuario
+    # para evitar crear carpetas `data`/vacias en ubicaciones indeseadas (ej. Escritorio).
+    try:
+        posible_data = obtener_ruta_recurso('data')
+        if os.path.isdir(posible_data):
+            directorio_json = obtener_ruta_recurso('data/Dictamenes')
+        else:
+            directorio_json = os.path.join(directorio_destino, 'Dictamenes_JSON')
+    except Exception:
+        directorio_json = os.path.join(directorio_destino, 'Dictamenes_JSON')
+
+    # No crear el directorio de JSONs aquí para evitar crear carpetas vacías
+    # en la ubicación del usuario. `guardar_dictamen_json` se encargará de
+    # crear `directorio_json` sólo cuando vaya a escribir un archivo.
     
     dictamenes_generados = 0
     dictamenes_con_firma = 0
@@ -2022,10 +2039,26 @@ def generar_dictamenes_completos(directorio_destino, cliente_manual=None, rfc_ma
             tiene_firma = datos.get("firma_valida", False)
             
             # 🎯 CREAR CARPETA POR SOLICITUD (SOL{solicitud})
-            solicitud = str(datos.get('solicitud', '000000')).strip()
-            solicitud_formateado = f"{int(solicitud) if solicitud.isdigit() else 0:06d}"
-            carpeta_solicitud = os.path.join(directorio_destino, f"SOL {solicitud_formateado}")
-            os.makedirs(carpeta_solicitud, exist_ok=True)
+            # Solo crear carpeta por solicitud si la solicitud contiene dígitos
+            solicitud = str(datos.get('solicitud', '')).strip()
+            solicitud_formateado = '000000'
+            carpeta_solicitud = directorio_destino
+            try:
+                # Extraer la porción numérica de la solicitud si existe
+                import re as _re
+                nums = _re.findall(r"\d+", solicitud or '')
+                if nums:
+                    s_num = int(nums[0])
+                    solicitud_formateado = f"{s_num:06d}"
+                    carpeta_solicitud = os.path.join(directorio_destino, f"SOL {solicitud_formateado}")
+                    os.makedirs(carpeta_solicitud, exist_ok=True)
+                else:
+                    # No crear carpeta SOL 000000: usar el directorio_destino directamente
+                    carpeta_solicitud = directorio_destino
+                    solicitud_formateado = '000000'
+            except Exception:
+                carpeta_solicitud = directorio_destino
+                solicitud_formateado = '000000'
             
             generador = PDFGeneratorConDatos(datos)
             nombre_archivo = limpiar_nombre_archivo(f"Dictamen_Lista_{lista}.pdf")

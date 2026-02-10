@@ -453,19 +453,35 @@ def preparar_datos_familia(
     print("   🔍 Iniciando generación de etiquetas...")
     generador_etiquetas = GeneradorEtiquetasDecathlon()
 
-    codigos = []
+    # Generar etiquetas usando clave compuesta para evitar reutilizar una etiqueta
+    # de otro registro que comparte el mismo código pero pertenece a distinta
+    # solicitud/marca/pais. Construimos una lista de entradas (dict) con los
+    # campos mínimos: codigo, solicitud, marca, pais_origen.
+    codigos_compuestos = []
     for r in registros:
-        codigo = r.get("CODIGO")
-        if codigo and str(codigo).strip() not in ("", "None", "nan"):
-            codigos.append(str(codigo).strip())
-    
-    print(f"   📋 Códigos encontrados: {codigos}")
+        codigo = r.get("CODIGO") or r.get('EAN') or r.get('Codigo')
+        if not codigo or str(codigo).strip() in ("", "None", "nan"):
+            continue
+        solicitud = r.get('SOLICITUD') or r.get('Solicitud') or r.get('solicitud') or ''
+        marca = r.get('MARCA') or r.get('Marca') or r.get('marca') or ''
+        pais = (
+            r.get('PAIS ORIGEN') or r.get('PAIS_DE_ORIGEN') or r.get('PAIS DE ORIGEN') or
+            r.get('PAIS') or r.get('PAIS ORIG') or ''
+        )
+        codigos_compuestos.append({
+            'codigo': str(codigo).strip(),
+            'solicitud': str(solicitud).strip(),
+            'marca': str(marca).strip(),
+            'pais_origen': str(pais).strip()
+        })
+
+    print(f"   📋 Claves compuestas encontradas: {len(codigos_compuestos)} entradas")
 
     etiquetas_generadas = []
-    if codigos:
+    if codigos_compuestos:
         try:
-            print(f"   🏷️ Generando etiquetas para {len(codigos)} códigos...")
-            etiquetas_generadas = generador_etiquetas.generar_etiquetas_por_codigos(codigos)
+            print(f"   🏷️ Generando etiquetas para {len(codigos_compuestos)} entradas (clave compuesta)...")
+            etiquetas_generadas = generador_etiquetas.generar_etiquetas_por_codigos(codigos_compuestos)
             print(f"   ✅ Etiquetas generadas: {len(etiquetas_generadas)}")
         except Exception as e:
             print(f"   ⚠️ Error generando etiquetas: {e}")

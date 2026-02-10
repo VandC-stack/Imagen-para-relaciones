@@ -1,0 +1,815 @@
+
+===== STARTUP DEBUG: 2026-02-10 09:45:27 =====
+frozen=False
+BASE_DIR=C:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C
+APP_DIR=C:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C
+DATA_DIR=C:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data
+CWD=C:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C
+ENV.IMAGENESVC_DATA_DIR=None
+ENV.FOLIO_DATA_DIR=C:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data
+Clientes.json: exists=True size=61435 path=C:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data\Clientes.json
+tabla_de_relacion.json: exists=False size=None path=C:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data\tabla_de_relacion.json
+Firmas.json: exists=True size=11096 path=C:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data\Firmas.json
+folio_counter.json: exists=True size=11 path=C:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data\folio_counter.json
+historial_visitas.json: exists=True size=48 path=C:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data\historial_visitas.json
+pending_folios.json: exists=True size=2 path=C:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data\pending_folios.json
+DIR: .
+  - Clientes.json (61435 bytes)
+  - Clientes.json.orig (51407 bytes)
+  - config_etiquetas.json (2100 bytes)
+  - constancia_debug.log (20087 bytes)
+  - excel_export_config.json (508 bytes)
+  - excel_export_data.json (82 bytes)
+  - Firmas.json (11096 bytes)
+  - folio_counter.json (11 bytes)
+  - historial_visitas.json (48 bytes)
+  - historial_visitas.json.backup (48 bytes)
+  - hist_borrar_debug.log (910 bytes)
+  - Normas.json (2646 bytes)
+  - operaciones_log.json (1650 bytes)
+  - pending_folios.json (2 bytes)
+  - startup_exe_debug.log (0 bytes)
+DIR: Constancias
+DIR: Dictamenes
+DIR: eliminacion_logs
+  - eliminacion_CP000001_20260205124918.txt (812 bytes)
+DIR: folios_visitas
+DIR: folios_visitas\backups
+DIR: Reportes_Decathlon
+DIR: tabla_relacion_backups
+===== END STARTUP DEBUG =====
+folio_manager.chosen=C:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data
+cargar_clientes: opened C:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data\Clientes.json size=61435
+folio_manager.chosen=C:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data
+folio_manager.chosen=C:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data
+folio_manager.chosen=C:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data
+folio_manager.chosen=C:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data
+folio_manager.chosen=C:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data
+
+===== STARTUP DEBUG: 2026-02-10 09:56:29 =====
+frozen=False
+BASE_DIR=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C
+APP_DIR=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C
+DATA_DIR=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data
+CWD=C:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C
+ENV.IMAGENESVC_DATA_DIR=None
+ENV.FOLIO_DATA_DIR=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data
+Clientes.json: exists=True size=61435 path=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data\Clientes.json
+tabla_de_relacion.json: exists=True size=456465 path=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data\tabla_de_relacion.json
+Firmas.json: exists=True size=11096 path=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data\Firmas.json
+folio_counter.json: exists=True size=11 path=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data\folio_counter.json
+historial_visitas.json: exists=True size=48 path=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data\historial_visitas.json
+pending_folios.json: exists=True size=2 path=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data\pending_folios.json
+DIR: .
+  - Clientes.json (61435 bytes)
+  - Clientes.json.orig (51407 bytes)
+  - config_etiquetas.json (2100 bytes)
+  - constancia_debug.log (20087 bytes)
+  - excel_export_config.json (508 bytes)
+  - excel_export_data.json (82 bytes)
+  - Firmas.json (11096 bytes)
+  - folio_counter.json (11 bytes)
+  - historial_visitas.json (48 bytes)
+  - historial_visitas.json.backup (48 bytes)
+  - hist_borrar_debug.log (910 bytes)
+  - Normas.json (2646 bytes)
+  - operaciones_log.json (1650 bytes)
+  - pending_folios.json (2 bytes)
+  - startup_exe_debug.log (2896 bytes)
+  - tabla_de_relacion.json (456465 bytes)
+DIR: Constancias
+DIR: Dictamenes
+  - Dictamen_Lista_15_157_000191_26_208.json (1676 bytes)
+  - Dictamen_Lista_15_158_000191_26_209.json (1682 bytes)
+  - Dictamen_Lista_15_16_008305_25_16.json (2050 bytes)
+  - Dictamen_Lista_15_17_008305_25_19.json (1678 bytes)
+  - Dictamen_Lista_15_313_000227_26_262.json (1679 bytes)
+  - Dictamen_Lista_15_314_000227_26_263.json (1682 bytes)
+  - Dictamen_Lista_15_39_000226_26_26.json (2297 bytes)
+  - Dictamen_Lista_20_159_000191_26_214.json (1669 bytes)
+  - Dictamen_Lista_20_160_000191_26_217.json (1908 bytes)
+  - Dictamen_Lista_20_315_000227_26_266.json (1669 bytes)
+  - Dictamen_Lista_20_316_000227_26_277.json (1908 bytes)
+  - Dictamen_Lista_24_161_000191_26_221.json (1577 bytes)
+  - Dictamen_Lista_24_162_000191_26_224.json (1579 bytes)
+  - Dictamen_Lista_24_317_000227_26_281.json (1577 bytes)
+  - Dictamen_Lista_24_318_000227_26_285.json (1579 bytes)
+  - Dictamen_Lista_4_100_000191_26_106.json (1621 bytes)
+  - Dictamen_Lista_4_101_000191_26_109.json (1990 bytes)
+  - Dictamen_Lista_4_102_000191_26_110.json (1622 bytes)
+  - Dictamen_Lista_4_103_000191_26_112.json (1748 bytes)
+  - Dictamen_Lista_4_104_000191_26_113.json (2248 bytes)
+  - Dictamen_Lista_4_105_000191_26_114.json (1627 bytes)
+  - Dictamen_Lista_4_106_000191_26_115.json (1873 bytes)
+  - Dictamen_Lista_4_107_000191_26_120.json (1624 bytes)
+  - Dictamen_Lista_4_108_000191_26_121.json (1627 bytes)
+  - Dictamen_Lista_4_109_000191_26_123.json (1621 bytes)
+  - Dictamen_Lista_4_10_008305_25_5.json (1616 bytes)
+  - Dictamen_Lista_4_110_000191_26_124.json (1621 bytes)
+  - Dictamen_Lista_4_111_000191_26_129.json (1627 bytes)
+  - Dictamen_Lista_4_112_000191_26_133.json (2353 bytes)
+  - Dictamen_Lista_4_113_000191_26_134.json (1622 bytes)
+  - Dictamen_Lista_4_114_000191_26_138.json (1620 bytes)
+  - Dictamen_Lista_4_115_000191_26_139.json (1621 bytes)
+  - Dictamen_Lista_4_116_000191_26_140.json (1625 bytes)
+  - Dictamen_Lista_4_117_000191_26_141.json (1625 bytes)
+  - Dictamen_Lista_4_118_000191_26_143.json (1617 bytes)
+  - Dictamen_Lista_4_119_000191_26_144.json (1624 bytes)
+  - Dictamen_Lista_4_11_008305_25_7.json (1615 bytes)
+  - Dictamen_Lista_4_120_000191_26_145.json (1742 bytes)
+  - Dictamen_Lista_4_121_000191_26_146.json (1632 bytes)
+  - Dictamen_Lista_4_122_000191_26_150.json (1618 bytes)
+  - Dictamen_Lista_4_123_000191_26_151.json (1618 bytes)
+  - Dictamen_Lista_4_124_000191_26_152.json (1618 bytes)
+  - Dictamen_Lista_4_125_000191_26_154.json (1750 bytes)
+  - Dictamen_Lista_4_126_000191_26_155.json (1988 bytes)
+  - Dictamen_Lista_4_127_000191_26_156.json (1869 bytes)
+  - Dictamen_Lista_4_128_000191_26_157.json (1630 bytes)
+  - Dictamen_Lista_4_129_000191_26_159.json (1627 bytes)
+  - Dictamen_Lista_4_12_008305_25_8.json (1615 bytes)
+  - Dictamen_Lista_4_130_000191_26_161.json (1625 bytes)
+  - Dictamen_Lista_4_131_000191_26_162.json (1625 bytes)
+  - Dictamen_Lista_4_132_000191_26_163.json (1626 bytes)
+  - Dictamen_Lista_4_133_000191_26_165.json (1739 bytes)
+  - Dictamen_Lista_4_134_000191_26_167.json (1632 bytes)
+  - Dictamen_Lista_4_135_000191_26_168.json (1744 bytes)
+  - Dictamen_Lista_4_136_000191_26_171.json (1624 bytes)
+  - Dictamen_Lista_4_137_000191_26_174.json (1622 bytes)
+  - Dictamen_Lista_4_138_000191_26_176.json (1747 bytes)
+  - Dictamen_Lista_4_139_000191_26_177.json (1621 bytes)
+  - Dictamen_Lista_4_13_008305_25_10.json (2110 bytes)
+  - Dictamen_Lista_4_140_000191_26_178.json (1742 bytes)
+  - Dictamen_Lista_4_141_000191_26_179.json (1618 bytes)
+  - Dictamen_Lista_4_142_000191_26_182.json (1618 bytes)
+  - Dictamen_Lista_4_143_000191_26_187.json (1621 bytes)
+  - Dictamen_Lista_4_144_000191_26_188.json (1748 bytes)
+  - Dictamen_Lista_4_145_000191_26_189.json (1629 bytes)
+  - Dictamen_Lista_4_146_000191_26_190.json (1626 bytes)
+  - Dictamen_Lista_4_147_000191_26_192.json (1620 bytes)
+  - Dictamen_Lista_4_148_000191_26_193.json (1619 bytes)
+  - Dictamen_Lista_4_149_000191_26_197.json (1869 bytes)
+  - Dictamen_Lista_4_14_008305_25_12.json (1624 bytes)
+  - Dictamen_Lista_4_150_000191_26_198.json (1621 bytes)
+  - Dictamen_Lista_4_151_000191_26_199.json (1740 bytes)
+  - Dictamen_Lista_4_152_000191_26_200.json (1992 bytes)
+  - Dictamen_Lista_4_153_000191_26_202.json (1873 bytes)
+  - Dictamen_Lista_4_154_000191_26_203.json (1748 bytes)
+  - Dictamen_Lista_4_155_000191_26_204.json (1627 bytes)
+  - Dictamen_Lista_4_156_000191_26_205.json (1872 bytes)
+  - Dictamen_Lista_4_15_008305_25_15.json (1875 bytes)
+  - Dictamen_Lista_4_199_000227_26_2.json (1615 bytes)
+  - Dictamen_Lista_4_1_008313_25_2.json (1621 bytes)
+  - Dictamen_Lista_4_200_000227_26_3.json (1735 bytes)
+  - Dictamen_Lista_4_201_000227_26_4.json (1615 bytes)
+  - Dictamen_Lista_4_202_000227_26_5.json (2111 bytes)
+  - Dictamen_Lista_4_203_000227_26_8.json (1740 bytes)
+  - Dictamen_Lista_4_204_000227_26_9.json (1612 bytes)
+  - Dictamen_Lista_4_205_000227_26_10.json (1619 bytes)
+  - Dictamen_Lista_4_206_000227_26_11.json (1618 bytes)
+  - Dictamen_Lista_4_207_000227_26_12.json (1615 bytes)
+  - Dictamen_Lista_4_208_000227_26_13.json (1618 bytes)
+  - Dictamen_Lista_4_209_000227_26_15.json (1617 bytes)
+  - Dictamen_Lista_4_210_000227_26_17.json (1617 bytes)
+  - Dictamen_Lista_4_211_000227_26_22.json (1748 bytes)
+  - Dictamen_Lista_4_212_000227_26_28.json (1986 bytes)
+  - Dictamen_Lista_4_213_000227_26_30.json (1617 bytes)
+  - Dictamen_Lista_4_214_000227_26_32.json (1864 bytes)
+  - Dictamen_Lista_4_215_000227_26_34.json (1617 bytes)
+  - Dictamen_Lista_4_216_000227_26_35.json (1616 bytes)
+  - Dictamen_Lista_4_217_000227_26_38.json (1627 bytes)
+  - Dictamen_Lista_4_218_000227_26_40.json (1621 bytes)
+  - Dictamen_Lista_4_219_000227_26_42.json (1626 bytes)
+  - Dictamen_Lista_4_21_000185_26_1.json (1616 bytes)
+  - Dictamen_Lista_4_220_000227_26_45.json (1615 bytes)
+  - Dictamen_Lista_4_221_000227_26_50.json (1620 bytes)
+  - Dictamen_Lista_4_222_000227_26_53.json (1620 bytes)
+  - Dictamen_Lista_4_223_000227_26_57.json (1623 bytes)
+  - Dictamen_Lista_4_224_000227_26_60.json (1619 bytes)
+  - Dictamen_Lista_4_225_000227_26_63.json (1617 bytes)
+  - Dictamen_Lista_4_226_000227_26_64.json (1995 bytes)
+  - Dictamen_Lista_4_227_000227_26_65.json (1620 bytes)
+  - Dictamen_Lista_4_228_000227_26_67.json (1629 bytes)
+  - Dictamen_Lista_4_229_000227_26_68.json (1629 bytes)
+  - Dictamen_Lista_4_22_000226_26_1.json (1752 bytes)
+  - Dictamen_Lista_4_230_000227_26_69.json (1619 bytes)
+  - Dictamen_Lista_4_231_000227_26_74.json (1626 bytes)
+  - Dictamen_Lista_4_232_000227_26_75.json (1619 bytes)
+  - Dictamen_Lista_4_233_000227_26_78.json (1742 bytes)
+  - Dictamen_Lista_4_234_000227_26_79.json (1863 bytes)
+  - Dictamen_Lista_4_235_000227_26_83.json (1618 bytes)
+  - Dictamen_Lista_4_236_000227_26_84.json (1615 bytes)
+  - Dictamen_Lista_4_237_000227_26_87.json (1620 bytes)
+  - Dictamen_Lista_4_238_000227_26_91.json (1618 bytes)
+  - Dictamen_Lista_4_239_000227_26_94.json (1620 bytes)
+  - Dictamen_Lista_4_23_000226_26_2.json (1625 bytes)
+  - Dictamen_Lista_4_240_000227_26_95.json (1617 bytes)
+  - Dictamen_Lista_4_241_000227_26_96.json (1616 bytes)
+  - Dictamen_Lista_4_242_000227_26_99.json (1619 bytes)
+  - Dictamen_Lista_4_243_000227_26_102.json (1627 bytes)
+  - Dictamen_Lista_4_244_000227_26_105.json (1629 bytes)
+  - Dictamen_Lista_4_245_000227_26_109.json (1866 bytes)
+  - Dictamen_Lista_4_246_000227_26_110.json (1620 bytes)
+  - Dictamen_Lista_4_247_000227_26_111.json (1622 bytes)
+  - Dictamen_Lista_4_248_000227_26_114.json (1746 bytes)
+  - Dictamen_Lista_4_249_000227_26_116.json (1741 bytes)
+  - Dictamen_Lista_4_24_000226_26_3.json (1616 bytes)
+  - Dictamen_Lista_4_250_000227_26_121.json (1620 bytes)
+  - Dictamen_Lista_4_251_000227_26_122.json (1619 bytes)
+  - Dictamen_Lista_4_252_000227_26_125.json (1638 bytes)
+  - Dictamen_Lista_4_253_000227_26_127.json (1625 bytes)
+  - Dictamen_Lista_4_254_000227_26_128.json (1626 bytes)
+  - Dictamen_Lista_4_255_000227_26_129.json (1626 bytes)
+  - Dictamen_Lista_4_256_000227_26_130.json (1753 bytes)
+  - Dictamen_Lista_4_257_000227_26_133.json (1621 bytes)
+  - Dictamen_Lista_4_258_000227_26_137.json (1988 bytes)
+  - Dictamen_Lista_4_259_000227_26_138.json (1622 bytes)
+  - Dictamen_Lista_4_25_000226_26_4.json (1616 bytes)
+  - Dictamen_Lista_4_260_000227_26_141.json (1748 bytes)
+  - Dictamen_Lista_4_261_000227_26_142.json (2246 bytes)
+  - Dictamen_Lista_4_262_000227_26_143.json (1627 bytes)
+  - Dictamen_Lista_4_263_000227_26_144.json (1875 bytes)
+  - Dictamen_Lista_4_264_000227_26_147.json (1624 bytes)
+  - Dictamen_Lista_4_265_000227_26_148.json (1627 bytes)
+  - Dictamen_Lista_4_266_000227_26_150.json (1621 bytes)
+  - Dictamen_Lista_4_267_000227_26_152.json (1621 bytes)
+  - Dictamen_Lista_4_268_000227_26_153.json (1627 bytes)
+  - Dictamen_Lista_4_269_000227_26_157.json (2354 bytes)
+  - Dictamen_Lista_4_26_000226_26_5.json (1990 bytes)
+  - Dictamen_Lista_4_270_000227_26_159.json (1622 bytes)
+  - Dictamen_Lista_4_271_000227_26_162.json (1620 bytes)
+  - Dictamen_Lista_4_272_000227_26_164.json (1621 bytes)
+  - Dictamen_Lista_4_273_000227_26_165.json (1625 bytes)
+  - Dictamen_Lista_4_274_000227_26_167.json (1625 bytes)
+  - Dictamen_Lista_4_275_000227_26_172.json (1617 bytes)
+  - Dictamen_Lista_4_276_000227_26_173.json (1624 bytes)
+  - Dictamen_Lista_4_277_000227_26_174.json (1742 bytes)
+  - Dictamen_Lista_4_278_000227_26_179.json (1621 bytes)
+  - Dictamen_Lista_4_279_000227_26_180.json (1618 bytes)
+  - Dictamen_Lista_4_27_000226_26_9.json (1618 bytes)
+  - Dictamen_Lista_4_280_000227_26_181.json (1618 bytes)
+  - Dictamen_Lista_4_281_000227_26_182.json (1750 bytes)
+  - Dictamen_Lista_4_282_000227_26_184.json (1990 bytes)
+  - Dictamen_Lista_4_283_000227_26_185.json (1869 bytes)
+  - Dictamen_Lista_4_284_000227_26_187.json (1627 bytes)
+  - Dictamen_Lista_4_285_000227_26_189.json (1627 bytes)
+  - Dictamen_Lista_4_286_000227_26_192.json (1625 bytes)
+  - Dictamen_Lista_4_287_000227_26_193.json (1625 bytes)
+  - Dictamen_Lista_4_288_000227_26_195.json (1626 bytes)
+  - Dictamen_Lista_4_289_000227_26_206.json (1742 bytes)
+  - Dictamen_Lista_4_28_000226_26_10.json (1624 bytes)
+  - Dictamen_Lista_4_290_000227_26_212.json (1629 bytes)
+  - Dictamen_Lista_4_291_000227_26_214.json (1744 bytes)
+  - Dictamen_Lista_4_292_000227_26_217.json (1621 bytes)
+  - Dictamen_Lista_4_293_000227_26_219.json (1622 bytes)
+  - Dictamen_Lista_4_294_000227_26_222.json (1747 bytes)
+  - Dictamen_Lista_4_295_000227_26_223.json (1624 bytes)
+  - Dictamen_Lista_4_296_000227_26_224.json (1741 bytes)
+  - Dictamen_Lista_4_297_000227_26_227.json (1618 bytes)
+  - Dictamen_Lista_4_298_000227_26_229.json (1618 bytes)
+  - Dictamen_Lista_4_299_000227_26_238.json (1621 bytes)
+  - Dictamen_Lista_4_29_000226_26_11.json (1621 bytes)
+  - Dictamen_Lista_4_2_008313_25_3.json (1866 bytes)
+  - Dictamen_Lista_4_300_000227_26_239.json (1748 bytes)
+  - Dictamen_Lista_4_301_000227_26_240.json (1629 bytes)
+  - Dictamen_Lista_4_302_000227_26_241.json (1626 bytes)
+  - Dictamen_Lista_4_303_000227_26_242.json (1620 bytes)
+  - Dictamen_Lista_4_304_000227_26_244.json (1619 bytes)
+  - Dictamen_Lista_4_305_000227_26_248.json (1871 bytes)
+  - Dictamen_Lista_4_306_000227_26_249.json (1621 bytes)
+  - Dictamen_Lista_4_307_000227_26_250.json (1740 bytes)
+  - Dictamen_Lista_4_308_000227_26_251.json (1994 bytes)
+  - Dictamen_Lista_4_309_000227_26_253.json (1873 bytes)
+  - Dictamen_Lista_4_30_000226_26_15.json (1875 bytes)
+  - Dictamen_Lista_4_310_000227_26_254.json (1748 bytes)
+  - Dictamen_Lista_4_311_000227_26_255.json (1627 bytes)
+  - Dictamen_Lista_4_312_000227_26_257.json (1870 bytes)
+  - Dictamen_Lista_4_31_000226_26_16.json (1619 bytes)
+  - Dictamen_Lista_4_32_000226_26_17.json (1619 bytes)
+  - Dictamen_Lista_4_33_000226_26_18.json (1618 bytes)
+  - Dictamen_Lista_4_34_000226_26_19.json (1620 bytes)
+  - Dictamen_Lista_4_35_000226_26_20.json (1747 bytes)
+  - Dictamen_Lista_4_36_000226_26_22.json (1623 bytes)
+  - Dictamen_Lista_4_37_000226_26_24.json (2111 bytes)
+  - Dictamen_Lista_4_38_000226_26_25.json (1618 bytes)
+  - Dictamen_Lista_4_3_008313_25_4.json (1616 bytes)
+  - Dictamen_Lista_4_43_000191_26_1.json (1614 bytes)
+  - Dictamen_Lista_4_44_000191_26_4.json (1734 bytes)
+  - Dictamen_Lista_4_45_000191_26_5.json (1614 bytes)
+  - Dictamen_Lista_4_46_000191_26_6.json (2113 bytes)
+  - Dictamen_Lista_4_47_000191_26_10.json (1740 bytes)
+  - Dictamen_Lista_4_48_000191_26_12.json (1614 bytes)
+  - Dictamen_Lista_4_49_000191_26_13.json (1618 bytes)
+  - Dictamen_Lista_4_4_008313_25_5.json (1757 bytes)
+  - Dictamen_Lista_4_50_000191_26_14.json (1617 bytes)
+  - Dictamen_Lista_4_51_000191_26_15.json (1614 bytes)
+  - Dictamen_Lista_4_52_000191_26_16.json (1617 bytes)
+  - Dictamen_Lista_4_53_000191_26_17.json (1616 bytes)
+  - Dictamen_Lista_4_54_000191_26_19.json (1616 bytes)
+  - Dictamen_Lista_4_55_000191_26_20.json (1747 bytes)
+  - Dictamen_Lista_4_56_000191_26_25.json (1985 bytes)
+  - Dictamen_Lista_4_57_000191_26_26.json (1616 bytes)
+  - Dictamen_Lista_4_58_000191_26_27.json (1861 bytes)
+  - Dictamen_Lista_4_59_000191_26_30.json (1616 bytes)
+  - Dictamen_Lista_4_5_008313_25_7.json (1747 bytes)
+  - Dictamen_Lista_4_60_000191_26_31.json (1615 bytes)
+  - Dictamen_Lista_4_61_000191_26_32.json (1626 bytes)
+  - Dictamen_Lista_4_62_000191_26_33.json (1620 bytes)
+  - Dictamen_Lista_4_63_000191_26_36.json (1622 bytes)
+  - Dictamen_Lista_4_64_000191_26_38.json (1614 bytes)
+  - Dictamen_Lista_4_65_000191_26_42.json (1619 bytes)
+  - Dictamen_Lista_4_66_000191_26_44.json (1619 bytes)
+  - Dictamen_Lista_4_67_000191_26_46.json (1619 bytes)
+  - Dictamen_Lista_4_68_000191_26_50.json (1618 bytes)
+  - Dictamen_Lista_4_69_000191_26_51.json (1616 bytes)
+  - Dictamen_Lista_4_6_008313_25_8.json (2001 bytes)
+  - Dictamen_Lista_4_70_000191_26_52.json (1997 bytes)
+  - Dictamen_Lista_4_71_000191_26_53.json (1619 bytes)
+  - Dictamen_Lista_4_72_000191_26_55.json (1625 bytes)
+  - Dictamen_Lista_4_73_000191_26_56.json (1618 bytes)
+  - Dictamen_Lista_4_74_000191_26_61.json (1625 bytes)
+  - Dictamen_Lista_4_75_000191_26_62.json (1618 bytes)
+  - Dictamen_Lista_4_76_000191_26_64.json (1739 bytes)
+  - Dictamen_Lista_4_77_000191_26_65.json (1863 bytes)
+  - Dictamen_Lista_4_78_000191_26_69.json (1617 bytes)
+  - Dictamen_Lista_4_79_000191_26_70.json (1617 bytes)
+  - Dictamen_Lista_4_7_008305_25_1.json (1615 bytes)
+  - Dictamen_Lista_4_80_000191_26_73.json (1619 bytes)
+  - Dictamen_Lista_4_81_000191_26_78.json (1617 bytes)
+  - Dictamen_Lista_4_82_000191_26_79.json (1619 bytes)
+  - Dictamen_Lista_4_83_000191_26_80.json (1619 bytes)
+  - Dictamen_Lista_4_84_000191_26_82.json (1615 bytes)
+  - Dictamen_Lista_4_85_000191_26_84.json (1618 bytes)
+  - Dictamen_Lista_4_86_000191_26_85.json (1623 bytes)
+  - Dictamen_Lista_4_87_000191_26_87.json (1625 bytes)
+  - Dictamen_Lista_4_88_000191_26_89.json (1862 bytes)
+  - Dictamen_Lista_4_89_000191_26_90.json (1616 bytes)
+  - Dictamen_Lista_4_8_008305_25_3.json (1617 bytes)
+  - Dictamen_Lista_4_90_000191_26_92.json (1618 bytes)
+  - Dictamen_Lista_4_91_000191_26_93.json (1741 bytes)
+  - Dictamen_Lista_4_92_000191_26_95.json (1737 bytes)
+  - Dictamen_Lista_4_93_000191_26_97.json (1616 bytes)
+  - Dictamen_Lista_4_94_000191_26_98.json (1615 bytes)
+  - Dictamen_Lista_4_95_000191_26_100.json (1637 bytes)
+  - Dictamen_Lista_4_96_000191_26_102.json (1627 bytes)
+  - Dictamen_Lista_4_97_000191_26_103.json (1625 bytes)
+  - Dictamen_Lista_4_98_000191_26_104.json (1625 bytes)
+  - Dictamen_Lista_4_99_000191_26_105.json (1749 bytes)
+  - Dictamen_Lista_4_9_008305_25_4.json (1617 bytes)
+  - Dictamen_Lista_50_163_000191_26_225.json (1604 bytes)
+  - Dictamen_Lista_50_164_000191_26_226.json (1604 bytes)
+  - Dictamen_Lista_50_165_000191_26_228.json (1616 bytes)
+  - Dictamen_Lista_50_166_000191_26_229.json (1739 bytes)
+  - Dictamen_Lista_50_167_000191_26_231.json (1615 bytes)
+  - Dictamen_Lista_50_168_000191_26_234.json (1610 bytes)
+  - Dictamen_Lista_50_169_000191_26_237.json (1606 bytes)
+  - Dictamen_Lista_50_170_000191_26_238.json (1597 bytes)
+  - Dictamen_Lista_50_171_000191_26_239.json (1614 bytes)
+  - Dictamen_Lista_50_172_000191_26_244.json (1847 bytes)
+  - Dictamen_Lista_50_173_000191_26_245.json (1607 bytes)
+  - Dictamen_Lista_50_174_000191_26_247.json (1722 bytes)
+  - Dictamen_Lista_50_175_000191_26_251.json (1595 bytes)
+  - Dictamen_Lista_50_176_000191_26_252.json (1599 bytes)
+  - Dictamen_Lista_50_177_000191_26_254.json (1605 bytes)
+  - Dictamen_Lista_50_178_000191_26_256.json (1604 bytes)
+  - Dictamen_Lista_50_179_000191_26_259.json (1602 bytes)
+  - Dictamen_Lista_50_180_000191_26_263.json (1602 bytes)
+  - Dictamen_Lista_50_181_000191_26_264.json (1601 bytes)
+  - Dictamen_Lista_50_182_000191_26_267.json (1595 bytes)
+  - Dictamen_Lista_50_183_000191_26_268.json (1597 bytes)
+  - Dictamen_Lista_50_184_000191_26_269.json (1595 bytes)
+  - Dictamen_Lista_50_185_000191_26_272.json (1598 bytes)
+  - Dictamen_Lista_50_186_000191_26_274.json (1597 bytes)
+  - Dictamen_Lista_50_187_000191_26_278.json (1598 bytes)
+  - Dictamen_Lista_50_188_000191_26_279.json (1595 bytes)
+  - Dictamen_Lista_50_189_000191_26_280.json (1607 bytes)
+  - Dictamen_Lista_50_18_008305_25_22.json (1596 bytes)
+  - Dictamen_Lista_50_190_000191_26_282.json (1597 bytes)
+  - Dictamen_Lista_50_191_000191_26_283.json (1606 bytes)
+  - Dictamen_Lista_50_192_000191_26_284.json (1596 bytes)
+  - Dictamen_Lista_50_193_000191_26_293.json (1597 bytes)
+  - Dictamen_Lista_50_194_000191_26_294.json (1598 bytes)
+  - Dictamen_Lista_50_195_000191_26_303.json (1606 bytes)
+  - Dictamen_Lista_50_196_000191_26_305.json (1608 bytes)
+  - Dictamen_Lista_50_197_000191_26_306.json (1610 bytes)
+  - Dictamen_Lista_50_198_000191_26_307.json (1609 bytes)
+  - Dictamen_Lista_50_19_008305_25_23.json (1601 bytes)
+  - Dictamen_Lista_50_20_008305_25_24.json (1602 bytes)
+  - Dictamen_Lista_50_319_000227_26_286.json (1604 bytes)
+  - Dictamen_Lista_50_320_000227_26_288.json (1604 bytes)
+  - Dictamen_Lista_50_321_000227_26_291.json (1616 bytes)
+  - Dictamen_Lista_50_322_000227_26_292.json (1739 bytes)
+  - Dictamen_Lista_50_323_000227_26_296.json (1615 bytes)
+  - Dictamen_Lista_50_324_000227_26_299.json (1613 bytes)
+  - Dictamen_Lista_50_325_000227_26_301.json (1606 bytes)
+  - Dictamen_Lista_50_326_000227_26_303.json (1594 bytes)
+  - Dictamen_Lista_50_327_000227_26_307.json (1845 bytes)
+  - Dictamen_Lista_50_328_000227_26_308.json (1507 bytes)
+  - Dictamen_Lista_50_329_000227_26_311.json (1722 bytes)
+  - Dictamen_Lista_50_330_000227_26_317.json (1595 bytes)
+  - Dictamen_Lista_50_331_000227_26_319.json (1599 bytes)
+  - Dictamen_Lista_50_332_000227_26_320.json (1602 bytes)
+  - Dictamen_Lista_50_333_000227_26_323.json (1604 bytes)
+  - Dictamen_Lista_50_334_000227_26_325.json (1602 bytes)
+  - Dictamen_Lista_50_335_000227_26_327.json (1605 bytes)
+  - Dictamen_Lista_50_336_000227_26_328.json (1601 bytes)
+  - Dictamen_Lista_50_337_000227_26_331.json (1595 bytes)
+  - Dictamen_Lista_50_40_000226_26_32.json (1596 bytes)
+  - Dictamen_Lista_50_41_000226_26_33.json (1601 bytes)
+  - Dictamen_Lista_50_42_000226_26_34.json (1599 bytes)
+DIR: eliminacion_logs
+  - eliminacion_CP000001_20260205124918.txt (812 bytes)
+DIR: folios_visitas
+DIR: folios_visitas\backups
+DIR: Reportes_Decathlon
+DIR: tabla_relacion_backups
+===== END STARTUP DEBUG =====
+folio_manager.chosen=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data
+cargar_clientes: opened c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data\Clientes.json size=61435
+folio_manager.chosen=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data
+folio_manager.chosen=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data
+folio_manager.chosen=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data
+folio_manager.chosen=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data
+folio_manager.chosen=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data
+folio_manager.chosen=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data
+folio_manager.chosen=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data
+folio_manager.chosen=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data
+folio_manager.chosen=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data
+folio_manager.chosen=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data
+folio_manager.chosen=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data
+folio_manager.chosen=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data
+folio_manager.chosen=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data
+folio_manager.chosen=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data
+folio_manager.chosen=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data
+folio_manager.chosen=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data
+folio_manager.chosen=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data
+folio_manager.chosen=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data
+folio_manager.chosen=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data
+
+===== STARTUP DEBUG: 2026-02-10 10:07:57 =====
+frozen=False
+BASE_DIR=C:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C
+APP_DIR=C:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C
+DATA_DIR=C:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data
+CWD=C:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C
+ENV.IMAGENESVC_DATA_DIR=None
+ENV.FOLIO_DATA_DIR=C:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data
+Clientes.json: exists=True size=61435 path=C:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data\Clientes.json
+tabla_de_relacion.json: exists=False size=None path=C:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data\tabla_de_relacion.json
+Firmas.json: exists=True size=11096 path=C:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data\Firmas.json
+folio_counter.json: exists=True size=11 path=C:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data\folio_counter.json
+historial_visitas.json: exists=True size=48 path=C:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data\historial_visitas.json
+pending_folios.json: exists=True size=2 path=C:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data\pending_folios.json
+DIR: .
+  - Clientes.json (61435 bytes)
+  - Clientes.json.orig (51407 bytes)
+  - config_etiquetas.json (2100 bytes)
+  - constancia_debug.log (20087 bytes)
+  - excel_export_config.json (508 bytes)
+  - excel_export_data.json (82 bytes)
+  - Firmas.json (11096 bytes)
+  - folio_counter.json (11 bytes)
+  - historial_visitas.json (48 bytes)
+  - historial_visitas.json.backup (49 bytes)
+  - hist_borrar_debug.log (910 bytes)
+  - Normas.json (2646 bytes)
+  - operaciones_log.json (1854 bytes)
+  - pending_folios.json (2 bytes)
+  - startup_exe_debug.log (26558 bytes)
+DIR: Constancias
+DIR: Dictamenes
+DIR: eliminacion_logs
+DIR: folios_visitas
+DIR: folios_visitas\backups
+DIR: Reportes_Decathlon
+DIR: tabla_relacion_backups
+===== END STARTUP DEBUG =====
+folio_manager.chosen=C:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data
+cargar_clientes: opened C:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data\Clientes.json size=61435
+folio_manager.chosen=C:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data
+folio_manager.chosen=C:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data
+folio_manager.chosen=C:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data
+folio_manager.chosen=C:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data
+folio_manager.chosen=C:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data
+folio_manager.chosen=C:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data
+folio_manager.chosen=C:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data
+folio_manager.chosen=C:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data
+folio_manager.chosen=C:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data
+folio_manager.chosen=C:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data
+folio_manager.chosen=C:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data
+folio_manager.chosen=C:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data
+
+===== STARTUP DEBUG: 2026-02-10 10:41:16 =====
+frozen=False
+BASE_DIR=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C
+APP_DIR=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C
+DATA_DIR=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data
+CWD=C:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C
+ENV.IMAGENESVC_DATA_DIR=None
+ENV.FOLIO_DATA_DIR=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data
+Clientes.json: exists=True size=61435 path=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data\Clientes.json
+tabla_de_relacion.json: exists=True size=6923 path=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data\tabla_de_relacion.json
+Firmas.json: exists=True size=11096 path=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data\Firmas.json
+folio_counter.json: exists=True size=11 path=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data\folio_counter.json
+historial_visitas.json: exists=True size=1127 path=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data\historial_visitas.json
+pending_folios.json: exists=True size=2 path=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data\pending_folios.json
+DIR: .
+  - base_etiquetado.json (1653649 bytes)
+  - Clientes.json (61435 bytes)
+  - Clientes.json.orig (51407 bytes)
+  - config_etiquetas.json (2121 bytes)
+  - constancia_debug.log (20087 bytes)
+  - excel_export_config.json (508 bytes)
+  - excel_export_data.json (82 bytes)
+  - Firmas.json (11096 bytes)
+  - folio_counter.json (11 bytes)
+  - historial_visitas.json (1127 bytes)
+  - historial_visitas.json.backup (48 bytes)
+  - hist_borrar_debug.log (910 bytes)
+  - Normas.json (2646 bytes)
+  - operaciones_log.json (1854 bytes)
+  - pending_folios.json (2 bytes)
+  - startup_exe_debug.log (30087 bytes)
+  - tabla_de_relacion.json (6923 bytes)
+DIR: Constancias
+DIR: Dictamenes
+  - Dictamen_Lista_4_1_000191_26_52.json (1618 bytes)
+  - Dictamen_Lista_4_2_000227_26_64.json (1618 bytes)
+  - Dictamen_Lista_4_3_000191_26_165.json (1614 bytes)
+  - Dictamen_Lista_4_4_000227_26_206.json (1617 bytes)
+  - Dictamen_Lista_4_5_008305_25_10.json (1742 bytes)
+  - Dictamen_Lista_4_6_000226_26_24.json (1743 bytes)
+DIR: eliminacion_logs
+DIR: folios_visitas
+  - folios_CP000001.json (2366 bytes)
+DIR: folios_visitas\backups
+DIR: Reportes_Decathlon
+DIR: tabla_relacion_backups
+  - tabla_de_relacion_CP000001_PERSIST_20260210100837.json (6923 bytes)
+===== END STARTUP DEBUG =====
+folio_manager.chosen=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data
+cargar_clientes: opened c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data\Clientes.json size=61435
+folio_manager.chosen=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data
+folio_manager.chosen=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data
+folio_manager.chosen=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data
+folio_manager.chosen=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data
+folio_manager.chosen=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data
+folio_manager.chosen=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data
+folio_manager.chosen=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data
+folio_manager.chosen=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data
+folio_manager.chosen=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data
+folio_manager.chosen=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data
+folio_manager.chosen=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data
+folio_manager.chosen=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data
+
+===== STARTUP DEBUG: 2026-02-10 11:12:13 =====
+frozen=False
+BASE_DIR=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C
+APP_DIR=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C
+DATA_DIR=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data
+CWD=C:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C
+ENV.IMAGENESVC_DATA_DIR=None
+ENV.FOLIO_DATA_DIR=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data
+Clientes.json: exists=True size=61435 path=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data\Clientes.json
+tabla_de_relacion.json: exists=False size=None path=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data\tabla_de_relacion.json
+Firmas.json: exists=True size=11096 path=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data\Firmas.json
+folio_counter.json: exists=True size=12 path=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data\folio_counter.json
+historial_visitas.json: exists=True size=2203 path=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data\historial_visitas.json
+pending_folios.json: exists=True size=2 path=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data\pending_folios.json
+DIR: .
+  - Clientes.json (61435 bytes)
+  - Clientes.json.orig (51407 bytes)
+  - config_etiquetas.json (2121 bytes)
+  - constancia_debug.log (20087 bytes)
+  - excel_export_config.json (508 bytes)
+  - excel_export_data.json (4654 bytes)
+  - Firmas.json (11096 bytes)
+  - folio_counter.json (12 bytes)
+  - historial_visitas.json (2203 bytes)
+  - historial_visitas.json.backup (1127 bytes)
+  - hist_borrar_debug.log (910 bytes)
+  - Normas.json (2646 bytes)
+  - operaciones_log.json (1854 bytes)
+  - pending_folios.json (2 bytes)
+  - startup_exe_debug.log (34146 bytes)
+DIR: Constancias
+DIR: Dictamenes
+  - Dictamen_Lista_4_10_000227_26_206.json (1618 bytes)
+  - Dictamen_Lista_4_11_008305_25_10.json (1743 bytes)
+  - Dictamen_Lista_4_12_000226_26_24.json (1744 bytes)
+  - Dictamen_Lista_4_1_000191_26_52.json (1618 bytes)
+  - Dictamen_Lista_4_2_000227_26_64.json (1618 bytes)
+  - Dictamen_Lista_4_3_000191_26_165.json (1614 bytes)
+  - Dictamen_Lista_4_4_000227_26_206.json (1617 bytes)
+  - Dictamen_Lista_4_5_008305_25_10.json (1742 bytes)
+  - Dictamen_Lista_4_6_000226_26_24.json (1743 bytes)
+  - Dictamen_Lista_4_7_000191_26_52.json (1618 bytes)
+  - Dictamen_Lista_4_8_000227_26_64.json (1618 bytes)
+  - Dictamen_Lista_4_9_000191_26_165.json (1614 bytes)
+DIR: eliminacion_logs
+DIR: folios_visitas
+  - folios_CP000001.json (2366 bytes)
+  - folios_CP000002.json (2366 bytes)
+DIR: folios_visitas\backups
+DIR: Reportes_Decathlon
+DIR: tabla_relacion_backups
+  - tabla_de_relacion_CP000001_PERSIST_20260210100837.json (6923 bytes)
+  - tabla_de_relacion_CP000002_PERSIST_20260210104245.json (6928 bytes)
+===== END STARTUP DEBUG =====
+folio_manager.chosen=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data
+cargar_clientes: opened c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data\Clientes.json size=61435
+folio_manager.chosen=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data
+folio_manager.chosen=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data
+folio_manager.chosen=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data
+folio_manager.chosen=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data
+folio_manager.chosen=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data
+folio_manager.chosen=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data
+folio_manager.chosen=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data
+folio_manager.chosen=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data
+folio_manager.chosen=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data
+folio_manager.chosen=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data
+folio_manager.chosen=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data
+folio_manager.chosen=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data
+
+===== STARTUP DEBUG: 2026-02-10 11:21:13 =====
+frozen=False
+BASE_DIR=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C
+APP_DIR=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C
+DATA_DIR=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data
+CWD=C:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C
+ENV.IMAGENESVC_DATA_DIR=None
+ENV.FOLIO_DATA_DIR=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data
+Clientes.json: exists=True size=61435 path=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data\Clientes.json
+tabla_de_relacion.json: exists=True size=6931 path=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data\tabla_de_relacion.json
+Firmas.json: exists=True size=11096 path=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data\Firmas.json
+folio_counter.json: exists=True size=12 path=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data\folio_counter.json
+historial_visitas.json: exists=True size=3279 path=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data\historial_visitas.json
+pending_folios.json: exists=True size=2 path=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data\pending_folios.json
+DIR: .
+  - base_etiquetado.json (1653649 bytes)
+  - Clientes.json (61435 bytes)
+  - Clientes.json.orig (51407 bytes)
+  - config_etiquetas.json (2121 bytes)
+  - constancia_debug.log (20087 bytes)
+  - excel_export_config.json (508 bytes)
+  - excel_export_data.json (645 bytes)
+  - Firmas.json (11096 bytes)
+  - folio_counter.json (12 bytes)
+  - historial_visitas.json (3279 bytes)
+  - historial_visitas.json.backup (2203 bytes)
+  - hist_borrar_debug.log (910 bytes)
+  - Normas.json (2646 bytes)
+  - operaciones_log.json (1854 bytes)
+  - pending_folios.json (2 bytes)
+  - startup_exe_debug.log (38574 bytes)
+  - tabla_de_relacion.json (6931 bytes)
+DIR: Constancias
+DIR: Dictamenes
+  - Dictamen_Lista_4_10_000227_26_206.json (1618 bytes)
+  - Dictamen_Lista_4_11_008305_25_10.json (1743 bytes)
+  - Dictamen_Lista_4_12_000226_26_24.json (1744 bytes)
+  - Dictamen_Lista_4_13_000191_26_52.json (1619 bytes)
+  - Dictamen_Lista_4_14_000227_26_64.json (1619 bytes)
+  - Dictamen_Lista_4_15_000191_26_165.json (1615 bytes)
+  - Dictamen_Lista_4_16_000227_26_206.json (1618 bytes)
+  - Dictamen_Lista_4_17_008305_25_10.json (1743 bytes)
+  - Dictamen_Lista_4_18_000226_26_24.json (1744 bytes)
+  - Dictamen_Lista_4_1_000191_26_52.json (1618 bytes)
+  - Dictamen_Lista_4_2_000227_26_64.json (1618 bytes)
+  - Dictamen_Lista_4_3_000191_26_165.json (1614 bytes)
+  - Dictamen_Lista_4_4_000227_26_206.json (1617 bytes)
+  - Dictamen_Lista_4_5_008305_25_10.json (1742 bytes)
+  - Dictamen_Lista_4_6_000226_26_24.json (1743 bytes)
+  - Dictamen_Lista_4_7_000191_26_52.json (1618 bytes)
+  - Dictamen_Lista_4_8_000227_26_64.json (1618 bytes)
+  - Dictamen_Lista_4_9_000191_26_165.json (1614 bytes)
+DIR: eliminacion_logs
+DIR: folios_visitas
+  - folios_CP000001.json (2366 bytes)
+  - folios_CP000002.json (2366 bytes)
+  - folios_CP000003.json (2367 bytes)
+DIR: folios_visitas\backups
+DIR: Reportes_Decathlon
+DIR: tabla_relacion_backups
+  - tabla_de_relacion_CP000001_PERSIST_20260210100837.json (6923 bytes)
+  - tabla_de_relacion_CP000002_PERSIST_20260210104245.json (6928 bytes)
+  - tabla_de_relacion_CP000003_PERSIST_20260210111329.json (6931 bytes)
+===== END STARTUP DEBUG =====
+folio_manager.chosen=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data
+cargar_clientes: opened c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data\Clientes.json size=61435
+folio_manager.chosen=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data
+folio_manager.chosen=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data
+folio_manager.chosen=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data
+folio_manager.chosen=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data
+folio_manager.chosen=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data
+folio_manager.chosen=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data
+folio_manager.chosen=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data
+folio_manager.chosen=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data
+folio_manager.chosen=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data
+folio_manager.chosen=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data
+folio_manager.chosen=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data
+folio_manager.chosen=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data
+
+===== STARTUP DEBUG: 2026-02-10 11:26:51 =====
+frozen=False
+BASE_DIR=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C
+APP_DIR=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C
+DATA_DIR=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data
+CWD=C:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C
+ENV.IMAGENESVC_DATA_DIR=None
+ENV.FOLIO_DATA_DIR=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data
+Clientes.json: exists=True size=61435 path=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data\Clientes.json
+tabla_de_relacion.json: exists=False size=None path=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data\tabla_de_relacion.json
+Firmas.json: exists=True size=11096 path=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data\Firmas.json
+folio_counter.json: exists=True size=12 path=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data\folio_counter.json
+historial_visitas.json: exists=True size=4355 path=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data\historial_visitas.json
+pending_folios.json: exists=True size=2 path=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data\pending_folios.json
+DIR: .
+  - Clientes.json (61435 bytes)
+  - Clientes.json.orig (51407 bytes)
+  - config_etiquetas.json (2121 bytes)
+  - constancia_debug.log (20087 bytes)
+  - excel_export_config.json (508 bytes)
+  - excel_export_data.json (5214 bytes)
+  - Firmas.json (11096 bytes)
+  - folio_counter.json (12 bytes)
+  - historial_visitas.json (4355 bytes)
+  - historial_visitas.json.backup (3279 bytes)
+  - hist_borrar_debug.log (910 bytes)
+  - Normas.json (2646 bytes)
+  - operaciones_log.json (1854 bytes)
+  - pending_folios.json (2 bytes)
+  - startup_exe_debug.log (43533 bytes)
+DIR: Constancias
+DIR: Dictamenes
+  - Dictamen_Lista_4_10_000227_26_206.json (1618 bytes)
+  - Dictamen_Lista_4_11_008305_25_10.json (1743 bytes)
+  - Dictamen_Lista_4_12_000226_26_24.json (1744 bytes)
+  - Dictamen_Lista_4_13_000191_26_52.json (1619 bytes)
+  - Dictamen_Lista_4_14_000227_26_64.json (1619 bytes)
+  - Dictamen_Lista_4_15_000191_26_165.json (1615 bytes)
+  - Dictamen_Lista_4_16_000227_26_206.json (1618 bytes)
+  - Dictamen_Lista_4_17_008305_25_10.json (1743 bytes)
+  - Dictamen_Lista_4_18_000226_26_24.json (1744 bytes)
+  - Dictamen_Lista_4_19_000191_26_52.json (1619 bytes)
+  - Dictamen_Lista_4_1_000191_26_52.json (1618 bytes)
+  - Dictamen_Lista_4_20_000227_26_64.json (1619 bytes)
+  - Dictamen_Lista_4_21_000191_26_165.json (1615 bytes)
+  - Dictamen_Lista_4_22_000227_26_206.json (1618 bytes)
+  - Dictamen_Lista_4_23_008305_25_10.json (1743 bytes)
+  - Dictamen_Lista_4_24_000226_26_24.json (1744 bytes)
+  - Dictamen_Lista_4_2_000227_26_64.json (1618 bytes)
+  - Dictamen_Lista_4_3_000191_26_165.json (1614 bytes)
+  - Dictamen_Lista_4_4_000227_26_206.json (1617 bytes)
+  - Dictamen_Lista_4_5_008305_25_10.json (1742 bytes)
+  - Dictamen_Lista_4_6_000226_26_24.json (1743 bytes)
+  - Dictamen_Lista_4_7_000191_26_52.json (1618 bytes)
+  - Dictamen_Lista_4_8_000227_26_64.json (1618 bytes)
+  - Dictamen_Lista_4_9_000191_26_165.json (1614 bytes)
+DIR: eliminacion_logs
+DIR: folios_visitas
+  - folios_CP000001.json (2366 bytes)
+  - folios_CP000002.json (2366 bytes)
+  - folios_CP000003.json (2367 bytes)
+  - folios_CP000004.json (2367 bytes)
+DIR: folios_visitas\backups
+DIR: Reportes_Decathlon
+DIR: tabla_relacion_backups
+  - tabla_de_relacion_CP000001_PERSIST_20260210100837.json (6923 bytes)
+  - tabla_de_relacion_CP000002_PERSIST_20260210104245.json (6928 bytes)
+  - tabla_de_relacion_CP000003_PERSIST_20260210111329.json (6931 bytes)
+  - tabla_de_relacion_CP000004_PERSIST_20260210112202.json (6931 bytes)
+===== END STARTUP DEBUG =====
+folio_manager.chosen=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data
+cargar_clientes: opened c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data\Clientes.json size=61435
+folio_manager.chosen=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data
+folio_manager.chosen=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data
+folio_manager.chosen=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data
+folio_manager.chosen=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data
+folio_manager.chosen=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data
+folio_manager.chosen=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data
+folio_manager.chosen=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data
+folio_manager.chosen=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data
+folio_manager.chosen=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data
+folio_manager.chosen=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data
+folio_manager.chosen=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data
+folio_manager.chosen=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data
+folio_manager.chosen=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data
+folio_manager.chosen=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data
+folio_manager.chosen=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data
+folio_manager.chosen=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data
+folio_manager.chosen=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data
+folio_manager.chosen=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data
+folio_manager.chosen=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data
+folio_manager.chosen=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data
+folio_manager.chosen=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data
+folio_manager.chosen=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data
+folio_manager.chosen=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data
+folio_manager.chosen=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data
+folio_manager.chosen=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data
+folio_manager.chosen=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data
+folio_manager.chosen=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data
+folio_manager.chosen=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data
+folio_manager.chosen=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data
+folio_manager.chosen=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data
+folio_manager.chosen=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data
+folio_manager.chosen=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data
