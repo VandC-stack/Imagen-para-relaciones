@@ -474,35 +474,70 @@ def preparar_datos_familia(
     else:
         print("   ⚠️ No se encontraron códigos válidos en los registros")
 
-    codigo_firma1 = str(r0.get("FIRMA", "")).strip()
-    
-    print(f"   🔍 Validando firma: {codigo_firma1} para norma {norma}")
-    
-    nombre_firma1, imagen_firma1, firma1_acreditada = validar_acreditacion_inspector(
-        codigo_firma1, 
-        norma, 
-        firmas_map
-    )
-    
-    firma_valida = False
+    # Buscar entre todos los registros de la familia un inspector (código FIRMA)
+    # que esté acreditado para la norma actual. Esto evita usar siempre el
+    # primer registro y que se requiera que todos los inspectores tengan las
+    # mismas acreditaciones.
+    codigo_firma1 = ""
+    nombre_firma1 = ""
+    imagen_firma1 = ""
+    firma1_acreditada = False
     razon_sin_firma = ""
-    
-    if not nombre_firma1:
-        # Código no encontrado
-        razon_sin_firma = f"Código de firma '{codigo_firma1}' no encontrado en Firmas.json"
-        print(f"   ⚠️ DICTAMEN SIN FIRMA: {razon_sin_firma}")
-        nombre_firma1 = ""
-        imagen_firma1 = ""
-    elif not firma1_acreditada:
-        # Inspector no acreditado para esta norma
-        razon_sin_firma = f"Inspector {nombre_firma1} no acreditado para {norma}"
-        print(f"   ⚠️ DICTAMEN SIN FIRMA: {razon_sin_firma}")
-        nombre_firma1 = ""
-        imagen_firma1 = ""
+
+    # Priorizar códigos explícitos bajo claves comunes en cada registro
+    posibles_claves = ('FIRMA', 'firma', 'INSPECTOR', 'Inspector', 'inspector')
+    for rec in registros:
+        for k in posibles_claves:
+            try:
+                val = rec.get(k)
+            except Exception:
+                val = None
+            if not val:
+                continue
+            cand = str(val).strip()
+            if not cand:
+                continue
+            # Intentar validar el candidato como código de firma
+            nom_tmp, img_tmp, ac_tmp = validar_acreditacion_inspector(cand, norma, firmas_map)
+            if nom_tmp and ac_tmp:
+                codigo_firma1 = cand
+                nombre_firma1 = nom_tmp
+                imagen_firma1 = img_tmp
+                firma1_acreditada = True
+                print(f"   ✅ Firma asignada (desde registros): {nombre_firma1} [{codigo_firma1}]")
+                break
+        if firma1_acreditada:
+            break
+
+    # Si no encontramos ningún inspector acreditado entre los registros,
+    # intentar validar el código del primer registro como fallback (comportamiento previo)
+    if not firma1_acreditada:
+        codigo_fallback = str(r0.get("FIRMA", "")).strip()
+        if codigo_fallback:
+            print(f"   🔍 No se encontró firma acreditada en la familia; validando fallback: {codigo_fallback} para norma {norma}")
+            nombre_firma1, imagen_firma1, firma1_acreditada = validar_acreditacion_inspector(
+                codigo_fallback,
+                norma,
+                firmas_map
+            )
+            codigo_firma1 = codigo_fallback
+
+        if not nombre_firma1:
+            razon_sin_firma = f"Código de firma '{codigo_firma1}' no encontrado en Firmas.json"
+            print(f"   ⚠️ DICTAMEN SIN FIRMA: {razon_sin_firma}")
+            nombre_firma1 = ""
+            imagen_firma1 = ""
+            firma1_acreditada = False
+        elif not firma1_acreditada:
+            razon_sin_firma = f"Inspector {nombre_firma1} no acreditado para {norma}"
+            print(f"   ⚠️ DICTAMEN SIN FIRMA: {razon_sin_firma}")
+            nombre_firma1 = ""
+            imagen_firma1 = ""
+        else:
+            # Firma válida desde fallback
+            print(f"   ✅ Firma asignada (fallback): {nombre_firma1} [{codigo_firma1}]")
     else:
-        # Firma válida
         firma_valida = True
-        print(f"   ✅ Firma asignada: {nombre_firma1}")
     
     nombre_firma2, imagen_firma2, aflores_acreditado = validar_acreditacion_inspector(
         "AFLORES", 

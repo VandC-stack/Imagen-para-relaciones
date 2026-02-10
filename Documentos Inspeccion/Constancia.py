@@ -6,6 +6,7 @@ función para leer tabla_de_relacion.json y actualizar "TIPO DE DOCUMENTO" D->C.
 """
         # Cadena identificadora (cadena del dictamen/constancia) - centrada bajo el título
 import os
+import sys
 import json
 from datetime import datetime
 import re
@@ -30,7 +31,19 @@ except Exception:
     PACKAGE_BASE = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 
 # Ruta de datos persistentes (la misma que `app.py` exporta en FOLIO_DATA_DIR)
-DATA_DIR = os.getenv('FOLIO_DATA_DIR') or os.path.join(PACKAGE_BASE, 'data')
+def get_data_dir():
+    """Retorna la carpeta de datos persistente en tiempo de ejecución.
+
+    Prioriza la variable de entorno `FOLIO_DATA_DIR` establecida por `app.py`
+    cuando la aplicación está empacada (.exe). Si no existe, cae al
+    `PACKAGE_BASE/data` junto al bundle.
+    """
+    try:
+        return os.getenv('FOLIO_DATA_DIR') or os.path.join(PACKAGE_BASE, 'data')
+    except Exception:
+        return os.path.join(PACKAGE_BASE, 'data')
+
+DATA_DIR = get_data_dir()
 
 
 # Canvas personalizado para numerar páginas como "Página X de Y"
@@ -525,7 +538,7 @@ class ConstanciaPDFGenerator:
             fecha_contrato = self.datos.get('fecha_contrato') or self.datos.get('fecha_de_contrato') or ''
             if not fecha_contrato:
                 try:
-                    clientes_path = os.path.join(self.base_dir, 'data', 'Clientes.json')
+                    clientes_path = os.path.join(get_data_dir(), 'Clientes.json')
                     clientes_map = _cargar_clientes(clientes_path)
                     cliente_name = (self.datos.get('cliente') or '').upper()
                     fecha_contrato = (clientes_map.get(cliente_name, {}) or {}).get('FECHA_DE_CONTRATO', '')
@@ -579,7 +592,7 @@ class ConstanciaPDFGenerator:
         rfc = str(self.datos.get('rfc') or '')
         if not rfc:
             try:
-                clientes_path = os.path.join(self.base_dir, 'data', 'Clientes.json')
+                clientes_path = os.path.join(get_data_dir(), 'Clientes.json')
                 clientes_map = _cargar_clientes(clientes_path)
                 rfc = (clientes_map.get(cliente.upper().strip(), {}) or {}).get('RFC', '') or ''
             except Exception:
@@ -2127,7 +2140,7 @@ def generar_json_constancias_desde_historial(salida_dir: str | None = None, max_
     Devuelve la lista de rutas de los JSON creados.
     """
     base = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
-    data_dir = os.path.join(base, 'data')
+    data_dir = get_data_dir()
     hist = os.path.join(data_dir, 'historial_visitas.json')
     tabla = os.path.join(data_dir, 'tabla_de_relacion.json')
     clientes_p = os.path.join(data_dir, 'Clientes.json')
@@ -2328,7 +2341,7 @@ def generar_constancias_desde_tabla(salida_dir: str | None = None) -> list:
     Devuelve la lista de rutas generadas.
     """
     base = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
-    data_dir = os.path.join(base, 'data')
+    data_dir = get_data_dir()
     tabla = os.path.join(data_dir, 'tabla_de_relacion.json')
     normas_p = os.path.join(data_dir, 'Normas.json')
 
@@ -2442,7 +2455,7 @@ if __name__ == '__main__':
 
     def _preview_cadena_from_tabla():
         base = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
-        data_dir = os.path.join(base, 'data')
+        data_dir = get_data_dir()
         tabla = os.path.join(data_dir, 'tabla_de_relacion.json')
         try:
             with open(tabla, 'r', encoding='utf-8') as f:
@@ -2479,7 +2492,7 @@ if __name__ == '__main__':
 
     def generar_ejemplos_integrados(count: int = 3) -> None:
         base = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
-        data_dir = os.path.join(base, 'data')
+        data_dir = get_data_dir()
         const_dir = os.path.join(data_dir, 'Constancias')
         os.makedirs(const_dir, exist_ok=True)
 

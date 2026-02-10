@@ -56,18 +56,22 @@ DATA_DIR = os.getenv('IMAGENESVC_DATA_DIR')
 if DATA_DIR:
     DATA_DIR = os.path.abspath(DATA_DIR)
 else:
-
     if getattr(sys, 'frozen', False):
-        user_data = os.path.join(os.path.expanduser("~"), 'AppData', 'Local', 'Sistema_Generador_VC', 'data')
+        # Prefer a `data` folder next to the executable when running the
+        # bundled .exe. Fall back to AppData if the local folder cannot be
+        # created for permission reasons.
+        preferred_data = os.path.join(APP_DIR, 'data')
         try:
-            os.makedirs(user_data, exist_ok=True)
+            os.makedirs(preferred_data, exist_ok=True)
         except Exception:
-            user_data = os.path.join(APP_DIR, 'data')
+            preferred_data = os.path.join(os.path.expanduser("~"), 'AppData', 'Local', 'Sistema_Generador_VC', 'data')
+            try:
+                os.makedirs(preferred_data, exist_ok=True)
+            except Exception:
+                # Last-resort fallback
+                preferred_data = os.path.join(APP_DIR, 'data')
 
         def _bundle_candidates(subpath):
-            # Prefer top-level app data (next to exe) when present so behaviour
-            # matches running from source. PyInstaller may also store datas
-            # under BASE_DIR (sys._MEIPASS) in an "_internal" folder.
             candidates = [
                 os.path.join(APP_DIR, subpath),
                 os.path.join(APP_DIR, '_internal', subpath),
@@ -80,19 +84,21 @@ else:
         cands = _bundle_candidates('data')
         if cands:
             bundled_data = cands[0]
-        # Record which bundle candidate was selected so we can debug preference
+
+        # Debug info into the chosen preferred_data
         try:
-            bdbg = os.path.join(user_data, 'startup_exe_debug.log')
+            bdbg = os.path.join(preferred_data, 'startup_exe_debug.log')
             with open(bdbg, 'a', encoding='utf-8') as _bd:
-                _bd.write(f"bundle_candidates={cands}\nchosen={bundled_data}\n")
+                _bd.write(f"bundle_candidates={cands}\nchosen={bundled_data}\npreferred={preferred_data}\n")
         except Exception:
             pass
+
         try:
             FORCE_REFRESH = os.environ.get('IMAGENESVC_FORCE_REFRESH') == '1'
             if bundled_data and os.path.exists(bundled_data):
                 for root, dirs, files in os.walk(bundled_data):
                     rel = os.path.relpath(root, bundled_data)
-                    target_root = os.path.join(user_data, rel) if rel != '.' else user_data
+                    target_root = os.path.join(preferred_data, rel) if rel != '.' else preferred_data
                     os.makedirs(target_root, exist_ok=True)
                     for f in files:
                         src = os.path.join(root, f)
@@ -126,7 +132,7 @@ else:
         except Exception:
             pass
 
-        DATA_DIR = os.path.abspath(user_data)
+        DATA_DIR = os.path.abspath(preferred_data)
     else:
         DATA_DIR = os.path.join(APP_DIR, 'data')
 try:
@@ -9821,7 +9827,7 @@ class SistemaDictamenesVC(ctk.CTk):
 
             # 3) Revisar tabla_relacion_backups
             try:
-                tabla_relacion_backup_dir = os.path.join(APP_DIR, 'data', 'tabla_relacion_backups')
+                tabla_relacion_backup_dir = os.path.join(DATA_DIR, 'tabla_relacion_backups')
                 if os.path.exists(tabla_relacion_backup_dir):
                     for archivo in os.listdir(tabla_relacion_backup_dir):
                         if folio in archivo:
@@ -9853,7 +9859,7 @@ class SistemaDictamenesVC(ctk.CTk):
             # 4) Si aún no hay solicitudes, intentar leer tabla_de_relacion.json para filas asociadas al folio
             try:
                 if not solicitudes_a_eliminar:
-                    tabla_relacion_path = os.path.join(APP_DIR, 'data', 'tabla_de_relacion.json')
+                    tabla_relacion_path = os.path.join(DATA_DIR, 'tabla_de_relacion.json')
                     if os.path.exists(tabla_relacion_path):
                         try:
                             with open(tabla_relacion_path, 'r', encoding='utf-8') as tf:
@@ -9951,7 +9957,7 @@ class SistemaDictamenesVC(ctk.CTk):
 
             # 6) Eliminar dictámenes en data/Dictamenes que coincidan
             try:
-                dicts_dir = os.path.join(APP_DIR, 'data', 'Dictamenes')
+                dicts_dir = os.path.join(DATA_DIR, 'Dictamenes')
                 if os.path.exists(dicts_dir) and (folios_a_eliminar or solicitudes_a_eliminar):
                     import re
                     for fn in os.listdir(dicts_dir):
@@ -10031,7 +10037,7 @@ class SistemaDictamenesVC(ctk.CTk):
 
             # 7) Eliminar constancias en data/Constancias que coincidan
             try:
-                const_dir = os.path.join(APP_DIR, 'data', 'Constancias')
+                const_dir = os.path.join(DATA_DIR, 'Constancias')
                 if os.path.exists(const_dir) and (folios_a_eliminar or solicitudes_a_eliminar or folio):
                     for fn in os.listdir(const_dir):
                         if not fn.lower().endswith('.json'):
@@ -10463,7 +10469,7 @@ class SistemaDictamenesVC(ctk.CTk):
                                                 continue
                                 except Exception:
                                     continue
-                    tabla_relacion_path = os.path.join(APP_DIR, 'data', 'tabla_de_relacion.json')
+                    tabla_relacion_path = os.path.join(DATA_DIR, 'tabla_de_relacion.json')
                     if os.path.exists(tabla_relacion_path):
                         try:
                             with open(tabla_relacion_path, 'r', encoding='utf-8') as tf:
@@ -10659,7 +10665,7 @@ class SistemaDictamenesVC(ctk.CTk):
                         need_addr = not payload.get('direccion') or not payload.get('calle_numero')
                         cliente_nombre = payload.get('cliente') or ''
                         if need_addr and cliente_nombre:
-                            clientes_path = os.path.join(APP_DIR, 'data', 'Clientes.json')
+                            clientes_path = os.path.join(DATA_DIR, 'Clientes.json')
                             if os.path.exists(clientes_path):
                                 try:
                                     with open(clientes_path, 'r', encoding='utf-8') as cf:
@@ -10923,7 +10929,7 @@ class SistemaDictamenesVC(ctk.CTk):
                         need_addr = not actualizado.get('direccion') or not actualizado.get('calle_numero')
                         cliente_nombre = actualizado.get('cliente') or ''
                         if need_addr and cliente_nombre:
-                            clientes_path = os.path.join(APP_DIR, 'data', 'Clientes.json')
+                            clientes_path = os.path.join(DATA_DIR, 'Clientes.json')
                             if os.path.exists(clientes_path):
                                 try:
                                     with open(clientes_path, 'r', encoding='utf-8') as cf:
@@ -11155,9 +11161,9 @@ class SistemaDictamenesVC(ctk.CTk):
                 self.guardar_folios_visita(folio_visita, datos_tabla, persist_counter=persist_flag)
                 # Crear respaldo persistente de la tabla_de_relacion para visitas generadas
                 try:
-                    tabla_relacion_path = os.path.join(APP_DIR, 'data', 'tabla_de_relacion.json')
+                    tabla_relacion_path = os.path.join(DATA_DIR, 'tabla_de_relacion.json')
                     if os.path.exists(tabla_relacion_path):
-                        backup_dir = os.path.join(APP_DIR, 'data', 'tabla_relacion_backups')
+                        backup_dir = os.path.join(DATA_DIR, 'tabla_relacion_backups')
                         os.makedirs(backup_dir, exist_ok=True)
                         ts = datetime.now().strftime('%Y%m%d%H%M%S')
                         # Marcar como PERSIST para que no sea eliminado por limpiar
@@ -11456,7 +11462,7 @@ class SistemaDictamenesVC(ctk.CTk):
         selected_address_raw = {}
         # Cargar listas de normas e inspectores para helpers del modal
         try:
-            normas_path = os.path.join(APP_DIR, 'data', 'Normas.json')
+            normas_path = os.path.join(DATA_DIR, 'Normas.json')
             if os.path.exists(normas_path):
                 with open(normas_path, 'r', encoding='utf-8') as nf:
                     normas_data = json.load(nf)
@@ -11467,7 +11473,7 @@ class SistemaDictamenesVC(ctk.CTk):
             normas_list = []
 
         try:
-            firmas_path = os.path.join(APP_DIR, 'data', 'Firmas.json')
+            firmas_path = os.path.join(DATA_DIR, 'Firmas.json')
             if os.path.exists(firmas_path):
                 with open(firmas_path, 'r', encoding='utf-8') as ff:
                     firmas_data = json.load(ff)
@@ -12844,46 +12850,124 @@ class SistemaDictamenesVC(ctk.CTk):
                     lines.append('')
                     lines.append('✍️ Firma(s) detectada(s):')
 
+                    # construir mapa norma_num -> códigos de firma asignados según los registros
+                    # Usamos la representación NUMÉRICA principal de la norma (ej. '50') como clave
+                    import re as _re
+                    def _norm_to_num(s):
+                        try:
+                            ss = str(s or "").strip()
+                            nums = _re.findall(r"\d+", ss)
+                            return nums[0] if nums else ss
+                        except Exception:
+                            return str(s or "")
+
+                    assigned_by_norm = {}
+                    # prefill keys from norma_reqs normalized
+                    if norma_reqs:
+                        for nr in norma_reqs:
+                            assigned_by_norm[_norm_to_num(nr)] = set()
+                    try:
+                        # cargar normas para mapear clasif numérica a texto si hace falta
+                        try:
+                            normas_map_tmp, normas_info_tmp = cargar_normas()
+                        except Exception:
+                            normas_map_tmp, normas_info_tmp = ({}, {})
+
+                        # claves posibles donde aparece la norma en cada registro
+                        norma_keys = ('NORMA UVA', 'NORMA', 'NORMA_UVA', 'CLASIF UVA', 'CLASIF_UVA', 'CLASIFUVA')
+                        # claves posibles donde aparece el código de firma/inspector en el registro
+                        firma_keys_all = ['FIRMA', 'Firma', 'firma', 'CODIGO_FIRMA', 'INSPECTOR', 'Inspector', 'inspector']
+
+                        for it in (datos or []):
+                            # determinar norma del registro (normalizar extrayendo número principal)
+                            found_norm_text = None
+                            found_norm_num = None
+                            for nk in norma_keys:
+                                try:
+                                    v = it.get(nk)
+                                except Exception:
+                                    v = None
+                                if v not in (None, ''):
+                                    # si viene como número/clasif, mapear a texto usando normas_map_tmp
+                                    s = str(v).strip()
+                                    # intentar extraer número si es tipo '24' o 'NOM-24-...'
+                                    import re
+                                    nums = re.findall(r"\d+", s)
+                                    if nums:
+                                        num = nums[0]
+                                        found_norm_num = num
+                                        try:
+                                            if num in normas_map_tmp:
+                                                found_norm_text = normas_map_tmp.get(num)
+                                            else:
+                                                found_norm_text = s
+                                        except Exception:
+                                            found_norm_text = s
+                                    else:
+                                        found_norm_text = s
+                                        found_norm_num = _norm_to_num(s)
+                                    break
+
+                            if not found_norm_text:
+                                continue
+
+                            # buscar códigos de firma en el registro
+                            for fk in firma_keys_all:
+                                try:
+                                    val = it.get(fk)
+                                except Exception:
+                                    val = None
+                                if val not in (None, ''):
+                                    cand = str(val).strip()
+                                    if cand:
+                                        # asignar al mapa usando la clave numérica
+                                        key = found_norm_num if found_norm_num is not None else _norm_to_num(found_norm_text)
+                                        if key in assigned_by_norm:
+                                            assigned_by_norm[key].add(cand)
+
+                    except Exception:
+                        # en caso de fallo, no interrumpir; assigned_by_norm puede quedar vacío
+                        pass
+
                     # mapa para saber si cada norma tiene al menos una firma acreditada
                     norm_ok = {nr: False for nr in norma_reqs} if norma_reqs else {}
 
-                    for code in sorted(found_codes):
-                        try:
-                            nombre = None
-                            img = None
-                            display_name = code
-                            # Si hay múltiples normas, checar cada una y mostrar estado por norma
-                            if norma_reqs:
-                                for nr in norma_reqs:
-                                    try:
-                                        nombre, img, ok = validar_acreditacion_inspector(code, str(nr) if nr else '', firmas_map)
-                                    except Exception:
-                                        nombre, img, ok = (None, None, False)
-                                    display_name = nombre if nombre else code
-                                    if ok:
-                                        status = '✅ Acreditado'
-                                        norm_ok[nr] = True
-                                        any_accredited = True
-                                    else:
-                                        status = '❌ NO acreditado'
-                                        any_no = True
-                                    lines.append(f" - {display_name} ({code}): {status}  · Norma: {nr}")
-                            else:
+                    # Evaluar por norma: comprobar únicamente los códigos asignados a esa norma
+                    for nr in (norma_reqs or []):
+                        evaluated_any = False
+                        nr_num = _norm_to_num(nr)
+                        codes_to_check = sorted(assigned_by_norm.get(nr_num, [])) if nr_num in assigned_by_norm else []
+                        # si no hay códigos asignados explícitamente para el número, fallback a los códigos encontrados globalmente
+                        if not codes_to_check:
+                            codes_to_check = sorted(found_codes)
+
+                        # comprobar cada código para esta norma (pasando la representación original `nr` a la validación)
+                        for code in codes_to_check:
+                            try:
                                 try:
-                                    nombre, img, ok = validar_acreditacion_inspector(code, '', firmas_map)
+                                    nombre, img, ok = validar_acreditacion_inspector(code, str(nr) if nr else '', firmas_map)
                                 except Exception:
                                     nombre, img, ok = (None, None, False)
                                 display_name = nombre if nombre else code
                                 if ok:
-                                    status = '✅ Acreditado'
+                                    lines.append(f" - {display_name} ({code}): ✅ Acreditado  · Norma: {nr}")
+                                    norm_ok[nr] = True
                                     any_accredited = True
+                                    evaluated_any = True
+                                    # una firma acreditada para la norma es suficiente
+                                    break
                                 else:
-                                    status = '❌ NO acreditado'
-                                    any_no = True
-                                lines.append(f" - {display_name} ({code}): {status}")
-                        except Exception:
-                            # proteger contra fallos por firma concreta
-                            continue
+                                    lines.append(f" - {display_name} ({code}): ❌ NO acreditado  · Norma: {nr}")
+                                    evaluated_any = True
+                            except Exception:
+                                continue
+
+                        # Si evaluamos códigos y ninguno resultó acreditado, marcar no-acreditado
+                        if evaluated_any and not norm_ok.get(nr, False):
+                            any_no = True
+                        # Si no se evaluó ningún código (norma sin asignaciones y sin found_codes), considerarla no acreditada
+                        if not evaluated_any:
+                            any_no = True
 
                     # Determinar estado final del botón: si aparece cualquier 'NO acreditado' -> bloquear.
                     enabled = False
@@ -13004,7 +13088,7 @@ class SistemaDictamenesVC(ctk.CTk):
                         # 2) Intentar con índice (index_indice.json)
                         # Respetar la preferencia de modo de pegado guardada por la UI
                         try:
-                            evidencia_cfg_path = os.path.join(APP_DIR, 'data', 'evidence_paths.json')
+                            evidencia_cfg_path = os.path.join(DATA_DIR, 'evidence_paths.json')
                             modo_cfg = ''
                             if os.path.exists(evidencia_cfg_path):
                                 try:
@@ -13408,7 +13492,7 @@ class SistemaDictamenesVC(ctk.CTk):
     # ------------------ PEGADO EVIDENCIAS (botones UI) ------------------
     def _run_script_and_notify(self, fn):
         import traceback
-        log_path = os.path.join(APP_DIR, 'data', 'pegado.log')
+        log_path = os.path.join(DATA_DIR, 'pegado.log')
         os.makedirs(os.path.dirname(log_path), exist_ok=True)
         try:
             with open(log_path, 'a', encoding='utf-8') as lg:
