@@ -11270,6 +11270,8 @@ class SistemaDictamenesVC(ctk.CTk):
                 
                 # Prepare mapping dict even if file missing
                 firmas_mapeadas = {}
+                # collector for suggestions for unrecognized firmas
+                firma_sugerencias = {}
                 if os.path.exists(firmas_path):
                     with open(firmas_path, 'r', encoding='utf-8') as f:
                         firmas_data = json.load(f)
@@ -11291,18 +11293,53 @@ class SistemaDictamenesVC(ctk.CTk):
                         # Verificar que no sea NaN o vacío
                         if firma is not None and str(firma).strip() != "" and str(firma).lower() != "nan":
                             firma_str = str(firma).strip()
-                            firmas_originales.add(firma_str)
-
-                            # Normalizar para búsqueda
-                            buscar_clave = firma_str.upper()
-                            if buscar_clave in firmas_mapeadas:
-                                supervisores_encontrados.add(firmas_mapeadas[buscar_clave])
-                            else:
-                                # Si no encontramos mapeo, agregar la firma original
-                                supervisores_encontrados.add(firma_str)
+                            # Permitir múltiples firmas en la misma celda separadas por , ; / |
+                            import re, difflib
+                            parts = [p.strip() for p in re.split(r"[;,/|]+", firma_str) if p.strip()]
+                            for part in parts:
+                                firmas_originales.add(part)
+                                # Normalizar para búsqueda
+                                buscar_clave = part.upper()
+                                if buscar_clave in firmas_mapeadas:
+                                    supervisores_encontrados.add(firmas_mapeadas[buscar_clave])
+                                else:
+                                    # intentar búsqueda por similitud en claves conocidas
+                                    posibles = difflib.get_close_matches(buscar_clave, list(firmas_mapeadas.keys()), n=3, cutoff=0.6)
+                                    if posibles:
+                                        # sugerir la primera coincidencia (sin cambiar mapeo)
+                                        sugerencias = [firmas_mapeadas[p] for p in posibles if p in firmas_mapeadas]
+                                        # anotar como no reconocida pero con sugerencia
+                                        supervisores_encontrados.add(part)
+                                        # guardar sugerencia en un dict auxiliar
+                                        try:
+                                            if 'firma_sugerencias' not in locals():
+                                                firma_sugerencias = {}
+                                            firma_sugerencias[part] = sugerencias
+                                        except Exception:
+                                            pass
+                                    else:
+                                        # ninguna sugerencia, marcar como no reconocida
+                                        supervisores_encontrados.add(part)
             
             # Crear cadena de supervisores (ordenar alfabéticamente)
             supervisores_str = ", ".join(sorted(supervisores_encontrados)) if supervisores_encontrados else ""
+
+            # Construir advertencias para firmas no reconocidas (si las hay)
+            firma_warnings = ""
+            try:
+                # firmas_originales contiene las entradas tal cual del archivo
+                desconocidas = [s for s in sorted(firmas_originales) if s and s.upper() not in firmas_mapeadas]
+                if desconocidas:
+                    parts = []
+                    for d in desconocidas:
+                        sug = firma_sugerencias.get(d)
+                        if sug:
+                            parts.append(f"{d} (sugerencia: {', '.join(sug)})")
+                        else:
+                            parts.append(f"{d}")
+                    firma_warnings = "Firmas no reconocidas: " + "; ".join(parts)
+            except Exception:
+                firma_warnings = ""
             
             # Determinar qué supervisor mostrar en el campo principal
             # Prioridad: 1. Supervisores de la tabla, 2. Supervisor del formulario
@@ -11334,6 +11371,9 @@ class SistemaDictamenesVC(ctk.CTk):
                 "supervisores_tabla": supervisores_str,  # Todos los supervisores de la tabla
                 "supervisor_formulario": supervisor  # Supervisor del formulario (por si se necesita)
             }
+            # Añadir advertencias de firmas no reconocidas al payload si existen
+            if firma_warnings:
+                payload['firma_warnings'] = firma_warnings
 
             # Guardar visita automática
             self.hist_create_visita(payload, es_automatica=True)
@@ -11436,6 +11476,19 @@ class SistemaDictamenesVC(ctk.CTk):
         # Línea separadora
         separador = ctk.CTkFrame(main_frame, fg_color=STYLE["borde"], height=1)
         separador.pack(fill="x", padx=25, pady=(0, 10))
+        # Mostrar advertencias de firmas (si vienen en los datos)
+        try:
+            if datos and isinstance(datos, dict) and datos.get('firma_warnings'):
+                fw = str(datos.get('firma_warnings') or '')
+                if fw:
+                    try:
+                        warn_frame = ctk.CTkFrame(main_frame, fg_color='transparent')
+                        warn_frame.pack(fill='x', padx=25, pady=(0, 8))
+                        ctk.CTkLabel(warn_frame, text=f"⚠️ {fw}", font=FONT_SMALL, text_color=STYLE.get('advertencia', '#ff1500'), wraplength=1100, anchor='w').pack(anchor='w')
+                    except Exception:
+                        pass
+        except Exception:
+            pass
         
         # Frame para contenido principal con scroll
         content_scroll = ctk.CTkScrollableFrame(
@@ -12777,7 +12830,98 @@ class SistemaDictamenesVC(ctk.CTk):
                                     v = r.get(firma_col)
                                     if v not in (None, ''):
                                         found_codes.add(str(v).strip())
+                        # Additionally, as a robust fallback, collect ALL distinct non-empty values
+                        # from any plausible FIRMA column in the tabla_de_relacion so the preview
+                        # reflects every signature present in the source data.
+                        try:
+                            for c_try in ('FIRMA', 'Firma', 'firma', 'CODIGO_FIRMA', 'INSPECTOR', 'Inspector', 'inspector'):
+                                if c_try in df_rel.columns:
+                                    try:
+                                        vals = df_rel[c_try].dropna().astype(str).str.strip()
+                                        for vv in vals.unique():
+                                            if vv and str(vv).strip().lower() != 'nan':
+                                                found_codes.add(str(vv).strip())
+                                    except Exception:
+                                        continue
+                        except Exception:
+                            pass
                 # Preparar reporte de firmas
+                # Normalize and try to map found tokens to known firma CODES so validation succeeds
+                try:
+                    import unicodedata, difflib
+                    def _norm_token(s):
+                        try:
+                            s2 = str(s or '').strip().upper()
+                            s2 = unicodedata.normalize('NFKD', s2)
+                            s2 = ''.join(ch for ch in s2 if not unicodedata.combining(ch))
+                            # keep only alphanumerics for matching
+                            s2 = ''.join(ch for ch in s2 if ch.isalnum())
+                            return s2
+                        except Exception:
+                            return str(s or '').strip().upper()
+
+                    norm_code_map = {}
+                    norm_name_map = {}
+                    try:
+                        for c_code, info in (firmas_map or {}).items():
+                            try:
+                                nk = _norm_token(c_code)
+                                if nk:
+                                    norm_code_map[nk] = c_code
+                                nombre = (info.get('nombre') or info.get('NOMBRE DE INSPECTOR') or '')
+                                nn = _norm_token(nombre)
+                                if nn and nn not in norm_name_map:
+                                    norm_name_map[nn] = c_code
+                                # also index name parts (surnames / tokens)
+                                for part in str(nombre).split():
+                                    p = _norm_token(part)
+                                    if p and p not in norm_name_map:
+                                        norm_name_map[p] = c_code
+                            except Exception:
+                                continue
+                    except Exception:
+                        norm_code_map = {}
+                        norm_name_map = {}
+
+                    mapped_by_token = {}
+                    suggestions_by_token = {}
+                    effective_codes = set()
+                    for tok in list(found_codes):
+                        try:
+                            nt = _norm_token(tok)
+                            mapped = None
+                            if nt in norm_code_map:
+                                mapped = norm_code_map[nt]
+                            elif nt in norm_name_map:
+                                mapped = norm_name_map[nt]
+                            else:
+                                # try fuzzy against known normalized keys
+                                pool = list(norm_code_map.keys()) + list(norm_name_map.keys())
+                                if pool:
+                                    close = difflib.get_close_matches(nt, pool, n=2, cutoff=0.78)
+                                    if close:
+                                        k = close[0]
+                                        mapped = norm_code_map.get(k) or norm_name_map.get(k)
+                                        # record suggestion as human-readable name if available
+                                        if mapped:
+                                            suggestions_by_token[tok] = [ (firmas_map.get(mapped) or {}).get('nombre') or mapped ]
+                            if mapped:
+                                mapped_by_token[tok] = mapped
+                                effective_codes.add(mapped)
+                            else:
+                                # keep original token so it still appears in report as unknown
+                                effective_codes.add(tok)
+                        except Exception:
+                            effective_codes.add(tok)
+
+                    # Replace found_codes with effective mapped codes for downstream validation
+                    try:
+                        found_codes = set(effective_codes)
+                    except Exception:
+                        pass
+                except Exception:
+                    pass
+
                 if found_codes:
                     # Construir lista de normas requeridas (puede haber varias)
                     norma_reqs = []
@@ -12932,42 +13076,135 @@ class SistemaDictamenesVC(ctk.CTk):
                     # mapa para saber si cada norma tiene al menos una firma acreditada
                     norm_ok = {nr: False for nr in norma_reqs} if norma_reqs else {}
 
-                    # Evaluar por norma: comprobar únicamente los códigos asignados a esa norma
-                    for nr in (norma_reqs or []):
-                        evaluated_any = False
-                        nr_num = _norm_to_num(nr)
-                        codes_to_check = sorted(assigned_by_norm.get(nr_num, [])) if nr_num in assigned_by_norm else []
-                        # si no hay códigos asignados explícitamente para el número, fallback a los códigos encontrados globalmente
-                        if not codes_to_check:
-                            codes_to_check = sorted(found_codes)
+                    # Evaluar por norma: iterar por cada registro y mostrar por cada fila
+                    # el inspector, el código de firma y la norma asociada (permitiendo repeticiones).
+                    printed_codes = set()
+                    # flags por norma para determinar si hubo evaluación y si alguna fue acreditada
+                    norm_evaluated = {nr: False for nr in (norma_reqs or [])}
+                    norm_ok = {nr: False for nr in (norma_reqs or [])} if norma_reqs else {}
 
-                        # comprobar cada código para esta norma (pasando la representación original `nr` a la validación)
-                        for code in codes_to_check:
+                    # claves posibles donde aparece el código de firma/inspector en el registro
+                    firma_keys_all = ['FIRMA', 'Firma', 'firma', 'CODIGO_FIRMA', 'INSPECTOR', 'Inspector', 'inspector']
+                    import re as _re
+
+                    # colecciones para deduplicar salidas pero mantener evaluación completa
+                    seen_entries = set()
+                    # cada elemento será tupla: (display_name, code, display_norm, ok)
+                    output_entries = []
+
+                    for it in (datos or []):
+                        # determinar norma del registro (normalizar extrayendo número principal)
+                        found_norm_text = None
+                        found_norm_num = None
+                        for nk in ('NORMA UVA', 'NORMA', 'NORMA_UVA', 'CLASIF UVA', 'CLASIF_UVA', 'CLASIFUVA'):
                             try:
+                                v = it.get(nk)
+                            except Exception:
+                                v = None
+                            if v not in (None, ''):
+                                s = str(v).strip()
+                                nums = _re.findall(r"\d+", s)
+                                if nums:
+                                    num = nums[0]
+                                    found_norm_num = num
+                                    try:
+                                        if num in normas_map_tmp:
+                                            found_norm_text = normas_map_tmp.get(num)
+                                        else:
+                                            found_norm_text = s
+                                    except Exception:
+                                        found_norm_text = s
+                                else:
+                                    found_norm_text = s
+                                    found_norm_num = _norm_to_num(s)
+                                break
+
+                        if not found_norm_text:
+                            continue
+
+                        # preparar texto de requisito para validación (preferir mapa de normas si existe)
+                        try:
+                            req_text = normas_map_tmp.get(str(found_norm_num), str(found_norm_text)) if 'normas_map_tmp' in locals() else str(found_norm_text)
+                        except Exception:
+                            req_text = str(found_norm_text)
+
+                        # extraer códigos de firma de la fila (permitir múltiples separados por , ; / | )
+                        codes_in_row = []
+                        for fk in firma_keys_all:
+                            try:
+                                val = it.get(fk)
+                            except Exception:
+                                val = None
+                            if val not in (None, ''):
+                                s = str(val)
+                                parts = [p.strip() for p in _re.split(r"[,;/|]+", s) if p and p.strip()]
+                                for p in parts:
+                                    if p:
+                                        codes_in_row.append(p)
+
+                        if not codes_in_row:
+                            # marcar norma como no evaluada si no hay códigos en esta fila
+                            continue
+
+                        # para cada código encontrado en esta fila, validar y preparar salida (no hacemos break)
+                        for code in codes_in_row:
+                            try:
+                                nombre, img, ok = (None, None, False)
                                 try:
-                                    nombre, img, ok = validar_acreditacion_inspector(code, str(nr) if nr else '', firmas_map)
+                                    nombre, img, ok = validar_acreditacion_inspector(code, req_text, firmas_map)
                                 except Exception:
                                     nombre, img, ok = (None, None, False)
                                 display_name = nombre if nombre else code
+                                # formar la representación de la norma a mostrar (usar found_norm_text)
+                                display_norm = found_norm_text
+
+                                # registrar resultados de evaluación para la norma
                                 if ok:
-                                    lines.append(f" - {display_name} ({code}): ✅ Acreditado  · Norma: {nr}")
-                                    norm_ok[nr] = True
                                     any_accredited = True
-                                    evaluated_any = True
-                                    # una firma acreditada para la norma es suficiente
-                                    break
+                                    for nr in (norma_reqs or []):
+                                        if _norm_to_num(nr) == str(found_norm_num) or nr == found_norm_text:
+                                            norm_ok[nr] = True
+                                            norm_evaluated[nr] = True
+                                            break
                                 else:
-                                    lines.append(f" - {display_name} ({code}): ❌ NO acreditado  · Norma: {nr}")
-                                    evaluated_any = True
+                                    for nr in (norma_reqs or []):
+                                        if _norm_to_num(nr) == str(found_norm_num) or nr == found_norm_text:
+                                            norm_evaluated[nr] = True
+                                            break
+
+                                # siempre añadir el código a printed_codes para indicar que fue procesado
+                                printed_codes.add(code)
+
+                                # preparar la línea de salida y añadirla sólo si no está ya registrada
+                                entry_key = (str(display_name).strip(), str(code).strip(), str(display_norm).strip())
+                                if entry_key not in seen_entries:
+                                    seen_entries.add(entry_key)
+                                    output_entries.append((display_name, code, display_norm, bool(ok)))
                             except Exception:
                                 continue
 
-                        # Si evaluamos códigos y ninguno resultó acreditado, marcar no-acreditado
-                        if evaluated_any and not norm_ok.get(nr, False):
+                    # agrupar por inspector+firma y listar normas en líneas indentadas para mejor legibilidad
+                    grouped = {}
+                    for name, code, norm, ok in output_entries:
+                        key = (name, code)
+                        grouped.setdefault(key, []).append((norm, ok))
+
+                    for (name, code), norms in grouped.items():
+                        # cabecera por inspector+firma
+                        lines.append(f" - {name} ({code}):")
+                        # listar normas atribuidas (una por línea, indentada)
+                        for norm, ok in norms:
+                            status = '✅ Acreditado' if ok else '❌ NO acreditado'
+                            lines.append(f"    • {status}  · Norma: {norm}")
+
+                    # después de procesar todas las filas, si alguna norma no fue evaluada o fue evaluada y ningún
+                    # código resultó acreditado, marcar estado NO
+                    for nr in (norma_reqs or []):
+                        if not norm_evaluated.get(nr, False):
                             any_no = True
-                        # Si no se evaluó ningún código (norma sin asignaciones y sin found_codes), considerarla no acreditada
-                        if not evaluated_any:
-                            any_no = True
+                        else:
+                            if not norm_ok.get(nr, False):
+                                any_no = True
 
                     # Determinar estado final del botón: si aparece cualquier 'NO acreditado' -> bloquear.
                     enabled = False
@@ -12987,6 +13224,41 @@ class SistemaDictamenesVC(ctk.CTk):
                             self.boton_generar_dictamen.configure(state='normal' if enabled else 'disabled')
                         except Exception:
                             pass
+                    # Mostrar cualquier código/firma encontrada que no se haya listado aún
+                    try:
+                        remaining = set(found_codes) - printed_codes if found_codes else set()
+                        if remaining:
+                            lines.append('')
+                            lines.append('✍️ Firmas encontradas (sin norma específica):')
+                            for code in sorted(remaining):
+                                try:
+                                    # If possible, show accredited norms from the catalog instead of calling validator with empty req
+                                    info = (firmas_map.get(code) or {}) if isinstance(firmas_map, dict) else {}
+                                    nombre = info.get('nombre') or info.get('NOMBRE DE INSPECTOR') or None
+                                    normas_ac = info.get('normas_acreditadas') or info.get('Normas acreditadas') or []
+                                    display = nombre if nombre else code
+                                    if normas_ac:
+                                        lines.append(f" - {display} ({code}): Normas acreditadas: {', '.join(normas_ac)}")
+                                    else:
+                                        # fallback to validator to get a simple yes/no
+                                        try:
+                                            _, _, ok = validar_acreditacion_inspector(code, '', firmas_map)
+                                        except Exception:
+                                            ok = False
+                                        if ok:
+                                            lines.append(f" - {display} ({code}): ✅ Acreditado")
+                                        else:
+                                            sugg = ''
+                                            try:
+                                                if 'suggestions_by_token' in locals() and code in suggestions_by_token:
+                                                    sugg = f" (sugerencia: {', '.join(suggestions_by_token.get(code) or [])})"
+                                            except Exception:
+                                                sugg = ''
+                                            lines.append(f" - {display} ({code}): ❌ NO acreditado{sugg}")
+                                except Exception:
+                                            pass
+                    except Exception:
+                        pass
                 else:
                     lines.append('')
                     lines.append('✍️ Firma: (no detectada)')

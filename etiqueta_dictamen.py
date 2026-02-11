@@ -249,7 +249,7 @@ class GeneradorEtiquetasDecathlon:
             sol_i_raw = item.get('SOLICITUD') or item.get('Solicitud') or item.get('solicitud') or ''
             sol_i = _norm(sol_i_raw)
             marca_i = _norm(item.get('MARCA') or item.get('Marca') or item.get('marca'))
-            pais_i = _norm(item.get('PAIS ORIGEN') or item.get('PAIS_DE_ORIGEN') or item.get('PAIS') or item.get('PAIS DE ORIGEN'))
+            pais_i = _norm(item.get('PAIS_DE_ORIGEN') or item.get('PAIS') or item.get('PAIS DE ORIGEN'))
 
             # si se proporcionaron valores y coinciden, devolver inmediatamente
             # comparar solicitudes preferentemente por dígitos (ej. '000191/26' vs '191')
@@ -313,7 +313,7 @@ class GeneradorEtiquetasDecathlon:
         except Exception:
             cn = str(campo or '').upper()
 
-        if cn in ('PAIS ORIGEN', 'PAIS DE ORIGEN', 'PAIS ORIG', 'PAIS'):
+        if cn in ('PAIS DE ORIGEN','PAIS'):
             return f"HECHO EN {valor}"
         
         if campo == 'TALLA':
@@ -555,6 +555,7 @@ class GeneradorEtiquetasDecathlon:
                 # Normalizar y mapear variantes de campos desde tabla_relacion
                 mapping = {
                     'MARCA': ['MARCA', 'Marca', 'marca'],
+                    # Aceptar múltiples variantes de nombre para el país/origen
                     'PAIS ORIGEN': ['PAIS DE ORIGEN', 'PAIS_DE_ORIGEN'],
                     'DESCRIPCION': ['DESCRIPCION', 'DESCRIPCIÓN'],
                     'INSUMOS': ['INSUMOS', 'INSUMO'],
@@ -587,16 +588,35 @@ class GeneradorEtiquetasDecathlon:
                 print(f"      ❌ No hay configuración para la norma {norma}")
                 continue
 
+            # Usar copia local de la configuración para no mutar el objeto global
+            config_local = dict(config)
+            campos_config = list(config_local.get('campos', []))
+
+            # Si el producto tiene información de país en alguna variante, pero
+            # la configuración no incluye ningún campo de país, añadir 'PAIS DE ORIGEN'
+            pais_variants = ['PAIS ORIGEN', 'PAIS DE ORIGEN', 'PAIS', 'PAIS_DE_ORIGEN', 'PAIS ORIGEN']
+            has_pais = any(producto.get(k) for k in pais_variants)
+            if has_pais and not any(v in campos_config for v in ('PAIS DE ORIGEN', 'PAIS_ORIGEN', 'PAIS ORIGEN', 'PAIS')):
+                # Insertar antes de IMPORTADOR si existe, sino al final
+                try:
+                    idx = campos_config.index('IMPORTADOR')
+                    campos_config.insert(idx, 'PAIS DE ORIGEN')
+                except ValueError:
+                    campos_config.append('PAIS DE ORIGEN')
+                print(f"      ℹ️ Añadido 'PAIS DE ORIGEN' a campos de la norma {norma} para el código {codigo}")
+
+            # Actualizar la copia local de la config con los campos ajustados
+            config_local['campos'] = campos_config
+
             # Asegurar que los campos esperados por la configuración también
             # estén presentes en `producto` usando nuestras claves canónicas.
             # Ej: la config puede usar 'PAIS DE ORIGEN' pero nosotros normalizamos
             # a 'PAIS ORIGEN' desde la tabla_relacion; copiar ambos para compat.
             try:
-                campos_config = config.get('campos', [])
                 # Mapeo de canónicas a posibles variantes que aparecen en configs
                 canonical_map = {
-                    'PAIS ORIGEN': ['PAIS DE ORIGEN', 'PAIS_ORIGEN', 'PAIS ORIGEN'],
-                    'DESCRIPCION': ['DESCRIPTION', 'DESCRIPCION', 'DESCRIPCIÓN'],
+                    'PAIS ORIGEN': ['PAIS DE ORIGEN', 'PAIS_ORIGEN', 'PAIS ORIGEN', 'PAIS'],
+                    'DESCRIPCION': ['DESCRIPCION', 'DESCRIPCIÓN'],
                     'INSUMOS': ['INSUMOS', 'INSUMOS O INGREDIENTES', 'INSUMOS O INGREDIENTES'],
                     'TALLA': ['TALLA']
                 }
@@ -611,15 +631,15 @@ class GeneradorEtiquetasDecathlon:
             
             try:
                 # Crear imagen en memoria
-                ancho_cm, alto_cm = config['tamaño']
+                ancho_cm, alto_cm = config_local['tamaño']
                 ancho = self.cm_a_pixeles(ancho_cm)
                 alto = self.cm_a_pixeles(alto_cm)
                 
                 img = Image.new('RGB', (ancho, alto), 'white')
                 draw = ImageDraw.Draw(img)
                 
-                # Reutilizar la lógica de dibujo
-                self._dibujar_etiqueta_en_imagen(img, draw, producto, config)
+                # Reutilizar la lógica de dibujo (usar config_local ajustada)
+                self._dibujar_etiqueta_en_imagen(img, draw, producto, config_local)
                 
                 # Guardar en BytesIO en lugar de archivo
                 img_bytes = BytesIO()
@@ -631,7 +651,7 @@ class GeneradorEtiquetasDecathlon:
                     'ean': producto.get('EAN'),
                     'norma': norma,
                     'imagen_bytes': img_bytes,
-                    'tamaño_cm': config['tamaño']
+                    'tamaño_cm': config_local['tamaño']
                 })
                 print(f"      ✅ Etiqueta generada en memoria")
             except Exception as e:
@@ -827,7 +847,7 @@ def main():
         return
     
     generador = GeneradorEtiquetasDecathlon()
-    codigos_a_procesar = ["692071"]
+    codigos_a_procesar = ["4714062"]
     
     print("Generando etiquetas...")
     resultados = generador.generar_etiquetas_por_codigos(codigos_a_procesar)
