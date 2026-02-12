@@ -13190,7 +13190,7 @@ class SistemaDictamenesVC(ctk.CTk):
                         grouped.setdefault(key, []).append((norm, ok))
 
                     for (name, code), norms in grouped.items():
-                        # cabecera por inspector+firma
+                        # cabecera por inspector+firm3a
                         lines.append(f" - {name} ({code}):")
                         # listar normas atribuidas (una por línea, indentada)
                         for norm, ok in norms:
