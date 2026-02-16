@@ -1757,7 +1757,7 @@ class SistemaDictamenesVC(ctk.CTk):
         # Campos mínimos sugeridos
         self.cliente_campos = {}
         campos = [
-            ("RFC", 25), ("CLIENTE", 35), ("No. CONTRATO", 30), ("ACTIVIDAD", 20),
+            ("RFC", 25), ("CLIENTE", 35), ("No. CONTRATO", 30), ("FECHA DE CONTRATO", 18), ("ACTIVIDAD", 20),
             ("CURP", 18)
         ]
 
@@ -2322,35 +2322,66 @@ class SistemaDictamenesVC(ctk.CTk):
             messagebox.showinfo('Exportar', 'No hay datos de inspectores para exportar.')
             return
 
-        rows = []
+        # Procesar normas para que cada norma ocupe su propia columna (NORMA 1, NORMA 2, ...)
+        processed = []
+        # usar regex para separar cadenas de normas cuando sea necesario
+        import re
+        max_normas = 0
         for rec in datos:
             try:
-                nombre = rec.get('NOMBRE DE INSPECTOR') or rec.get('NOMBRE') or ''
-                correo = rec.get('CORREO') or rec.get('EMAIL') or ''
-                firma = rec.get('FIRMA','')
-                puesto = rec.get('Puesto') or rec.get('PUESTO') or ''
-                vig = rec.get('VIGENCIA','')
                 normas = rec.get('Normas acreditadas') or rec.get('Normas') or rec.get('NORMAS') or []
-                if isinstance(normas, (list, tuple)):
-                    normas_txt = '; '.join(str(n) for n in normas)
+                if not isinstance(normas, (list, tuple)):
+                    # intentar deserializar separadores comunes
+                    if isinstance(normas, str):
+                        normas_list = [s.strip() for s in re.split(r';|,|\n', normas) if s.strip()]
+                    else:
+                        normas_list = [str(normas)]
                 else:
-                    normas_txt = str(normas)
-                rows.append({
-                    'NOMBRE': nombre,
-                    'CORREO': correo,
-                    'FIRMA': firma,
-                    'PUESTO': puesto,
-                    'VIGENCIA': vig,
-                    'NORMAS': normas_txt
-                })
+                    normas_list = [str(n).strip() for n in normas]
+                    # ordenar natural (por números dentro de la cadena) de menor a mayor
+                    def _natural_key(x):
+                        parts = re.split(r'(\d+)', x)
+                        return [int(p) if p.isdigit() else p.lower() for p in parts]
+                    try:
+                        normas_list = sorted(normas_list, key=_natural_key)
+                    except Exception:
+                        normas_list = sorted(normas_list)
+                max_normas = max(max_normas, len(normas_list))
+                processed.append((rec, normas_list))
             except Exception:
-                continue
+                processed.append((rec, []))
 
         try:
             save_path = filedialog.asksaveasfilename(defaultextension='.xlsx', filetypes=[('Excel','*.xlsx')], title='Guardar catálogo de inspectores')
             if not save_path:
                 return
-            df = pd.DataFrame(rows, columns=['NOMBRE','CORREO','FIRMA','PUESTO','VIGENCIA','NORMAS'])
+
+            # Construir filas con columnas de normas separadas
+            rows = []
+            for rec, normas_list in processed:
+                nombre = rec.get('NOMBRE DE INSPECTOR') or rec.get('NOMBRE') or ''
+                correo = rec.get('CORREO') or rec.get('EMAIL') or ''
+                firma = rec.get('FIRMA','')
+                puesto = rec.get('Puesto') or rec.get('PUESTO') or ''
+                vig = rec.get('VIGENCIA','')
+                row = {
+                    'NOMBRE': nombre,
+                    'CORREO': correo,
+                    'FIRMA': firma,
+                    'PUESTO': puesto,
+                    'VIGENCIA': vig
+                }
+                # Añadir columnas NORMA 1..N
+                for i in range(max_normas):
+                    key = f'NORMA {i+1}'
+                    row[key] = normas_list[i] if i < len(normas_list) else ''
+                rows.append(row)
+
+            # Columnas base + dinamicas de normas
+            base_cols = ['NOMBRE','CORREO','FIRMA','PUESTO','VIGENCIA']
+            norma_cols = [f'NORMA {i+1}' for i in range(max_normas)]
+            df = pd.DataFrame(rows, columns=base_cols + norma_cols)
+
             try:
                 with pd.ExcelWriter(save_path, engine='openpyxl') as writer:
                     df.to_excel(writer, index=False, sheet_name='Inspectores')
@@ -2756,8 +2787,17 @@ class SistemaDictamenesVC(ctk.CTk):
 
             nuevo['RFC'] = _get_field('RFC')
             nuevo['CLIENTE'] = _get_field('CLIENTE')
-            # Mapear 'No. CONTRATO' -> 'NÚMERO_DE_CONTRATO'
-            nuevo['NÚMERO_DE_CONTRATO'] = _get_field('NÚMERO_DE_CONTRATO')
+            # Mapear desde varios posibles labels en el formulario hacia 'NÚMERO_DE_CONTRATO'
+            nro_candidates = ['NÚMERO_DE_CONTRATO', 'NÚMERO DE CONTRATO', 'No. DE CONTRATO', 'No. CONTRATO', 'NUMERO_DE_CONTRATO', 'NUMERO DE CONTRATO']
+            nro_val = ''
+            for c in nro_candidates:
+                val = _get_field(c)
+                if val:
+                    nro_val = val
+                    break
+            nuevo['NÚMERO_DE_CONTRATO'] = nro_val
+            # Fecha de firma del contrato: mapear desde el campo agregado 'FECHA DE CONTRATO'
+            nuevo['FECHA_DE_CONTRATO'] = _get_field('FECHA DE CONTRATO') or _get_field('FECHA_DE_CONTRATO')
             nuevo['ACTIVIDAD'] = _get_field('ACTIVIDAD')
             nuevo['CURP'] = _get_field('CURP')
         except Exception:
@@ -7206,6 +7246,15 @@ class SistemaDictamenesVC(ctk.CTk):
         except Exception:
             pass
 
+        # Configurar tags de colores para estatus (cancelada=rojo, pendiente=amarillo, completado=verde)
+        try:
+            # usar colores suaves para legibilidad
+            self.hist_tree.tag_configure('cancelado', background='#FFC7CE')
+            self.hist_tree.tag_configure('pendiente', background='#FFF2CC')
+            self.hist_tree.tag_configure('completado', background='#C6EFCE')
+        except Exception:
+            pass
+
         # Insertar registros de la página actual
         for idx in range(inicio, fin):
             registro = regs[idx]
@@ -7273,7 +7322,20 @@ class SistemaDictamenesVC(ctk.CTk):
             # Insertar en tree
             iid = f"h_{idx}"
             try:
-                self.hist_tree.insert('', 'end', iid=iid, values=datos)
+                # determinar tag según estatus
+                est_raw = str(registro.get('estatus', '') or '').strip().lower()
+                tag = None
+                if 'cancel' in est_raw:
+                    tag = 'cancelado'
+                elif 'pend' in est_raw:
+                    tag = 'pendiente'
+                elif 'complet' in est_raw or 'finaliz' in est_raw:
+                    tag = 'completado'
+
+                if tag:
+                    self.hist_tree.insert('', 'end', iid=iid, values=datos, tags=(tag,))
+                else:
+                    self.hist_tree.insert('', 'end', iid=iid, values=datos)
                 self._hist_map[iid] = registro
             except Exception:
                 pass

@@ -940,8 +940,31 @@ def convertir_dictamen_a_json(datos):
     solicitud_formateado = solicitud_num.zfill(6) if solicitud_num and solicitud_num.isdigit() else solicitud_num
 
     # Construir cadena_identificacion siempre (asegurar variable definida)
+    # Usar el año actual (dos dígitos) para la primera parte (UDC) y
+    # usar el año extraído de la parte después de '/' en la solicitud
+    # para el prefijo de "Solicitud de Servicio" cuando esté disponible.
+    current_year_two = datetime.now().strftime("%y")
+
+    # Determinar año a usar en el prefijo de Solicitud de Servicio
+    solicitud_year_two = ""
+    if solicitud_raw and '/' in solicitud_raw:
+        try:
+            part_after = solicitud_raw.split('/')[-1].strip()
+            if part_after.isdigit():
+                solicitud_year_two = part_after[-2:]
+        except Exception:
+            solicitud_year_two = ''
+
+    # Si no se obtuvo desde la solicitud, usar el year extraído anteriormente
+    if not solicitud_year_two:
+        if year and year.isdigit():
+            solicitud_year_two = year[-2:]
+        else:
+            solicitud_year_two = current_year_two
+
     cadena_identificacion = (
-        f"{year}049UDC{norma}{folio_formateado} Solicitud de Servicio: {year}049USD{norma}{solicitud_formateado}-{lista}"
+        f"{current_year_two}049UDC{norma}{folio_formateado} "
+        f"Solicitud de Servicio: {solicitud_year_two}049USD{norma}{solicitud_formateado}-{lista}"
     )
 
     json_data = {

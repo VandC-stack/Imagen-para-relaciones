@@ -377,19 +377,23 @@ def preparar_datos_familia(
     # FOLIO, SOLICITUD, LISTA
     folio = str(r0.get("FOLIO", "")).strip()
     solicitud_raw = str(r0.get("SOLICITUD", "")).strip()
-    # Extraer año desde la solicitud si viene en formato 'NNNNNN/YY' y usar esos dos
-    # dígitos como `year`. Si no existe, usar el año actual (dos dígitos).
-    year = ''
+    # Extraer año desde la solicitud si viene en formato 'NNNNNN/YY'
+    # y obtener los dos dígitos del sufijo. Pero para la cadena final
+    # usaremos el año actual para la parte UDC y el sufijo extraído
+    # para el prefijo de "Solicitud de Servicio".
+    solicitud_year_two = ''
     try:
         if '/' in solicitud_raw:
             parts = solicitud_raw.split('/')
             suf = parts[-1].strip()
             if suf.isdigit():
-                year = suf[-2:]
+                solicitud_year_two = suf[-2:]
     except Exception:
-        year = ''
-    if not year:
-        year = datetime.now().strftime("%y")
+        solicitud_year_two = ''
+
+    # Si no se obtuvo el sufijo desde la solicitud, usar el año actual
+    if not solicitud_year_two:
+        solicitud_year_two = datetime.now().strftime("%y")
 
     # Solicitud: tomar la parte antes de '/' y formatearla a 6 dígitos si es numérica
     solicitud = solicitud_raw.split('/')[0].strip()
@@ -414,7 +418,11 @@ def preparar_datos_familia(
 
     # Formatear folio a 6 dígitos para la cadena de identificación
     folio_disp = folio.zfill(6) if folio and str(folio).isdigit() else folio
-    cadena_identificacion = f"{year}049UDC{norma}{folio_disp} Solicitud de Servicio: {year}049USD{norma}{solicitud}-{lista}"
+    current_year_two = datetime.now().strftime("%y")
+    # `year` se expone en el dict devuelto; definirlo como el año usado
+    # en la parte UDC (año actual, dos dígitos) para mantener compatibilidad.
+    year = current_year_two
+    cadena_identificacion = f"{current_year_two}049UDC{norma}{folio_disp} Solicitud de Servicio: {solicitud_year_two}049USD{norma}{solicitud}-{lista}"
 
     def fecha_corta(f):
         try:

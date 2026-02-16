@@ -230,6 +230,42 @@ class ControlFoliosAnual:
                 return self._normalize_name(nombre)
         return "N/A"
 
+    def _format_date(self, value) -> str:
+        """
+        Normaliza una fecha a formato DD/MM/YYYY. Acepta strings en
+        YYYY-MM-DD, DD/MM/YYYY, datetime.date/datetime.datetime.
+        Si no puede parsear, devuelve el valor original o 'N/A'.
+        """
+        if not value:
+            return "N/A"
+        try:
+            # Already a date/datetime
+            if hasattr(value, 'strftime'):
+                return value.strftime("%d/%m/%Y")
+            s = str(value).strip()
+            # If already in DD/MM/YYYY
+            if '/' in s and len(s.split('/')[0]) <= 2:
+                parts = s.split('/')
+                if len(parts[0]) == 1:
+                    parts[0] = parts[0].zfill(2)
+                return f"{parts[0].zfill(2)}/{parts[1].zfill(2)}/{parts[2]}"
+            # Try ISO YYYY-MM-DD
+            try:
+                dt = datetime.strptime(s, "%Y-%m-%d")
+                return dt.strftime("%d/%m/%Y")
+            except Exception:
+                pass
+            # Try other common formats
+            for fmt in ("%Y/%m/%d", "%d-%m-%Y", "%d.%m.%Y"):
+                try:
+                    dt = datetime.strptime(s, fmt)
+                    return dt.strftime("%d/%m/%Y")
+                except Exception:
+                    continue
+        except Exception:
+            pass
+        return str(value)
+
     def _normalize_name(self, name: Optional[str]) -> str:
         """
         Normalizar nombre: convertir a mayúsculas y quitar acentos.
@@ -584,6 +620,28 @@ class ControlFoliosAnual:
         # Obtener información del inspector
         firma = primer_registro.get("FIRMA", "")
         nombre_inspector = self.buscar_inspector_por_firma(firma)
+        # Fallbacks si no se encontró por código de firma
+        if not nombre_inspector or nombre_inspector == 'N/A':
+            # Revisar si el registro contiene el nombre explícito
+            posibles_nombres = [
+                primer_registro.get('NOMBRE INSPECTOR'), primer_registro.get('Inspector'),
+                primer_registro.get('INSPECTOR'), primer_registro.get('NOMBRE DE INSPECTOR')
+            ]
+            for pn in posibles_nombres:
+                if pn:
+                    nombre_inspector = self._normalize_name(pn)
+                    break
+        # Intentar obtener desde el JSON del dictamen si aún no hay nombre
+        if (not nombre_inspector or nombre_inspector == 'N/A') and dictamen_json and isinstance(dictamen_json, dict):
+            firmas_block = dictamen_json.get('firmas') or {}
+            f1 = firmas_block.get('firma1') or {}
+            f2 = firmas_block.get('firma2') or {}
+            n1 = f1.get('nombre') if isinstance(f1, dict) else None
+            n2 = f2.get('nombre') if isinstance(f2, dict) else None
+            if n1:
+                nombre_inspector = self._normalize_name(n1)
+            elif n2:
+                nombre_inspector = self._normalize_name(n2)
         
         # Extraer descripciones, marcas, NOMs y modelos de todos los registros
         descripciones = set()
@@ -743,10 +801,22 @@ class ControlFoliosAnual:
             if not fecha_desaduanamiento:
                 # buscar en registros cualquiera con FECHA DE ENTRADA válida
                 for r in registros:
-                    fe = r.get('FECHA DE ENTRADA') or r.get('FECHA_DE_ENTRADA')
-                    if fe:
-                        fecha_desaduanamiento = fe
+                    # Priorizar campos relacionados con pago de pedimento
+                    candidates = [
+                        r.get('FECHA DE PAGO PEDIMENTO'), r.get('FECHA PAGO PEDIMENTO'),
+                        r.get('FECHA_PAGO_PEDIMENTO'), r.get('FECHA PAGO'),
+                        r.get('FECHA DE ENTRADA'), r.get('FECHA_DE_ENTRADA'), r.get('FECHA_ENTRADA')
+                    ]
+                    for fe in candidates:
+                        if fe:
+                            fecha_desaduanamiento = fe
+                            break
+                    if fecha_desaduanamiento:
                         break
+            # Si aún no hay fecha, intentar extraerla del JSON del dictamen si existe
+            if not fecha_desaduanamiento and dictamen_json and isinstance(dictamen_json, dict):
+                fjs = dictamen_json.get('fechas') or {}
+                fecha_desaduanamiento = fjs.get('emision') or fjs.get('verificacion') or fjs.get('verificacion_larga')
         except Exception:
             fecha_desaduanamiento = None
 
@@ -761,11 +831,11 @@ class ControlFoliosAnual:
             "NOM": nom_display,
             "TIPO DE DOCUMENTO OFICIAL EMITIDO": tipo_display,
             "DOCUMENTO EMITIDO": documento_emitido or "N/A",
-            "FECHA DE DOCUMENTO EMITIDO": primer_registro.get("FECHA DE EMISION DE SOLICITUD", "N/A"),
+            "FECHA DE DOCUMENTO EMITIDO": self._format_date(primer_registro.get("FECHA DE EMISION DE SOLICITUD", "N/A")),
             "VERIFICADOR": self._normalize_name(nombre_inspector),
             "PEDIMENTO DE IMPORTACION": primer_registro.get("PEDIMENTO", "N/A"),
-            "FECHA DE DESADUANAMIENTO (CUANDO APLIQUE)": fecha_desaduanamiento or primer_registro.get("FECHA DE ENTRADA", "N/A"),
-            "FECHA DE VISITA (CUANDO APLIQUE)": primer_registro.get("FECHA DE VERIFICACION", "N/A"),
+            "FECHA DE DESADUANAMIENTO (CUANDO APLIQUE)": self._format_date(fecha_desaduanamiento or primer_registro.get("FECHA DE ENTRADA", "N/A")),
+            "FECHA DE VISITA (CUANDO APLIQUE)": self._format_date(primer_registro.get("FECHA DE VERIFICACION", "N/A")),
             "MODELOS": ", ".join(modelos_norm) if modelos_norm else "N/A",
             "SOL EMA": self.extraer_sol_ema(solicitud),
             "FOLIO EMA": self.formatear_folio_ema(folio),
@@ -861,6 +931,7 @@ class ControlFoliosAnual:
                 "MARCAS",
                 "NOM",
                 "TIPO DE DOCUMENTO OFICIAL EMITIDO",
+                "ESTATUS",
                 "DOCUMENTO EMITIDO",
                 "FECHA DE DOCUMENTO EMITIDO",
                 "VERIFICADOR",
@@ -1038,6 +1109,38 @@ class ControlFoliosAnual:
             fila_actual = 2
             filas_procesadas = 0
 
+            # Construir mapa de estatus por folio a partir del historial (pendientes/cancelados)
+            folio_status_map = {}
+            try:
+                for visita in self.historial_visitas:
+                    est = str(visita.get('estatus', '')).strip().lower()
+                    folios_str = str(visita.get('folios_utilizados', '')).strip()
+                    if not folios_str:
+                        continue
+                    if ' - ' in folios_str:
+                        parts = folios_str.split(' - ')
+                        if len(parts) == 2:
+                            try:
+                                inicio = int(parts[0].strip())
+                                fin = int(parts[1].strip())
+                                for f in range(inicio, fin + 1):
+                                    folio_status_map[f] = est
+                            except Exception:
+                                pass
+                    else:
+                        for part in [p.strip() for p in folios_str.split(',') if p.strip()]:
+                            try:
+                                folio_status_map[int(part)] = est
+                            except Exception:
+                                digits = ''.join(ch for ch in part if ch.isdigit())
+                                if digits:
+                                    try:
+                                        folio_status_map[int(digits)] = est
+                                    except Exception:
+                                        pass
+            except Exception:
+                folio_status_map = {}
+
             for fol in all_folios_sorted:
                 dictamen = folio_map_int.get(fol)
                 if not dictamen:
@@ -1049,10 +1152,17 @@ class ControlFoliosAnual:
                 if not self.filtrar_por_fechas(fila_datos, fecha_inicio, fecha_fin):
                     continue
 
-                # Escribir datos
-                for col, encabezado in enumerate(encabezados, 1):
-                    valor = fila_datos.get(encabezado, "N/A")
-                    celda = ws.cell(row=fila_actual, column=col, value=valor)
+                # Determinar estatus (si existe en historial)
+                est = folio_status_map.get(int(fol), '') if fol is not None else ''
+                est_display = est.upper() if est else 'COMPLETADO'
+
+                # Escribir datos (incluir ESTATUS)
+                for col_index, encabezado in enumerate(encabezados, 1):
+                    if encabezado == 'ESTATUS':
+                        valor = est_display
+                    else:
+                        valor = fila_datos.get(encabezado, "N/A")
+                    celda = ws.cell(row=fila_actual, column=col_index, value=valor)
                     celda.alignment = Alignment(horizontal="left", vertical="center", wrap_text=True)
                     celda.border = Border(
                         left=Side(style='thin'),
@@ -1060,6 +1170,31 @@ class ControlFoliosAnual:
                         top=Side(style='thin'),
                         bottom=Side(style='thin')
                     )
+
+                # Aplicar color según estatus (más visible)
+                fill = None
+                font_mod = None
+                if est and est in ('cancelado', 'cancelada'):
+                    fill = PatternFill(start_color="FFC7CE", end_color="FFC7CE", fill_type="solid")
+                    font_mod = Font(bold=True)
+                elif est and 'pend' in est:
+                    fill = PatternFill(start_color="FFF2CC", end_color="FFF2CC", fill_type="solid")
+                    font_mod = Font(bold=True)
+                elif not est:
+                    # considerar completado como verde
+                    fill = PatternFill(start_color="C6EFCE", end_color="C6EFCE", fill_type="solid")
+                    font_mod = Font(bold=False)
+
+                if fill is not None:
+                    for col in range(1, len(encabezados) + 1):
+                        cell = ws.cell(row=fila_actual, column=col)
+                        try:
+                            cell.fill = fill
+                            if font_mod:
+                                # mantener legibilidad
+                                cell.font = Font(bold=font_mod.bold)
+                        except Exception:
+                            pass
 
                 fila_actual += 1
                 filas_procesadas += 1
@@ -1314,6 +1449,7 @@ def generar_reporte_ema(tabla_de_relacion_path, historial_path, output_path, exp
         "Número de solicitud",
         "Fecha de inspección",
         "Número de dictamen",
+        "ESTATUS",
         "Número de Contrato",
         "Tipo de Documento Oficial Emitido",
         "Fecha de Documento Emitido",
@@ -1337,14 +1473,70 @@ def generar_reporte_ema(tabla_de_relacion_path, historial_path, output_path, exp
     fila = 2
     filas_procesadas = 0
 
+    # Construir mapa de estatus por folio a partir del historial (pendientes/cancelados)
+    folio_status_map = {}
+    try:
+        for visita in generador.historial_visitas:
+            est = str(visita.get('estatus', '')).strip().lower()
+            folios_str = str(visita.get('folios_utilizados', '')).strip()
+            if not folios_str:
+                continue
+            # Rango
+            if ' - ' in folios_str:
+                parts = folios_str.split(' - ')
+                if len(parts) == 2:
+                    try:
+                        inicio = int(parts[0].strip())
+                        fin = int(parts[1].strip())
+                        for f in range(inicio, fin + 1):
+                            folio_status_map[f] = est
+                    except Exception:
+                        pass
+            else:
+                # Puede ser lista separada por comas o único folio
+                for part in [p.strip() for p in folios_str.split(',') if p.strip()]:
+                    try:
+                        folio_status_map[int(part)] = est
+                    except Exception:
+                        # intentar extraer dígitos del token (ej. CP000001 -> 000001)
+                        digits = ''.join(ch for ch in part if ch.isdigit())
+                        if digits:
+                            try:
+                                folio_status_map[int(digits)] = est
+                            except Exception:
+                                pass
+                        pass
+    except Exception:
+        folio_status_map = {}
+
+    # Iterar grupos ordenados por número de folio para detectar saltos
+    sorted_items = []
     for clave, regs in grupos.items():
+        # clave = f"{solicitud}_{folio}"
+        try:
+            fol = clave.split('_')[-1]
+            # extraer dígitos del folio para obtener número entero
+            fol_digits = ''.join(ch for ch in str(fol) if ch.isdigit())
+            foln = int(fol_digits) if fol_digits else 0
+        except Exception:
+            try:
+                foln = int(regs[0].get('FOLIO', 0))
+            except Exception:
+                foln = 0
+        sorted_items.append((foln, clave, regs))
+    sorted_items.sort(key=lambda x: x[0])
+
+    prev_folio_num = None
+    for foln, clave, regs in sorted_items:
         primer = regs[0]
         solicitud = primer.get('SOLICITUD', '')
         folio = primer.get('FOLIO', '')
 
         # Formatos y búsquedas
         try:
-            folio_num = int(folio) if folio not in (None, '') else 0
+            # normalizar folio a entero extrayendo dígitos (soporta prefijos como CP000001)
+            fol_digits = ''.join(ch for ch in str(folio) if ch.isdigit())
+            folio_num = int(fol_digits) if fol_digits else 0
         except Exception:
             folio_num = 0
 
@@ -1352,7 +1544,7 @@ def generar_reporte_ema(tabla_de_relacion_path, historial_path, output_path, exp
 
         # Construir campos
         numero_solicitud = generador.extraer_sol_ema(solicitud)
-        fecha_inspeccion = primer.get('FECHA DE VERIFICACION', 'N/A')
+        fecha_inspeccion = generador._format_date(primer.get('FECHA DE VERIFICACION', 'N/A'))
         numero_dictamen = generador.formatear_folio_ema(folio)
         numero_contrato = cliente_info.get('NÚMERO_DE_CONTRATO', 'N/A') if cliente_info else 'N/A'
         tipo_raw = primer.get('TIPO DE DOCUMENTO', primer.get('TIPO DE DOCUMENTO OFICIAL EMITIDO', 'D'))
@@ -1363,7 +1555,7 @@ def generar_reporte_ema(tabla_de_relacion_path, historial_path, output_path, exp
             tipo_doc = 'Constancia'
         else:
             tipo_doc = str(tipo_raw)
-        fecha_doc_emitido = primer.get('FECHA DE EMISION DE SOLICITUD', 'N/A')
+        fecha_doc_emitido = generador._format_date(primer.get('FECHA DE EMISION DE SOLICITUD', 'N/A'))
 
         # Productos, noms
         productos = set()
@@ -1375,8 +1567,8 @@ def generar_reporte_ema(tabla_de_relacion_path, historial_path, output_path, exp
                 noms.add(str(r.get('CLASIF UVA')))
 
         producto_verificado = ", ".join(productos) if productos else 'N/A'
-        fecha_desaduanamiento = primer.get('FECHA DE ENTRADA', 'N/A')
-        fecha_visita = primer.get('FECHA DE VERIFICACION', 'N/A')
+        fecha_desaduanamiento = generador._format_date(primer.get('FECHA DE ENTRADA', 'N/A'))
+        fecha_visita = generador._format_date(primer.get('FECHA DE VERIFICACION', 'N/A'))
         observaciones = 'N/A'
 
         # Inspector(es)
@@ -1387,10 +1579,15 @@ def generar_reporte_ema(tabla_de_relacion_path, historial_path, output_path, exp
         personas_apoyo = 'N/A'
         nom_str = ", ".join(noms) if noms else 'N/A'
 
+        # Determinar estatus desde el mapeo (si existe)
+        est = folio_status_map.get(folio_num, '')
+        est_display = est.upper() if est else 'COMPLETADO'
+
         fila_vals = [
             numero_solicitud,
             fecha_inspeccion,
             numero_dictamen,
+            est_display,
             numero_contrato,
             tipo_doc,
             fecha_doc_emitido,
@@ -1403,11 +1600,34 @@ def generar_reporte_ema(tabla_de_relacion_path, historial_path, output_path, exp
             nom_str
         ]
 
+        # Escribir fila
         for col, val in enumerate(fila_vals, 1):
             cel = ws.cell(row=fila, column=col, value=val)
             cel.alignment = Alignment(horizontal='left', vertical='center', wrap_text=True)
             cel.border = Border(left=Side(style='thin'), right=Side(style='thin'), top=Side(style='thin'), bottom=Side(style='thin'))
 
+        # Detectar salto (gap) con respecto al folio previo
+        is_salto = False
+        if prev_folio_num is not None and folio_num and (folio_num - prev_folio_num) > 1:
+            is_salto = True
+
+        # Detectar folio cancelado desde historial (solo 'cancelado'/'cancelada')
+        est = folio_status_map.get(folio_num, '')
+        is_cancelado = str(est).strip().lower() in ('cancelado', 'cancelada')
+
+        # Aplicar color únicamente para folios cancelados (rojo). El resto sin color.
+        if is_cancelado:
+            fill = PatternFill(start_color="FFC7CE", end_color="FFC7CE", fill_type="solid")
+            # Marcar negrita y aplicar relleno sólo en caso de cancelado
+            for col in range(1, len(fila_vals) + 1):
+                try:
+                    cell = ws.cell(row=fila, column=col)
+                    cell.fill = fill
+                    cell.font = Font(bold=True)
+                except Exception:
+                    pass
+
+        prev_folio_num = folio_num
         fila += 1
         filas_procesadas += 1
 

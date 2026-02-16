@@ -1993,5 +1993,41 @@
         "SERVICIO": "DICTAMEN"
       }
     ]
+  },
+  {
+    "RFC": "UME651115N48",
+    "CLIENTE": "UNILEVER DE MÉXICO, S. DE R.L. DE C.V.",
+    "NÚMERO_DE_CONTRATO": "21049UCS000008",
+    "FECHA_DE_CONTRATO": "22/04/2021",
+    "ACTIVIDAD": "ACTIVO",
+    "CURP": "",
+    "DIRECCIONES": [
+      {
+        "CALLE Y NO": "CALLE AV. TEPALCAPA",
+        "COLONIA O POBLACION": "RANCHO SANTO DOMINGO",
+        "MUNICIPIO O ALCADIA": "ESTADO DE MÉXICO",
+        "CIUDAD O ESTADO": "MÉXICO",
+        "CP": "54900",
+        "SERVICIO": "CONSTANCIA"
+      }
+    ]
+  },
+  {
+    "RFC": "GPR230911971",
+    "CLIENTE": "GREENLAND PRODUCTS S.A. DE C.V.",
+    "NÚMERO_DE_CONTRATO": "",
+    "FECHA_DE_CONTRATO": "",
+    "ACTIVIDAD": "ACTIVO",
+    "CURP": "",
+    "DIRECCIONES": [
+      {
+        "CALLE Y NO": "VITO ALESSIO ROBLES No. Ext. 3550 No. Int. 9",
+        "COLONIA O POBLACION": "NAZARIO S ORTIZ GARZA",
+        "MUNICIPIO O ALCADIA": "COAHUILA DE ZARAGOZA",
+        "CIUDAD O ESTADO": "COAHUILA",
+        "CP": "25100",
+        "SERVICIO": "CONSTANCIA"
+      }
+    ]
   }
 ]
