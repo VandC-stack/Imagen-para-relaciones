@@ -4380,13 +4380,167 @@ class SistemaDictamenesVC(ctk.CTk):
             # Construir lista de registros respetando el orden original de columnas
             cols = list(df.columns)
             records = []
-            for _, row in df.iterrows():
+            for idx, row in df.iterrows():
                 rec = {}
                 for c in cols:
                     # Asegurarse de que la clave exista incluso si el valor es None
                     rec[c] = row.get(c, None)
+                # Guardar índice original del DataFrame y una estimación de fila Excel
+                try:
+                    rec['_orig_index'] = idx
+                    if isinstance(idx, int):
+                        # Excel típico: cabecera ocupa 1 fila -> pandas idx 0 corresponde a Excel fila 2
+                        rec['_excel_row'] = idx + 2
+                    else:
+                        rec['_excel_row'] = str(idx)
+                except Exception:
+                    rec['_orig_index'] = None
+                    rec['_excel_row'] = None
                 records.append(rec)
 
+            # ----------------- VALIDACIÓN DE CAMPOS REQUERIDOS -----------------
+            # No permitir continuar si faltan datos críticos en columnas esperadas.
+            try:
+                # Definir aliases aceptables para cada campo requerido
+                required_aliases = {
+                    'SOLICITUD': ['SOLICITUD', 'Solicitud', 'solicitud'],
+                    'LISTA': ['LISTA', 'Lista', 'lista'],
+                    'FIRMA': ['FIRMA', 'Firma', 'firma', 'INSPECTOR', 'Inspector']
+                }
+
+                # Normalizar nombres de columnas del DataFrame para comparación
+                cols_upper = [c.upper().strip() for c in df.columns]
+
+                missing_cols = []
+                # Detectar qué columnas (por campo requerido) no existen bajo ningún alias
+                for canonical, aliases in required_aliases.items():
+                    present = any(a.upper().strip() in cols_upper for a in aliases)
+                    if not present:
+                        missing_cols.append(canonical)
+
+                if missing_cols:
+                    message = (
+                        "Columnas requeridas no encontradas:\n"
+                        + "\n".join([f"- {c}" for c in missing_cols])
+                        + "\n\nPor favor renombre o agregue esas columnas en el Excel antes de generar los documentos.\n"
+                        "(La herramienta considera alias comunes; revise encabezados de columna.)"
+                    )
+                    try:
+                        messagebox.showerror("Campos requeridos faltantes", message)
+                    except Exception:
+                        self.mostrar_error(message)
+                    return
+
+                # Ahora comprobar filas con valores faltantes en al menos una de las claves requeridas
+                problematic = []
+                for i, rec in enumerate(records, start=1):
+                    miss = []
+                    current_vals = {}
+                    for canonical, aliases in required_aliases.items():
+                        found_val = None
+                        # Buscar la primera alias presente en el registro con valor no vacío
+                        for a in aliases:
+                            # Búsqueda de clave exacta (respetando mayúsculas/espacios tal como vienen en rec)
+                            if a in rec and rec.get(a) not in (None, ''):
+                                found_val = str(rec.get(a)).strip()
+                                break
+                            # También intentar con versión uppercase/strip de la clave en el registro
+                            for rk in list(rec.keys()):
+                                if rk and rk.upper().strip() == a.upper().strip():
+                                    if rec.get(rk) not in (None, ''):
+                                        found_val = str(rec.get(rk)).strip()
+                                        break
+                            if found_val:
+                                break
+                        current_vals[canonical] = found_val
+                        if not found_val:
+                            miss.append(canonical)
+
+                    if miss:
+                        problematic.append((i, miss, current_vals))
+
+                if problematic:
+                    # Resumen por columna: contar cuántas filas tienen el campo vacío
+                    missing_counts = {k: 0 for k in required_aliases.keys()}
+                    for rec in records:
+                        for canonical, aliases in required_aliases.items():
+                            found = False
+                            for a in aliases:
+                                if a in rec and rec.get(a) not in (None, ''):
+                                    found = True
+                                    break
+                                for rk in list(rec.keys()):
+                                    if rk and rk.upper().strip() == a.upper().strip():
+                                        if rec.get(rk) not in (None, ''):
+                                            found = True
+                                            break
+                                if found:
+                                    break
+                            if not found:
+                                missing_counts[canonical] += 1
+
+                    # Si alguna columna está vacía en TODAS las filas, informar específicamente
+                    full_empty = [c for c, cnt in missing_counts.items() if cnt == len(records)]
+                    if full_empty:
+                        message = (
+                            "Columnas detectadas pero VACÍAS en todos los registros:\n"
+                            + "\n".join([f"- {c}" for c in full_empty])
+                            + "\n\nPor favor rellene esa(s) columna(s) en el Excel antes de continuar."
+                        )
+                        try:
+                            messagebox.showerror("Columnas vacías", message)
+                        except Exception:
+                            self.mostrar_error(message)
+                        return
+
+                    # Construir mensaje claro y compacto: resumen por columna + ejemplos de filas Excel
+                    # Recolectar ejemplos por columna (usar fila Excel si está disponible)
+                    missing_examples = {k: [] for k in required_aliases.keys()}
+                    for idx, miss, vals in problematic:
+                        try:
+                            rec = records[idx-1]
+                            excel_row = rec.get('_excel_row') or idx
+                        except Exception:
+                            excel_row = idx
+                        for c in miss:
+                            if excel_row not in missing_examples[c]:
+                                missing_examples[c].append(excel_row)
+
+                    resumen_lines = []
+                    for c in required_aliases.keys():
+                        cnt = missing_counts.get(c, 0)
+                        examples = missing_examples.get(c, [])
+                        # Mostrar hasta 30 filas para casos con muchas
+                        ex_trim = examples[:30]
+                        ex_text = ", ".join(str(x) for x in ex_trim) if ex_trim else "-"
+                        resumen_lines.append(f"- {c}: {cnt} filas vacías. Ejemplos (Excel rows): {ex_text}")
+
+                    # Si sólo una columna tiene problemas, mostrar mensaje directo y todas las filas afectadas
+                    fields_with_issues = [c for c, cnt in missing_counts.items() if cnt > 0]
+                    if len(fields_with_issues) == 1:
+                        field = fields_with_issues[0]
+                        all_rows = missing_examples.get(field, [])
+                        rows_text = ", ".join(str(x) for x in all_rows) if all_rows else "(no disponible)"
+                        message = (
+                            f"La columna '{field}' contiene {missing_counts.get(field,0)} fila(s) vacías.\n"
+                            f"Filas (Excel): {rows_text}\n\n"
+                            "Por favor complete la columna '" + field + "' en esas filas y vuelva a importar la tabla de relación."
+                        )
+                    else:
+                        message = (
+                            f"Se detectaron {len(problematic)} fila(s) con datos faltantes.\n\n"
+                            "Detalles por campo:\n"
+                            + "\n".join(resumen_lines)
+                            + "\n\nPor favor corrija las filas indicadas en el archivo Excel (use las columnas mostradas arriba) y vuelva a importar la tabla de relación."
+                        )
+                    try:
+                        messagebox.showerror("Filas con datos incompletos", message)
+                    except Exception:
+                        self.mostrar_error(message)
+                    return
+            except Exception:
+                # Si la validación falla por algún motivo, no bloquear pero registrar
+                print('⚠️ Error en validación de columnas requeridas; se continuará con precaución')
             # ----------------- ASIGNAR FOLIOS USANDO FOLIO_MANAGER -----------------
             try:
                 # Recolectar pares únicos (SOLICITUD, LISTA)
@@ -12825,6 +12979,36 @@ class SistemaDictamenesVC(ctk.CTk):
             total_dictamenes = sum(c for _, c in carpetas_info)
 
             lines = []
+            # Añadir años relevantes al reporte: año del folio (año en curso)
+            # y año(s) de Solicitud de Servicio extraídos de las claves de solicitud (parte después de '/').
+            try:
+                current_year_full = datetime.now().year
+                solicitud_years_set = set()
+                for sol in solicitudes_by_sol.keys():
+                    try:
+                        s = str(sol or '').strip()
+                        if '/' in s:
+                            suf = s.split('/')[-1].strip()
+                            # si viene como dos dígitos (ej. '25') convertir a 4 dígitos
+                            if suf.isdigit() and len(suf) <= 2:
+                                solicitud_years_set.add(str(2000 + int(suf)))
+                            elif suf.isdigit() and len(suf) == 4:
+                                solicitud_years_set.add(suf)
+                    except Exception:
+                        continue
+                # Formatear líneas informativas
+                lines.append(f"Año del folio (UDC): {current_year_full}")
+                if solicitud_years_set:
+                    sorted_sols = sorted(solicitud_years_set)
+                    if len(sorted_sols) == 1:
+                        lines.append(f"Año de Solicitud de Servicio: {sorted_sols[0]}")
+                    else:
+                        lines.append(f"Años de Solicitud de Servicio: {', '.join(sorted_sols)}")
+                else:
+                    lines.append("Año de Solicitud de Servicio: (no disponible)")
+            except Exception:
+                # no bloquear si falla el cálculo de años
+                pass
             # Mostrar también folios únicos si existen
             if folios_unicos_por_registro:
                 lines.append(f"🔢 Folios únicos detectados: {len(set(x for x in folios_unicos_por_registro if x))}")
@@ -12945,38 +13129,8 @@ class SistemaDictamenesVC(ctk.CTk):
                         norm_code_map = {}
                         norm_name_map = {}
 
-                    mapped_by_token = {}
                     suggestions_by_token = {}
-                    effective_codes = set()
-                    for tok in list(found_codes):
-                        try:
-                            nt = _norm_token(tok)
-                            mapped = None
-                            if nt in norm_code_map:
-                                mapped = norm_code_map[nt]
-                            elif nt in norm_name_map:
-                                mapped = norm_name_map[nt]
-                            else:
-                                # try fuzzy against known normalized keys
-                                pool = list(norm_code_map.keys()) + list(norm_name_map.keys())
-                                if pool:
-                                    close = difflib.get_close_matches(nt, pool, n=2, cutoff=0.78)
-                                    if close:
-                                        k = close[0]
-                                        mapped = norm_code_map.get(k) or norm_name_map.get(k)
-                                        # record suggestion as human-readable name if available
-                                        if mapped:
-                                            suggestions_by_token[tok] = [ (firmas_map.get(mapped) or {}).get('nombre') or mapped ]
-                            if mapped:
-                                mapped_by_token[tok] = mapped
-                                effective_codes.add(mapped)
-                            else:
-                                # keep original token so it still appears in report as unknown
-                                effective_codes.add(tok)
-                        except Exception:
-                            effective_codes.add(tok)
-
-                    # Replace found_codes with effective mapped codes for downstream validation
+                    effective_codes = set(found_codes)
                     try:
                         found_codes = set(effective_codes)
                     except Exception:
@@ -13302,21 +13456,26 @@ class SistemaDictamenesVC(ctk.CTk):
                                     if normas_ac:
                                         lines.append(f" - {display} ({code}): Normas acreditadas: {', '.join(normas_ac)}")
                                     else:
-                                        # fallback to validator to get a simple yes/no
-                                        try:
-                                            _, _, ok = validar_acreditacion_inspector(code, '', firmas_map)
-                                        except Exception:
-                                            ok = False
-                                        if ok:
-                                            lines.append(f" - {display} ({code}): ✅ Acreditado")
+                                        # If the code is not a known firma key, report it as NOT RECOGNIZED
+                                        if isinstance(firmas_map, dict) and code not in firmas_map:
+                                            # show the token exactly as entered and inform user it's unrecognized
+                                            lines.append(f" - {code}: ❌ NO RECONOCIDA (no encontrada en Firmas.json)")
                                         else:
-                                            sugg = ''
+                                            # fallback to validator to get a simple yes/no
                                             try:
-                                                if 'suggestions_by_token' in locals() and code in suggestions_by_token:
-                                                    sugg = f" (sugerencia: {', '.join(suggestions_by_token.get(code) or [])})"
+                                                _, _, ok = validar_acreditacion_inspector(code, '', firmas_map)
                                             except Exception:
+                                                ok = False
+                                            if ok:
+                                                lines.append(f" - {display} ({code}): ✅ Acreditado")
+                                            else:
                                                 sugg = ''
-                                            lines.append(f" - {display} ({code}): ❌ NO acreditado{sugg}")
+                                                try:
+                                                    if 'suggestions_by_token' in locals() and code in suggestions_by_token:
+                                                        sugg = f" (sugerencia: {', '.join(suggestions_by_token.get(code) or [])})"
+                                                except Exception:
+                                                    sugg = ''
+                                                lines.append(f" - {display} ({code}): ❌ NO acreditado{sugg}")
                                 except Exception:
                                             pass
                     except Exception:

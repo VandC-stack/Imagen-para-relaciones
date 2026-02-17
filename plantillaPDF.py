@@ -614,5 +614,53 @@ def preparar_datos_familia(
         "razon_sin_firma": razon_sin_firma,
         "codigo_firma_solicitado": codigo_firma1
     }
+    # Incluir datos originales de solicitud para uso por otros módulos
+    # `solicitud_raw` conserva el sufijo de año (ej. '002334/25') y
+    # `solicitud_year_two` contiene los dos dígitos del sufijo cuando existe.
+    result = {
+        **{
+            "cadena_identificacion": cadena_identificacion,
+            "norma": norma,
+            "normades": normades,
+            "capitulo": capitulo,
+
+            "year": year,
+            "folio": folio,
+            "solicitud": solicitud,
+            "lista": lista,
+
+            "fverificacion": fverificacion,
+            "fverificacionlarga": fverificacionlarga,
+            "femision": femision,
+
+            "cliente": cliente,
+            "rfc": rfc,
+
+            "producto": descripcion,
+            "pedimento": str(r0.get("PEDIMENTO", "")).strip(),
+
+            "tabla_productos": filas_tabla,
+            "total_cantidad": total_cantidad,
+            "TCantidad": f"{total_cantidad} unidades",
+
+            "obs": obs,
+
+            "etiquetas_lista": etiquetas_generadas,
+
+            "imagen_firma1": imagen_firma1,
+            "imagen_firma2": imagen_firma2,
+            "nfirma1": nombre_firma1,
+            "nfirma2": nombre_firma2,
+            
+            "firma_valida": firma_valida,
+            "razon_sin_firma": razon_sin_firma,
+            "codigo_firma_solicitado": codigo_firma1
+        }
+    }
+    # Añadir metadatos de solicitud sin perder compatibilidad con consumidores existentes
+    result["solicitud_raw"] = solicitud_raw
+    result["solicitud_year_two"] = solicitud_year_two
+
+    return result
 
 

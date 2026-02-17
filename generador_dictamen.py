@@ -829,28 +829,47 @@ class PDFGeneratorConDatos(PDFGenerator):
         canvas.setFont("Helvetica-Bold", 16)
         canvas.drawCentredString(8.5*inch/2, 11*inch-60, "DICTAMEN DE CUMPLIMIENTO")
         
-        # Preferir el `year` incluido en los datos del dictamen si existe (dos dígitos),
-        # en caso contrario usar el año actual.
-        year = str(self.datos.get('year', '')).strip()
-        if not year:
-            year = datetime.now().strftime("%y")
-        # Si viene como 4 dígitos, usar los últimos dos
-        if year and year.isdigit() and len(year) == 4:
-            year = year[-2:]
+        # La primera parte UDC debe usar el año en curso (dos dígitos).
+        udc_year = datetime.now().strftime("%y")
+
+        # Para la parte de "Solicitud de Servicio" preferimos un sufijo explícito
+        # provisto en los datos: `solicitud_year_two` (agregado por `preparar_datos_familia`).
+        # Si no existe, intentar extraerlo de `solicitud_raw` (ej. '004227/25').
+        solicitud_year_two = str(self.datos.get('solicitud_year_two', '')).strip()
+
+        solicitud_raw = str(self.datos.get('solicitud_raw', self.datos.get('solicitud', ''))).strip()
+        if not solicitud_year_two and '/' in solicitud_raw:
+            try:
+                part_after = solicitud_raw.split('/')[-1].strip()
+                if part_after.isdigit():
+                    solicitud_year_two = part_after[-2:]
+            except Exception:
+                solicitud_year_two = ''
+
+        # Si no hallamos un sufijo, usar el campo 'year' si está presente, si no usar el año actual
+        if not solicitud_year_two:
+            year_field = str(self.datos.get('year', '')).strip()
+            if year_field and year_field.isdigit() and len(year_field) == 4:
+                solicitud_year_two = year_field[-2:]
+            elif year_field and year_field.isdigit():
+                solicitud_year_two = year_field[-2:]
+            else:
+                solicitud_year_two = udc_year
 
         norma = str(self.datos.get('norma', '')).strip()
         folio = str(self.datos.get('folio', '')).strip()
+        # La parte numérica de la solicitud (sin sufijo) puede venir en `solicitud` o `solicitud_raw`
         solicitud = str(self.datos.get('solicitud', '')).strip()
-        lista = str(self.datos.get('lista', '')).strip()
+        if not solicitud and solicitud_raw:
+            solicitud = solicitud_raw.split('/')[0].strip() if '/' in solicitud_raw else solicitud_raw
 
-        # Normalizar solicitud: si viene con '/', tomar parte antes del '/'
-        if '/' in solicitud:
-            solicitud = solicitud.split('/')[0].strip()
+        lista = str(self.datos.get('lista', '')).strip()
 
         # Formato folio y solicitud a 6 dígitos cuando son numéricos
         folio_formateado = folio.zfill(6) if folio.isdigit() else folio
         solicitud_formateado = solicitud.zfill(6) if solicitud.isdigit() else solicitud
-        linea_completa = f"{year}049UDC{norma}{folio_formateado}   Solicitud de Servicio: {year}049USD{norma}{solicitud_formateado}-{lista}"
+
+        linea_completa = f"{udc_year}049UDC{norma}{folio_formateado}   Solicitud de Servicio: {solicitud_year_two}049USD{norma}{solicitud_formateado}-{lista}"
         canvas.setFont("Helvetica", 9)
         canvas.drawCentredString(8.5*inch/2, 11*inch-80, linea_completa)
 
@@ -900,7 +919,8 @@ def convertir_dictamen_a_json(datos):
     # Construir cadena_identificacion asegurando folio y solicitud a 6 dígitos
     norma = str(datos.get("norma", "")).strip()
     folio_raw = str(datos.get("folio", "")).strip()
-    solicitud_raw = str(datos.get("solicitud", "")).strip()
+    # Prefer the original raw solicitud (may contain suffix like '000123/25')
+    solicitud_raw = str(datos.get("solicitud_raw", datos.get("solicitud", ""))).strip()
     lista = str(datos.get("lista", "")).strip()
 
     # Extraer año desde la solicitud si está presente (p. ej. "006669/25").
@@ -946,16 +966,18 @@ def convertir_dictamen_a_json(datos):
     current_year_two = datetime.now().strftime("%y")
 
     # Determinar año a usar en el prefijo de Solicitud de Servicio
-    solicitud_year_two = ""
-    if solicitud_raw and '/' in solicitud_raw:
-        try:
-            part_after = solicitud_raw.split('/')[-1].strip()
-            if part_after.isdigit():
-                solicitud_year_two = part_after[-2:]
-        except Exception:
-            solicitud_year_two = ''
+    # Si el productor de datos ya incluyó `solicitud_year_two`, preferirlo.
+    solicitud_year_two = str(datos.get("solicitud_year_two", "")).strip()
+    if not solicitud_year_two:
+        if solicitud_raw and '/' in solicitud_raw:
+            try:
+                part_after = solicitud_raw.split('/')[-1].strip()
+                if part_after.isdigit():
+                    solicitud_year_two = part_after[-2:]
+            except Exception:
+                solicitud_year_two = ''
 
-    # Si no se obtuvo desde la solicitud, usar el year extraído anteriormente
+    # Si aún no se obtuvo desde la solicitud, usar el year extraído anteriormente
     if not solicitud_year_two:
         if year and year.isdigit():
             solicitud_year_two = year[-2:]
