@@ -1184,7 +1184,7 @@ class SistemaDictamenesVC(ctk.CTk):
         # Empacar los botones en la card de pegado para que siempre estén visibles.
         try:
             # pack horizontalmente con separación uniforme
-            for btn in (self.boton_pegado_simple, self.boton_pegado_carpetas, getattr(self, 'boton_pegado_indice', None), self.boton_limpiar_rutas_evidencias):
+            for btn in (self.boton_pegado_simple, self.boton_pegado_carpetas, self.boton_limpiar_rutas_evidencias):
                 if btn:
                     try:
                         btn.pack(side="left", padx=(0, 12))
@@ -3763,7 +3763,6 @@ class SistemaDictamenesVC(ctk.CTk):
             try:
                 self.safe_pack(self.boton_pegado_simple, side="left", padx=(0, 12))
                 self.safe_pack(self.boton_pegado_carpetas, side="left", padx=(0, 12))
-                self.safe_pack(self.boton_pegado_indice, side="left", padx=(0, 12))
                 # Empacar el botón Limpiar (Reservar Folio está en la fila de carga)
                 self.safe_pack(self.boton_limpiar_rutas_evidencias, side="left", padx=(0, 12))
             except Exception:

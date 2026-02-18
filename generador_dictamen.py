@@ -259,6 +259,11 @@ class PDFGeneratorConDatos(PDFGenerator):
             elif modo == "mixto":
                 print("   📌 MODO: MIXTO (EVIDENCIA + ETIQUETAS EN UNA HOJA)")
                 self.agregar_hoja_mixta()
+                # La hoja mixta no agrega las firmas por sí misma: añadir página
+                # de firmas inmediatamente después para asegurar que siempre
+                # queden incluidas (especialmente para clientes como ULTA BEAUTY
+                # que usan `mixto` para NOM-024).
+                self.agregar_hoja_firmas()
 
             elif modo == "etiqueta":
                 # agregar_segunda_pagina_con_etiquetas devolverá True si ya colocó las firmas
