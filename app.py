@@ -1501,14 +1501,30 @@ class SistemaDictamenesVC(ctk.CTk):
         ).pack(side="left")
         # Botones de generación rápidos en la parte superior (derecha)
         try:
-            gen_top = ctk.CTkFrame(linea_busqueda, fg_color='transparent')
-            gen_top.pack(side='right')
-            # ctk.CTkButton(
-            #     gen_top, text="📈Generar EMA",
-            #     command=self.descargar_excel_ema,
-            #     height=28, width=120, corner_radius=8,
-            #     fg_color=STYLE["primario"], hover_color="#D4BF22", text_color=STYLE["secundario"], font=("Inter", 11, "bold")
-            # ).pack(side='right', padx=(6,0))
+            # Contenedor derecho que agrupa la leyenda (arriba) y botones rápidos (abajo)
+            right_side_frame = ctk.CTkFrame(barra_superior, fg_color='transparent')
+            right_side_frame.pack(side='right')
+
+            # --- Leyenda de colores (arriba, encima del botón Reporte EMA) ---
+            legend_frame = ctk.CTkFrame(right_side_frame, fg_color='transparent')
+            legend_frame.pack(side='top', pady=(4, 0), padx=(8, 12))
+
+            def _add_legend_item(parent, color, text):
+                f = ctk.CTkFrame(parent, fg_color='transparent')
+                f.pack(side='left', padx=(6, 4))
+                box = ctk.CTkFrame(f, width=14, height=14, corner_radius=4, fg_color=color)
+                box.pack(side='left', padx=(0, 6))
+                ctk.CTkLabel(f, text=text, font=("Inter", 10), text_color=STYLE["texto_oscuro"]).pack(side='left')
+
+            # Orden: Amarillo = Pendiente, Rojo = Canceladas, Verde = Completada
+            _add_legend_item(legend_frame, "#F0AD4E", "Amarillo = Pendiente")
+            _add_legend_item(legend_frame, "#D9534F", "Rojo = Canceladas")
+            _add_legend_item(legend_frame, "#28a745", "Verde = Completada")
+
+            # --- Botones rápidos (debajo de la leyenda) ---
+            gen_top = ctk.CTkFrame(right_side_frame, fg_color='transparent')
+            gen_top.pack(side='top')
+
             ctk.CTkButton(
                 gen_top, text="📊 Reporte EMA",
                 command=self.descargar_excel_anual,
