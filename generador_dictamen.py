@@ -17,6 +17,21 @@ try:
 except Exception:
     pass
 
+# Verbose debug switch: imprime información detallada por código (clientes, ASIG, bases examinadas)
+DEBUG_VERBOSE = False
+
+def set_verbose(v=True):
+    """Habilita/deshabilita logs verbosos en tiempo de ejecución."""
+    global DEBUG_VERBOSE
+    DEBUG_VERBOSE = bool(v)
+
+# Activar automáticamente si la variable de entorno `GENERADOR_VERBOSE` está presente
+try:
+    if str(os.environ.get('GENERADOR_VERBOSE', '')).lower() in ('1', 'true', 'yes', 'y'):
+        DEBUG_VERBOSE = True
+except Exception:
+    pass
+
 from plantillaPDF import (
     cargar_tabla_relacion,
     cargar_normas,
@@ -1538,9 +1553,11 @@ def generar_dictamenes_completos(directorio_destino, cliente_manual=None, rfc_ma
                 codigos_a_buscar = []
                 try:
                     for r in registros:
-                        c = r.get('CODIGO') or r.get('codigo') or r.get('EAN') or r.get('ean')
-                        if c and str(c).strip() not in ("", "None", "nan"):
-                            codigos_a_buscar.append(str(c).strip())
+                        c = r.get('ASIG') or r.get('asig') or None
+                        # also capture codigo value regardless for searching
+                        codigo_val = r.get('CODIGO') or r.get('codigo') or r.get('EAN') or r.get('ean')
+                        if codigo_val and str(codigo_val).strip() not in ("", "None", "nan"):
+                            codigos_a_buscar.append({'codigo': str(codigo_val).strip(), 'registro': r, 'asig': (str(c).strip() if c and str(c).strip() not in ("", "None", "nan") else None)})
                 except Exception:
                     codigos_a_buscar = []
 
@@ -1567,13 +1584,23 @@ def generar_dictamenes_completos(directorio_destino, cliente_manual=None, rfc_ma
                         # Si se proporcionó code_hint, buscar archivo exacto dentro de la carpeta del código
                         if code_hint:
                             for grp, lst in (evidencia_cfg or {}).items():
+                                # `evidencia_cfg` puede contener claves de configuración
+                                # (p.ej. 'modo_pegado') cuyo valor no es una lista.
+                                # Ignorar entradas que no sean listas/tuplas.
+                                if not isinstance(lst, (list, tuple)):
+                                    continue
                                 for base in lst:
                                     try:
                                         carpeta_codigo = Path(base) / str(code_hint)
+                                        try:
+                                            print(f"         -> Revisando base: {base}, carpeta esperada: {carpeta_codigo}")
+                                        except Exception:
+                                            pass
                                         # Si la carpeta exacta no existe, intentar búsqueda insensible a mayúsculas
                                         if not carpeta_codigo.exists() or not carpeta_codigo.is_dir():
                                             carpeta_encontrada = None
                                             try:
+                                                # Búsqueda por igualdad insensible a mayúsculas
                                                 target = str(code_hint).lower()
                                                 for root, dirs, files in os.walk(base):
                                                     for d in dirs:
@@ -1582,11 +1609,59 @@ def generar_dictamenes_completos(directorio_destino, cliente_manual=None, rfc_ma
                                                             break
                                                     if carpeta_encontrada:
                                                         break
+
+                                                # Si no se encontró por igualdad simple, intentar comparación
+                                                # por nombre normalizado (solo alfanumérico, mayúsculas).
+                                                if carpeta_encontrada is None:
+                                                    try:
+                                                        import re as _re2
+                                                        norm_target = _re2.sub(r"[^A-Za-z0-9]", "", str(code_hint or "")).upper()
+                                                        if norm_target:
+                                                            for root, dirs, files in os.walk(base):
+                                                                for d in dirs:
+                                                                    d_norm = _re2.sub(r"[^A-Za-z0-9]", "", d).upper()
+                                                                    if d_norm and d_norm == norm_target:
+                                                                        carpeta_encontrada = Path(root) / d
+                                                                        break
+                                                                if carpeta_encontrada:
+                                                                    break
+                                                    except Exception:
+                                                        pass
+
+                                                # Si aún no se encontró, intentar búsqueda por tokens
+                                                # (p.ej. 'CEDIS AXO' -> probar 'AXO', buscar por contención)
+                                                if carpeta_encontrada is None:
+                                                    try:
+                                                        import re as _re3
+                                                        # extraer tokens alfanuméricos
+                                                        tokens = [t for t in _re3.split(r"[^A-Za-z0-9]", str(code_hint or "")) if t]
+                                                        # invertir tokens para probar sufijos primero (ej. AXO)
+                                                        for tok in reversed(tokens):
+                                                            tok_low = tok.lower()
+                                                            for root, dirs, files in os.walk(base):
+                                                                for d in dirs:
+                                                                    try:
+                                                                        dn = d.lower()
+                                                                        if tok_low == dn or tok_low in dn or dn.endswith(tok_low):
+                                                                            carpeta_encontrada = Path(root) / d
+                                                                            break
+                                                                    except Exception:
+                                                                        continue
+                                                                if carpeta_encontrada:
+                                                                    break
+                                                            if carpeta_encontrada:
+                                                                break
+                                                    except Exception:
+                                                        pass
                                             except Exception:
                                                 carpeta_encontrada = None
 
                                             if carpeta_encontrada:
                                                 carpeta_codigo = carpeta_encontrada
+                                                try:
+                                                    print(f"         -> Carpeta encontrada (normalizada): {carpeta_codigo}")
+                                                except Exception:
+                                                    pass
                                             else:
                                                 # No hay carpeta con el código; como fallback, buscar
                                                 # en la raíz de la base archivos cuyo nombre normalizado
@@ -1622,6 +1697,15 @@ def generar_dictamenes_completos(directorio_destino, cliente_manual=None, rfc_ma
                                         # Si no encontramos archivo con nombre del código, devolver todas las imágenes en la carpeta
                                         if not found:
                                             try:
+                                                try:
+                                                    sample_files = []
+                                                    for i, ftest in enumerate(carpeta_codigo.iterdir()):
+                                                        if i >= 5:
+                                                            break
+                                                        sample_files.append(str(ftest))
+                                                    print(f"         -> Archivos de muestra en carpeta {carpeta_codigo}: {sample_files}")
+                                                except Exception:
+                                                    pass
                                                 for f in carpeta_codigo.iterdir():
                                                     if f.is_file() and f.suffix.lower() in exts:
                                                         found.append(str(f))
@@ -1647,6 +1731,8 @@ def generar_dictamenes_completos(directorio_destino, cliente_manual=None, rfc_ma
                             except Exception:
                                 code_norm = str(key)
                             for grp, lst in (evidencia_cfg or {}).items():
+                                if not isinstance(lst, (list, tuple)):
+                                    continue
                                 for base in lst:
                                     try:
                                         carpeta_codigo = Path(base) / str(key)
@@ -1727,23 +1813,29 @@ def generar_dictamenes_completos(directorio_destino, cliente_manual=None, rfc_ma
                             pass
 
                         # Comparación directa: intentar coincidencia exacta en las columnas de código
+                        import re as _re_map
+                        s_norm = _re_map.sub(r"[^A-Za-z0-9]", "", s).upper()
                         for col in possible_code_keys:
                             try:
-                                series = tabla_datos[col].astype(str).str.strip()
-                                # comparar tanto como string como números (ignorar no dígitos)
-                                mask = series == s
+                                # Normalizar la serie de la columna para comparar solo alfanuméricos
+                                serie_raw = tabla_datos[col].astype(str).fillna("")
+                                serie_norm = serie_raw.apply(lambda x: _re_map.sub(r"[^A-Za-z0-9]", "", str(x)).upper())
+
+                                # Comparar por normalización completa
+                                mask = serie_norm == s_norm
                                 if not mask.any():
-                                    # intentar comparar sólo dígitos
+                                    # intentar comparar solo dígitos como fallback
                                     digits_s = ''.join(ch for ch in s if ch.isdigit())
                                     if digits_s:
-                                        series_digits = series.apply(lambda x: ''.join(ch for ch in str(x) if ch.isdigit()))
+                                        series_digits = serie_raw.apply(lambda x: ''.join(ch for ch in str(x) if ch.isdigit()))
                                         mask = series_digits == digits_s
 
                                 if mask.any():
                                     idx = mask.idxmax()
                                     row = tabla_datos.loc[idx]
                                     try:
-                                        print(f"   🐞 matched row idx={idx} row={{}}".format(row.to_dict()))
+                                        if DEBUG_VERBOSE:
+                                            print(f"   🐞 matched row idx={idx} row={{}}".format(row.to_dict()))
                                     except Exception:
                                         pass
                                     # Preferir columna de asignación si existe
@@ -1754,7 +1846,7 @@ def generar_dictamenes_completos(directorio_destino, cliente_manual=None, rfc_ma
                                                 return str(v).strip()
                                         except Exception:
                                             continue
-                                    # Si no hay columna de asignación conocida, devolver la columna 'ASIGNACION' con acento alternativa
+                                    # Si no hay columna de asignación conocida, devolver la columna que empiece por ASIG/ASIGN
                                     for ac in cols:
                                         if _colnorm(ac).startswith(('ASIG','ASIGN')):
                                             v = row.get(ac)
@@ -1790,7 +1882,11 @@ def generar_dictamenes_completos(directorio_destino, cliente_manual=None, rfc_ma
                 rutas_encontradas = []
                 mapping_codes = {}
                 if codigos_a_buscar:
-                    print(f"   🔎 Buscando evidencias para códigos: {codigos_a_buscar}")
+                    try:
+                        codes_only = [item.get('codigo') if isinstance(item, dict) else item for item in codigos_a_buscar]
+                    except Exception:
+                        codes_only = codigos_a_buscar
+                    print(f"   🔎 Buscando evidencias para códigos: {codes_only}")
                     # Helper: determina si una ruta contiene el código como carpeta/segmento
                     import re as _re
                     def _path_contains_code(path, code):
@@ -1813,8 +1909,33 @@ def generar_dictamenes_completos(directorio_destino, cliente_manual=None, rfc_ma
                             return False
                         except Exception:
                             return False
-                    for codigo in codigos_a_buscar:
+                    for item in codigos_a_buscar:
                         ps = None
+                        # extraer codigo y registro/asig si item es dict
+                        try:
+                            if isinstance(item, dict):
+                                codigo = item.get('codigo')
+                                registro = item.get('registro')
+                                asig_field = item.get('asig')
+                            else:
+                                codigo = item
+                                registro = None
+                                asig_field = None
+                        except Exception:
+                            codigo = item
+                            registro = None
+                            asig_field = None
+
+                        # Verbose per-código: mostrar cliente, código y resumen de grupos de evidencia
+                        try:
+                            if DEBUG_VERBOSE:
+                                cliente_nombre = str(datos.get('cliente', '') or '').strip()
+                                grp_keys = list(evidencia_cfg.keys()) if isinstance(evidencia_cfg, dict) else []
+                                print(f"--- VERBOSE START: cliente='{cliente_nombre}', codigo='{codigo}', asig_field='{asig_field}' ---")
+                                print(f"--- VERBOSE: evidencia_cfg grupos: {grp_keys}")
+                        except Exception:
+                            pass
+
                         try:
                             # 0) Intentar usar índice externo (Excel CONCENTRADO) si tiene una entrada para el código
                             try:
@@ -1871,16 +1992,60 @@ def generar_dictamenes_completos(directorio_destino, cliente_manual=None, rfc_ma
                                     print(f"   ⚠️ Error buscando evidencias usando índice para {codigo}: {_e}")
                                     ps = None
 
-                            # 1) si no se encontró por índice, intentar mapear el código a la columna de asignación (columna B)
+                            # 1) si no se encontró por índice, pero el registro trae columna ASIG, usarla directamente
                             if not ps:
-                                asign = _map_code_to_assignment(codigo)
-                                if asign:
-                                    print(f"      🔁 Código {codigo} mapeado a asignación: {asign} (tabla_de_relacion)")
+                                try:
+                                    if asig_field:
+                                        try:
+                                            print(f"      ℹ️ Registro contiene ASIG='{asig_field}' -> buscando en esa carpeta para código {codigo}")
+                                        except Exception:
+                                            pass
+                                        try:
+                                            ps = _buscar_imagen(codigo, asig_field)
+                                        except Exception as _e:
+                                            print(f"   ⚠️ Error buscando evidencias para ASIG {asig_field}: {_e}")
+                                            ps = None
+                                except Exception:
+                                    pass
+
+                            # 2) si no se encontró por índice ni por ASIG explícito, intentar mapear el código a la columna de asignación (columna B)
+                            # Aplicar este mapeo SÓLO para clientes que usan ASIG como carpeta (LEDERY y BLUE STRIPES)
+                            if not ps:
+                                try:
+                                    cliente_nombre = str(datos.get('cliente', '') or '').strip().lower()
+                                except Exception:
+                                    cliente_nombre = ''
+                                necesita_asig = False
+                                try:
+                                    if any(k in cliente_nombre for k in ("ledery", "blue stripes", "blue_stripes", "bluestripes")):
+                                        necesita_asig = True
+                                except Exception:
+                                    necesita_asig = False
+
+                                if necesita_asig:
                                     try:
-                                        ps = _buscar_imagen(asign, codigo)
-                                    except Exception as _e:
-                                        print(f"   ⚠️ Error buscando evidencias para asignación {asign}: {_e}")
-                                        ps = None
+                                        print(f"      🐞 DEBUG: Intentando mapear código {codigo} para cliente '{cliente_nombre}' usando tabla_de_relacion (tabla_datos is None={tabla_datos is None})")
+                                    except Exception:
+                                        pass
+                                    asign = _map_code_to_assignment(codigo)
+                                    try:
+                                        print(f"      🐞 DEBUG: _map_code_to_assignment returned: {asign}")
+                                    except Exception:
+                                        pass
+                                    if asign:
+                                        print(f"      🔁 Código {codigo} mapeado a asignación: {asign} (tabla_de_relacion)")
+                                        try:
+                                            # buscar por el código dentro de la carpeta indicada por 'asign'
+                                            ps = _buscar_imagen(codigo, asign)
+                                        except Exception as _e:
+                                            print(f"   ⚠️ Error buscando evidencias para asignación {asign}: {_e}")
+                                            ps = None
+                                else:
+                                    # No aplicar mapeo por ASIG para este cliente
+                                    try:
+                                        print(f"      ℹ️ Cliente '{cliente_nombre}' no requiere mapping ASIG; omitiendo búsqueda por asignación.")
+                                    except Exception:
+                                        pass
 
                             # 2) si no se encontró por asignación, intentar búsqueda directa por el código
                             if not ps:
@@ -1906,6 +2071,20 @@ def generar_dictamenes_completos(directorio_destino, cliente_manual=None, rfc_ma
 
                             print(f"      → {codigo} => {ps}")
                         mapping_codes[str(codigo)] = ps
+                        # Verbose summary por código: qué bases se examinaron y resultado
+                        try:
+                            if DEBUG_VERBOSE:
+                                bases_examined = []
+                                try:
+                                    for g, l in (evidencia_cfg or {}).items():
+                                        if isinstance(l, (list, tuple)):
+                                            bases_examined.extend(l)
+                                except Exception:
+                                    bases_examined = []
+                                asign_val = locals().get('asign', None)
+                                print(f"--- VERBOSE END: codigo='{codigo}', asign='{asign_val}', resultado={ps}, bases_examined_sample={bases_examined[:6]} ---")
+                        except Exception:
+                            pass
                         if not ps:
                             # Mensajes claros según modo de pegado
                             try:

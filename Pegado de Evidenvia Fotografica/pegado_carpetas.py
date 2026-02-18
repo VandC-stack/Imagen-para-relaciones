@@ -82,8 +82,30 @@ def procesar_carpetas():
                         for v in df_rel[col].astype(str).fillna(""):
                             valid_codes.add(normalizar_cadena_alnum_mayus(v))
                         break
+                # Construir mapeo codigo -> ASIG (normalizado) si existe columna ASIG/asig
+                code_to_asigs = {}
+                try:
+                    code_col = None
+                    for col in ("CODIGO","CODIGOS","CODE","SKU","CLAVE"):
+                        if col in df_rel.columns:
+                            code_col = col
+                            break
+                    asig_col = None
+                    for c in df_rel.columns:
+                        if str(c).upper() == "ASIG":
+                            asig_col = c
+                            break
+                    if code_col and asig_col:
+                        for _, row in df_rel[[code_col, asig_col]].iterrows():
+                            code_val = normalizar_cadena_alnum_mayus(str(row[code_col] or ""))
+                            asig_val = normalizar_cadena_alnum_mayus(str(row[asig_col] or ""))
+                            if code_val and asig_val:
+                                code_to_asigs.setdefault(code_val, set()).add(asig_val)
+                except Exception:
+                    code_to_asigs = {}
             except Exception:
                 valid_codes = None
+                code_to_asigs = {}
 
             if codigos:
                 if valid_codes is not None:
@@ -105,7 +127,17 @@ def procesar_carpetas():
                         if not clave:
                             continue
 
-                        carpetas = carpetas_index.get(clave, [])
+                        # Preferir carpetas indicadas por la columna ASIG (si existe en tabla de relación)
+                        carpetas = []
+                        try:
+                            if 'code_to_asigs' in locals() and clave in code_to_asigs:
+                                for asig_key in code_to_asigs[clave]:
+                                    carpetas += carpetas_index.get(asig_key, [])
+                        except Exception:
+                            pass
+                        # Fallback: buscar carpeta por el propio código
+                        if not carpetas:
+                            carpetas = carpetas_index.get(clave, [])
                         if not carpetas:
                             print(f"  No se encontró carpeta para código '{codigo}' (clave '{clave}').")
                             continue
@@ -155,8 +187,30 @@ def procesar_carpetas():
                         for v in df_rel[col].astype(str).fillna(""):
                             valid_codes.add(normalizar_cadena_alnum_mayus(v))
                         break
+                # Construir mapeo codigo -> ASIG (normalizado) si existe columna ASIG/asig
+                code_to_asigs = {}
+                try:
+                    code_col = None
+                    for col in ("CODIGO","CODIGOS","CODE","SKU","CLAVE"):
+                        if col in df_rel.columns:
+                            code_col = col
+                            break
+                    asig_col = None
+                    for c in df_rel.columns:
+                        if str(c).upper() == "ASIG":
+                            asig_col = c
+                            break
+                    if code_col and asig_col:
+                        for _, row in df_rel[[code_col, asig_col]].iterrows():
+                            code_val = normalizar_cadena_alnum_mayus(str(row[code_col] or ""))
+                            asig_val = normalizar_cadena_alnum_mayus(str(row[asig_col] or ""))
+                            if code_val and asig_val:
+                                code_to_asigs.setdefault(code_val, set()).add(asig_val)
+                except Exception:
+                    code_to_asigs = {}
             except Exception:
                 valid_codes = None
+                code_to_asigs = {}
 
             if codigos:
                 if valid_codes is not None:
@@ -174,7 +228,17 @@ def procesar_carpetas():
                 if not clave:
                     continue
 
-                carpetas = carpetas_index.get(clave, [])
+                # Preferir carpetas indicadas por la columna ASIG (si existe en tabla de relación)
+                carpetas = []
+                try:
+                    if 'code_to_asigs' in locals() and clave in code_to_asigs:
+                        for asig_key in code_to_asigs[clave]:
+                            carpetas += carpetas_index.get(asig_key, [])
+                except Exception:
+                    pass
+                # Fallback: buscar carpeta por el propio código
+                if not carpetas:
+                    carpetas = carpetas_index.get(clave, [])
                 if not carpetas:
                     print(f"  No se encontró carpeta para código '{codigo}' (clave '{clave}').")
                     continue

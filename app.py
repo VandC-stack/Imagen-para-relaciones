@@ -1165,18 +1165,9 @@ class SistemaDictamenesVC(ctk.CTk):
             corner_radius=8
         )
 
-        self.boton_pegado_indice = ctk.CTkButton(
-            pegado_botones_frame,
-            text="📑 Índice en excel y cargar carpeta",
-            command=self.handle_pegado_indice,
-            font=("Inter", 11, "bold"),
-            fg_color=STYLE["primario"],
-            hover_color="#D4BF22",
-            text_color=STYLE["secundario"],
-            height=32,
-            width=150,
-            corner_radius=8
-        )
+        # El botón "Índice en excel y cargar carpeta" fue eliminado.
+        # Para compatibilidad, el handler `handle_pegado_indice` se mantiene
+        # en el código pero el botón ya no se crea ni se muestra.
         # Botón para limpiar rutas de evidencias guardadas
         self.boton_limpiar_rutas_evidencias = ctk.CTkButton(
             pegado_botones_frame,
@@ -1193,10 +1184,12 @@ class SistemaDictamenesVC(ctk.CTk):
         # Empacar los botones en la card de pegado para que siempre estén visibles.
         try:
             # pack horizontalmente con separación uniforme
-            self.boton_pegado_simple.pack(side="left", padx=(0, 12))
-            self.boton_pegado_carpetas.pack(side="left", padx=(0, 12))
-            self.boton_pegado_indice.pack(side="left", padx=(0, 12))
-            self.boton_limpiar_rutas_evidencias.pack(side="left", padx=(0, 12))
+            for btn in (self.boton_pegado_simple, self.boton_pegado_carpetas, getattr(self, 'boton_pegado_indice', None), self.boton_limpiar_rutas_evidencias):
+                if btn:
+                    try:
+                        btn.pack(side="left", padx=(0, 12))
+                    except Exception:
+                        pass
         except Exception:
             pass
 
@@ -13653,14 +13646,47 @@ class SistemaDictamenesVC(ctk.CTk):
                         docs_without = []
                         for idx, item, lista in entries:
                             # intentar extraer todos los códigos posibles para este registro
+                            # y preferir la columna ASIG cuando exista (LEDERY / BLUE STRIPES case)
                             codes = []
-                            for k in codigo_keys:
-                                if k in item and item.get(k) not in (None, ''):
-                                    raw = str(item.get(k))
-                                    for part in raw.split(','):
-                                        p = part.strip()
-                                        if p:
-                                            codes.append(p)
+                            asig_val = None
+                            for ak in ('ASIG', 'Asig', 'asig'):
+                                try:
+                                    if ak in item and item.get(ak) not in (None, ''):
+                                        asig_val = str(item.get(ak)).strip()
+                                        break
+                                except Exception:
+                                    continue
+
+                            # Si hay ASIG, verificar si existe evidencia bajo esa carpeta/destino
+                            found_by_asig = False
+                            try:
+                                if asig_val:
+                                    for grp, base in (pegado_paths or {}).items():
+                                        bases = base if isinstance(base, (list, tuple)) else [base]
+                                        for b in bases:
+                                            try:
+                                                if _search_destino_in_base(b, asig_val):
+                                                    found_by_asig = True
+                                                    break
+                                            except Exception:
+                                                continue
+                                        if found_by_asig:
+                                            break
+                            except Exception:
+                                found_by_asig = False
+
+                            if found_by_asig:
+                                # Reportaremos que se pegarán evidencias desde ASIG
+                                codes = [asig_val]
+                            else:
+                                # No se encontró por ASIG; volver a extraer códigos desde columnas CODIGO
+                                for k in codigo_keys:
+                                    if k in item and item.get(k) not in (None, ''):
+                                        raw = str(item.get(k))
+                                        for part in raw.split(','):
+                                            p = part.strip()
+                                            if p:
+                                                codes.append(p)
 
                             # si no hay códigos, marcar como sin evidencia (sin códigos detectados)
                             if not codes:
