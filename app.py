@@ -21,6 +21,7 @@ import time
 import platform
 import unicodedata
 from PyPDF2 import PdfReader
+from PIL import Image
 
 # ---------- ESTILO VISUAL V&C ---------- #
 STYLE = {
@@ -364,6 +365,11 @@ class SistemaDictamenesVC(ctk.CTk):
         self.cargar_clientes_desde_json()
         self.cargar_ultimo_folio()
         try:
+            # Mostrar ventana de login / aplicar permisos según usuarios
+            self._ensure_user_authenticated()
+        except Exception:
+            pass
+        try:
             self._generar_datos_exportable()
         except Exception:
             pass
@@ -515,13 +521,15 @@ class SistemaDictamenesVC(ctk.CTk):
         nav_frame.pack(fill="x", padx=20, pady=(0, 0))
         nav_frame.pack_propagate(False)
         
-        # Contenedor para los botones
-        botones_frame = ctk.CTkFrame(nav_frame, fg_color="transparent")
-        botones_frame.pack(expand=True, fill="both", padx=20, pady=2)
+        # Contenedores para botones: izquierda para navegación, derecha para info/acciones de usuario
+        self.botones_left_frame = ctk.CTkFrame(nav_frame, fg_color="transparent")
+        self.botones_left_frame.pack(side="left", fill="x", expand=True, padx=0, pady=2)
+        self.botones_right_frame = ctk.CTkFrame(nav_frame, fg_color="transparent")
+        self.botones_right_frame.pack(side="right", padx=0, pady=2)
         
         # Botón Principal con estilo mejorado
         self.btn_principal = ctk.CTkButton(
-            botones_frame,
+            self.botones_left_frame,
             text="🏠 Principal",
             command=self.mostrar_principal,
             font=("Inter", 14, "bold"),
@@ -538,7 +546,7 @@ class SistemaDictamenesVC(ctk.CTk):
         
         # Botón Historial con estilo mejorado
         self.btn_historial = ctk.CTkButton(
-            botones_frame,
+            self.botones_left_frame,
             text="📊 Historial",
             command=self.mostrar_historial,
             font=("Inter", 14, "bold"),
@@ -555,9 +563,9 @@ class SistemaDictamenesVC(ctk.CTk):
 
         # Botón Reportes
         self.btn_reportes = ctk.CTkButton(
-            botones_frame,
+            self.botones_left_frame,
             text="📑Clientes",
-            command=self.mostrar_clientes,
+            command=self._cmd_mostrar_clientes,
             font=("Inter", 14, "bold"),
             fg_color=STYLE["surface"],
             hover_color=STYLE["primario"],
@@ -568,13 +576,13 @@ class SistemaDictamenesVC(ctk.CTk):
             border_width=2,
             border_color=STYLE["secundario"]
         )
-        self.btn_reportes.pack(side="left", padx=(0, 10))
+        # Empaque controlado desde _apply_permissions
         
         # Botón Inspectores
         self.btn_inspectores = ctk.CTkButton(
-            botones_frame,
+            self.botones_left_frame,
             text="👥 Inspectores",
-            command=self.mostrar_inspectores,
+            command=self._cmd_mostrar_inspectores,
             font=("Inter", 14, "bold"),
             fg_color=STYLE["surface"],
             hover_color=STYLE["primario"],
@@ -585,18 +593,53 @@ class SistemaDictamenesVC(ctk.CTk):
             border_width=2,
             border_color=STYLE["secundario"]
         )
-        self.btn_inspectores.pack(side="left", padx=(0, 10))
+        # Empaque controlado desde _apply_permissions
         
-        # Espacio flexible
-        ctk.CTkLabel(botones_frame, text="", fg_color="transparent").pack(side="left", expand=True)
+        # Botón Reportes (ejecutivos)
+        self.btn_reportes_ej = ctk.CTkButton(
+            self.botones_left_frame,
+            text="📈 Reportes",
+            command=self.mostrar_reportes_ejecutivo,
+            font=("Inter", 14, "bold"),
+            fg_color=STYLE["surface"],
+            hover_color=STYLE["primario"],
+            text_color=STYLE["secundario"],
+            height=38,
+            width=130,
+            corner_radius=10,
+            border_width=2,
+            border_color=STYLE["secundario"]
+        )
+        # no empaquetar por defecto: _apply_permissions decidirá si mostrar
         
-        # Información del sistema
+        # Información del sistema (derecha)
         self.lbl_info_sistema = ctk.CTkLabel(
-            botones_frame,
+            self.botones_right_frame,
             text="Sistema de Dictámenes - V&C",
             font=("Inter", 12),
             text_color=STYLE["texto_claro"]
         )
+        # Botón Cerrar sesión (inicialmente no empaquetado)
+        self.btn_logout = ctk.CTkButton(
+            self.botones_right_frame,
+            text="Cerrar sesión",
+            command=self._logout if hasattr(self, '_logout') else (lambda: None),
+            font=("Inter", 12),
+            fg_color=STYLE["secundario"],
+            hover_color="#444444",
+            text_color=STYLE["texto_claro"],
+            height=34,
+            width=140,
+            corner_radius=8
+        )
+        # Nota: no empaquetar aquí; se empaquetará en _apply_permissions cuando haya sesión
+        
+        # Mostrar etiqueta de info y logout en la derecha cuando haya sesión
+        try:
+            # ocultar por defecto hasta autenticación; se empaquetará desde _apply_permissions
+            self.lbl_info_sistema.pack_forget()
+        except Exception:
+            pass
         
         # Botón Backup en la barra de navegación (no mostrar por defecto)
         # try:
@@ -626,6 +669,8 @@ class SistemaDictamenesVC(ctk.CTk):
 
         # Frame para reportes
         self.frame_reportes = ctk.CTkFrame(self.contenido_frame, fg_color="transparent")
+        # Frame exclusivo para ejecutivos: reportes
+        self.frame_reportes_ejecutivo = ctk.CTkFrame(self.contenido_frame, fg_color="transparent")
         # Frame para inspectores
         self.frame_inspectores = ctk.CTkFrame(self.contenido_frame, fg_color="transparent")
         
@@ -633,16 +678,715 @@ class SistemaDictamenesVC(ctk.CTk):
         self._construir_tab_principal(self.frame_principal)
         self._construir_tab_historial(self.frame_historial)
         self._construir_tab_clientes(self.frame_reportes)
+        # construir pestaña de reportes ejecutivos
+        try:
+            self._construir_tab_reportes_ejecutivo(self.frame_reportes_ejecutivo)
+        except Exception:
+            pass
         self._construir_tab_inspectores(self.frame_inspectores)
         
         # Mostrar la sección principal por defecto
         self.mostrar_principal()
+
+    # ----------------- Autenticación y permisos -----------------
+    def _load_users(self):
+        """Carga `data/usuarios.json`. Si no existe crea un archivo por defecto."""
+        fn = os.path.join(DATA_DIR, "usuarios.json")
+        try:
+            with open(fn, 'r', encoding='utf-8') as f:
+                return json.load(f).get('users', [])
+        except Exception:
+            # crear archivo por defecto a partir del bundle 'data/usuarios.json' si existe
+            try:
+                default_path = os.path.join(BASE_DIR, 'data', 'usuarios.json')
+                if os.path.exists(default_path):
+                    with open(default_path, 'r', encoding='utf-8') as f:
+                        return json.load(f).get('users', [])
+            except Exception:
+                pass
+        return []
+
+    def _ensure_user_authenticated(self):
+        """Muestra el diálogo de login y aplica permisos en UI."""
+        self.users = self._load_users()
+        self.current_user = None
+        self.current_role = None
+        # Mostrar un diálogo modal de login
+        try:
+            self._show_login_dialog()
+        except Exception:
+            pass
+        # Aplicar permisos según rol (si no autenticado, ocultar tabs)
+        try:
+            self._apply_permissions()
+        except Exception:
+            pass
+
+    def _find_user(self, username):
+        if not username:
+            return None
+        uname = username.strip().lower()
+        for u in getattr(self, 'users', []):
+            # aceptar tanto el username como el nombre completo (case-insensitive)
+            if str(u.get('username', '')).lower() == uname:
+                return u
+            if str(u.get('name', '')).strip().lower() == uname:
+                return u
+        return None
+
+    def _show_login_dialog(self):
+        dlg = ctk.CTkToplevel(self)
+        dlg.title("Acceso al sistema")
+        dlg.grab_set()
+        dlg.geometry("500x500")
+        dlg.resizable(False, False)
+
+        # Card principal
+        card = ctk.CTkFrame(dlg, fg_color=STYLE["surface"], corner_radius=10)
+        card.pack(padx=12, pady=12, fill='both', expand=True)
+
+        # Cabecera con título
+        header = ctk.CTkFrame(card, fg_color=STYLE["secundario"], height=46, corner_radius=8)
+        header.pack(fill='x', pady=(8, 10), padx=8)
+        header.pack_propagate(False)
+        ctk.CTkLabel(header, text="Iniciar sesión", font=("Inter", 14, "bold"), text_color=STYLE["texto_claro"]).pack(expand=True)
+
+        # Cuerpo: logo a la izquierda + formulario a la derecha
+        body = ctk.CTkFrame(card, fg_color="transparent")
+        body.pack(fill='both', expand=True, padx=12, pady=(0, 6))
+
+        # Izquierda: logo centrado y ligeramente más pequeño para mejor estética
+        left = ctk.CTkFrame(body, width=260, fg_color="transparent")
+        left.pack(side='left', fill='y', padx=(6, 12), pady=6)
+        left.pack_propagate(False)
+        # contenedor interno para centrar verticalmente
+        left_inner = ctk.CTkFrame(left, fg_color="transparent")
+        left_inner.pack(expand=True)
+        # intentar cargar imagen desde img/logo.jpeg
+        try:
+            logo_path = os.path.join(BASE_DIR, 'img', 'logo.jpeg')
+            if not os.path.exists(logo_path):
+                logo_path = os.path.join(APP_DIR, 'img', 'logo.jpeg')
+            pil_img = Image.open(logo_path).convert('RGBA')
+            img_size = (180, 180)
+            pil_img = pil_img.resize(img_size, Image.LANCZOS)
+            logo_img = ctk.CTkImage(pil_img, size=img_size)
+            lbl_logo = ctk.CTkLabel(left_inner, image=logo_img, text="")
+            lbl_logo.pack(expand=True, pady=8)
+        except Exception:
+            # si falla la carga, mostrar un espacio reservado
+            ctk.CTkLabel(left_inner, text=" ", fg_color="transparent").pack(expand=True)
+
+        # Derecha: formulario
+        form = ctk.CTkFrame(body, fg_color="transparent")
+        form.pack(side='left', fill='both', expand=True)
+
+        ctk.CTkLabel(form, text="Usuario", font=("Inter", 11), text_color=STYLE["texto_oscuro"]).pack(anchor='w', pady=(2, 2))
+        username_entry = ctk.CTkEntry(form, width=360, placeholder_text="usuario")
+        username_entry.pack(fill='x', pady=(0, 8))
+
+        ctk.CTkLabel(form, text="Contraseña", font=("Inter", 11), text_color=STYLE["texto_oscuro"]).pack(anchor='w', pady=(2, 2))
+        password_entry = ctk.CTkEntry(form, width=360, show='*', placeholder_text="contraseña")
+        password_entry.pack(fill='x')
+
+        msg = ctk.CTkLabel(form, text="", font=("Inter", 10), text_color=STYLE["peligro"]) 
+        msg.pack(anchor='w', pady=(8, 0))
+
+        # Botones (solo Ingresar)
+        btns = ctk.CTkFrame(card, fg_color='transparent')
+        btns.pack(fill='x', pady=(6, 10), padx=12)
+
+        def _attempt_login(event=None):
+            u = username_entry.get().strip()
+            p = password_entry.get()
+            user = self._find_user(u)
+            if user and user.get('password') == p:
+                self.current_user = user
+                self.current_role = user.get('role')
+                # actualizar título principal con el nombre del usuario
+                try:
+                    display_name = user.get('name') or user.get('username') or u
+                    self.title(f"Generador de Dictámenes - {display_name}")
+                except Exception:
+                    pass
+                dlg.destroy()
+                return
+            else:
+                msg.configure(text="Usuario o contraseña incorrectos")
+
+        # Botón Ingresar con texto en color secundario
+        ctk.CTkButton(btns, text="Ingresar", command=_attempt_login, width=140, fg_color=STYLE["primario"], hover_color="#d4bf22", text_color=STYLE["secundario"]).pack(side='right', padx=(6,0))
+
+        # foco inicial en usuario y permitir Enter para iniciar sesión
+        try:
+            username_entry.focus_set()
+            dlg.bind('<Return>', _attempt_login)
+        except Exception:
+            pass
+
+        # Si el usuario cierra la ventana (X), cerrar la aplicación para
+        # evitar que se acceda a la ventana principal sin autenticación.
+        def _on_close():
+            try:
+                self.current_user = None
+            except Exception:
+                pass
+            try:
+                dlg.grab_release()
+            except Exception:
+                pass
+            try:
+                self.destroy()
+            except Exception:
+                pass
+            try:
+                sys.exit(0)
+            except Exception:
+                pass
+
+        try:
+            dlg.protocol('WM_DELETE_WINDOW', _on_close)
+        except Exception:
+            pass
+
+        self.wait_window(dlg)
+
+    def _apply_permissions(self):
+        """Oculta/muneda botones según rol del usuario autenticado."""
+        role = getattr(self, 'current_role', None)
+        # Mostrar/ocultar info de usuario y botón de cerrar sesión
+        try:
+            if getattr(self, 'current_user', None):
+                # mostrar etiqueta con nombre
+                display_name = (self.current_user.get('name') or self.current_user.get('username')) if self.current_user else ''
+                try:
+                    self.lbl_info_sistema.configure(text=f"{display_name}")
+                except Exception:
+                    pass
+                try:
+                    self.lbl_info_sistema.pack(side="right", padx=(0, 10))
+                except Exception:
+                    pass
+                try:
+                    self.btn_logout.pack(side="right", padx=(0, 10))
+                except Exception:
+                    pass
+            else:
+                try:
+                    self.lbl_info_sistema.pack_forget()
+                except Exception:
+                    pass
+                try:
+                    self.btn_logout.pack_forget()
+                except Exception:
+                    pass
+        except Exception:
+            pass
+
+        # Mostrar/ocultar botón 'Reportes' (ejecutivos)
+        try:
+            if role == 'ejecutivo':
+                try:
+                    self.btn_reportes_ej.pack(side="left", padx=(0, 10))
+                except Exception:
+                    pass
+            else:
+                try:
+                    self.btn_reportes_ej.pack_forget()
+                except Exception:
+                    pass
+        except Exception:
+            pass
+        except Exception:
+            pass
+        # Controlar visibilidad de pestañas según rol
+        try:
+            # Siempre asegurarse de limpiar estados anteriores
+            try:
+                self.btn_reportes.pack_forget()
+            except Exception:
+                pass
+            try:
+                self.btn_inspectores.pack_forget()
+            except Exception:
+                pass
+            try:
+                self.btn_reportes_ej.pack_forget()
+            except Exception:
+                pass
+
+            # Mostrar para 'ejecutivo': Principal, Historial, Reportes (ejecutivo)
+            if role == 'ejecutivo':
+                try:
+                    self.btn_reportes_ej.pack(side="left", padx=(0, 10))
+                except Exception:
+                    pass
+
+            # Mostrar para 'admin': Principal, Historial, Reportes (clientes), Inspectores, Reportes ejecutivos
+            if role == 'admin':
+                try:
+                    self.btn_reportes.pack(side="left", padx=(0, 10))
+                except Exception:
+                    pass
+                try:
+                    self.btn_inspectores.pack(side="left", padx=(0, 10))
+                except Exception:
+                    pass
+                try:
+                    # también permitir acceso a reportes ejecutivos desde admin
+                    self.btn_reportes_ej.pack(side="left", padx=(0, 10))
+                except Exception:
+                    pass
+        except Exception:
+            pass
+
+    def _ensure_admin_or_block(self):
+        """Utilitario: llamar antes de mostrar pantallas privadas."""
+        if getattr(self, 'current_role', None) != 'admin':
+            messagebox.showwarning("Acceso denegado", "Necesita permisos de administrador para esta acción.")
+            return False
+        return True
+
+    def _logout(self):
+        """Cerrar sesión: limpiar estado y volver a mostrar el login."""
+        try:
+            # limpiar estado
+            self.current_user = None
+            self.current_role = None
+        except Exception:
+            pass
+        try:
+            # Restaurar título por defecto
+            self.title("Generador de Dictámenes")
+        except Exception:
+            pass
+        try:
+            # actualizar permisos/UI antes de ocultar
+            self._apply_permissions()
+        except Exception:
+            pass
+
+        # Ocultar la ventana principal y pedir nuevas credenciales.
+        # Si el usuario cierra el diálogo, el manejador del diálogo terminará la app.
+        try:
+            self.withdraw()
+        except Exception:
+            pass
+
+        try:
+            self._show_login_dialog()
+        except Exception:
+            pass
+
+        # Si después del diálogo hay un usuario válido, restaurar la ventana
+        try:
+            if getattr(self, 'current_user', None):
+                try:
+                    display_name = self.current_user.get('name') or self.current_user.get('username')
+                    self.title(f"Generador de Dictámenes - {display_name}")
+                except Exception:
+                    pass
+                try:
+                    self.deiconify()
+                except Exception:
+                    pass
+                try:
+                    self._apply_permissions()
+                except Exception:
+                    pass
+            else:
+                # si no hay usuario (posible si _show_login_dialog cerró la app), intentar salir limpio
+                try:
+                    self.destroy()
+                except Exception:
+                    pass
+        except Exception:
+            pass
+
+    def _descargar_reporte_ejecutivo(self):
+        """Genera y descarga un CSV con las visitas del día filtradas por el usuario actual."""
+        try:
+            if not getattr(self, 'current_user', None):
+                messagebox.showwarning('Acceso', 'Debe iniciar sesión para descargar reportes.')
+                return
+            # Reporte global: incluir todas las visitas (de todos los usuarios),
+            # opcionalmente filtradas por fecha si se proporciona.
+            fecha = None
+            try:
+                fecha = (self.entry_reporte_fecha.get() or '').strip()
+            except Exception:
+                fecha = datetime.now().strftime('%d/%m/%Y')
+
+            role = getattr(self, 'current_role', None)
+            user = getattr(self, 'current_user', None)
+
+            encontrados = []
+            # Si el usuario no es admin, leer los JSON guardados en data/produccion/<usuario>
+            if role != 'admin':
+                try:
+                    uname = ''
+                    if isinstance(user, dict):
+                        uname = user.get('username') or ''
+                    else:
+                        uname = str(user or '')
+                    owner_safe = re.sub(r"[^A-Za-z0-9_.-]", '_', str(uname))
+                    owner_dir = os.path.join(DATA_DIR, 'produccion', owner_safe)
+                    if not os.path.exists(owner_dir):
+                        try:
+                            self.reporte_log.configure(text='No existen registros guardados para su usuario.')
+                        except Exception:
+                            pass
+                        messagebox.showinfo('No hay datos', 'No se encontraron visitas guardadas para su usuario.')
+                        return
+
+                    for fn in os.listdir(owner_dir):
+                        if not fn.lower().endswith('.json'):
+                            continue
+                        fp = os.path.join(owner_dir, fn)
+                        try:
+                            with open(fp, 'r', encoding='utf-8') as jf:
+                                obj = json.load(jf)
+                            if fecha:
+                                if str(obj.get('fecha_inicio') or '').strip() != fecha:
+                                    continue
+                            encontrados.append(obj)
+                        except Exception:
+                            continue
+                except Exception:
+                    encontrados = []
+            else:
+                # admin: comportamiento global sobre historial en memoria
+                fuente = getattr(self, 'historial_data', []) or []
+                for r in fuente:
+                    try:
+                        f = (r.get('fecha_inicio') or '').strip()
+                        if not fecha or f == fecha:
+                            encontrados.append(r)
+                    except Exception:
+                        continue
+
+            if not encontrados:
+                try:
+                    self.reporte_log.configure(text='No se encontraron visitas para la fecha/usuario seleccionados.')
+                except Exception:
+                    pass
+                return
+
+            # Pedir ruta para guardar
+            suggested = f"reporte_produccion_{fecha.replace('/','-')}.csv"
+            save_path = filedialog.asksaveasfilename(defaultextension='.csv', initialfile=suggested, filetypes=[('CSV','*.csv')])
+            if not save_path:
+                return
+
+            import csv
+            keys = ['folio_visita','folio_acta','fecha_inicio','hora_inicio','cliente','tipo_documento','estatus','creado_por','creado_nombre']
+            try:
+                with open(save_path, 'w', newline='', encoding='utf-8') as cf:
+                    writer = csv.writer(cf)
+                    writer.writerow(keys)
+                    for rec in encontrados:
+                        row = [rec.get(k,'') for k in keys]
+                        writer.writerow(row)
+            except Exception as e:
+                messagebox.showerror('Error', f'No se pudo guardar el reporte: {e}')
+                return
+
+                try:
+                    self.reporte_log.configure(text=f'Reporte guardado: {save_path} — registros: {len(encontrados)}')
+                except Exception:
+                    pass
+            try:
+                # Guardar copia de producción en data/produccion
+                try:
+                    self._save_produccion_report(encontrados, save_path, fecha, getattr(self, 'current_user', None))
+                except Exception:
+                    pass
+                messagebox.showinfo('OK', f'Reporte guardado: {save_path}')
+            except Exception:
+                pass
+        except Exception as e:
+            print(f'Error generando reporte ejecutivo: {e}')
+            try:
+                messagebox.showerror('Error', str(e))
+            except Exception:
+                pass
+
+    def _exportar_reporte_ejecutivo_excel(self):
+        """Exporta a Excel (.xlsx) las visitas del ejecutivo y una hoja con inspectores acreditados.
+
+        Columnas visitas: CP, Fecha Creacion, Rango de Folios, Tipo de Documento, Estatus, Registrado Por
+        Hoja Inspectores: Nombre, Correo, Puesto, Firma (ruta). Intento insertar imágenes si es posible.
+        """
+        try:
+            if not getattr(self, 'current_user', None):
+                messagebox.showwarning('Acceso', 'Debe iniciar sesión para exportar reportes.')
+                return
+            # Reporte global a Excel: incluir todas las visitas (de todos los usuarios),
+            # opcionalmente filtradas por fecha.
+            fecha = ''
+            try:
+                fecha = (self.entry_reporte_fecha.get() or '').strip()
+            except Exception:
+                fecha = datetime.now().strftime('%d/%m/%Y')
+
+            fuente = getattr(self, 'historial_data', []) or []
+            encontrados = []
+            role = getattr(self, 'current_role', None)
+            user = getattr(self, 'current_user', None)
+            for r in fuente:
+                try:
+                    f = (r.get('fecha_inicio') or '').strip()
+                    if fecha and f != fecha:
+                        continue
+                    if role != 'admin':
+                        creador = (r.get('creado_por') or '').strip()
+                        if creador != (user or ''):
+                            continue
+                    encontrados.append(r)
+                except Exception:
+                    continue
+
+            if not encontrados:
+                try:
+                    self.reporte_log.configure(text='No se encontraron visitas para la fecha seleccionada.')
+                except Exception:
+                    pass
+                return
+
+            suggested = f"reporte_produccion_{fecha.replace('/','-')}.xlsx"
+            save_path = filedialog.asksaveasfilename(defaultextension='.xlsx', initialfile=suggested, filetypes=[('Excel','*.xlsx')])
+            if not save_path:
+                return
+
+            # Construir DataFrame de visitas
+            rows = []
+            for rec in encontrados:
+                cp = rec.get('cp') or rec.get('CP') or ''
+                fecha_creacion = rec.get('fecha_inicio') or ''
+                rango = rec.get('folios_utilizados') or f"{rec.get('folio_visita','')}"
+                tipo = rec.get('tipo_documento') or ''
+                estatus = rec.get('estatus') or ''
+                registrado = rec.get('creado_nombre') or rec.get('creado_por') or ''
+                rows.append({'CP': cp, 'Fecha Creacion': fecha_creacion, 'Rango Folios': rango, 'Tipo Documento': tipo, 'Estatus': estatus, 'Registrado Por': registrado})
+
+            try:
+                import pandas as _pd
+                df = _pd.DataFrame(rows)
+            except Exception:
+                # fallback: write CSV instead
+                import csv
+                csv_path = save_path.replace('.xlsx', '.csv')
+                with open(csv_path, 'w', newline='', encoding='utf-8') as cf:
+                    w = csv.DictWriter(cf, fieldnames=['CP','Fecha Creacion','Rango Folios','Tipo Documento','Estatus','Registrado Por'])
+                    w.writeheader()
+                    for r in rows:
+                        w.writerow(r)
+                messagebox.showinfo('OK', f'Reporte guardado (CSV): {csv_path}')
+                return
+
+            # Inspectores
+            try:
+                self.cargar_inspectores_desde_json()
+            except Exception:
+                pass
+            inspect_rows = []
+            for ip in getattr(self, 'inspectores_data', []) or []:
+                try:
+                    nombre = ip.get('NOMBRE DE INSPECTOR') or ip.get('NOMBRE') or ip.get('nombre') or ''
+                    correo = ip.get('CORREO') or ip.get('correo') or ''
+                    puesto = ip.get('Puesto') or ip.get('puesto') or ''
+                    firma = ip.get('FIRMA') or ip.get('firma') or ip.get('firma_path') or ''
+                    inspect_rows.append({'Nombre': nombre, 'Correo': correo, 'Puesto': puesto, 'Firma': firma})
+                except Exception:
+                    continue
+
+            try:
+                with _pd.ExcelWriter(save_path, engine='openpyxl') as writer:
+                    df.to_excel(writer, sheet_name='Visitas', index=False)
+                    _pd.DataFrame(inspect_rows).to_excel(writer, sheet_name='Inspectores', index=False)
+
+                # Intentar insertar imágenes en la hoja Inspectores
+                try:
+                    from openpyxl import load_workbook
+                    from openpyxl.drawing.image import Image as XLImage
+                    wb = load_workbook(save_path)
+                    ws = wb.get_sheet_by_name('Inspectores') if 'Inspectores' in wb.sheetnames else wb[wb.sheetnames[-1]]
+                    # insertar imágenes empezando en columna D (4), fila 2
+                    r = 2
+                    for ir in inspect_rows:
+                        firma_path = ir.get('Firma') or ''
+                        if firma_path and os.path.exists(firma_path):
+                            try:
+                                img = XLImage(firma_path)
+                                img.width = 120
+                                img.height = 60
+                                cell = f'D{r}'
+                                ws.add_image(img, cell)
+                            except Exception:
+                                pass
+                        r += 1
+                    wb.save(save_path)
+                except Exception:
+                    # no crítico, continuar sin imágenes
+                    pass
+
+                try:
+                    # Guardar copia de producción en data/produccion
+                    try:
+                        self._save_produccion_report(encontrados, save_path, fecha, getattr(self, 'current_user', None))
+                    except Exception:
+                        pass
+                except Exception:
+                    pass
+                messagebox.showinfo('OK', f'Reporte Excel guardado: {save_path}')
+                try:
+                    self.reporte_log.configure(text=f'Reporte guardado: {save_path} — registros: {len(rows)}')
+                except Exception:
+                    pass
+            except Exception as e:
+                messagebox.showerror('Error', f'No se pudo generar el Excel: {e}')
+                return
+        except Exception as e:
+            print(f'Error exportando reporte ejecutivo a Excel: {e}')
+            try:
+                messagebox.showerror('Error', str(e))
+            except Exception:
+                pass
+
+    def _cmd_mostrar_clientes(self):
+        if not self._ensure_admin_or_block():
+            return
+    
+    def _save_produccion_report(self, records, export_path, fecha_filter, owner_username=None):
+        """Guarda en JSON los datos de producción en DATA_DIR/produccion/<owner>/produccion_<ts>.json
+
+        También mantiene un índice global en DATA_DIR/produccion/produccion.json con metadatos.
+        """
+        try:
+            prod_root = os.path.join(DATA_DIR, 'produccion')
+            os.makedirs(prod_root, exist_ok=True)
+
+            owner = owner_username or getattr(self, 'current_user', 'unknown') or 'unknown'
+            # normalizar nombre de carpeta
+            owner_safe = re.sub(r"[^A-Za-z0-9_.-]", '_', str(owner))
+            owner_dir = os.path.join(prod_root, owner_safe)
+            os.makedirs(owner_dir, exist_ok=True)
+
+            ts = datetime.now().strftime('%Y%m%d_%H%M%S')
+            fname = f"produccion_{ts}.json"
+            fpath = os.path.join(owner_dir, fname)
+
+            payload = {
+                'fecha_generacion': datetime.now().isoformat(),
+                'fecha_filtro': fecha_filter,
+                'creado_por': getattr(self, 'current_user', ''),
+                'owner': owner_safe,
+                'export_path': os.path.relpath(export_path, DATA_DIR) if export_path and isinstance(export_path, str) and export_path.startswith(DATA_DIR) else export_path,
+                'count': len(records) if isinstance(records, (list, tuple)) else 0,
+                'records': records,
+            }
+
+            with open(fpath, 'w', encoding='utf-8') as jf:
+                json.dump(payload, jf, ensure_ascii=False, indent=2)
+
+            # actualizar índice global
+            idx_path = os.path.join(prod_root, 'produccion.json')
+            index = []
+            try:
+                if os.path.exists(idx_path):
+                    with open(idx_path, 'r', encoding='utf-8') as ix:
+                        index = json.load(ix) or []
+            except Exception:
+                index = []
+
+            entry = {
+                'timestamp': payload['fecha_generacion'],
+                'file': os.path.relpath(fpath, DATA_DIR),
+                'owner': owner_safe,
+                'count': payload['count'],
+                'fecha_filtro': fecha_filter,
+            }
+            index.append(entry)
+            try:
+                with open(idx_path, 'w', encoding='utf-8') as ix:
+                    json.dump(index, ix, ensure_ascii=False, indent=2)
+            except Exception:
+                pass
+
+            return fpath
+        except Exception as e:
+            print('Error guardando produccion:', e)
+            return None
+        try:
+            self.mostrar_clientes()
+        except Exception:
+            pass
+
+    def mostrar_reportes_ejecutivo(self):
+        """Muestra la pestaña de reportes para ejecutivos y oculta las demás."""
+        try:
+            # ocultar otras secciones
+            try:
+                self.frame_principal.pack_forget()
+            except Exception:
+                pass
+            try:
+                self.frame_historial.pack_forget()
+            except Exception:
+                pass
+            try:
+                self.frame_reportes.pack_forget()
+            except Exception:
+                pass
+            try:
+                self.frame_inspectores.pack_forget()
+            except Exception:
+                pass
+
+            # mostrar reportes ejecutivos
+            try:
+                self.frame_reportes_ejecutivo.pack(fill='both', expand=True)
+            except Exception:
+                pass
+
+            # actualizar estilo de botones
+            try:
+                # reset others
+                for b in (getattr(self, 'btn_principal', None), getattr(self, 'btn_historial', None), getattr(self, 'btn_reportes', None), getattr(self, 'btn_inspectores', None)):
+                    try:
+                        if b:
+                            b.configure(fg_color=STYLE['surface'], text_color=STYLE['secundario'], border_color=STYLE['secundario'])
+                    except Exception:
+                        pass
+            except Exception:
+                pass
+            try:
+                if getattr(self, 'btn_reportes_ej', None):
+                    self.btn_reportes_ej.configure(fg_color=STYLE['primario'], text_color=STYLE['secundario'], border_color=STYLE['primario'])
+            except Exception:
+                pass
+        except Exception:
+            pass
+
+    def _cmd_mostrar_inspectores(self):
+        if not self._ensure_admin_or_block():
+            return
+        try:
+            self.mostrar_inspectores()
+        except Exception:
+            pass
+
 
     def mostrar_principal(self):
         """Muestra la sección principal y oculta las demás"""
         # Ocultar todos los frames primero
         self.frame_principal.pack_forget()
         self.frame_historial.pack_forget()
+        # Asegurarse de ocultar la pestaña de reportes ejecutivos también
+        try:
+            self.frame_reportes_ejecutivo.pack_forget()
+        except Exception:
+            pass
         # Asegurarse de ocultar la pestaña Reportes también
         try:
             self.frame_reportes.pack_forget()
@@ -684,9 +1428,13 @@ class SistemaDictamenesVC(ctk.CTk):
             # Ocultar todos los frames primero
             self.frame_principal.pack_forget()
             self.frame_historial.pack_forget()
-            # Asegurarse de ocultar la pestaña Reportes también
+            # Asegurarse de ocultar las pestañas de Reportes también
             try:
                 self.frame_reportes.pack_forget()
+            except Exception:
+                pass
+            try:
+                self.frame_reportes_ejecutivo.pack_forget()
             except Exception:
                 pass
             
@@ -733,6 +1481,11 @@ class SistemaDictamenesVC(ctk.CTk):
         # Ocultar todos los frames primero
         self.frame_principal.pack_forget()
         self.frame_historial.pack_forget()
+        # Ocultar reportes ejecutivos si estaban visibles
+        try:
+            self.frame_reportes_ejecutivo.pack_forget()
+        except Exception:
+            pass
         self.frame_reportes.pack(fill="both", expand=True)
         # Asegurarse de ocultar backup nav en la pestaña Reportes
         try:
@@ -1981,6 +2734,11 @@ class SistemaDictamenesVC(ctk.CTk):
             pass
         try:
             self.frame_reportes.pack_forget()
+        except Exception:
+            pass
+        # Asegurarse de ocultar reportes ejecutivos si estaban visibles
+        try:
+            self.frame_reportes_ejecutivo.pack_forget()
         except Exception:
             pass
         # Mostrar inspectores
@@ -3537,6 +4295,37 @@ class SistemaDictamenesVC(ctk.CTk):
         """Muestra u oculta los subformularios de domicilios según el número seleccionado."""
         # deprecated (now using dynamic add/remove). keep for safety
         return
+
+    def _construir_tab_reportes_ejecutivo(self, parent):
+        """Construye la UI mínima para que un ejecutivo descargue su reporte diario."""
+        try:
+            parent.pack_propagate(False)
+            header = ctk.CTkFrame(parent, fg_color="transparent")
+            header.pack(fill='x', padx=12, pady=(8,6))
+            ctk.CTkLabel(header, text="Reportes de Productividad", font=FONT_SUBTITLE, text_color=STYLE['texto_oscuro']).pack(anchor='w')
+
+            body = ctk.CTkFrame(parent, fg_color="transparent")
+            body.pack(fill='both', expand=True, padx=12, pady=8)
+
+            # Fecha (texto) y botón de descarga
+            controls = ctk.CTkFrame(body, fg_color='transparent')
+            controls.pack(anchor='nw', pady=(6,12))
+            ctk.CTkLabel(controls, text='Fecha (dd/mm/yyyy):', text_color=STYLE['texto_oscuro']).pack(side='left', padx=(0,8))
+            self.entry_reporte_fecha = ctk.CTkEntry(controls, width=140)
+            self.entry_reporte_fecha.pack(side='left')
+            # valor por defecto: hoy
+            try:
+                self.entry_reporte_fecha.insert(0, datetime.now().strftime('%d/%m/%Y'))
+            except Exception:
+                pass
+
+            ctk.CTkButton(controls, text='Descargar reporte', fg_color=STYLE['primario'], hover_color=STYLE['primario'], text_color=STYLE['secundario'], command=self._descargar_reporte_ejecutivo).pack(side='left', padx=(12,0))
+
+            # Area de logs/resultados
+            self.reporte_log = ctk.CTkLabel(body, text='', text_color=STYLE['texto_oscuro'])
+            self.reporte_log.pack(anchor='nw', pady=(8,0))
+        except Exception:
+            pass
 
     def _add_domicilio(self):
         """Añade un subformulario de domicilio si no supera el máximo."""
@@ -7366,7 +8155,49 @@ class SistemaDictamenesVC(ctk.CTk):
             self._cargar_historial()
             self._force_reload_hist = False
         regs = getattr(self, 'historial_data', []) or []
+        role = getattr(self, 'current_role', None)
+        user = getattr(self, 'current_user', None)
+        encontrados = []
+        # Si no es admin, leer los JSON individuales guardados en data/produccion/<usuario>
+        if role != 'admin':
+            try:
+                # obtener nombre de usuario
+                uname = ''
+                if isinstance(user, dict):
+                    uname = user.get('username') or ''
+                else:
+                    uname = str(user or '')
+                owner_safe = re.sub(r"[^A-Za-z0-9_.-]", '_', str(uname))
+                owner_dir = os.path.join(DATA_DIR, 'produccion', owner_safe)
+                if not os.path.exists(owner_dir):
+                    try:
+                        self.reporte_log.configure(text='No existen registros guardados para su usuario.')
+                    except Exception:
+                        pass
+                    messagebox.showinfo('No hay datos', 'No se encontraron visitas guardadas para su usuario.')
+                    return
 
+                for fn in os.listdir(owner_dir):
+                    if not fn.lower().endswith('.json'):
+                        continue
+                    fp = os.path.join(owner_dir, fn)
+                    try:
+                        with open(fp, 'r', encoding='utf-8') as jf:
+                            obj = json.load(jf)
+                        # Añadir todas las visitas guardadas del usuario (sin filtrado por fecha aquí)
+                        encontrados.append(obj)
+                    except Exception:
+                        continue
+            except Exception:
+                encontrados = []
+        else:
+            # admin: comportamiento global sobre historial en memoria
+            fuente = getattr(self, 'historial_data', []) or []
+            for r in fuente:
+                try:
+                    encontrados.append(r)
+                except Exception:
+                    continue
         # Ordenar visitas por folio_visita (CP) ascendente, y luego por folio_acta (AC)
         try:
             def _folio_key(r):
@@ -10955,11 +11786,45 @@ class SistemaDictamenesVC(ctk.CTk):
                                 existing[k] = val
                         existing.setdefault('estatus', payload.get('estatus', 'En proceso'))
                     else:
+                        # Añadir metadatos de creador si no están presentes
+                        try:
+                            if getattr(self, 'current_user', None):
+                                payload.setdefault('creado_por', self.current_user.get('username') or '')
+                                payload.setdefault('creado_nombre', self.current_user.get('name') or '')
+                        except Exception:
+                            pass
+
                         # Append payload ensuring address fields exist
                         self.historial["visitas"].append(payload)
 
                     # Actualizar datos en memoria
                     self.historial_data = self.historial.get("visitas", [])
+
+                    # Asegurar que exista la carpeta de producción para el creador del registro
+                    try:
+                        creador = (payload.get('creado_por') or '')
+                        if creador:
+                            owner_safe = re.sub(r"[^A-Za-z0-9_.-]", '_', str(creador))
+                            prod_dir = os.path.join(DATA_DIR, 'produccion', owner_safe)
+                            os.makedirs(prod_dir, exist_ok=True)
+                    except Exception:
+                        pass
+
+                    # Guardar copia individual de la visita en la carpeta del usuario (visita_<folio>_<ts>.json)
+                    try:
+                        try:
+                            folio = str(payload.get('folio_visita') or payload.get('folio_acta') or payload.get('_id') or 'sinfolio')
+                        except Exception:
+                            folio = 'sinfolio'
+                        tsfn = datetime.now().strftime('%Y%m%d_%H%M%S')
+                        safe_folio = re.sub(r"[^A-Za-z0-9_.-]", '_', folio)
+                        filename = f"visita_{safe_folio}_{tsfn}.json"
+                        if creador:
+                            file_path = os.path.join(prod_dir, filename)
+                            with open(file_path, 'w', encoding='utf-8') as jf:
+                                json.dump(payload, jf, ensure_ascii=False, indent=2)
+                    except Exception:
+                        pass
 
                     # Guardar y refrescar UI
                     self._guardar_historial()

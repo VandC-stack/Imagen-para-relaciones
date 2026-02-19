@@ -1,0 +1,23 @@
+[
+  {
+    "timestamp": "2026-02-19T15:08:07.386779",
+    "file": "produccion\\__name____Brenda_Abigail_Vel_zquez_Cisneros____username____bvelazquez____password____UVNOM0049____role____ejecutivo__\\produccion_20260219_150807.json",
+    "owner": "__name____Brenda_Abigail_Vel_zquez_Cisneros____username____bvelazquez____password____UVNOM0049____role____ejecutivo__",
+    "count": 1,
+    "fecha_filtro": "19/02/2026"
+  },
+  {
+    "timestamp": "2026-02-19T15:08:53.933754",
+    "file": "produccion\\__name____Estefany_Castillo_Paz____username____ecastillo____password____UVNOM0049____role____ejecutivo__\\produccion_20260219_150853.json",
+    "owner": "__name____Estefany_Castillo_Paz____username____ecastillo____password____UVNOM0049____role____ejecutivo__",
+    "count": 1,
+    "fecha_filtro": "19/02/2026"
+  },
+  {
+    "timestamp": "2026-02-19T15:09:38.606123",
+    "file": "produccion\\__name____Efrain_Morales_Zamarron____username____emorales____password____UVNOM0049____role____admin__\\produccion_20260219_150938.json",
+    "owner": "__name____Efrain_Morales_Zamarron____username____emorales____password____UVNOM0049____role____admin__",
+    "count": 3,
+    "fecha_filtro": "19/02/2026"
+  }
+]

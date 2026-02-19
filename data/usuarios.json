@@ -1,0 +1,88 @@
+{
+  "users": [
+    {
+      "name": "Marcos Uriel Flores Gomez",
+      "username": "mflores",
+      "password": "UVNOM0049",
+      "role": "admin"
+    },
+    {
+      "name": "Mario Terrez Gonzalez",
+      "username": "mterrez",
+      "password": "UVNOM0049",
+      "role": "admin"
+    },
+    {
+      "name": "Arturo Flores Gómez",
+      "username": "aflores",
+      "password": "UVNOM0049",
+      "role": "admin"
+    },
+    {
+      "name": "Arturo Ivan Cortes Flores",
+      "username": "acortes",
+      "password": "UVNOM0049",
+      "role": "admin"
+    },
+    {
+      "name": "Imelda Vieyra Peralta",
+      "username": "ivieyra",
+      "password": "UVNOM0049",
+      "role": "admin"
+    },
+    {
+      "name": "Francisco Javier Frias Jimenez",
+      "username": "ffrias",
+      "password": "UVNOM0049",
+      "role": "admin"
+    },
+    {
+      "name": "Efrain Morales Zamarron",
+      "username": "emorales",
+      "password": "UVNOM0049",
+      "role": "admin"
+    },
+    {
+      "name": "Laura Rodriguez Monroy",
+      "username": "lrodriguez",
+      "password": "UVNOM0049",
+      "role": "ejecutivo"
+    },
+    {
+      "name": "Hephzibah Nicole Martínez Hernández",
+      "username": "nmartinez",
+      "password": "UVNOM0049",
+      "role": "ejecutivo"
+    },
+    {
+      "name": "Estefany Castillo Paz",
+      "username": "ecastillo",
+      "password": "UVNOM0049",
+      "role": "ejecutivo"
+    },
+    {
+      "name": "Vanessa Hernández Hernández",
+      "username": "vhernandez",
+      "password": "UVNOM0049",
+      "role": "ejecutivo"
+    },
+    {
+      "name": "Fabiola Flores Guzman",
+      "username": "fflores",
+      "password": "UVNOM0049",
+      "role": "ejecutivo"
+    },
+    {
+      "name": "Edgar Ivan Cedillo Ramirez",
+      "username": "ecedillo",
+      "password": "UVNOM0049",
+      "role": "ejecutivo"
+    },
+    {
+      "name": "Brenda Abigail Velázquez Cisneros",
+      "username": "bvelazquez",
+      "password": "UVNOM0049",
+      "role": "ejecutivo"
+    }
+  ]
+}
