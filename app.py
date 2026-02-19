@@ -832,7 +832,7 @@ class SistemaDictamenesVC(ctk.CTk):
         ctk.CTkLabel(
             form,
             text="Sistema Generador de Documentos V&C",
-            font=("Inter", 12, "bold"),
+            font=("Inter", 16, "bold"),
             text_color=text_dark,
             anchor='w'
         ).pack(anchor='w', pady=(0, 8))
@@ -841,7 +841,7 @@ class SistemaDictamenesVC(ctk.CTk):
         ctk.CTkLabel(
             form,
             text="👤  Usuario",
-            font=("Inter", 12),
+            font=("Inter", 14),
             text_color=text_dark,
             anchor='w'
         ).pack(anchor='w', pady=(6, 4))
@@ -861,7 +861,7 @@ class SistemaDictamenesVC(ctk.CTk):
         ctk.CTkLabel(
             form,
             text="🔒  Contraseña",
-            font=("Inter", 12),
+            font=("Inter", 14),
             text_color=text_dark,
             anchor='w'
         ).pack(anchor='w', pady=(2, 4))

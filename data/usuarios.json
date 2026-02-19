@@ -37,8 +37,14 @@
       "role": "admin"
     },
     {
-      "name": "Efrain Morales Zamarron",
+      "name": "Efrain Morales Zamarrón",
       "username": "emorales",
+      "password": "UVNOM0049",
+      "role": "admin"
+    },
+    {
+      "name": "Celeste Zamarrón Cid",
+      "username": "czamarron",
       "password": "UVNOM0049",
       "role": "admin"
     },
