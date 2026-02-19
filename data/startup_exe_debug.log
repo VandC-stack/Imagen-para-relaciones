@@ -813,3 +813,1341 @@ folio_manager.chosen=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de doc
 folio_manager.chosen=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data
 folio_manager.chosen=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data
 folio_manager.chosen=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data
+
+===== STARTUP DEBUG: 2026-02-19 15:13:54 =====
+frozen=False
+BASE_DIR=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C
+APP_DIR=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C
+DATA_DIR=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data
+CWD=C:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C
+ENV.IMAGENESVC_DATA_DIR=None
+ENV.FOLIO_DATA_DIR=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data
+Clientes.json: exists=True size=62489 path=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data\Clientes.json
+tabla_de_relacion.json: exists=False size=None path=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data\tabla_de_relacion.json
+Firmas.json: exists=True size=12379 path=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data\Firmas.json
+folio_counter.json: exists=True size=11 path=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data\folio_counter.json
+historial_visitas.json: exists=True size=48 path=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data\historial_visitas.json
+pending_folios.json: exists=True size=2 path=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data\pending_folios.json
+DIR: .
+  - Clientes.json (62489 bytes)
+  - Clientes.json.orig (51407 bytes)
+  - config_etiquetas.json (1569 bytes)
+  - constancia_debug.log (20087 bytes)
+  - excel_export_config.json (508 bytes)
+  - excel_export_data.json (82 bytes)
+  - Firmas.json (12379 bytes)
+  - folio_counter.json (11 bytes)
+  - historial_visitas.json (48 bytes)
+  - historial_visitas.json.backup (1127 bytes)
+  - hist_borrar_debug.log (910 bytes)
+  - Normas.json (2646 bytes)
+  - operaciones_log.json (2865 bytes)
+  - pending_folios.json (2 bytes)
+  - startup_exe_debug.log (50821 bytes)
+  - usuarios.json (2087 bytes)
+DIR: Constancias
+DIR: Dictamenes
+DIR: eliminacion_logs
+DIR: folios_visitas
+DIR: folios_visitas\backups
+DIR: produccion
+  - produccion.json (1217 bytes)
+DIR: produccion\bvelazquez
+DIR: produccion\ecastillo
+DIR: produccion\__name____Brenda_Abigail_Vel_zquez_Cisneros____username____bvelazquez____password____UVNOM0049____role____ejecutivo__
+DIR: produccion\__name____Efrain_Morales_Zamarron____username____emorales____password____UVNOM0049____role____admin__
+DIR: produccion\__name____Estefany_Castillo_Paz____username____ecastillo____password____UVNOM0049____role____ejecutivo__
+DIR: Reportes_Decathlon
+DIR: tabla_relacion_backups
+===== END STARTUP DEBUG =====
+folio_manager.chosen=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data
+cargar_clientes: opened c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data\Clientes.json size=62489
+folio_manager.chosen=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data
+
+===== STARTUP DEBUG: 2026-02-19 15:19:54 =====
+frozen=False
+BASE_DIR=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C
+APP_DIR=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C
+DATA_DIR=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data
+CWD=C:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C
+ENV.IMAGENESVC_DATA_DIR=None
+ENV.FOLIO_DATA_DIR=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data
+Clientes.json: exists=True size=62489 path=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data\Clientes.json
+tabla_de_relacion.json: exists=False size=None path=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data\tabla_de_relacion.json
+Firmas.json: exists=True size=12379 path=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data\Firmas.json
+folio_counter.json: exists=True size=11 path=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data\folio_counter.json
+historial_visitas.json: exists=True size=48 path=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data\historial_visitas.json
+pending_folios.json: exists=True size=2 path=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data\pending_folios.json
+DIR: .
+  - Clientes.json (62489 bytes)
+  - Clientes.json.orig (51407 bytes)
+  - config_etiquetas.json (1569 bytes)
+  - constancia_debug.log (20087 bytes)
+  - excel_export_config.json (508 bytes)
+  - excel_export_data.json (82 bytes)
+  - Firmas.json (12379 bytes)
+  - folio_counter.json (11 bytes)
+  - historial_visitas.json (48 bytes)
+  - historial_visitas.json.backup (1127 bytes)
+  - hist_borrar_debug.log (910 bytes)
+  - Normas.json (2646 bytes)
+  - operaciones_log.json (2865 bytes)
+  - pending_folios.json (2 bytes)
+  - startup_exe_debug.log (53788 bytes)
+  - usuarios.json (2087 bytes)
+DIR: Constancias
+DIR: Dictamenes
+DIR: eliminacion_logs
+DIR: folios_visitas
+DIR: folios_visitas\backups
+DIR: produccion
+  - produccion.json (1217 bytes)
+DIR: produccion\bvelazquez
+DIR: produccion\ecastillo
+DIR: produccion\__name____Brenda_Abigail_Vel_zquez_Cisneros____username____bvelazquez____password____UVNOM0049____role____ejecutivo__
+DIR: produccion\__name____Efrain_Morales_Zamarron____username____emorales____password____UVNOM0049____role____admin__
+DIR: produccion\__name____Estefany_Castillo_Paz____username____ecastillo____password____UVNOM0049____role____ejecutivo__
+DIR: Reportes_Decathlon
+DIR: tabla_relacion_backups
+===== END STARTUP DEBUG =====
+folio_manager.chosen=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data
+cargar_clientes: opened c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data\Clientes.json size=62489
+folio_manager.chosen=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data
+
+===== STARTUP DEBUG: 2026-02-19 15:23:27 =====
+frozen=False
+BASE_DIR=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C
+APP_DIR=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C
+DATA_DIR=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data
+CWD=C:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C
+ENV.IMAGENESVC_DATA_DIR=None
+ENV.FOLIO_DATA_DIR=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data
+Clientes.json: exists=True size=62489 path=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data\Clientes.json
+tabla_de_relacion.json: exists=False size=None path=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data\tabla_de_relacion.json
+Firmas.json: exists=True size=12379 path=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data\Firmas.json
+folio_counter.json: exists=True size=11 path=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data\folio_counter.json
+historial_visitas.json: exists=True size=48 path=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data\historial_visitas.json
+pending_folios.json: exists=True size=2 path=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data\pending_folios.json
+DIR: .
+  - Clientes.json (62489 bytes)
+  - Clientes.json.orig (51407 bytes)
+  - config_etiquetas.json (1569 bytes)
+  - constancia_debug.log (20087 bytes)
+  - excel_export_config.json (508 bytes)
+  - excel_export_data.json (82 bytes)
+  - Firmas.json (12379 bytes)
+  - folio_counter.json (11 bytes)
+  - historial_visitas.json (48 bytes)
+  - historial_visitas.json.backup (1127 bytes)
+  - hist_borrar_debug.log (910 bytes)
+  - Normas.json (2646 bytes)
+  - operaciones_log.json (2865 bytes)
+  - pending_folios.json (2 bytes)
+  - startup_exe_debug.log (56755 bytes)
+  - usuarios.json (2087 bytes)
+DIR: Constancias
+DIR: Dictamenes
+DIR: eliminacion_logs
+DIR: folios_visitas
+DIR: folios_visitas\backups
+DIR: produccion
+  - produccion.json (1217 bytes)
+DIR: produccion\bvelazquez
+DIR: produccion\ecastillo
+DIR: produccion\__name____Brenda_Abigail_Vel_zquez_Cisneros____username____bvelazquez____password____UVNOM0049____role____ejecutivo__
+DIR: produccion\__name____Efrain_Morales_Zamarron____username____emorales____password____UVNOM0049____role____admin__
+DIR: produccion\__name____Estefany_Castillo_Paz____username____ecastillo____password____UVNOM0049____role____ejecutivo__
+DIR: Reportes_Decathlon
+DIR: tabla_relacion_backups
+===== END STARTUP DEBUG =====
+
+===== STARTUP DEBUG: 2026-02-19 15:23:32 =====
+frozen=False
+BASE_DIR=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C
+APP_DIR=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C
+DATA_DIR=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data
+CWD=C:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C
+ENV.IMAGENESVC_DATA_DIR=None
+ENV.FOLIO_DATA_DIR=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data
+Clientes.json: exists=True size=62489 path=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data\Clientes.json
+tabla_de_relacion.json: exists=False size=None path=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data\tabla_de_relacion.json
+Firmas.json: exists=True size=12379 path=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data\Firmas.json
+folio_counter.json: exists=True size=11 path=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data\folio_counter.json
+historial_visitas.json: exists=True size=48 path=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data\historial_visitas.json
+pending_folios.json: exists=True size=2 path=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data\pending_folios.json
+DIR: .
+  - Clientes.json (62489 bytes)
+  - Clientes.json.orig (51407 bytes)
+  - config_etiquetas.json (1569 bytes)
+  - constancia_debug.log (20087 bytes)
+  - excel_export_config.json (508 bytes)
+  - excel_export_data.json (82 bytes)
+  - Firmas.json (12379 bytes)
+  - folio_counter.json (11 bytes)
+  - historial_visitas.json (48 bytes)
+  - historial_visitas.json.backup (1127 bytes)
+  - hist_borrar_debug.log (910 bytes)
+  - Normas.json (2646 bytes)
+  - operaciones_log.json (2865 bytes)
+  - pending_folios.json (2 bytes)
+  - startup_exe_debug.log (59400 bytes)
+  - usuarios.json (2087 bytes)
+DIR: Constancias
+DIR: Dictamenes
+DIR: eliminacion_logs
+DIR: folios_visitas
+DIR: folios_visitas\backups
+DIR: produccion
+  - produccion.json (1217 bytes)
+DIR: produccion\bvelazquez
+DIR: produccion\ecastillo
+DIR: produccion\__name____Brenda_Abigail_Vel_zquez_Cisneros____username____bvelazquez____password____UVNOM0049____role____ejecutivo__
+DIR: produccion\__name____Efrain_Morales_Zamarron____username____emorales____password____UVNOM0049____role____admin__
+DIR: produccion\__name____Estefany_Castillo_Paz____username____ecastillo____password____UVNOM0049____role____ejecutivo__
+DIR: Reportes_Decathlon
+DIR: tabla_relacion_backups
+===== END STARTUP DEBUG =====
+folio_manager.chosen=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data
+cargar_clientes: opened c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data\Clientes.json size=62489
+folio_manager.chosen=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data
+
+===== STARTUP DEBUG: 2026-02-19 15:29:01 =====
+frozen=False
+BASE_DIR=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C
+APP_DIR=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C
+DATA_DIR=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data
+CWD=C:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C
+ENV.IMAGENESVC_DATA_DIR=None
+ENV.FOLIO_DATA_DIR=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data
+Clientes.json: exists=True size=62489 path=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data\Clientes.json
+tabla_de_relacion.json: exists=False size=None path=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data\tabla_de_relacion.json
+Firmas.json: exists=True size=12379 path=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data\Firmas.json
+folio_counter.json: exists=True size=11 path=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data\folio_counter.json
+historial_visitas.json: exists=True size=48 path=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data\historial_visitas.json
+pending_folios.json: exists=True size=2 path=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data\pending_folios.json
+DIR: .
+  - Clientes.json (62489 bytes)
+  - Clientes.json.orig (51407 bytes)
+  - config_etiquetas.json (1569 bytes)
+  - constancia_debug.log (20087 bytes)
+  - excel_export_config.json (508 bytes)
+  - excel_export_data.json (82 bytes)
+  - Firmas.json (12379 bytes)
+  - folio_counter.json (11 bytes)
+  - historial_visitas.json (48 bytes)
+  - historial_visitas.json.backup (1127 bytes)
+  - hist_borrar_debug.log (910 bytes)
+  - Normas.json (2646 bytes)
+  - operaciones_log.json (2865 bytes)
+  - pending_folios.json (2 bytes)
+  - startup_exe_debug.log (62367 bytes)
+  - usuarios.json (2087 bytes)
+DIR: Constancias
+DIR: Dictamenes
+DIR: eliminacion_logs
+DIR: folios_visitas
+DIR: folios_visitas\backups
+DIR: produccion
+  - produccion.json (1217 bytes)
+DIR: produccion\bvelazquez
+DIR: produccion\ecastillo
+DIR: produccion\__name____Brenda_Abigail_Vel_zquez_Cisneros____username____bvelazquez____password____UVNOM0049____role____ejecutivo__
+DIR: produccion\__name____Efrain_Morales_Zamarron____username____emorales____password____UVNOM0049____role____admin__
+DIR: produccion\__name____Estefany_Castillo_Paz____username____ecastillo____password____UVNOM0049____role____ejecutivo__
+DIR: Reportes_Decathlon
+DIR: tabla_relacion_backups
+===== END STARTUP DEBUG =====
+
+===== STARTUP DEBUG: 2026-02-19 15:29:08 =====
+frozen=False
+BASE_DIR=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C
+APP_DIR=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C
+DATA_DIR=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data
+CWD=C:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C
+ENV.IMAGENESVC_DATA_DIR=None
+ENV.FOLIO_DATA_DIR=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data
+Clientes.json: exists=True size=62489 path=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data\Clientes.json
+tabla_de_relacion.json: exists=False size=None path=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data\tabla_de_relacion.json
+Firmas.json: exists=True size=12379 path=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data\Firmas.json
+folio_counter.json: exists=True size=11 path=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data\folio_counter.json
+historial_visitas.json: exists=True size=48 path=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data\historial_visitas.json
+pending_folios.json: exists=True size=2 path=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data\pending_folios.json
+DIR: .
+  - Clientes.json (62489 bytes)
+  - Clientes.json.orig (51407 bytes)
+  - config_etiquetas.json (1569 bytes)
+  - constancia_debug.log (20087 bytes)
+  - excel_export_config.json (508 bytes)
+  - excel_export_data.json (82 bytes)
+  - Firmas.json (12379 bytes)
+  - folio_counter.json (11 bytes)
+  - historial_visitas.json (48 bytes)
+  - historial_visitas.json.backup (1127 bytes)
+  - hist_borrar_debug.log (910 bytes)
+  - Normas.json (2646 bytes)
+  - operaciones_log.json (2865 bytes)
+  - pending_folios.json (2 bytes)
+  - startup_exe_debug.log (65012 bytes)
+  - usuarios.json (2087 bytes)
+DIR: Constancias
+DIR: Dictamenes
+DIR: eliminacion_logs
+DIR: folios_visitas
+DIR: folios_visitas\backups
+DIR: produccion
+  - produccion.json (1217 bytes)
+DIR: produccion\bvelazquez
+DIR: produccion\ecastillo
+DIR: produccion\__name____Brenda_Abigail_Vel_zquez_Cisneros____username____bvelazquez____password____UVNOM0049____role____ejecutivo__
+DIR: produccion\__name____Efrain_Morales_Zamarron____username____emorales____password____UVNOM0049____role____admin__
+DIR: produccion\__name____Estefany_Castillo_Paz____username____ecastillo____password____UVNOM0049____role____ejecutivo__
+DIR: Reportes_Decathlon
+DIR: tabla_relacion_backups
+===== END STARTUP DEBUG =====
+folio_manager.chosen=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data
+cargar_clientes: opened c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data\Clientes.json size=62489
+folio_manager.chosen=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data
+
+===== STARTUP DEBUG: 2026-02-19 15:30:12 =====
+frozen=False
+BASE_DIR=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C
+APP_DIR=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C
+DATA_DIR=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data
+CWD=C:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C
+ENV.IMAGENESVC_DATA_DIR=None
+ENV.FOLIO_DATA_DIR=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data
+Clientes.json: exists=True size=62489 path=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data\Clientes.json
+tabla_de_relacion.json: exists=False size=None path=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data\tabla_de_relacion.json
+Firmas.json: exists=True size=12379 path=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data\Firmas.json
+folio_counter.json: exists=True size=11 path=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data\folio_counter.json
+historial_visitas.json: exists=True size=48 path=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data\historial_visitas.json
+pending_folios.json: exists=True size=2 path=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data\pending_folios.json
+DIR: .
+  - Clientes.json (62489 bytes)
+  - Clientes.json.orig (51407 bytes)
+  - config_etiquetas.json (1569 bytes)
+  - constancia_debug.log (20087 bytes)
+  - excel_export_config.json (508 bytes)
+  - excel_export_data.json (82 bytes)
+  - Firmas.json (12379 bytes)
+  - folio_counter.json (11 bytes)
+  - historial_visitas.json (48 bytes)
+  - historial_visitas.json.backup (1127 bytes)
+  - hist_borrar_debug.log (910 bytes)
+  - Normas.json (2646 bytes)
+  - operaciones_log.json (2865 bytes)
+  - pending_folios.json (2 bytes)
+  - startup_exe_debug.log (67979 bytes)
+  - usuarios.json (2087 bytes)
+DIR: Constancias
+DIR: Dictamenes
+DIR: eliminacion_logs
+DIR: folios_visitas
+DIR: folios_visitas\backups
+DIR: produccion
+  - produccion.json (1217 bytes)
+DIR: produccion\bvelazquez
+DIR: produccion\ecastillo
+DIR: produccion\__name____Brenda_Abigail_Vel_zquez_Cisneros____username____bvelazquez____password____UVNOM0049____role____ejecutivo__
+DIR: produccion\__name____Efrain_Morales_Zamarron____username____emorales____password____UVNOM0049____role____admin__
+DIR: produccion\__name____Estefany_Castillo_Paz____username____ecastillo____password____UVNOM0049____role____ejecutivo__
+DIR: Reportes_Decathlon
+DIR: tabla_relacion_backups
+===== END STARTUP DEBUG =====
+
+===== STARTUP DEBUG: 2026-02-19 15:30:19 =====
+frozen=False
+BASE_DIR=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C
+APP_DIR=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C
+DATA_DIR=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data
+CWD=C:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C
+ENV.IMAGENESVC_DATA_DIR=None
+ENV.FOLIO_DATA_DIR=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data
+Clientes.json: exists=True size=62489 path=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data\Clientes.json
+tabla_de_relacion.json: exists=False size=None path=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data\tabla_de_relacion.json
+Firmas.json: exists=True size=12379 path=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data\Firmas.json
+folio_counter.json: exists=True size=11 path=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data\folio_counter.json
+historial_visitas.json: exists=True size=48 path=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data\historial_visitas.json
+pending_folios.json: exists=True size=2 path=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data\pending_folios.json
+DIR: .
+  - Clientes.json (62489 bytes)
+  - Clientes.json.orig (51407 bytes)
+  - config_etiquetas.json (1569 bytes)
+  - constancia_debug.log (20087 bytes)
+  - excel_export_config.json (508 bytes)
+  - excel_export_data.json (82 bytes)
+  - Firmas.json (12379 bytes)
+  - folio_counter.json (11 bytes)
+  - historial_visitas.json (48 bytes)
+  - historial_visitas.json.backup (1127 bytes)
+  - hist_borrar_debug.log (910 bytes)
+  - Normas.json (2646 bytes)
+  - operaciones_log.json (2865 bytes)
+  - pending_folios.json (2 bytes)
+  - startup_exe_debug.log (70624 bytes)
+  - usuarios.json (2087 bytes)
+DIR: Constancias
+DIR: Dictamenes
+DIR: eliminacion_logs
+DIR: folios_visitas
+DIR: folios_visitas\backups
+DIR: produccion
+  - produccion.json (1217 bytes)
+DIR: produccion\bvelazquez
+DIR: produccion\ecastillo
+DIR: produccion\__name____Brenda_Abigail_Vel_zquez_Cisneros____username____bvelazquez____password____UVNOM0049____role____ejecutivo__
+DIR: produccion\__name____Efrain_Morales_Zamarron____username____emorales____password____UVNOM0049____role____admin__
+DIR: produccion\__name____Estefany_Castillo_Paz____username____ecastillo____password____UVNOM0049____role____ejecutivo__
+DIR: Reportes_Decathlon
+DIR: tabla_relacion_backups
+===== END STARTUP DEBUG =====
+folio_manager.chosen=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data
+cargar_clientes: opened c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data\Clientes.json size=62489
+folio_manager.chosen=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data
+
+===== STARTUP DEBUG: 2026-02-19 15:36:50 =====
+frozen=False
+BASE_DIR=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C
+APP_DIR=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C
+DATA_DIR=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data
+CWD=C:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C
+ENV.IMAGENESVC_DATA_DIR=None
+ENV.FOLIO_DATA_DIR=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data
+Clientes.json: exists=True size=62489 path=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data\Clientes.json
+tabla_de_relacion.json: exists=False size=None path=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data\tabla_de_relacion.json
+Firmas.json: exists=True size=12379 path=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data\Firmas.json
+folio_counter.json: exists=True size=11 path=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data\folio_counter.json
+historial_visitas.json: exists=True size=48 path=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data\historial_visitas.json
+pending_folios.json: exists=True size=2 path=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data\pending_folios.json
+DIR: .
+  - Clientes.json (62489 bytes)
+  - Clientes.json.orig (51407 bytes)
+  - config_etiquetas.json (1569 bytes)
+  - constancia_debug.log (20087 bytes)
+  - excel_export_config.json (508 bytes)
+  - excel_export_data.json (82 bytes)
+  - Firmas.json (12379 bytes)
+  - folio_counter.json (11 bytes)
+  - historial_visitas.json (48 bytes)
+  - historial_visitas.json.backup (1127 bytes)
+  - hist_borrar_debug.log (910 bytes)
+  - Normas.json (2646 bytes)
+  - operaciones_log.json (2865 bytes)
+  - pending_folios.json (2 bytes)
+  - startup_exe_debug.log (73591 bytes)
+  - usuarios.json (2087 bytes)
+DIR: Constancias
+DIR: Dictamenes
+DIR: eliminacion_logs
+DIR: folios_visitas
+DIR: folios_visitas\backups
+DIR: produccion
+  - produccion.json (1217 bytes)
+DIR: produccion\bvelazquez
+DIR: produccion\ecastillo
+DIR: produccion\__name____Brenda_Abigail_Vel_zquez_Cisneros____username____bvelazquez____password____UVNOM0049____role____ejecutivo__
+DIR: produccion\__name____Efrain_Morales_Zamarron____username____emorales____password____UVNOM0049____role____admin__
+DIR: produccion\__name____Estefany_Castillo_Paz____username____ecastillo____password____UVNOM0049____role____ejecutivo__
+DIR: Reportes_Decathlon
+DIR: tabla_relacion_backups
+===== END STARTUP DEBUG =====
+folio_manager.chosen=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data
+cargar_clientes: opened c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data\Clientes.json size=62489
+folio_manager.chosen=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data
+
+===== STARTUP DEBUG: 2026-02-19 15:37:43 =====
+frozen=False
+BASE_DIR=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C
+APP_DIR=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C
+DATA_DIR=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data
+CWD=C:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C
+ENV.IMAGENESVC_DATA_DIR=None
+ENV.FOLIO_DATA_DIR=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data
+Clientes.json: exists=True size=62489 path=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data\Clientes.json
+tabla_de_relacion.json: exists=False size=None path=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data\tabla_de_relacion.json
+Firmas.json: exists=True size=12379 path=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data\Firmas.json
+folio_counter.json: exists=True size=11 path=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data\folio_counter.json
+historial_visitas.json: exists=True size=48 path=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data\historial_visitas.json
+pending_folios.json: exists=True size=2 path=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data\pending_folios.json
+DIR: .
+  - Clientes.json (62489 bytes)
+  - Clientes.json.orig (51407 bytes)
+  - config_etiquetas.json (1569 bytes)
+  - constancia_debug.log (20087 bytes)
+  - excel_export_config.json (508 bytes)
+  - excel_export_data.json (82 bytes)
+  - Firmas.json (12379 bytes)
+  - folio_counter.json (11 bytes)
+  - historial_visitas.json (48 bytes)
+  - historial_visitas.json.backup (1127 bytes)
+  - hist_borrar_debug.log (910 bytes)
+  - Normas.json (2646 bytes)
+  - operaciones_log.json (2865 bytes)
+  - pending_folios.json (2 bytes)
+  - startup_exe_debug.log (76558 bytes)
+  - usuarios.json (2087 bytes)
+DIR: Constancias
+DIR: Dictamenes
+DIR: eliminacion_logs
+DIR: folios_visitas
+DIR: folios_visitas\backups
+DIR: produccion
+  - produccion.json (1217 bytes)
+DIR: produccion\bvelazquez
+DIR: produccion\ecastillo
+DIR: produccion\__name____Brenda_Abigail_Vel_zquez_Cisneros____username____bvelazquez____password____UVNOM0049____role____ejecutivo__
+DIR: produccion\__name____Efrain_Morales_Zamarron____username____emorales____password____UVNOM0049____role____admin__
+DIR: produccion\__name____Estefany_Castillo_Paz____username____ecastillo____password____UVNOM0049____role____ejecutivo__
+DIR: Reportes_Decathlon
+DIR: tabla_relacion_backups
+===== END STARTUP DEBUG =====
+folio_manager.chosen=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data
+cargar_clientes: opened c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data\Clientes.json size=62489
+folio_manager.chosen=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data
+
+===== STARTUP DEBUG: 2026-02-19 15:40:25 =====
+frozen=False
+BASE_DIR=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C
+APP_DIR=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C
+DATA_DIR=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data
+CWD=C:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C
+ENV.IMAGENESVC_DATA_DIR=None
+ENV.FOLIO_DATA_DIR=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data
+Clientes.json: exists=True size=62489 path=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data\Clientes.json
+tabla_de_relacion.json: exists=False size=None path=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data\tabla_de_relacion.json
+Firmas.json: exists=True size=12379 path=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data\Firmas.json
+folio_counter.json: exists=True size=11 path=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data\folio_counter.json
+historial_visitas.json: exists=True size=48 path=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data\historial_visitas.json
+pending_folios.json: exists=True size=2 path=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data\pending_folios.json
+DIR: .
+  - Clientes.json (62489 bytes)
+  - Clientes.json.orig (51407 bytes)
+  - config_etiquetas.json (1569 bytes)
+  - constancia_debug.log (20087 bytes)
+  - excel_export_config.json (508 bytes)
+  - excel_export_data.json (82 bytes)
+  - Firmas.json (12379 bytes)
+  - folio_counter.json (11 bytes)
+  - historial_visitas.json (48 bytes)
+  - historial_visitas.json.backup (1127 bytes)
+  - hist_borrar_debug.log (910 bytes)
+  - Normas.json (2646 bytes)
+  - operaciones_log.json (2865 bytes)
+  - pending_folios.json (2 bytes)
+  - startup_exe_debug.log (79525 bytes)
+  - usuarios.json (2087 bytes)
+DIR: Constancias
+DIR: Dictamenes
+DIR: eliminacion_logs
+DIR: folios_visitas
+DIR: folios_visitas\backups
+DIR: produccion
+  - produccion.json (1217 bytes)
+DIR: produccion\bvelazquez
+DIR: produccion\ecastillo
+DIR: produccion\__name____Brenda_Abigail_Vel_zquez_Cisneros____username____bvelazquez____password____UVNOM0049____role____ejecutivo__
+DIR: produccion\__name____Efrain_Morales_Zamarron____username____emorales____password____UVNOM0049____role____admin__
+DIR: produccion\__name____Estefany_Castillo_Paz____username____ecastillo____password____UVNOM0049____role____ejecutivo__
+DIR: Reportes_Decathlon
+DIR: tabla_relacion_backups
+===== END STARTUP DEBUG =====
+folio_manager.chosen=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data
+cargar_clientes: opened c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data\Clientes.json size=62489
+folio_manager.chosen=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data
+
+===== STARTUP DEBUG: 2026-02-19 15:41:27 =====
+frozen=False
+BASE_DIR=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C
+APP_DIR=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C
+DATA_DIR=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data
+CWD=C:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C
+ENV.IMAGENESVC_DATA_DIR=None
+ENV.FOLIO_DATA_DIR=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data
+Clientes.json: exists=True size=62489 path=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data\Clientes.json
+tabla_de_relacion.json: exists=False size=None path=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data\tabla_de_relacion.json
+Firmas.json: exists=True size=12379 path=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data\Firmas.json
+folio_counter.json: exists=True size=11 path=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data\folio_counter.json
+historial_visitas.json: exists=True size=48 path=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data\historial_visitas.json
+pending_folios.json: exists=True size=2 path=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data\pending_folios.json
+DIR: .
+  - Clientes.json (62489 bytes)
+  - Clientes.json.orig (51407 bytes)
+  - config_etiquetas.json (1569 bytes)
+  - constancia_debug.log (20087 bytes)
+  - excel_export_config.json (508 bytes)
+  - excel_export_data.json (82 bytes)
+  - Firmas.json (12379 bytes)
+  - folio_counter.json (11 bytes)
+  - historial_visitas.json (48 bytes)
+  - historial_visitas.json.backup (1127 bytes)
+  - hist_borrar_debug.log (910 bytes)
+  - Normas.json (2646 bytes)
+  - operaciones_log.json (2865 bytes)
+  - pending_folios.json (2 bytes)
+  - startup_exe_debug.log (82492 bytes)
+  - usuarios.json (2087 bytes)
+DIR: Constancias
+DIR: Dictamenes
+DIR: eliminacion_logs
+DIR: folios_visitas
+DIR: folios_visitas\backups
+DIR: produccion
+  - produccion.json (1217 bytes)
+DIR: produccion\bvelazquez
+DIR: produccion\ecastillo
+DIR: produccion\__name____Brenda_Abigail_Vel_zquez_Cisneros____username____bvelazquez____password____UVNOM0049____role____ejecutivo__
+DIR: produccion\__name____Efrain_Morales_Zamarron____username____emorales____password____UVNOM0049____role____admin__
+DIR: produccion\__name____Estefany_Castillo_Paz____username____ecastillo____password____UVNOM0049____role____ejecutivo__
+DIR: Reportes_Decathlon
+DIR: tabla_relacion_backups
+===== END STARTUP DEBUG =====
+
+===== STARTUP DEBUG: 2026-02-19 15:41:33 =====
+frozen=False
+BASE_DIR=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C
+APP_DIR=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C
+DATA_DIR=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data
+CWD=C:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C
+ENV.IMAGENESVC_DATA_DIR=None
+ENV.FOLIO_DATA_DIR=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data
+Clientes.json: exists=True size=62489 path=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data\Clientes.json
+tabla_de_relacion.json: exists=False size=None path=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data\tabla_de_relacion.json
+Firmas.json: exists=True size=12379 path=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data\Firmas.json
+folio_counter.json: exists=True size=11 path=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data\folio_counter.json
+historial_visitas.json: exists=True size=48 path=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data\historial_visitas.json
+pending_folios.json: exists=True size=2 path=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data\pending_folios.json
+DIR: .
+  - Clientes.json (62489 bytes)
+  - Clientes.json.orig (51407 bytes)
+  - config_etiquetas.json (1569 bytes)
+  - constancia_debug.log (20087 bytes)
+  - excel_export_config.json (508 bytes)
+  - excel_export_data.json (82 bytes)
+  - Firmas.json (12379 bytes)
+  - folio_counter.json (11 bytes)
+  - historial_visitas.json (48 bytes)
+  - historial_visitas.json.backup (1127 bytes)
+  - hist_borrar_debug.log (910 bytes)
+  - Normas.json (2646 bytes)
+  - operaciones_log.json (2865 bytes)
+  - pending_folios.json (2 bytes)
+  - startup_exe_debug.log (85137 bytes)
+  - usuarios.json (2087 bytes)
+DIR: Constancias
+DIR: Dictamenes
+DIR: eliminacion_logs
+DIR: folios_visitas
+DIR: folios_visitas\backups
+DIR: produccion
+  - produccion.json (1217 bytes)
+DIR: produccion\bvelazquez
+DIR: produccion\ecastillo
+DIR: produccion\__name____Brenda_Abigail_Vel_zquez_Cisneros____username____bvelazquez____password____UVNOM0049____role____ejecutivo__
+DIR: produccion\__name____Efrain_Morales_Zamarron____username____emorales____password____UVNOM0049____role____admin__
+DIR: produccion\__name____Estefany_Castillo_Paz____username____ecastillo____password____UVNOM0049____role____ejecutivo__
+DIR: Reportes_Decathlon
+DIR: tabla_relacion_backups
+===== END STARTUP DEBUG =====
+folio_manager.chosen=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data
+cargar_clientes: opened c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data\Clientes.json size=62489
+folio_manager.chosen=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data
+
+===== STARTUP DEBUG: 2026-02-19 15:43:58 =====
+frozen=False
+BASE_DIR=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C
+APP_DIR=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C
+DATA_DIR=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data
+CWD=C:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C
+ENV.IMAGENESVC_DATA_DIR=None
+ENV.FOLIO_DATA_DIR=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data
+Clientes.json: exists=True size=62489 path=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data\Clientes.json
+tabla_de_relacion.json: exists=False size=None path=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data\tabla_de_relacion.json
+Firmas.json: exists=True size=12379 path=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data\Firmas.json
+folio_counter.json: exists=True size=11 path=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data\folio_counter.json
+historial_visitas.json: exists=True size=48 path=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data\historial_visitas.json
+pending_folios.json: exists=True size=2 path=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data\pending_folios.json
+DIR: .
+  - Clientes.json (62489 bytes)
+  - Clientes.json.orig (51407 bytes)
+  - config_etiquetas.json (1569 bytes)
+  - constancia_debug.log (20087 bytes)
+  - excel_export_config.json (508 bytes)
+  - excel_export_data.json (82 bytes)
+  - Firmas.json (12379 bytes)
+  - folio_counter.json (11 bytes)
+  - historial_visitas.json (48 bytes)
+  - historial_visitas.json.backup (1127 bytes)
+  - hist_borrar_debug.log (910 bytes)
+  - Normas.json (2646 bytes)
+  - operaciones_log.json (2865 bytes)
+  - pending_folios.json (2 bytes)
+  - startup_exe_debug.log (88104 bytes)
+  - usuarios.json (2087 bytes)
+DIR: Constancias
+DIR: Dictamenes
+DIR: eliminacion_logs
+DIR: folios_visitas
+DIR: folios_visitas\backups
+DIR: produccion
+  - produccion.json (1217 bytes)
+DIR: produccion\bvelazquez
+DIR: produccion\ecastillo
+DIR: produccion\__name____Brenda_Abigail_Vel_zquez_Cisneros____username____bvelazquez____password____UVNOM0049____role____ejecutivo__
+DIR: produccion\__name____Efrain_Morales_Zamarron____username____emorales____password____UVNOM0049____role____admin__
+DIR: produccion\__name____Estefany_Castillo_Paz____username____ecastillo____password____UVNOM0049____role____ejecutivo__
+DIR: Reportes_Decathlon
+DIR: tabla_relacion_backups
+===== END STARTUP DEBUG =====
+folio_manager.chosen=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data
+cargar_clientes: opened c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data\Clientes.json size=62489
+folio_manager.chosen=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data
+
+===== STARTUP DEBUG: 2026-02-19 15:45:50 =====
+frozen=False
+BASE_DIR=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C
+APP_DIR=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C
+DATA_DIR=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data
+CWD=C:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C
+ENV.IMAGENESVC_DATA_DIR=None
+ENV.FOLIO_DATA_DIR=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data
+Clientes.json: exists=True size=62489 path=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data\Clientes.json
+tabla_de_relacion.json: exists=False size=None path=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data\tabla_de_relacion.json
+Firmas.json: exists=True size=12379 path=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data\Firmas.json
+folio_counter.json: exists=True size=11 path=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data\folio_counter.json
+historial_visitas.json: exists=True size=48 path=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data\historial_visitas.json
+pending_folios.json: exists=True size=2 path=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data\pending_folios.json
+DIR: .
+  - Clientes.json (62489 bytes)
+  - Clientes.json.orig (51407 bytes)
+  - config_etiquetas.json (1569 bytes)
+  - constancia_debug.log (20087 bytes)
+  - excel_export_config.json (508 bytes)
+  - excel_export_data.json (82 bytes)
+  - Firmas.json (12379 bytes)
+  - folio_counter.json (11 bytes)
+  - historial_visitas.json (48 bytes)
+  - historial_visitas.json.backup (1127 bytes)
+  - hist_borrar_debug.log (910 bytes)
+  - Normas.json (2646 bytes)
+  - operaciones_log.json (2865 bytes)
+  - pending_folios.json (2 bytes)
+  - startup_exe_debug.log (91071 bytes)
+  - usuarios.json (2087 bytes)
+DIR: Constancias
+DIR: Dictamenes
+DIR: eliminacion_logs
+DIR: folios_visitas
+DIR: folios_visitas\backups
+DIR: produccion
+  - produccion.json (1217 bytes)
+DIR: produccion\bvelazquez
+DIR: produccion\ecastillo
+DIR: produccion\__name____Brenda_Abigail_Vel_zquez_Cisneros____username____bvelazquez____password____UVNOM0049____role____ejecutivo__
+DIR: produccion\__name____Efrain_Morales_Zamarron____username____emorales____password____UVNOM0049____role____admin__
+DIR: produccion\__name____Estefany_Castillo_Paz____username____ecastillo____password____UVNOM0049____role____ejecutivo__
+DIR: Reportes_Decathlon
+DIR: tabla_relacion_backups
+===== END STARTUP DEBUG =====
+folio_manager.chosen=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data
+cargar_clientes: opened c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data\Clientes.json size=62489
+folio_manager.chosen=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data
+
+===== STARTUP DEBUG: 2026-02-19 15:46:54 =====
+frozen=False
+BASE_DIR=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C
+APP_DIR=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C
+DATA_DIR=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data
+CWD=C:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C
+ENV.IMAGENESVC_DATA_DIR=None
+ENV.FOLIO_DATA_DIR=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data
+Clientes.json: exists=True size=62489 path=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data\Clientes.json
+tabla_de_relacion.json: exists=False size=None path=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data\tabla_de_relacion.json
+Firmas.json: exists=True size=12379 path=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data\Firmas.json
+folio_counter.json: exists=True size=11 path=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data\folio_counter.json
+historial_visitas.json: exists=True size=48 path=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data\historial_visitas.json
+pending_folios.json: exists=True size=2 path=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data\pending_folios.json
+DIR: .
+  - Clientes.json (62489 bytes)
+  - Clientes.json.orig (51407 bytes)
+  - config_etiquetas.json (1569 bytes)
+  - constancia_debug.log (20087 bytes)
+  - excel_export_config.json (508 bytes)
+  - excel_export_data.json (82 bytes)
+  - Firmas.json (12379 bytes)
+  - folio_counter.json (11 bytes)
+  - historial_visitas.json (48 bytes)
+  - historial_visitas.json.backup (1127 bytes)
+  - hist_borrar_debug.log (910 bytes)
+  - Normas.json (2646 bytes)
+  - operaciones_log.json (2865 bytes)
+  - pending_folios.json (2 bytes)
+  - startup_exe_debug.log (94038 bytes)
+  - usuarios.json (2087 bytes)
+DIR: Constancias
+DIR: Dictamenes
+DIR: eliminacion_logs
+DIR: folios_visitas
+DIR: folios_visitas\backups
+DIR: produccion
+  - produccion.json (1217 bytes)
+DIR: produccion\bvelazquez
+DIR: produccion\ecastillo
+DIR: produccion\__name____Brenda_Abigail_Vel_zquez_Cisneros____username____bvelazquez____password____UVNOM0049____role____ejecutivo__
+DIR: produccion\__name____Efrain_Morales_Zamarron____username____emorales____password____UVNOM0049____role____admin__
+DIR: produccion\__name____Estefany_Castillo_Paz____username____ecastillo____password____UVNOM0049____role____ejecutivo__
+DIR: Reportes_Decathlon
+DIR: tabla_relacion_backups
+===== END STARTUP DEBUG =====
+folio_manager.chosen=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data
+cargar_clientes: opened c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data\Clientes.json size=62489
+folio_manager.chosen=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data
+
+===== STARTUP DEBUG: 2026-02-19 15:51:04 =====
+frozen=False
+BASE_DIR=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C
+APP_DIR=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C
+DATA_DIR=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data
+CWD=C:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C
+ENV.IMAGENESVC_DATA_DIR=None
+ENV.FOLIO_DATA_DIR=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data
+Clientes.json: exists=True size=62489 path=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data\Clientes.json
+tabla_de_relacion.json: exists=False size=None path=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data\tabla_de_relacion.json
+Firmas.json: exists=True size=12379 path=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data\Firmas.json
+folio_counter.json: exists=True size=11 path=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data\folio_counter.json
+historial_visitas.json: exists=True size=48 path=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data\historial_visitas.json
+pending_folios.json: exists=True size=2 path=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data\pending_folios.json
+DIR: .
+  - Clientes.json (62489 bytes)
+  - Clientes.json.orig (51407 bytes)
+  - config_etiquetas.json (1569 bytes)
+  - constancia_debug.log (20087 bytes)
+  - excel_export_config.json (508 bytes)
+  - excel_export_data.json (82 bytes)
+  - Firmas.json (12379 bytes)
+  - folio_counter.json (11 bytes)
+  - historial_visitas.json (48 bytes)
+  - historial_visitas.json.backup (1127 bytes)
+  - hist_borrar_debug.log (910 bytes)
+  - Normas.json (2646 bytes)
+  - operaciones_log.json (2865 bytes)
+  - pending_folios.json (2 bytes)
+  - startup_exe_debug.log (97005 bytes)
+  - usuarios.json (2087 bytes)
+DIR: Constancias
+DIR: Dictamenes
+DIR: eliminacion_logs
+DIR: folios_visitas
+DIR: folios_visitas\backups
+DIR: produccion
+  - produccion.json (1217 bytes)
+DIR: produccion\bvelazquez
+DIR: produccion\ecastillo
+DIR: produccion\__name____Brenda_Abigail_Vel_zquez_Cisneros____username____bvelazquez____password____UVNOM0049____role____ejecutivo__
+DIR: produccion\__name____Efrain_Morales_Zamarron____username____emorales____password____UVNOM0049____role____admin__
+DIR: produccion\__name____Estefany_Castillo_Paz____username____ecastillo____password____UVNOM0049____role____ejecutivo__
+DIR: Reportes_Decathlon
+DIR: tabla_relacion_backups
+===== END STARTUP DEBUG =====
+folio_manager.chosen=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data
+cargar_clientes: opened c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data\Clientes.json size=62489
+folio_manager.chosen=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data
+
+===== STARTUP DEBUG: 2026-02-19 15:51:33 =====
+frozen=False
+BASE_DIR=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C
+APP_DIR=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C
+DATA_DIR=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data
+CWD=C:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C
+ENV.IMAGENESVC_DATA_DIR=None
+ENV.FOLIO_DATA_DIR=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data
+Clientes.json: exists=True size=62489 path=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data\Clientes.json
+tabla_de_relacion.json: exists=False size=None path=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data\tabla_de_relacion.json
+Firmas.json: exists=True size=12379 path=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data\Firmas.json
+folio_counter.json: exists=True size=11 path=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data\folio_counter.json
+historial_visitas.json: exists=True size=48 path=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data\historial_visitas.json
+pending_folios.json: exists=True size=2 path=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data\pending_folios.json
+DIR: .
+  - Clientes.json (62489 bytes)
+  - Clientes.json.orig (51407 bytes)
+  - config_etiquetas.json (1569 bytes)
+  - constancia_debug.log (20087 bytes)
+  - excel_export_config.json (508 bytes)
+  - excel_export_data.json (82 bytes)
+  - Firmas.json (12379 bytes)
+  - folio_counter.json (11 bytes)
+  - historial_visitas.json (48 bytes)
+  - historial_visitas.json.backup (1127 bytes)
+  - hist_borrar_debug.log (910 bytes)
+  - Normas.json (2646 bytes)
+  - operaciones_log.json (2865 bytes)
+  - pending_folios.json (2 bytes)
+  - startup_exe_debug.log (99972 bytes)
+  - usuarios.json (2087 bytes)
+DIR: Constancias
+DIR: Dictamenes
+DIR: eliminacion_logs
+DIR: folios_visitas
+DIR: folios_visitas\backups
+DIR: produccion
+  - produccion.json (1217 bytes)
+DIR: produccion\bvelazquez
+DIR: produccion\ecastillo
+DIR: produccion\__name____Brenda_Abigail_Vel_zquez_Cisneros____username____bvelazquez____password____UVNOM0049____role____ejecutivo__
+DIR: produccion\__name____Efrain_Morales_Zamarron____username____emorales____password____UVNOM0049____role____admin__
+DIR: produccion\__name____Estefany_Castillo_Paz____username____ecastillo____password____UVNOM0049____role____ejecutivo__
+DIR: Reportes_Decathlon
+DIR: tabla_relacion_backups
+===== END STARTUP DEBUG =====
+folio_manager.chosen=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data
+cargar_clientes: opened c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data\Clientes.json size=62489
+folio_manager.chosen=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data
+
+===== STARTUP DEBUG: 2026-02-19 15:53:54 =====
+frozen=False
+BASE_DIR=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C
+APP_DIR=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C
+DATA_DIR=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data
+CWD=C:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C
+ENV.IMAGENESVC_DATA_DIR=None
+ENV.FOLIO_DATA_DIR=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data
+Clientes.json: exists=True size=62489 path=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data\Clientes.json
+tabla_de_relacion.json: exists=False size=None path=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data\tabla_de_relacion.json
+Firmas.json: exists=True size=12379 path=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data\Firmas.json
+folio_counter.json: exists=True size=11 path=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data\folio_counter.json
+historial_visitas.json: exists=True size=48 path=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data\historial_visitas.json
+pending_folios.json: exists=True size=2 path=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data\pending_folios.json
+DIR: .
+  - Clientes.json (62489 bytes)
+  - Clientes.json.orig (51407 bytes)
+  - config_etiquetas.json (1569 bytes)
+  - constancia_debug.log (20087 bytes)
+  - excel_export_config.json (508 bytes)
+  - excel_export_data.json (82 bytes)
+  - Firmas.json (12379 bytes)
+  - folio_counter.json (11 bytes)
+  - historial_visitas.json (48 bytes)
+  - historial_visitas.json.backup (1127 bytes)
+  - hist_borrar_debug.log (910 bytes)
+  - Normas.json (2646 bytes)
+  - operaciones_log.json (2865 bytes)
+  - pending_folios.json (2 bytes)
+  - startup_exe_debug.log (102939 bytes)
+  - usuarios.json (2087 bytes)
+DIR: Constancias
+DIR: Dictamenes
+DIR: eliminacion_logs
+DIR: folios_visitas
+DIR: folios_visitas\backups
+DIR: produccion
+  - produccion.json (1217 bytes)
+DIR: produccion\bvelazquez
+DIR: produccion\ecastillo
+DIR: produccion\__name____Brenda_Abigail_Vel_zquez_Cisneros____username____bvelazquez____password____UVNOM0049____role____ejecutivo__
+DIR: produccion\__name____Efrain_Morales_Zamarron____username____emorales____password____UVNOM0049____role____admin__
+DIR: produccion\__name____Estefany_Castillo_Paz____username____ecastillo____password____UVNOM0049____role____ejecutivo__
+DIR: Reportes_Decathlon
+DIR: tabla_relacion_backups
+===== END STARTUP DEBUG =====
+folio_manager.chosen=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data
+cargar_clientes: opened c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data\Clientes.json size=62489
+folio_manager.chosen=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data
+
+===== STARTUP DEBUG: 2026-02-19 15:54:48 =====
+frozen=False
+BASE_DIR=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C
+APP_DIR=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C
+DATA_DIR=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data
+CWD=C:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C
+ENV.IMAGENESVC_DATA_DIR=None
+ENV.FOLIO_DATA_DIR=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data
+Clientes.json: exists=True size=62489 path=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data\Clientes.json
+tabla_de_relacion.json: exists=False size=None path=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data\tabla_de_relacion.json
+Firmas.json: exists=True size=12379 path=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data\Firmas.json
+folio_counter.json: exists=True size=11 path=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data\folio_counter.json
+historial_visitas.json: exists=True size=48 path=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data\historial_visitas.json
+pending_folios.json: exists=True size=2 path=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data\pending_folios.json
+DIR: .
+  - Clientes.json (62489 bytes)
+  - Clientes.json.orig (51407 bytes)
+  - config_etiquetas.json (1569 bytes)
+  - constancia_debug.log (20087 bytes)
+  - excel_export_config.json (508 bytes)
+  - excel_export_data.json (82 bytes)
+  - Firmas.json (12379 bytes)
+  - folio_counter.json (11 bytes)
+  - historial_visitas.json (48 bytes)
+  - historial_visitas.json.backup (1127 bytes)
+  - hist_borrar_debug.log (910 bytes)
+  - Normas.json (2646 bytes)
+  - operaciones_log.json (2865 bytes)
+  - pending_folios.json (2 bytes)
+  - startup_exe_debug.log (105907 bytes)
+  - usuarios.json (2087 bytes)
+DIR: Constancias
+DIR: Dictamenes
+DIR: eliminacion_logs
+DIR: folios_visitas
+DIR: folios_visitas\backups
+DIR: produccion
+  - produccion.json (1217 bytes)
+DIR: produccion\bvelazquez
+DIR: produccion\ecastillo
+DIR: produccion\__name____Brenda_Abigail_Vel_zquez_Cisneros____username____bvelazquez____password____UVNOM0049____role____ejecutivo__
+DIR: produccion\__name____Efrain_Morales_Zamarron____username____emorales____password____UVNOM0049____role____admin__
+DIR: produccion\__name____Estefany_Castillo_Paz____username____ecastillo____password____UVNOM0049____role____ejecutivo__
+DIR: Reportes_Decathlon
+DIR: tabla_relacion_backups
+===== END STARTUP DEBUG =====
+folio_manager.chosen=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data
+cargar_clientes: opened c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data\Clientes.json size=62489
+folio_manager.chosen=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data
+
+===== STARTUP DEBUG: 2026-02-19 15:55:01 =====
+frozen=False
+BASE_DIR=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C
+APP_DIR=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C
+DATA_DIR=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data
+CWD=C:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C
+ENV.IMAGENESVC_DATA_DIR=None
+ENV.FOLIO_DATA_DIR=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data
+Clientes.json: exists=True size=62489 path=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data\Clientes.json
+tabla_de_relacion.json: exists=False size=None path=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data\tabla_de_relacion.json
+Firmas.json: exists=True size=12379 path=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data\Firmas.json
+folio_counter.json: exists=True size=11 path=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data\folio_counter.json
+historial_visitas.json: exists=True size=48 path=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data\historial_visitas.json
+pending_folios.json: exists=True size=2 path=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data\pending_folios.json
+DIR: .
+  - Clientes.json (62489 bytes)
+  - Clientes.json.orig (51407 bytes)
+  - config_etiquetas.json (1569 bytes)
+  - constancia_debug.log (20087 bytes)
+  - excel_export_config.json (508 bytes)
+  - excel_export_data.json (82 bytes)
+  - Firmas.json (12379 bytes)
+  - folio_counter.json (11 bytes)
+  - historial_visitas.json (48 bytes)
+  - historial_visitas.json.backup (1127 bytes)
+  - hist_borrar_debug.log (910 bytes)
+  - Normas.json (2646 bytes)
+  - operaciones_log.json (2865 bytes)
+  - pending_folios.json (2 bytes)
+  - startup_exe_debug.log (108875 bytes)
+  - usuarios.json (2087 bytes)
+DIR: Constancias
+DIR: Dictamenes
+DIR: eliminacion_logs
+DIR: folios_visitas
+DIR: folios_visitas\backups
+DIR: produccion
+  - produccion.json (1217 bytes)
+DIR: produccion\bvelazquez
+DIR: produccion\ecastillo
+DIR: produccion\__name____Brenda_Abigail_Vel_zquez_Cisneros____username____bvelazquez____password____UVNOM0049____role____ejecutivo__
+DIR: produccion\__name____Efrain_Morales_Zamarron____username____emorales____password____UVNOM0049____role____admin__
+DIR: produccion\__name____Estefany_Castillo_Paz____username____ecastillo____password____UVNOM0049____role____ejecutivo__
+DIR: Reportes_Decathlon
+DIR: tabla_relacion_backups
+===== END STARTUP DEBUG =====
+folio_manager.chosen=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data
+cargar_clientes: opened c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data\Clientes.json size=62489
+folio_manager.chosen=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data
+
+===== STARTUP DEBUG: 2026-02-19 15:56:42 =====
+frozen=False
+BASE_DIR=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C
+APP_DIR=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C
+DATA_DIR=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data
+CWD=C:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C
+ENV.IMAGENESVC_DATA_DIR=None
+ENV.FOLIO_DATA_DIR=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data
+Clientes.json: exists=True size=62489 path=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data\Clientes.json
+tabla_de_relacion.json: exists=False size=None path=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data\tabla_de_relacion.json
+Firmas.json: exists=True size=12379 path=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data\Firmas.json
+folio_counter.json: exists=True size=11 path=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data\folio_counter.json
+historial_visitas.json: exists=True size=48 path=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data\historial_visitas.json
+pending_folios.json: exists=True size=2 path=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data\pending_folios.json
+DIR: .
+  - Clientes.json (62489 bytes)
+  - Clientes.json.orig (51407 bytes)
+  - config_etiquetas.json (1569 bytes)
+  - constancia_debug.log (20087 bytes)
+  - excel_export_config.json (508 bytes)
+  - excel_export_data.json (82 bytes)
+  - Firmas.json (12379 bytes)
+  - folio_counter.json (11 bytes)
+  - historial_visitas.json (48 bytes)
+  - historial_visitas.json.backup (1127 bytes)
+  - hist_borrar_debug.log (910 bytes)
+  - Normas.json (2646 bytes)
+  - operaciones_log.json (2865 bytes)
+  - pending_folios.json (2 bytes)
+  - startup_exe_debug.log (111843 bytes)
+  - usuarios.json (2087 bytes)
+DIR: Constancias
+DIR: Dictamenes
+DIR: eliminacion_logs
+DIR: folios_visitas
+DIR: folios_visitas\backups
+DIR: produccion
+  - produccion.json (1217 bytes)
+DIR: produccion\bvelazquez
+DIR: produccion\ecastillo
+DIR: produccion\__name____Brenda_Abigail_Vel_zquez_Cisneros____username____bvelazquez____password____UVNOM0049____role____ejecutivo__
+DIR: produccion\__name____Efrain_Morales_Zamarron____username____emorales____password____UVNOM0049____role____admin__
+DIR: produccion\__name____Estefany_Castillo_Paz____username____ecastillo____password____UVNOM0049____role____ejecutivo__
+DIR: Reportes_Decathlon
+DIR: tabla_relacion_backups
+===== END STARTUP DEBUG =====
+folio_manager.chosen=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data
+cargar_clientes: opened c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data\Clientes.json size=62489
+folio_manager.chosen=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data
+
+===== STARTUP DEBUG: 2026-02-19 15:59:57 =====
+frozen=False
+BASE_DIR=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C
+APP_DIR=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C
+DATA_DIR=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data
+CWD=C:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C
+ENV.IMAGENESVC_DATA_DIR=None
+ENV.FOLIO_DATA_DIR=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data
+Clientes.json: exists=True size=62489 path=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data\Clientes.json
+tabla_de_relacion.json: exists=False size=None path=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data\tabla_de_relacion.json
+Firmas.json: exists=True size=12379 path=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data\Firmas.json
+folio_counter.json: exists=True size=11 path=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data\folio_counter.json
+historial_visitas.json: exists=True size=48 path=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data\historial_visitas.json
+pending_folios.json: exists=True size=2 path=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data\pending_folios.json
+DIR: .
+  - Clientes.json (62489 bytes)
+  - Clientes.json.orig (51407 bytes)
+  - config_etiquetas.json (1569 bytes)
+  - constancia_debug.log (20087 bytes)
+  - excel_export_config.json (508 bytes)
+  - excel_export_data.json (82 bytes)
+  - Firmas.json (12379 bytes)
+  - folio_counter.json (11 bytes)
+  - historial_visitas.json (48 bytes)
+  - historial_visitas.json.backup (1127 bytes)
+  - hist_borrar_debug.log (910 bytes)
+  - Normas.json (2646 bytes)
+  - operaciones_log.json (2865 bytes)
+  - pending_folios.json (2 bytes)
+  - startup_exe_debug.log (114811 bytes)
+  - usuarios.json (2087 bytes)
+DIR: Constancias
+DIR: Dictamenes
+DIR: eliminacion_logs
+DIR: folios_visitas
+DIR: folios_visitas\backups
+DIR: produccion
+  - produccion.json (1217 bytes)
+DIR: produccion\bvelazquez
+DIR: produccion\ecastillo
+DIR: produccion\__name____Brenda_Abigail_Vel_zquez_Cisneros____username____bvelazquez____password____UVNOM0049____role____ejecutivo__
+DIR: produccion\__name____Efrain_Morales_Zamarron____username____emorales____password____UVNOM0049____role____admin__
+DIR: produccion\__name____Estefany_Castillo_Paz____username____ecastillo____password____UVNOM0049____role____ejecutivo__
+DIR: Reportes_Decathlon
+DIR: tabla_relacion_backups
+===== END STARTUP DEBUG =====
+folio_manager.chosen=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data
+cargar_clientes: opened c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data\Clientes.json size=62489
+folio_manager.chosen=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data
+
+===== STARTUP DEBUG: 2026-02-19 16:01:17 =====
+frozen=False
+BASE_DIR=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C
+APP_DIR=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C
+DATA_DIR=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data
+CWD=C:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C
+ENV.IMAGENESVC_DATA_DIR=None
+ENV.FOLIO_DATA_DIR=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data
+Clientes.json: exists=True size=62489 path=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data\Clientes.json
+tabla_de_relacion.json: exists=False size=None path=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data\tabla_de_relacion.json
+Firmas.json: exists=True size=12379 path=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data\Firmas.json
+folio_counter.json: exists=True size=11 path=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data\folio_counter.json
+historial_visitas.json: exists=True size=48 path=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data\historial_visitas.json
+pending_folios.json: exists=True size=2 path=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data\pending_folios.json
+DIR: .
+  - Clientes.json (62489 bytes)
+  - Clientes.json.orig (51407 bytes)
+  - config_etiquetas.json (1569 bytes)
+  - constancia_debug.log (20087 bytes)
+  - excel_export_config.json (508 bytes)
+  - excel_export_data.json (82 bytes)
+  - Firmas.json (12379 bytes)
+  - folio_counter.json (11 bytes)
+  - historial_visitas.json (48 bytes)
+  - historial_visitas.json.backup (1127 bytes)
+  - hist_borrar_debug.log (910 bytes)
+  - Normas.json (2646 bytes)
+  - operaciones_log.json (2865 bytes)
+  - pending_folios.json (2 bytes)
+  - startup_exe_debug.log (117779 bytes)
+  - usuarios.json (2087 bytes)
+DIR: Constancias
+DIR: Dictamenes
+DIR: eliminacion_logs
+DIR: folios_visitas
+DIR: folios_visitas\backups
+DIR: produccion
+  - produccion.json (1217 bytes)
+DIR: produccion\bvelazquez
+DIR: produccion\ecastillo
+DIR: produccion\__name____Brenda_Abigail_Vel_zquez_Cisneros____username____bvelazquez____password____UVNOM0049____role____ejecutivo__
+DIR: produccion\__name____Efrain_Morales_Zamarron____username____emorales____password____UVNOM0049____role____admin__
+DIR: produccion\__name____Estefany_Castillo_Paz____username____ecastillo____password____UVNOM0049____role____ejecutivo__
+DIR: Reportes_Decathlon
+DIR: tabla_relacion_backups
+===== END STARTUP DEBUG =====
+folio_manager.chosen=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data
+cargar_clientes: opened c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data\Clientes.json size=62489
+folio_manager.chosen=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data
+
+===== STARTUP DEBUG: 2026-02-19 16:04:53 =====
+frozen=False
+BASE_DIR=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C
+APP_DIR=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C
+DATA_DIR=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data
+CWD=C:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C
+ENV.IMAGENESVC_DATA_DIR=None
+ENV.FOLIO_DATA_DIR=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data
+Clientes.json: exists=True size=62489 path=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data\Clientes.json
+tabla_de_relacion.json: exists=False size=None path=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data\tabla_de_relacion.json
+Firmas.json: exists=True size=12379 path=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data\Firmas.json
+folio_counter.json: exists=True size=11 path=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data\folio_counter.json
+historial_visitas.json: exists=True size=48 path=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data\historial_visitas.json
+pending_folios.json: exists=True size=2 path=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data\pending_folios.json
+DIR: .
+  - Clientes.json (62489 bytes)
+  - Clientes.json.orig (51407 bytes)
+  - config_etiquetas.json (1569 bytes)
+  - constancia_debug.log (20087 bytes)
+  - excel_export_config.json (508 bytes)
+  - excel_export_data.json (82 bytes)
+  - Firmas.json (12379 bytes)
+  - folio_counter.json (11 bytes)
+  - historial_visitas.json (48 bytes)
+  - historial_visitas.json.backup (1127 bytes)
+  - hist_borrar_debug.log (910 bytes)
+  - Normas.json (2646 bytes)
+  - operaciones_log.json (2865 bytes)
+  - pending_folios.json (2 bytes)
+  - startup_exe_debug.log (120747 bytes)
+  - usuarios.json (2087 bytes)
+DIR: Constancias
+DIR: Dictamenes
+DIR: eliminacion_logs
+DIR: folios_visitas
+DIR: folios_visitas\backups
+DIR: produccion
+  - produccion.json (1217 bytes)
+DIR: produccion\bvelazquez
+DIR: produccion\ecastillo
+DIR: produccion\__name____Brenda_Abigail_Vel_zquez_Cisneros____username____bvelazquez____password____UVNOM0049____role____ejecutivo__
+DIR: produccion\__name____Efrain_Morales_Zamarron____username____emorales____password____UVNOM0049____role____admin__
+DIR: produccion\__name____Estefany_Castillo_Paz____username____ecastillo____password____UVNOM0049____role____ejecutivo__
+DIR: Reportes_Decathlon
+DIR: tabla_relacion_backups
+===== END STARTUP DEBUG =====
+folio_manager.chosen=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data
+cargar_clientes: opened c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data\Clientes.json size=62489
+folio_manager.chosen=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data
+
+===== STARTUP DEBUG: 2026-02-19 16:09:22 =====
+frozen=False
+BASE_DIR=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C
+APP_DIR=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C
+DATA_DIR=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data
+CWD=C:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C
+ENV.IMAGENESVC_DATA_DIR=None
+ENV.FOLIO_DATA_DIR=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data
+Clientes.json: exists=True size=62489 path=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data\Clientes.json
+tabla_de_relacion.json: exists=False size=None path=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data\tabla_de_relacion.json
+Firmas.json: exists=True size=12379 path=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data\Firmas.json
+folio_counter.json: exists=True size=11 path=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data\folio_counter.json
+historial_visitas.json: exists=True size=48 path=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data\historial_visitas.json
+pending_folios.json: exists=True size=2 path=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data\pending_folios.json
+DIR: .
+  - Clientes.json (62489 bytes)
+  - Clientes.json.orig (51407 bytes)
+  - config_etiquetas.json (1569 bytes)
+  - constancia_debug.log (20087 bytes)
+  - excel_export_config.json (508 bytes)
+  - excel_export_data.json (82 bytes)
+  - Firmas.json (12379 bytes)
+  - folio_counter.json (11 bytes)
+  - historial_visitas.json (48 bytes)
+  - historial_visitas.json.backup (1127 bytes)
+  - hist_borrar_debug.log (910 bytes)
+  - Normas.json (2646 bytes)
+  - operaciones_log.json (2865 bytes)
+  - pending_folios.json (2 bytes)
+  - startup_exe_debug.log (123715 bytes)
+  - usuarios.json (2087 bytes)
+DIR: Constancias
+DIR: Dictamenes
+DIR: eliminacion_logs
+DIR: folios_visitas
+DIR: folios_visitas\backups
+DIR: produccion
+  - produccion.json (1217 bytes)
+DIR: produccion\bvelazquez
+DIR: produccion\ecastillo
+DIR: produccion\__name____Brenda_Abigail_Vel_zquez_Cisneros____username____bvelazquez____password____UVNOM0049____role____ejecutivo__
+DIR: produccion\__name____Efrain_Morales_Zamarron____username____emorales____password____UVNOM0049____role____admin__
+DIR: produccion\__name____Estefany_Castillo_Paz____username____ecastillo____password____UVNOM0049____role____ejecutivo__
+DIR: Reportes_Decathlon
+DIR: tabla_relacion_backups
+===== END STARTUP DEBUG =====
+folio_manager.chosen=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data
+cargar_clientes: opened c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data\Clientes.json size=62489
+folio_manager.chosen=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data
+
+===== STARTUP DEBUG: 2026-02-19 16:13:55 =====
+frozen=False
+BASE_DIR=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C
+APP_DIR=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C
+DATA_DIR=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data
+CWD=C:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C
+ENV.IMAGENESVC_DATA_DIR=None
+ENV.FOLIO_DATA_DIR=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data
+Clientes.json: exists=True size=62489 path=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data\Clientes.json
+tabla_de_relacion.json: exists=False size=None path=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data\tabla_de_relacion.json
+Firmas.json: exists=True size=12379 path=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data\Firmas.json
+folio_counter.json: exists=True size=11 path=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data\folio_counter.json
+historial_visitas.json: exists=True size=48 path=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data\historial_visitas.json
+pending_folios.json: exists=True size=2 path=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data\pending_folios.json
+DIR: .
+  - Clientes.json (62489 bytes)
+  - Clientes.json.orig (51407 bytes)
+  - config_etiquetas.json (1569 bytes)
+  - constancia_debug.log (20087 bytes)
+  - excel_export_config.json (508 bytes)
+  - excel_export_data.json (82 bytes)
+  - Firmas.json (12379 bytes)
+  - folio_counter.json (11 bytes)
+  - historial_visitas.json (48 bytes)
+  - historial_visitas.json.backup (1127 bytes)
+  - hist_borrar_debug.log (910 bytes)
+  - Normas.json (2646 bytes)
+  - operaciones_log.json (2865 bytes)
+  - pending_folios.json (2 bytes)
+  - startup_exe_debug.log (126683 bytes)
+  - usuarios.json (2087 bytes)
+DIR: Constancias
+DIR: Dictamenes
+DIR: eliminacion_logs
+DIR: folios_visitas
+DIR: folios_visitas\backups
+DIR: produccion
+  - produccion.json (1217 bytes)
+DIR: produccion\bvelazquez
+DIR: produccion\ecastillo
+DIR: produccion\__name____Brenda_Abigail_Vel_zquez_Cisneros____username____bvelazquez____password____UVNOM0049____role____ejecutivo__
+DIR: produccion\__name____Efrain_Morales_Zamarron____username____emorales____password____UVNOM0049____role____admin__
+DIR: produccion\__name____Estefany_Castillo_Paz____username____ecastillo____password____UVNOM0049____role____ejecutivo__
+DIR: Reportes_Decathlon
+DIR: tabla_relacion_backups
+===== END STARTUP DEBUG =====
+folio_manager.chosen=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data
+cargar_clientes: opened c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data\Clientes.json size=62489
+folio_manager.chosen=c:\Users\bost2\OneDrive\Escritorio\Sistema generador de documentos V&C\data

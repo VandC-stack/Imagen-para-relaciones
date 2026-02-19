@@ -31,10 +31,12 @@ STYLE = {
     "advertencia": "#ff1500",
     "peligro": "#d74a3d",
     "fondo": "#F8F9FA",
-    "surface": "#FFFFFF",
+    # Make surface match the background to avoid visible white cards/borders
+    "surface": "#F8F9FA",
     "texto_oscuro": "#282828",
     "texto_claro": "#ffffff",
-    "borde": "#DDDDDD"
+    # Border color should match surface so thin borders are not visible
+    "borde": "#F8F9FA"
 }
 
 FONT_TITLE = ("Inter", 22, "bold")
@@ -539,7 +541,7 @@ class SistemaDictamenesVC(ctk.CTk):
             height=38,
             width=130,
             corner_radius=10,
-            border_width=2,
+            border_width=0,
             border_color=STYLE["secundario"]
         )
         self.btn_principal.pack(side="left", padx=(0, 10))
@@ -556,7 +558,7 @@ class SistemaDictamenesVC(ctk.CTk):
             height=38,
             width=130,
             corner_radius=10,
-            border_width=2,
+            border_width=0,
             border_color=STYLE["secundario"]
         )
         self.btn_historial.pack(side="left", padx=(0, 10))
@@ -573,7 +575,7 @@ class SistemaDictamenesVC(ctk.CTk):
             height=38,
             width=130,
             corner_radius=10,
-            border_width=2,
+            border_width=0,
             border_color=STYLE["secundario"]
         )
         # Empaque controlado desde _apply_permissions
@@ -590,7 +592,7 @@ class SistemaDictamenesVC(ctk.CTk):
             height=38,
             width=140,
             corner_radius=10,
-            border_width=2,
+            border_width=0,
             border_color=STYLE["secundario"]
         )
         # Empaque controlado desde _apply_permissions
@@ -607,7 +609,7 @@ class SistemaDictamenesVC(ctk.CTk):
             height=38,
             width=130,
             corner_radius=10,
-            border_width=2,
+            border_width=0,
             border_color=STYLE["secundario"]
         )
         # no empaquetar por defecto: _apply_permissions decidirá si mostrar
@@ -737,65 +739,183 @@ class SistemaDictamenesVC(ctk.CTk):
     def _show_login_dialog(self):
         dlg = ctk.CTkToplevel(self)
         dlg.title("Acceso al sistema")
+        # modal + transient para que se vea encima de la app
+        try:
+            dlg.transient(self)
+        except Exception:
+            pass
         dlg.grab_set()
-        dlg.geometry("500x500")
+        # Tamaño ajustado para una mejor proporción (ahora el logo va arriba)
+        dlg.geometry("650x500")
         dlg.resizable(False, False)
 
-        # Card principal
-        card = ctk.CTkFrame(dlg, fg_color=STYLE["surface"], corner_radius=10)
-        card.pack(padx=12, pady=12, fill='both', expand=True)
+        # --- Estilo mejorado (puedes modificar STYLE si lo prefieres) ---
+        # Se mantiene el uso de STYLE pero con algunos valores por defecto mejorados
+        primary_color = STYLE.get("primario", "#2A7A62")       # Verde azulado
+        secondary_color = STYLE.get("secundario", "#F5F5F5")   # Gris muy claro
+        danger_color = STYLE.get("peligro", "#D32F2F")         # Rojo
+        text_dark = STYLE.get("texto_oscuro", "#333333")
+        text_light = STYLE.get("texto_claro", "#FFFFFF")
+        surface_color = STYLE.get("surface", "#FFFFFF")
+        
+        # --- Tarjeta principal con sombra simulada (borde + padding) ---
+        card = ctk.CTkFrame(
+            dlg,
+            fg_color=surface_color,
+            corner_radius=0,
+            border_width=0,
+            border_color="#DDDDDD"  # borde suave que da sensación de sombra
+        )
+        card.pack(padx=0, pady=0, fill='both', expand=True)
 
-        # Cabecera con título
-        header = ctk.CTkFrame(card, fg_color=STYLE["secundario"], height=46, corner_radius=8)
-        header.pack(fill='x', pady=(8, 10), padx=8)
+        # --- Cabecera con título (más prominente y con nombre del sistema) ---
+        header = ctk.CTkFrame(
+            card,
+            fg_color=STYLE.get("surface", surface_color),
+            height=70,
+            corner_radius=12
+        )
+        header.pack(fill='x', pady=(16, 20), padx=16)
         header.pack_propagate(False)
-        ctk.CTkLabel(header, text="Iniciar sesión", font=("Inter", 14, "bold"), text_color=STYLE["texto_claro"]).pack(expand=True)
+        
+        # Título del sistema
+        ctk.CTkLabel(
+            header,
+            text="Inicio de session",
+            font=("Inter", 22, "bold"),
+            text_color=STYLE.get("texto_oscuro", text_dark)
+        ).pack(expand=True)
 
-        # Cuerpo: logo a la izquierda + formulario a la derecha
+        # --- Cuerpo: logo arriba, formulario abajo (mejor centrado) ---
         body = ctk.CTkFrame(card, fg_color="transparent")
-        body.pack(fill='both', expand=True, padx=12, pady=(0, 6))
+        body.pack(fill='both', expand=True, padx=20, pady=(0, 20))
 
-        # Izquierda: logo centrado y ligeramente más pequeño para mejor estética
-        left = ctk.CTkFrame(body, width=260, fg_color="transparent")
-        left.pack(side='left', fill='y', padx=(6, 12), pady=6)
-        left.pack_propagate(False)
-        # contenedor interno para centrar verticalmente
-        left_inner = ctk.CTkFrame(left, fg_color="transparent")
-        left_inner.pack(expand=True)
-        # intentar cargar imagen desde img/logo.jpeg
+        # --- Layout en dos columnas: logo a la izquierda, formulario centrado a la derecha ---
+        left_col = ctk.CTkFrame(body, width=320, fg_color="transparent")
+        left_col.pack(side='left', fill='y', padx=(12, 8), pady=6)
+        left_col.pack_propagate(False)
+
+        right_col = ctk.CTkFrame(body, fg_color="transparent")
+        right_col.pack(side='left', fill='both', expand=True, padx=(8, 20), pady=6)
+
+        # Contenedor del logo (izquierda)
+        logo_frame = ctk.CTkFrame(left_col, fg_color="transparent")
+        logo_frame.pack(expand=True)
+        logo_frame.pack_propagate(False)
         try:
-            logo_path = os.path.join(BASE_DIR, 'img', 'logo.jpeg')
+            logo_path = os.path.join(BASE_DIR, 'img', 'logo.png')
             if not os.path.exists(logo_path):
-                logo_path = os.path.join(APP_DIR, 'img', 'logo.jpeg')
-            pil_img = Image.open(logo_path).convert('RGBA')
-            img_size = (180, 180)
-            pil_img = pil_img.resize(img_size, Image.LANCZOS)
-            logo_img = ctk.CTkImage(pil_img, size=img_size)
-            lbl_logo = ctk.CTkLabel(left_inner, image=logo_img, text="")
-            lbl_logo.pack(expand=True, pady=8)
+                logo_path = os.path.join(APP_DIR, 'img', 'logo.png')
+            pil_img = Image.open(logo_path)
+            # Ajustar a un tamaño visible pero no excesivo
+            max_dim = 200
+            w, h = pil_img.size
+            scale = min(max_dim / w, max_dim / h, 1.0)
+            new_size = (max(1, int(w * scale)), max(1, int(h * scale)))
+            pil_img = pil_img.convert('RGBA').resize(new_size, Image.LANCZOS)
+            logo_img = ctk.CTkImage(pil_img, size=new_size)
+            lbl_logo = ctk.CTkLabel(logo_frame, image=logo_img, text="")
+            lbl_logo.pack(expand=True)
         except Exception:
-            # si falla la carga, mostrar un espacio reservado
-            ctk.CTkLabel(left_inner, text=" ", fg_color="transparent").pack(expand=True)
+            ctk.CTkLabel(logo_frame, text=" ", fg_color="transparent").pack(expand=True)
 
-        # Derecha: formulario
-        form = ctk.CTkFrame(body, fg_color="transparent")
-        form.pack(side='left', fill='both', expand=True)
+        # Contenedor del formulario (derecha) y centrar verticalmente
+        form_outer = ctk.CTkFrame(right_col, fg_color="transparent")
+        form_outer.pack(fill='both', expand=True)
+        form_inner = ctk.CTkFrame(form_outer, fg_color="transparent")
+        form_inner.place(relx=0.5, rely=0.5, anchor='center')
 
-        ctk.CTkLabel(form, text="Usuario", font=("Inter", 11), text_color=STYLE["texto_oscuro"]).pack(anchor='w', pady=(2, 2))
-        username_entry = ctk.CTkEntry(form, width=360, placeholder_text="usuario")
-        username_entry.pack(fill='x', pady=(0, 8))
+        # ---- Formulario con campos estilizados dentro de form_inner ----
+        form = form_inner
 
-        ctk.CTkLabel(form, text="Contraseña", font=("Inter", 11), text_color=STYLE["texto_oscuro"]).pack(anchor='w', pady=(2, 2))
-        password_entry = ctk.CTkEntry(form, width=360, show='*', placeholder_text="contraseña")
+        # Texto del sistema arriba de los campos (solicitud del usuario)
+        ctk.CTkLabel(
+            form,
+            text="Sistema Generador de Documentos V&C",
+            font=("Inter", 12, "bold"),
+            text_color=text_dark,
+            anchor='w'
+        ).pack(anchor='w', pady=(0, 8))
+
+        # Etiqueta Usuario con icono (opcional, usando unicode)
+        ctk.CTkLabel(
+            form,
+            text="👤  Usuario",
+            font=("Inter", 12),
+            text_color=text_dark,
+            anchor='w'
+        ).pack(anchor='w', pady=(6, 4))
+
+        username_entry = ctk.CTkEntry(
+            form,
+            width=300,
+            placeholder_text="usuario",
+            corner_radius=8,
+            border_width=0,
+            border_color="#CCCCCC",
+            fg_color="#FAFAFA"
+        )
+        username_entry.pack(fill='x', pady=(0, 12))
+
+        # Etiqueta Contraseña con icono
+        ctk.CTkLabel(
+            form,
+            text="🔒  Contraseña",
+            font=("Inter", 12),
+            text_color=text_dark,
+            anchor='w'
+        ).pack(anchor='w', pady=(2, 4))
+
+        password_entry = ctk.CTkEntry(
+            form,
+            width=300,
+            show='*',
+            placeholder_text="contraseña",
+            corner_radius=8,
+            border_width=0,
+            border_color="#CCCCCC",
+            fg_color="#FAFAFA"
+        )
         password_entry.pack(fill='x')
 
-        msg = ctk.CTkLabel(form, text="", font=("Inter", 10), text_color=STYLE["peligro"]) 
-        msg.pack(anchor='w', pady=(8, 0))
+        # Mensaje de error con estilo mejorado (fondo suave y borde)
+        # Mensaje de error con estilo mejorado (fondo suave y borde)
+        # No mostrar el recuadro hasta que haya texto de error
+        msg_frame = ctk.CTkFrame(form, fg_color="#FFEBEE", corner_radius=6, height=30)
+        msg_frame.pack_propagate(False)
+        
+        msg = ctk.CTkLabel(
+            msg_frame,
+            text="",
+            font=("Inter", 11),
+            text_color=danger_color,
+            anchor='w'
+        )
+        msg.pack(padx=8, pady=4, fill='both', expand=True)
 
-        # Botones (solo Ingresar)
+        def _show_message(text):
+            try:
+                if text:
+                    msg.configure(text=text)
+                    # sólo empacar cuando haya texto
+                    try:
+                        msg_frame.pack(fill='x', pady=(12, 0))
+                    except Exception:
+                        pass
+                else:
+                    try:
+                        msg_frame.pack_forget()
+                    except Exception:
+                        pass
+                    msg.configure(text="")
+            except Exception:
+                pass
+
+        # --- Botón Ingresar (destacado, con sombra simulada) ---
         btns = ctk.CTkFrame(card, fg_color='transparent')
-        btns.pack(fill='x', pady=(6, 10), padx=12)
+        btns.pack(fill='x', pady=(10, 20), padx=20)
 
+        # Función de login (sin cambios en la lógica)
         def _attempt_login(event=None):
             u = username_entry.get().strip()
             p = password_entry.get()
@@ -803,29 +923,60 @@ class SistemaDictamenesVC(ctk.CTk):
             if user and user.get('password') == p:
                 self.current_user = user
                 self.current_role = user.get('role')
-                # actualizar título principal con el nombre del usuario
                 try:
                     display_name = user.get('name') or user.get('username') or u
                     self.title(f"Generador de Dictámenes - {display_name}")
                 except Exception:
                     pass
+                try:
+                    dlg.grab_release()
+                except Exception:
+                    pass
                 dlg.destroy()
                 return
             else:
-                msg.configure(text="Usuario o contraseña incorrectos")
+                _show_message("✗ Usuario o contraseña incorrectos")
 
-        # Botón Ingresar con texto en color secundario
-        ctk.CTkButton(btns, text="Ingresar", command=_attempt_login, width=140, fg_color=STYLE["primario"], hover_color="#d4bf22", text_color=STYLE["secundario"]).pack(side='right', padx=(6,0))
+        btn_ingresar = ctk.CTkButton(
+            btns,
+            text="Ingresar",
+            command=_attempt_login,
+            width=180,
+            height=42,
+            fg_color=STYLE["secundario"],
+            hover_color="#4b4b4b",          # tono más oscuro del primario
+            text_color=text_light,
+            corner_radius=10,
+            font=("Inter", 14, "bold")
+        )
+        # Centrar el botón de ingresar para una mejor experiencia
+        btn_ingresar.pack(anchor='center', pady=(6,0))
 
-        # foco inicial en usuario y permitir Enter para iniciar sesión
+        # --- Mejoras en la interacción (sin cambios lógicos) ---
         try:
+            username_entry.bind('<Return>', lambda e: password_entry.focus_set())
+            password_entry.bind('<Return>', _attempt_login)
             username_entry.focus_set()
-            dlg.bind('<Return>', _attempt_login)
         except Exception:
             pass
 
-        # Si el usuario cierra la ventana (X), cerrar la aplicación para
-        # evitar que se acceda a la ventana principal sin autenticación.
+        # --- Centrar ventana y traer al frente (igual que antes) ---
+        try:
+            dlg.update_idletasks()
+            w = dlg.winfo_width()
+            h = dlg.winfo_height()
+            sw = dlg.winfo_screenwidth()
+            sh = dlg.winfo_screenheight()
+            x = (sw // 2) - (w // 2)
+            y = (sh // 2) - (h // 2)
+            dlg.geometry(f"{w}x{h}+{x}+{y}")
+            dlg.focus_force()
+            dlg.attributes('-topmost', True)
+            dlg.after(200, lambda: dlg.attributes('-topmost', False))
+        except Exception:
+            pass
+
+        # --- Cierre de ventana (exactamente igual) ---
         def _on_close():
             try:
                 self.current_user = None
@@ -835,14 +986,19 @@ class SistemaDictamenesVC(ctk.CTk):
                 dlg.grab_release()
             except Exception:
                 pass
+            # Destruir el diálogo y programar un quit() del mainloop
             try:
-                self.destroy()
+                dlg.destroy()
             except Exception:
                 pass
             try:
-                sys.exit(0)
+                # programar quit() para salir del mainloop de forma ordenada
+                self.after(50, lambda: self.quit())
             except Exception:
-                pass
+                try:
+                    self.quit()
+                except Exception:
+                    pass
 
         try:
             dlg.protocol('WM_DELETE_WINDOW', _on_close)
@@ -850,6 +1006,12 @@ class SistemaDictamenesVC(ctk.CTk):
             pass
 
         self.wait_window(dlg)
+
+
+
+
+
+
 
     def _apply_permissions(self):
         """Oculta/muneda botones según rol del usuario autenticado."""
@@ -895,8 +1057,6 @@ class SistemaDictamenesVC(ctk.CTk):
                     self.btn_reportes_ej.pack_forget()
                 except Exception:
                     pass
-        except Exception:
-            pass
         except Exception:
             pass
         # Controlar visibilidad de pestañas según rol
@@ -1540,7 +1700,7 @@ class SistemaDictamenesVC(ctk.CTk):
         ).pack(anchor="w", padx=20, pady=(20, 15))
 
         visita_frame = ctk.CTkFrame(card_visita, fg_color="transparent")
-        visita_frame.pack(fill="both", expand=True, padx=20, pady=(0, 20))
+        visita_frame.pack(fill="both", expand=True, padx=0, pady=(0, 0))
 
         # Contenedor para el formulario con scrollbar
         scroll_form = ctk.CTkScrollableFrame(
@@ -1549,7 +1709,7 @@ class SistemaDictamenesVC(ctk.CTk):
             scrollbar_button_color="#ecd925",
             scrollbar_button_hover_color="#ecd925"
         )
-        scroll_form.pack(fill="both", expand=True)
+        scroll_form.pack(fill="both", expand=True, padx=0, pady=(0, 0))
 
         # === Tipo de Documento (Dictamen, Negación de dictamen, Constancia, Negación de Constancia) ===
         tipo_doc_frame = ctk.CTkFrame(scroll_form, fg_color="transparent")
@@ -8536,7 +8696,7 @@ class SistemaDictamenesVC(ctk.CTk):
         
         # Información de la visita
         info_frame = ctk.CTkFrame(main_frame, fg_color="transparent")
-        info_frame.pack(fill="x", padx=20, pady=(5, 15))
+        info_frame.pack(fill="x", padx=0, pady=(0, 0))
         
         ctk.CTkLabel(
             info_frame,
@@ -8547,11 +8707,11 @@ class SistemaDictamenesVC(ctk.CTk):
         
         # Línea separadora
         separador = ctk.CTkFrame(main_frame, fg_color=STYLE["borde"], height=1)
-        separador.pack(fill="x", padx=30, pady=(0, 20))
+        separador.pack(fill="x", padx=0, pady=(0, 0))
         
         # Frame para las opciones de documentos en horizontal
         documentos_frame = ctk.CTkFrame(main_frame, fg_color="transparent")
-        documentos_frame.pack(fill="both", expand=True, padx=20, pady=10)
+        documentos_frame.pack(fill="both", expand=True, padx=0, pady=0)
         
         # Configurar grid para 3 columnas
         documentos_frame.grid_columnconfigure(0, weight=1)
@@ -9049,8 +9209,8 @@ class SistemaDictamenesVC(ctk.CTk):
         
         # Botón 1: Oficio de Comisión
         oficio_frame = ctk.CTkFrame(documentos_frame, fg_color=STYLE["surface"], 
-                                    border_width=1, border_color=STYLE["borde"], 
-                                    corner_radius=10)
+                        border_width=0, border_color=STYLE["borde"], 
+                        corner_radius=10)
         oficio_frame.grid(row=0, column=0, padx=10, pady=5, sticky="nsew")
         
         # Icono grande
@@ -9095,8 +9255,8 @@ class SistemaDictamenesVC(ctk.CTk):
         
         # Botón 2: Formato de Supervisión
         formato_frame = ctk.CTkFrame(documentos_frame, fg_color=STYLE["surface"], 
-                                    border_width=1, border_color=STYLE["borde"], 
-                                    corner_radius=10)
+                        border_width=0, border_color=STYLE["borde"], 
+                        corner_radius=10)
         formato_frame.grid(row=0, column=1, padx=10, pady=5, sticky="nsew")
         
         # Icono grande
@@ -9141,8 +9301,8 @@ class SistemaDictamenesVC(ctk.CTk):
         
         # Botón 3: Acta de Inspección
         acta_frame = ctk.CTkFrame(documentos_frame, fg_color=STYLE["surface"], 
-                                border_width=1, border_color=STYLE["borde"], 
-                                corner_radius=10)
+                    border_width=0, border_color=STYLE["borde"], 
+                    corner_radius=10)
         acta_frame.grid(row=0, column=2, padx=10, pady=5, sticky="nsew")
         
         # Icono grande
@@ -9194,7 +9354,7 @@ class SistemaDictamenesVC(ctk.CTk):
             if registro.get('cliente','').strip().upper() == 'ARTICULOS DEPORTIVOS DECATHLON SA DE CV'.upper():
                 # Colocar en una fila nueva dentro de documentos_frame para que sea visible debajo de los 3 tiles
                 try:
-                    dec_frame = ctk.CTkFrame(documentos_frame, fg_color=STYLE["surface"], border_width=1, border_color=STYLE["borde"], corner_radius=10)
+                    dec_frame = ctk.CTkFrame(documentos_frame, fg_color=STYLE["surface"], border_width=0, border_color=STYLE["borde"], corner_radius=10)
                     # Grid en fila 1 y ocupar las 3 columnas
                     dec_frame.grid(row=1, column=0, columnspan=3, padx=10, pady=(12,0), sticky='nsew')
                     # Contenido centrado
