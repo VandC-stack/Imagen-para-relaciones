@@ -1196,7 +1196,8 @@ class SistemaDictamenesVC(ctk.CTk):
                             self.reporte_log.configure(text='No existen registros guardados para su usuario.')
                         except Exception:
                             pass
-                        messagebox.showinfo('No hay datos', 'No se encontraron visitas guardadas para su usuario.')
+                        # Evitar mostrar un popup modal cuando no hay datos; el usuario
+                        # ya solicitó el reporte y la UI muestra el estado.
                         return
 
                     for fn in os.listdir(owner_dir):
@@ -1416,6 +1417,10 @@ class SistemaDictamenesVC(ctk.CTk):
     def _cmd_mostrar_clientes(self):
         if not self._ensure_admin_or_block():
             return
+        try:
+            self.mostrar_clientes()
+        except Exception:
+            pass
     
     def _save_produccion_report(self, records, export_path, fecha_filter, owner_username=None):
         """Guarda en JSON los datos de producción en DATA_DIR/produccion/<owner>/produccion_<ts>.json
@@ -8334,7 +8339,8 @@ class SistemaDictamenesVC(ctk.CTk):
                         self.reporte_log.configure(text='No existen registros guardados para su usuario.')
                     except Exception:
                         pass
-                    messagebox.showinfo('No hay datos', 'No se encontraron visitas guardadas para su usuario.')
+                    # Evitar mostrar un popup modal al iniciar la aplicación.
+                    # Mostrar el estado en la UI si el widget existe y devolver.
                     return
 
                 for fn in os.listdir(owner_dir):
@@ -15423,6 +15429,27 @@ class SistemaDictamenesVC(ctk.CTk):
 
 # ================== EJECUCIÓN ================== #
 if __name__ == "__main__":
+    # En Windows, habilitar DPI awareness antes de crear la ventana
+    # para que las geometrías fijas (p. ej. 650x500 del diálogo de login)
+    # se respeten cuando la app está empaquetada como .exe.
+    if sys.platform.startswith("win"):
+        try:
+            import ctypes
+            # Windows 7+ API
+            ctypes.windll.user32.SetProcessDPIAware()
+        except Exception:
+            try:
+                # Windows 8.1+ alternative
+                ctypes.windll.shcore.SetProcessDpiAwareness(1)
+            except Exception:
+                pass
+
     app = SistemaDictamenesVC()
+    try:
+        # Forzar escala de Tk a 1.0 para evitar que el gestor de ventanas
+        # aplique escalado automático que cambie el tamaño real en píxeles.
+        app.tk.call('tk', 'scaling', 1.0)
+    except Exception:
+        pass
     app.mainloop()
 
