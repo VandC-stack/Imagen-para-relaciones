@@ -613,6 +613,22 @@ class SistemaDictamenesVC(ctk.CTk):
             border_color=STYLE["secundario"]
         )
         # no empaquetar por defecto: _apply_permissions decidirá si mostrar
+
+        # Botón Reporte EMA (se controla su visibilidad por permisos)
+        self.btn_reporte_ema = ctk.CTkButton(
+            self.botones_left_frame,
+            text="📊 Reporte EMA",
+            command=self.descargar_excel_anual,
+            font=("Inter", 14, "bold"),
+            fg_color=STYLE["surface"],
+            hover_color=STYLE["primario"],
+            text_color=STYLE["secundario"],
+            height=38,
+            width=140,
+            corner_radius=10,
+            border_width=0,
+            border_color=STYLE["secundario"]
+        )
         
         # Información del sistema (derecha)
         self.lbl_info_sistema = ctk.CTkLabel(
@@ -746,7 +762,7 @@ class SistemaDictamenesVC(ctk.CTk):
             pass
         dlg.grab_set()
         # Tamaño ajustado para una mejor proporción (ahora el logo va arriba)
-        dlg.geometry("650x500")
+        dlg.geometry("600x400")
         dlg.resizable(False, False)
 
         # --- Estilo mejorado (puedes modificar STYLE si lo prefieres) ---
@@ -1071,6 +1087,10 @@ class SistemaDictamenesVC(ctk.CTk):
             except Exception:
                 pass
             try:
+                self.btn_reporte_ema.pack_forget()
+            except Exception:
+                pass
+            try:
                 self.btn_reportes_ej.pack_forget()
             except Exception:
                 pass
@@ -1079,6 +1099,11 @@ class SistemaDictamenesVC(ctk.CTk):
             if role == 'ejecutivo':
                 try:
                     self.btn_reportes_ej.pack(side="left", padx=(0, 10))
+                except Exception:
+                    pass
+                try:
+                    # Ejecutivos también pueden generar el Reporte EMA
+                    self.btn_reporte_ema.pack(side="left", padx=(0, 10))
                 except Exception:
                     pass
 
@@ -1095,6 +1120,11 @@ class SistemaDictamenesVC(ctk.CTk):
                 try:
                     # también permitir acceso a reportes ejecutivos desde admin
                     self.btn_reportes_ej.pack(side="left", padx=(0, 10))
+                except Exception:
+                    pass
+                try:
+                    # Admin también puede ver/generar Reporte EMA
+                    self.btn_reporte_ema.pack(side="left", padx=(0, 10))
                 except Exception:
                     pass
         except Exception:
@@ -1517,7 +1547,7 @@ class SistemaDictamenesVC(ctk.CTk):
             # actualizar estilo de botones
             try:
                 # reset others
-                for b in (getattr(self, 'btn_principal', None), getattr(self, 'btn_historial', None), getattr(self, 'btn_reportes', None), getattr(self, 'btn_inspectores', None)):
+                for b in (getattr(self, 'btn_principal', None), getattr(self, 'btn_historial', None), getattr(self, 'btn_reportes', None), getattr(self, 'btn_inspectores', None), getattr(self, 'btn_reporte_ema', None)):
                     try:
                         if b:
                             b.configure(fg_color=STYLE['surface'], text_color=STYLE['secundario'], border_color=STYLE['secundario'])
@@ -1576,6 +1606,10 @@ class SistemaDictamenesVC(ctk.CTk):
             self.btn_reportes.configure(fg_color=STYLE["surface"], text_color=STYLE["secundario"], border_color=STYLE["secundario"])
         except Exception:
             pass
+        try:
+            self.btn_reporte_ema.configure(fg_color=STYLE["surface"], text_color=STYLE["secundario"], border_color=STYLE["secundario"])
+        except Exception:
+            pass
         # Asegurar que la pestaña Inspectores quede oculta al mostrar Principal
         try:
             self.frame_inspectores.pack_forget()
@@ -1619,6 +1653,10 @@ class SistemaDictamenesVC(ctk.CTk):
             )
             try:
                 self.btn_reportes.configure(fg_color=STYLE["surface"], text_color=STYLE["secundario"], border_color=STYLE["secundario"])
+            except Exception:
+                pass
+            try:
+                self.btn_reporte_ema.configure(fg_color=STYLE["surface"], text_color=STYLE["secundario"], border_color=STYLE["secundario"])
             except Exception:
                 pass
             # Asegurar que la pestaña Inspectores quede oculta al mostrar Historial
@@ -1666,6 +1704,11 @@ class SistemaDictamenesVC(ctk.CTk):
             self.btn_reportes.configure(fg_color=STYLE["primario"], text_color=STYLE["secundario"], border_color=STYLE["primario"])
             try:
                 self.btn_inspectores.configure(fg_color=STYLE["surface"], text_color=STYLE["secundario"], border_color=STYLE["secundario"])
+            except Exception:
+                pass
+            try:
+                # Al mostrar la pestaña Clientes, el botón EMA no queda activo
+                self.btn_reporte_ema.configure(fg_color=STYLE["surface"], text_color=STYLE["secundario"], border_color=STYLE["secundario"])
             except Exception:
                 pass
         except Exception:
@@ -2495,7 +2538,7 @@ class SistemaDictamenesVC(ctk.CTk):
                 style.theme_use('clam')
             except Exception:
                 pass
-            style.configure('clientes.Treeview', font=("Inter", 10), rowheight=22,
+            style.configure('clientes.Treeview', font=("Inter", 12), rowheight=30,
                             background=STYLE["surface"], fieldbackground=STYLE["surface"], foreground=STYLE["texto_oscuro"]) 
             style.configure('clientes.Treeview.Heading', font=("Inter", 10, "bold"), background=STYLE["secundario"], foreground=STYLE["surface"], relief='flat')
             style.map('clientes.Treeview.Heading', background=[('active', STYLE['secundario'])], foreground=[('active', STYLE['surface'])])
@@ -2796,7 +2839,7 @@ class SistemaDictamenesVC(ctk.CTk):
         except Exception:
             pass
         try:
-            style.configure('clientes.Treeview', background=STYLE["surface"], foreground=STYLE["texto_oscuro"], rowheight=22, fieldbackground=STYLE["surface"])
+            style.configure('clientes.Treeview', font=("Inter", 12), background=STYLE["surface"], foreground=STYLE["texto_oscuro"], rowheight=30, fieldbackground=STYLE["surface"])
             style.configure('clientes.Treeview.Heading', background=STYLE["secundario"], foreground=STYLE["surface"], font=("Inter", 10, "bold"))
             # Selección menos intrusiva: color claro para destacar sin ocultar texto
             style.map('clientes.Treeview', background=[('selected', '#d9f0ff')], foreground=[('selected', STYLE['texto_oscuro'])])
@@ -3017,7 +3060,7 @@ class SistemaDictamenesVC(ctk.CTk):
             pass
         try:
             # Usar el mismo estilo que la pestaña Clientes para apariencia idéntica
-            style.configure('clientes.Treeview', background=STYLE["surface"], foreground=STYLE["texto_oscuro"], rowheight=22, fieldbackground=STYLE["surface"])
+            style.configure('clientes.Treeview', font=("Inter", 12), background=STYLE["surface"], foreground=STYLE["texto_oscuro"], rowheight=30, fieldbackground=STYLE["surface"])
             style.configure('clientes.Treeview.Heading', background=STYLE["secundario"], foreground=STYLE["surface"], font=("Inter", 10, "bold"))
         except Exception:
             pass
@@ -7549,6 +7592,11 @@ class SistemaDictamenesVC(ctk.CTk):
                 return
 
             folio_borrado = visita_a_borrar.get("folio_visita", "")
+            try:
+                print(f"[DEBUG] borrar_visita id_={id_} visita={visita_a_borrar}")
+                print(f"[DEBUG] borrar_visita folio_borrado={folio_borrado}")
+            except Exception:
+                pass
             
             # Borrar la visita
             self.historial["visitas"] = [v for v in self.historial.get("visitas",[]) if v["_id"] != id_]
@@ -7579,6 +7627,10 @@ class SistemaDictamenesVC(ctk.CTk):
                         from datetime import datetime as _dt
                         with open(dbg_path_early, 'a', encoding='utf-8') as _dbg_early:
                             _dbg_early.write(f"[{_dt.now().isoformat()}] early_read visita={folio_borrado} file_exists={os.path.exists(fv_file_early)} assigned_early={sorted(list(assigned_nums))}\n")
+                    except Exception:
+                        pass
+                    try:
+                        print(f"[DEBUG] early_read visita={folio_borrado} file_exists={os.path.exists(fv_file_early)} assigned_early={sorted(list(assigned_nums))[:200]}")
                     except Exception:
                         pass
             except Exception:
@@ -8093,6 +8145,10 @@ class SistemaDictamenesVC(ctk.CTk):
                             except Exception:
                                 persisted_last = None
                             dbgf.write(f"[{_dt.now().isoformat()}] hist_borrar id={folio_borrado} curr={curr} assigned={sorted(list(assigned_nums))[:200]} existing_sample={sorted(list(existing))[:200]} deleted_files={deleted_files} set_ok={set_ok} persisted_last={persisted_last} msgs={dbg_messages}\n")
+                            try:
+                                print(f"[DEBUG] hist_borrar id={folio_borrado} curr={curr} assigned={sorted(list(assigned_nums))[:200]} existing_sample={sorted(list(existing))[:200]} deleted_files={deleted_files} set_ok={set_ok} persisted_last={persisted_last} msgs={dbg_messages}")
+                            except Exception:
+                                pass
                     except Exception:
                         pass
 
@@ -8581,16 +8637,57 @@ class SistemaDictamenesVC(ctk.CTk):
             pass
 
     def hist_pagina_anterior(self):
-        if self.HISTORIAL_PAGINA_ACTUAL > 1:
-            self.HISTORIAL_PAGINA_ACTUAL -= 1
-            self._poblar_historial_ui()
+        try:
+            # debug log to help diagnose exe issues
+            try:
+                dbg = os.path.join(DATA_DIR, 'pagination_debug.log')
+                with open(dbg, 'a', encoding='utf-8') as f:
+                    f.write(f"[{datetime.now().isoformat()}] hist_pagina_anterior called. current={self.HISTORIAL_PAGINA_ACTUAL}\n")
+            except Exception:
+                pass
+
+            if getattr(self, 'HISTORIAL_PAGINA_ACTUAL', 1) > 1:
+                self.HISTORIAL_PAGINA_ACTUAL -= 1
+                self._poblar_historial_ui()
+
+            try:
+                with open(dbg, 'a', encoding='utf-8') as f:
+                    f.write(f"[{datetime.now().isoformat()}] hist_pagina_anterior finished. new={self.HISTORIAL_PAGINA_ACTUAL}\n")
+            except Exception:
+                pass
+        except Exception as e:
+            try:
+                with open(os.path.join(DATA_DIR, 'pagination_debug.log'), 'a', encoding='utf-8') as f:
+                    f.write(f"[{datetime.now().isoformat()}] hist_pagina_anterior ERROR: {e}\n")
+            except Exception:
+                pass
 
     def hist_pagina_siguiente(self):
-        total_registros = len(self.historial_data)
-        total_paginas = max(1, (total_registros + self.HISTORIAL_REGS_POR_PAGINA - 1) // self.HISTORIAL_REGS_POR_PAGINA)
-        if self.HISTORIAL_PAGINA_ACTUAL < total_paginas:
-            self.HISTORIAL_PAGINA_ACTUAL += 1
-            self._poblar_historial_ui()
+        try:
+            try:
+                dbg = os.path.join(DATA_DIR, 'pagination_debug.log')
+                with open(dbg, 'a', encoding='utf-8') as f:
+                    f.write(f"[{datetime.now().isoformat()}] hist_pagina_siguiente called. current={getattr(self, 'HISTORIAL_PAGINA_ACTUAL', None)}\n")
+            except Exception:
+                pass
+
+            total_registros = len(getattr(self, 'historial_data', []) or [])
+            total_paginas = max(1, (total_registros + self.HISTORIAL_REGS_POR_PAGINA - 1) // self.HISTORIAL_REGS_POR_PAGINA)
+            if getattr(self, 'HISTORIAL_PAGINA_ACTUAL', 1) < total_paginas:
+                self.HISTORIAL_PAGINA_ACTUAL += 1
+                self._poblar_historial_ui()
+
+            try:
+                with open(dbg, 'a', encoding='utf-8') as f:
+                    f.write(f"[{datetime.now().isoformat()}] hist_pagina_siguiente finished. new={self.HISTORIAL_PAGINA_ACTUAL}\n")
+            except Exception:
+                pass
+        except Exception as e:
+            try:
+                with open(os.path.join(DATA_DIR, 'pagination_debug.log'), 'a', encoding='utf-8') as f:
+                    f.write(f"[{datetime.now().isoformat()}] hist_pagina_siguiente ERROR: {e}\n")
+            except Exception:
+                pass
 
     def _formatear_folios_rango(self, folios_str):
         """Formatea los folios para mostrar solo el rango (inicio-fin)"""

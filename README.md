@@ -45,248 +45,125 @@ pip install reportlab pandas pillow
 mkdir -p data img etiquetas_generadas dictamenes_generados
 \`\`\`
 
-3. Colocar los archivos JSON en la carpeta `data/`
-4. Colocar la imagen `Fondo.jpeg` en la carpeta `img/`
 
-## 📝 Uso
+# Sistema generador de Dictámenes con Etiquetas Integradas
 
-### Ejecución Simple
+Bienvenido: este repositorio genera dictámenes en PDF con etiquetas visuales (PNG) integradas. Está pensado para equipos que procesan lotes de productos, aplican normas y requieren la impresión o archivado de dictámenes con sus etiquetas correspondientes.
 
-\`\`\`bash
-python main.py
-\`\`\`
+**Mantenedor:** EFRAIN MORALES ZAMARRON
 
-### Uso Programático
+**Resumen rápido:**
+- **Genera** etiquetas PNG a partir de códigos EAN y plantillas de norma.
+- **Inserta** dichas etiquetas en la segunda página de los dictámenes PDF.
+- **Lee** datos desde la carpeta `data/` (JSON) y permite ejecución por GUI o por script.
 
-\`\`\`python
-from PDFGeneradorConDatos import generar_dictamenes_completos
+## Contenido principal
 
-# Generar dictámenes
-exito, mensaje, resultado = generar_dictamenes_completos("carpeta_salida")
+- **`app.py`**: Interfaz gráfica y orquestador (CustomTkinter).
+- **`generador_dictamen.py`**: Lógica principal para procesar familias y crear dictámenes.
+- **`etiqueta_dictamen.py`**: Generador de imágenes de etiquetas (Pillow).
+- **`plantillaPDF.py`**: Funciones para cargar y preparar datos desde `data/`.
+- **`DictamenPDF.py`**: Clase base y utilidades para crear PDFs con ReportLab.
+- **`data/`**: JSONs de entrada (tablas, normas, clientes, firmas, folios).
+- **`etiquetas_generadas/`**: Salida automática de PNGs.
+- **`dictamenes_generados/`**: PDFs resultantes.
 
-if exito:
-    print(f"✅ {mensaje}")
-    print(f"Generados: {resultado['total_generados']} dictámenes")
-\`\`\`
+## Instalación (rápida)
 
-## 🏷️ Formato de Etiquetas
-
-Las etiquetas se generan automáticamente en formato PNG con:
-- Tamaño configurable por norma
-- Texto centrado
-- Borde negro
-- Campos dinámicos (país, talla, composición, etc.)
-
-### Configuración de Etiquetas (config_etiquetas.json)
-
-\`\`\`json
-{
-  "NOM-024-SCFI-2013": {
-    "tamaño_cm": "(5.0, 5.0)",
-    "campos": ["MARCA", "PAIS ORIGEN", "TALLA", "COMPOSICION"]
-  }
-}
-\`\`\`
-
-## 📄 Estructura del Dictamen PDF
-
-### Página 1
-- Encabezado con código de identificación
-- Fechas de inspección y emisión
-- Cliente y RFC
-- Texto legal del dictamen
-- Tabla de productos
-- Tamaño del lote
-- Observaciones
-
-### Página 2
-- **Etiquetas del producto** (imágenes PNG insertadas)
-- Imágenes del producto (placeholders)
-- Firmas del inspector y responsable
-
-## 🔧 Flujo de Procesamiento
-
-1. **Carga de datos**: Lee archivos JSON de `data/`
-2. **Procesamiento de familias**: Agrupa registros por NORMA UVA, FOLIO, SOLICITUD y LISTA
-3. **Generación de etiquetas**: 
-   - Busca códigos EAN en BASE_ETIQUETADO.json
-   - Determina la norma aplicable
-   - Genera imágenes PNG en `etiquetas_generadas/`
-4. **Construcción del PDF**:
-   - Primera página con datos del dictamen
-   - Segunda página con etiquetas como imágenes
-   - Fondo y marcas de agua
-5. **Salida**: PDFs en `dictamenes_generados/`
-
-## 🐛 Solución de Problemas
-
-### "No se generaron etiquetas"
-
-**Causa**: Los códigos EAN no se encuentran en BASE_ETIQUETADO.json
-
-**Solución**: Verificar que los códigos en TABLA_DE_RELACION.json coincidan con los EAN en BASE_ETIQUETADO.json
-
-### Las imágenes no aparecen en el PDF
-
-**Causa**: Las rutas de las imágenes generadas no son correctas
-
-**Solución**: Verificar que la carpeta `etiquetas_generadas/` tenga los archivos PNG
-
-### Error al cargar normas
-
-**Causa**: Formato incorrecto en Normas.json
-
-**Solución**: Verificar que cada norma tenga los campos: NOM, NOMBRE, CAPITULO
-
-## 📊 Ejemplo de Salida
-
-\`\`\`
-🚀 INICIANDO GENERACIÓN DE DICTÁMENES
-============================================================
-📂 Cargando datos...
-✅ Tabla de relación cargada: 150 registros
-✅ Normas cargadas correctamente: 10 mapeos
-✅ Clientes cargados: 5
-
-🛠️  Generando 3 dictámenes...
-
-📄 Procesando familia LISTA 24_001_2025_1 (10 registros)...
-Procesando código: 8123456789012
-  ✅ Etiqueta generada: 8123456789012_NOM-024-SCFI-2013.png
-   🏷️ Insertando 1 etiquetas en el PDF...
-   ✅ Etiqueta cargada: 8123456789012_NOM-024-SCFI-2013.png
-   ✅ Creado: Dictamen_Lista_24_001_2025_1.pdf
-
-============================================================
-✅ PROCESO COMPLETADO EXITOSAMENTE
-
-📊 Resumen:
-   • Dictámenes generados: 3
-   • Total de familias: 3
-   • Ubicación: dictamenes_generados/
-\`\`\`
-
-## 🤝 Contribuciones
-
-Para agregar nuevas normas o campos de etiquetas, editar:
-- `config_etiquetas.json` - Configuración de campos por norma
-- `etiqueta_dictamen.py` - Método `crear_mapeo_norma_uva()` para nuevas normas
-
-## 📞 Soporte
-
-Si el mensaje "No se generaron etiquetas" persiste:
-1. Verificar que los códigos EAN existan en BASE_ETIQUETADO.json
-2. Revisar que NORMA UVA esté en el mapeo de normas
-3. Comprobar que config_etiquetas.json tenga la configuración de la norma
-
-## 🧭 Documentación del Código (desarrolladores)
-
-Esta sección documenta los archivos principales, responsabilidades y puntos de extensión para que cualquier desarrollador pueda entender y modificar el proyecto.
-
-- **`app.py`**: Interfaz gráfica (CustomTkinter) y orquestador principal.
-   - Gestor de UI: pestañas *Principal* y *Historial*.
-   - Funcionalidades clave: carga de clientes, preparación de visita, generación de dictámenes (dispara `generador_dictamen.py`), registro y sincronización del `historial_visitas.json`.
-   - Módulos importantes: métodos `_cargar_historial`, `_guardar_historial`, `_poblar_historial_ui`, `hist_create_visita`, `hist_eliminar_registro`, `registrar_visita_automatica`.
-   - Notas: la UI ya no contiene campo `Supervisor` manual; el inspector se determina desde `data/tabla_de_relacion.json` y `data/Firmas.json` cuando se generan dictámenes.
-
-- **`generador_dictamen.py`**: Lógica que procesa los datos y genera los PDFs (usa ReportLab y plantillas).
-   - Provee `generar_dictamenes_gui` y funciones auxiliares para construir tablas, calcular páginas y crear contenido dinámico.
-   - Integra `plantillaPDF.py`, `DictamenPDF.py` y `etiqueta_dictamen.py` para componer documentos completos.
-
-- **`plantillaPDF.py`**: Funciones de carga y preparación de datos.
-   - Lectura de `data/tabla_de_relacion.json`, `data/Normas.json`, `data/Clientes.json`, `data/Firmas.json`.
-   - Funciones: `cargar_tabla_relacion`, `cargar_normas`, `cargar_clientes`, `cargar_firmas`, `preparar_datos_familia`.
-   - Normaliza y transforma los registros para que el generador tenga la estructura esperada.
-
-## 🧩 Empaquetado a .exe (Windows)
-
-Se incluye un `app.spec` configurado y un script `build_exe.bat` para generar un ejecutable con PyInstaller.
-
-Pasos rápidos:
-
-1. Crear un entorno virtual y activar:
+1. Crear y activar entorno virtual (Windows PowerShell):
 
 ```powershell
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
 ```
 
-2. Instalar dependencias (incluye PyInstaller):
+2. Instalar dependencias:
 
 ```powershell
 pip install -r requirements.txt
 ```
 
-3. Ejecutar el build:
+3. Crear carpetas necesarias si no existen:
 
 ```powershell
-.\build_exe.bat
+mkdir data img etiquetas_generadas dictamenes_generados
 ```
 
-Notas importantes:
-- `app.spec` incluye las carpetas de datos necesarias (`data`, `Documentos Inspeccion`, `Pegado de Evidenvia Fotografica`, `Firmas`, `img`, `Plantillas PDF`, `etiquetas_generadas`). Si añades otras carpetas con recursos, añádelas a `datas` en `app.spec`.
-- Si usas archivos `.xlsb` en Excel necesitarás `pyxlsb` instalado en el entorno de destino.
-- El código ya usa `sys._MEIPASS` mediante `plantillaPDF.obtener_ruta_recurso()` para localizar recursos cuando está empacado con PyInstaller.
-- Para problemas de importación dinámica (módulos cargados por ruta), PyInstaller puede requerir `hiddenimports` — si al ejecutar el exe aparece un ImportError, añádelo a `hiddenimports` en `app.spec`.
+4. Colocar los JSONs y recursos en `data/` y la imagen de fondo en `img/`.
 
-Si quieres, puedo ejecutar el build aquí o ajustar `app.spec` para incluir/excluir archivos concretos según tus preferencias.
+## Uso
 
-- **`DictamenPDF.py`**: Clase base para generación de PDF con ReportLab.
-   - Define estilos, layout y utilidades para encabezados, pies de página y paginación.
-   - Se extiende desde `PDFGeneratorConDatos` en `generador_dictamen.py` para adaptarse a datos reales.
+- Ejecución desde GUI:
 
-- **`etiqueta_dictamen.py`**: Generador de imágenes de etiquetas (Pillow).
-   - Encargado de renderizar etiquetas PNG a partir de `BASE_ETIQUETADO.json` y `config_etiquetas.json`.
-   - Métodos clave: `crear_mapeo_norma_uva`, `crear_etiqueta`, `generar_etiquetas_por_codigos`.
-
-- **`data/`**: Carpeta con los JSON que alimentan el sistema.
-   - `tabla_de_relacion.json`: tabla principal con filas para cada folio/solicitud (entradas usadas para generar dictámenes).
-   - `Firmas.json`: mapeo FIRMA → NOMBRE DE INSPECTOR (usado para mostrar el inspector detectado en el historial).
-   - `historial_visitas.json`: historial persistente de visitas (creado y mantenido por `app.py`).
-   - `folios_visitas/`: archivos `folios_{CPxxxxx}.json` con listado de folios asociados a una visita; usados para eliminar persistencia por visita.
-
-- **`Pegado de Evidenvia Fotografica/`**: utilidades para procesamiento de documentos e inserción de imágenes (dividido en `interfaz.py`, `main.py`, `pegado_*` y `registro_fallos.py`).
-   - `interfaz.py`: UI para el módulo de imágenes.
-   - `main.py`: utilidades centrales (indexado de imágenes, extracción de códigos, helpers para DOCX/PDF).
-
-- **Otros**:
-   - `DictamenMachote.py`, `Armado.py`, `DictamenPDF.py` (plantillas y utilidades históricas/auxiliares).
-   - `requirements.txt`: dependencias mínimas.
-
-### Flujo interno (resumen técnico)
-
-1. El usuario carga una `tabla_de_relacion` (Excel → JSON) y selecciona un cliente.
-2. `generador_dictamen.py` procesa familias, genera etiquetas PNG y construye PDFs mediante `DictamenPDF`.
-3. Cuando se generan dictámenes, `app.py` recibe resultados y ejecuta `registrar_visita_automatica` para crear una entrada en `historial_visitas.json`.
-4. `hist_eliminar_registro` borra solo la fila seleccionada, elimina `data/folios_visitas/folios_{folio}.json`, hace backup y limpia coincidencias en `data/tabla_de_relacion.json`.
-
-### Puntos de extensión / cómo añadir nuevas normas
-
-- Para agregar una norma nueva que afecte etiquetas:
-   1. Añadir la entrada en `data/Normas.json` y en `data/Firmas.json` si aplica.
-   2. Actualizar `config_etiquetas.json` con los campos y tamaños de la norma.
-   3. Si la lógica es muy específica, extender `etiqueta_dictamen.py::crear_mapeo_norma_uva`.
-
-### Desarrollo y pruebas rápidas
-
-- Instalar dependencias:
-
-```bash
-pip install -r requirements.txt
-```
-
-- Ejecutar la app (GUI):
-
-```bash
+```powershell
 python app.py
 ```
 
-- Para pruebas unitarias simples (no incluidas en el repo):
-   - Puedes escribir scripts que llamen `plantillaPDF.cargar_tabla_relacion()` o `generador_dictamen.generar_dictamenes_completos(...)` con muestras de `data/`.
+- Ejecución por script (ejemplo):
 
-### Notas de mantenimiento
+```python
+from generador_dictamen import generar_dictamenes_completos
+exito, mensaje, resultado = generar_dictamenes_completos("dictamenes_generados")
+```
 
-- Respaldos: antes de modificar `data/tabla_de_relacion.json` el sistema crea copias en `data/tabla_relacion_backups/`.
-- Concurrencia: las actualizaciones del UI desde procesos en segundo plano usan `self.after(...)` para evitar problemas con Tkinter.
-- Para registrar una operación (audit): consultar `data/operaciones_log.json` (método `_registrar_operacion` en `app.py`).
+## Formato y configuración de etiquetas
+
+Las etiquetas se generan según la norma detectada y la configuración en `data/config_etiquetas.json`. Cada norma define tamaño y campos (marca, país, talla, composición, etc.). Las imágenes se guardan en `etiquetas_generadas/` y se insertan en la segunda página del PDF.
+
+Ejemplo de entrada en `config_etiquetas.json`:
+
+```json
+{
+  "NOM-024-SCFI-2013": {
+    "tamaño_cm": "(5.0, 5.0)",
+    "campos": ["MARCA", "PAIS ORIGEN", "TALLA", "COMPOSICION"]
+  }
+}
+```
+
+## Flujo de trabajo interno
+
+1. Cargar datos: `data/tabla_de_relacion.json`, `data/Normas.json`, `data/Clientes.json`, `data/Firmas.json`.
+2. Agrupar registros por familia/norma/folio para procesar lotes.
+3. Para cada código EAN buscar la definición en `BASE_ETIQUETADO.json` y generar PNG.
+4. Construir PDF: página 1 (dictamen), página 2 (etiquetas e imágenes), insertar firmas y fondo.
+
+## Empaquetado a .exe (Windows)
+
+Se incluye `build_exe.bat` y `Sistema_Generador_Documentos_VC.spec` para PyInstaller.
+
+Pasos básicos:
+
+```powershell
+.\.venv\Scripts\Activate.ps1
+pip install -r requirements.txt
+.\build_exe.bat
+```
+
+Nota: si usas archivos Excel `.xlsb` instala `pyxlsb` en el entorno destino y añade `hiddenimports` si PyInstaller reporta ImportError.
+
+## Solución de problemas comunes
+
+- "No se generaron etiquetas": verificar que los EAN estén en `BASE_ETIQUETADO.json` y que `TABLA_DE_RELACION.json` use los mismos códigos.
+- "Imágenes no aparecen en el PDF": comprobar que `etiquetas_generadas/` contiene los PNG y que las rutas relativas en el proceso de inserción son correctas.
+- Error al cargar normas: validar formato de `data/Normas.json` (campos `NOM`, `NOMBRE`, `CAPITULO`).
+
+## Desarrollo y pruebas
+
+- Ejecutar funciones directamente para pruebas unitarias: `plantillaPDF.cargar_tabla_relacion()` o `generador_dictamen.generar_dictamenes_completos(...)` con muestras en `data/`.
+- Mantener respaldos automáticos: antes de editar `data/tabla_de_relacion.json` el sistema crea copias en `data/tabla_relacion_backups/`.
+
+## Cómo contribuir o extender
+
+- Añadir una nueva norma: editar `data/Normas.json` y `data/config_etiquetas.json`; si la norma requiere lógica especial, extender `etiqueta_dictamen.py::crear_mapeo_norma_uva`.
+- Para agregar recursos al empaquetado con PyInstaller, editar `Sistema_Generador_Documentos_VC.spec` y añadir rutas a `datas`.
+
+---
+
+Si quieres, puedo:
+- Ejecutar una generación de prueba con datos de ejemplo.
+- Ajustar o ampliar este README con instrucciones paso a paso más detalladas.
+
+Contacto del mantenedor: EFRAIN MORALES ZAMARRON
+## 🤝 Contribuciones
 

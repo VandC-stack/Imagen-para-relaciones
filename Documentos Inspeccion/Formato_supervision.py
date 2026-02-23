@@ -385,13 +385,15 @@ def generar_supervision(datos, archivo="Supervision_Final.pdf"):
 # =========================================================
 #   EJEMPLO DE USO
 # =========================================================
-datos_demo = {
-    "solicitud": "006916/25, 006917/25, 006918/25",
-    "servicio": "Dictamen",
-    "fecha": "02/12/2025",
-    "cliente": "ARTÍCULOS DEPORTIVOS DECATHLON S.A. DE C.V.",
-    "supervisor": " "
-}
+if __name__ == "__main__":
+    datos_demo = {
+        "solicitud": "006916/25, 006917/25, 006918/25",
+        "servicio": "Dictamen",
+        "fecha": "02/12/2025",
+        "cliente": "ARTÍCULOS DEPORTIVOS DECATHLON S.A. DE C.V.",
+        "supervisor": " "
+    }
 
-generar_supervision(datos_demo, "Plantillas PDF/Formato_Supervision.pdf")
+    # Genera un ejemplo localmente sólo cuando se ejecuta este script directamente.
+    generar_supervision(datos_demo, os.path.join("Plantillas PDF", "Formato_Supervision.pdf"))
 
