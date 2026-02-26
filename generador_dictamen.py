@@ -7,6 +7,7 @@ from datetime import datetime
 import traceback
 import time
 import shutil
+import re
 
 # Evitar UnicodeEncodeError en consolas Windows (CP1252) al imprimir emojis u
 # otros caracteres Unicode. Intentar reconfigurar stdout/stderr a UTF-8 cuando
@@ -878,16 +879,42 @@ class PDFGeneratorConDatos(PDFGenerator):
 
         norma = str(self.datos.get('norma', '')).strip()
         folio = str(self.datos.get('folio', '')).strip()
-        # La parte numérica de la solicitud (sin sufijo) puede venir en `solicitud` o `solicitud_raw`
-        solicitud = str(self.datos.get('solicitud', '')).strip()
-        if not solicitud and solicitud_raw:
-            solicitud = solicitud_raw.split('/')[0].strip() if '/' in solicitud_raw else solicitud_raw
+
+        # La parte numérica de la solicitud (sin sufijo) puede venir en `solicitud` o `solicitud_raw`.
+        # Normalizar extrayendo la primera secuencia de dígitos (evita conservar "/26" u otros sufijos).
+        solicitud_field = str(self.datos.get('solicitud', '')).strip()
+        solicitud_raw_field = solicitud_raw
+        solicitud = ''
+        try:
+            # Preferir el campo explícito `solicitud` si contiene un bloque de dígitos
+            if solicitud_field:
+                m = re.search(r"(\d+)", solicitud_field)
+                if m:
+                    solicitud = m.group(1)
+                else:
+                    solicitud = solicitud_field
+            elif solicitud_raw_field:
+                m = re.search(r"(\d+)", solicitud_raw_field)
+                if m:
+                    solicitud = m.group(1)
+                else:
+                    solicitud = solicitud_raw_field
+        except Exception:
+            solicitud = solicitud_field or solicitud_raw_field or ''
 
         lista = str(self.datos.get('lista', '')).strip()
 
-        # Formato folio y solicitud a 6 dígitos cuando son numéricos
+        # Formato folio y solicitud a 6 dígitos cuando son numéricos.
+        # Extraer únicamente la primera secuencia de dígitos para evitar
+        # conservar sufijos como '/25' o '-1' que pueden aparecer en
+        # `solicitud_raw` (ej. '003987/25-1').
         folio_formateado = folio.zfill(6) if folio.isdigit() else folio
-        solicitud_formateado = solicitud.zfill(6) if solicitud.isdigit() else solicitud
+        try:
+            msol = re.search(r"(\d+)", str(solicitud or ""))
+            solicitud_digits = msol.group(1) if msol else ''
+        except Exception:
+            solicitud_digits = ''.join([c for c in str(solicitud or '') if c.isdigit()])
+        solicitud_formateado = solicitud_digits.zfill(6) if solicitud_digits else ''
 
         linea_completa = f"{udc_year}049UDC{norma}{folio_formateado}   Solicitud de Servicio: {solicitud_year_two}049USD{norma}{solicitud_formateado}-{lista}"
         canvas.setFont("Helvetica", 9)
@@ -970,14 +997,18 @@ def convertir_dictamen_a_json(datos):
     folio_digits = ''.join([c for c in folio_raw if c.isdigit()])
     folio_formateado = folio_digits.zfill(6) if folio_digits else folio_raw
 
-    # Formatear solicitud: tomar la parte antes de '/' o los dígitos
+    # Formatear solicitud: extraer la primera secuencia de dígitos para eliminar sufijos como '/26'
     solicitud_num = ''
-    if solicitud_raw:
-        if '/' in solicitud_raw:
-            solicitud_num = solicitud_raw.split('/')[0].strip()
-        else:
-            solicitud_num = ''.join([c for c in solicitud_raw if c.isdigit()])
-    solicitud_formateado = solicitud_num.zfill(6) if solicitud_num and solicitud_num.isdigit() else solicitud_num
+    try:
+        if solicitud_raw:
+            m = re.search(r"(\d+)", solicitud_raw)
+            if m:
+                solicitud_num = m.group(1)
+            else:
+                solicitud_num = ''.join([c for c in solicitud_raw if c.isdigit()])
+    except Exception:
+        solicitud_num = ''.join([c for c in solicitud_raw if c.isdigit()]) if solicitud_raw else ''
+    solicitud_formateado = solicitud_num.zfill(6) if solicitud_num else ''
 
     # Construir cadena_identificacion siempre (asegurar variable definida)
     # Usar el año actual (dos dígitos) para la primera parte (UDC) y

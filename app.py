@@ -15,6 +15,10 @@ import subprocess
 import importlib
 import importlib.util
 from datetime import datetime
+try:
+    from tkcalendar import Calendar
+except Exception:
+    Calendar = None
 import folio_manager
 from plantillaPDF import cargar_tabla_relacion
 import time
@@ -797,7 +801,7 @@ class SistemaDictamenesVC(ctk.CTk):
         # Título del sistema
         ctk.CTkLabel(
             header,
-            text="Inicio de session",
+            text="Inicio de sesión",
             font=("Inter", 22, "bold"),
             text_color=STYLE.get("texto_oscuro", text_dark)
         ).pack(expand=True)
@@ -848,7 +852,7 @@ class SistemaDictamenesVC(ctk.CTk):
         ctk.CTkLabel(
             form,
             text="Sistema Generador de Documentos V&C",
-            font=("Inter", 16, "bold"),
+            font=("Inter", 12, "bold"),
             text_color=text_dark,
             anchor='w'
         ).pack(anchor='w', pady=(0, 8))
@@ -857,7 +861,7 @@ class SistemaDictamenesVC(ctk.CTk):
         ctk.CTkLabel(
             form,
             text="👤  Usuario",
-            font=("Inter", 14),
+            font=("Inter", 12),
             text_color=text_dark,
             anchor='w'
         ).pack(anchor='w', pady=(6, 4))
@@ -877,7 +881,7 @@ class SistemaDictamenesVC(ctk.CTk):
         ctk.CTkLabel(
             form,
             text="🔒  Contraseña",
-            font=("Inter", 14),
+            font=("Inter", 12),
             text_color=text_dark,
             anchor='w'
         ).pack(anchor='w', pady=(2, 4))
@@ -1101,11 +1105,7 @@ class SistemaDictamenesVC(ctk.CTk):
                     self.btn_reportes_ej.pack(side="left", padx=(0, 10))
                 except Exception:
                     pass
-                try:
-                    # Ejecutivos también pueden generar el Reporte EMA
-                    self.btn_reporte_ema.pack(side="left", padx=(0, 10))
-                except Exception:
-                    pass
+                # Ejecutivos no mostrarán el Reporte EMA (solo administradores)
 
             # Mostrar para 'admin': Principal, Historial, Reportes (clientes), Inspectores, Reportes ejecutivos
             if role == 'admin':
@@ -1201,18 +1201,27 @@ class SistemaDictamenesVC(ctk.CTk):
                 return
             # Reporte global: incluir todas las visitas (de todos los usuarios),
             # opcionalmente filtradas por fecha si se proporciona.
+            # Preferir la fecha seleccionada en el calendario si existe
             fecha = None
             try:
-                fecha = (self.entry_reporte_fecha.get() or '').strip()
+                if getattr(self, 'reporte_calendar', None) and Calendar is not None:
+                    fecha = self.reporte_calendar.get_date()
+                else:
+                    fecha = (getattr(self, 'entry_reporte_fecha', None) and self.entry_reporte_fecha.get()) or ''
             except Exception:
-                fecha = datetime.now().strftime('%d/%m/%Y')
+                fecha = ''
+            # normalizar fecha seleccionada
+            fecha = self._normalize_fecha_str(fecha) or datetime.now().strftime('%d/%m/%Y')
 
             role = getattr(self, 'current_role', None)
             user = getattr(self, 'current_user', None)
 
             encontrados = []
-            # Si el usuario no es admin, leer los JSON guardados en data/produccion/<usuario>
-            if role != 'admin':
+            # Si el usuario es admin o supervisor, leer todos los folders en data/produccion
+            scan_all = role in ('admin', 'supervisor')
+
+            if not scan_all:
+                # comportamiento por usuario (ejecutivo u otros)
                 try:
                     uname = ''
                     if isinstance(user, dict):
@@ -1226,10 +1235,27 @@ class SistemaDictamenesVC(ctk.CTk):
                             self.reporte_log.configure(text='No existen registros guardados para su usuario.')
                         except Exception:
                             pass
-                        # Evitar mostrar un popup modal cuando no hay datos; el usuario
-                        # ya solicitó el reporte y la UI muestra el estado.
                         return
 
+                    targets = [owner_dir]
+                except Exception:
+                    targets = []
+            else:
+                # admin/supervisor: scan all owner dirs
+                prod_root = os.path.join(DATA_DIR, 'produccion')
+                targets = []
+                try:
+                    for name in os.listdir(prod_root):
+                        p = os.path.join(prod_root, name)
+                        if os.path.isdir(p):
+                            targets.append(p)
+                except Exception:
+                    targets = []
+
+            for owner_dir in targets:
+                try:
+                    if not os.path.exists(owner_dir):
+                        continue
                     for fn in os.listdir(owner_dir):
                         if not fn.lower().endswith('.json'):
                             continue
@@ -1237,24 +1263,28 @@ class SistemaDictamenesVC(ctk.CTk):
                         try:
                             with open(fp, 'r', encoding='utf-8') as jf:
                                 obj = json.load(jf)
-                            if fecha:
-                                if str(obj.get('fecha_inicio') or '').strip() != fecha:
+
+                            recs = []
+                            if isinstance(obj, dict) and 'records' in obj:
+                                recs = obj.get('records') or []
+                            elif isinstance(obj, list):
+                                recs = obj
+                            else:
+                                recs = [obj]
+
+                            for rec in recs:
+                                try:
+                                    fval_raw = (rec.get('fecha_inicio') or '') if isinstance(rec, dict) else ''
+                                    fval = self._normalize_fecha_str(fval_raw)
+                                    if fecha and fval != fecha:
+                                        continue
+                                    encontrados.append(rec)
+                                except Exception:
                                     continue
-                            encontrados.append(obj)
                         except Exception:
                             continue
                 except Exception:
-                    encontrados = []
-            else:
-                # admin: comportamiento global sobre historial en memoria
-                fuente = getattr(self, 'historial_data', []) or []
-                for r in fuente:
-                    try:
-                        f = (r.get('fecha_inicio') or '').strip()
-                        if not fecha or f == fecha:
-                            encontrados.append(r)
-                    except Exception:
-                        continue
+                    continue
 
             if not encontrados:
                 try:
@@ -1270,12 +1300,15 @@ class SistemaDictamenesVC(ctk.CTk):
                 return
 
             import csv
-            keys = ['folio_visita','folio_acta','fecha_inicio','hora_inicio','cliente','tipo_documento','estatus','creado_por','creado_nombre']
+            # Añadir columnas extra solicitadas: `folios_utilizados` y `total_folios_numericos`
+            keys = ['folio_visita','folio_acta','fecha_inicio','hora_inicio','cliente','tipo_documento','estatus','folios_utilizados','total_folios_numericos','creado_por','creado_nombre']
             try:
-                with open(save_path, 'w', newline='', encoding='utf-8') as cf:
+                # Use UTF-8 with BOM so Excel on Windows detects accents correctly
+                with open(save_path, 'w', newline='', encoding='utf-8-sig') as cf:
                     writer = csv.writer(cf)
                     writer.writerow(keys)
                     for rec in encontrados:
+                        # Asegurar que los campos adicionales existan en el registro
                         row = [rec.get(k,'') for k in keys]
                         writer.writerow(row)
             except Exception as e:
@@ -1327,9 +1360,12 @@ class SistemaDictamenesVC(ctk.CTk):
             for r in fuente:
                 try:
                     f = (r.get('fecha_inicio') or '').strip()
-                    if fecha and f != fecha:
+                    f = self._normalize_fecha_str(f) or f
+                    fecha_norm = self._normalize_fecha_str(fecha) or fecha
+                    if fecha and f != fecha_norm:
                         continue
-                    if role != 'admin':
+                    # permitir que supervisores vean todo también
+                    if role not in ('admin', 'supervisor'):
                         creador = (r.get('creado_por') or '').strip()
                         if creador != (user or ''):
                             continue
@@ -2446,13 +2482,79 @@ class SistemaDictamenesVC(ctk.CTk):
             linea_busqueda, text="Búsqueda general:",
             font=("Inter", 11), text_color=STYLE["texto_oscuro"]
         ).pack(side="left", padx=(30, 8))
+        # --- Controles de filtro adicionales ---
+        try:
+            # Filtro por supervisor
+            self.combo_filtrar_supervisor = ctk.CTkComboBox(linea_busqueda, values=[""], font=("Inter", 10), state="readonly", height=25, width=180, command=lambda v: self.hist_buscar_general())
+            self.combo_filtrar_supervisor.set("")
+            self.combo_filtrar_supervisor.pack(side="left", padx=(8,6))
+        except Exception:
+            self.combo_filtrar_supervisor = None
 
-        self.entry_buscar_general = ctk.CTkEntry(
-            linea_busqueda, width=250, height=25,
-            corner_radius=6, placeholder_text="Cliente, folio, fecha, supervisor..."
-        )
-        self.entry_buscar_general.pack(side="left", padx=(0, 8))
-        self.entry_buscar_general.bind("<KeyRelease>", self.hist_buscar_general)
+        try:
+            # Filtro por tipo de documento
+            tipos_vals = ["", "Dictamen", "Constancia", "Negación de Dictamen", "Negación de Constancia"]
+            self.combo_filtrar_tipo = ctk.CTkComboBox(linea_busqueda, values=tipos_vals, font=("Inter", 10), state="readonly", height=25, width=180, command=lambda v: self.hist_buscar_general())
+            self.combo_filtrar_tipo.set("")
+            self.combo_filtrar_tipo.pack(side="left", padx=(8,6))
+        except Exception:
+            self.combo_filtrar_tipo = None
+
+        try:
+            # Filtro por estatus
+            estados = ["", "Pendiente", "Completada", "Cancelada"]
+            self.combo_filtrar_estatus = ctk.CTkComboBox(linea_busqueda, values=estados, font=("Inter", 10), state="readonly", height=25, width=140, command=lambda v: self.hist_buscar_general())
+            self.combo_filtrar_estatus.set("")
+            self.combo_filtrar_estatus.pack(side="left", padx=(8,6))
+        except Exception:
+            self.combo_filtrar_estatus = None
+
+        try:
+            # Rango de fechas: desde / hasta (ahora con selector de calendario si tkcalendar está instalado)
+            self.entry_hist_fecha_desde = ctk.CTkEntry(linea_busqueda, width=110, height=25, placeholder_text="Desde dd/mm/yyyy")
+            self.entry_hist_fecha_desde.pack(side="left", padx=(8,4))
+            self.entry_hist_fecha_desde.bind("<KeyRelease>", lambda e: self.hist_buscar_general())
+            try:
+                self.btn_hist_fecha_desde = ctk.CTkButton(linea_busqueda, text="📅", width=28, height=25, corner_radius=6, command=lambda e=self.entry_hist_fecha_desde: self._open_calendar_for_entry(e))
+                self.btn_hist_fecha_desde.pack(side="left", padx=(0,4))
+            except Exception:
+                # fallback a tkinter Button si CTkButton no funciona
+                self.btn_hist_fecha_desde = tk.Button(linea_busqueda, text="📅", width=3, command=lambda e=self.entry_hist_fecha_desde: self._open_calendar_for_entry(e))
+                self.btn_hist_fecha_desde.pack(side="left", padx=(0,4))
+
+            self.entry_hist_fecha_hasta = ctk.CTkEntry(linea_busqueda, width=110, height=25, placeholder_text="Hasta dd/mm/yyyy")
+            self.entry_hist_fecha_hasta.pack(side="left", padx=(4,8))
+            self.entry_hist_fecha_hasta.bind("<KeyRelease>", lambda e: self.hist_buscar_general())
+            try:
+                self.btn_hist_fecha_hasta = ctk.CTkButton(linea_busqueda, text="📅", width=28, height=25, corner_radius=6, command=lambda e=self.entry_hist_fecha_hasta: self._open_calendar_for_entry(e))
+                self.btn_hist_fecha_hasta.pack(side="left", padx=(0,8))
+            except Exception:
+                self.btn_hist_fecha_hasta = tk.Button(linea_busqueda, text="📅", width=3, command=lambda e=self.entry_hist_fecha_hasta: self._open_calendar_for_entry(e))
+                self.btn_hist_fecha_hasta.pack(side="left", padx=(0,8))
+        except Exception:
+            self.entry_hist_fecha_desde = None
+            self.entry_hist_fecha_hasta = None
+            self.btn_hist_fecha_desde = None
+            self.btn_hist_fecha_hasta = None
+
+        # Filtro por cliente (reemplaza la barra de búsqueda general)
+        try:
+            self.combo_filtrar_cliente = ctk.CTkComboBox(linea_busqueda, values=[""], font=("Inter", 10), state="readonly", height=25, width=250, command=lambda v: self.hist_buscar_general())
+            self.combo_filtrar_cliente.set("")
+            self.combo_filtrar_cliente.pack(side="left", padx=(0, 8))
+            try:
+                ctk.CTkButton(linea_busqueda, text="Limpiar filtros", command=self.hist_limpiar_filtros, width=120, height=25, corner_radius=6, fg_color=STYLE["secundario"], text_color=STYLE["surface"]).pack(side="left", padx=(0,8))
+            except Exception:
+                tk.Button(linea_busqueda, text="Limpiar filtros", command=self.hist_limpiar_filtros, width=15).pack(side="left", padx=(0,8))
+        except Exception:
+            # fallback a entry si CTkComboBox no está disponible
+            self.combo_filtrar_cliente = None
+            self.entry_buscar_general = ctk.CTkEntry(
+                linea_busqueda, width=250, height=25,
+                corner_radius=6, placeholder_text="Cliente, folio, fecha, supervisor..."
+            )
+            self.entry_buscar_general.pack(side="left", padx=(0, 8))
+            self.entry_buscar_general.bind("<KeyRelease>", self.hist_buscar_general)
 
         ctk.CTkButton(
             linea_busqueda, text="X",
@@ -2818,9 +2920,18 @@ class SistemaDictamenesVC(ctk.CTk):
 
         cols = ("RFC","CLIENTE","NÚMERO DE CONTRATO","ACTIVIDAD","SERVICIO","ACCIONES")
 
-        # Barra de búsqueda para la tabla de clientes
+        # Barra de búsqueda y filtros para la tabla de clientes
         search_frame = ctk.CTkFrame(tabla_frame, fg_color="transparent")
         search_frame.pack(fill="x", padx=12, pady=(4,6))
+        # Filtro por servicio (p. ej. DICTAMEN / CONSTANCIA)
+        try:
+            self.combo_filtrar_servicio_clientes = ctk.CTkComboBox(search_frame, values=["", "DICTAMEN", "CONSTANCIA"], font=FONT_SMALL, state="readonly", height=30, command=lambda v: self._refrescar_tabla_clientes())
+            self.combo_filtrar_servicio_clientes.set("")
+            self.combo_filtrar_servicio_clientes.pack(side="left", padx=(0,8))
+        except Exception:
+            # fallback: mantener compatibilidad si CTkComboBox falla
+            self.combo_filtrar_servicio_clientes = None
+
         self.entry_buscar_cliente = ctk.CTkEntry(search_frame, placeholder_text="Buscar por cliente, RFC, servicio o contrato", font=FONT_SMALL, height=30)
         self.entry_buscar_cliente.pack(side="left", fill="x", expand=True)
         ctk.CTkButton(search_frame, text="Buscar", command=self._buscar_clientes, fg_color=STYLE["primario"], hover_color=STYLE["primario"], text_color=STYLE["secundario"], font=("Inter", 11, "bold"), height=32, corner_radius=8).pack(side="left", padx=(8,0))
@@ -3049,6 +3160,20 @@ class SistemaDictamenesVC(ctk.CTk):
         self.lbl_total_inspectores = ctk.CTkLabel(header_frame, text="Total: 0", font=FONT_SMALL, text_color=STYLE["texto_oscuro"]) 
         self.lbl_total_inspectores.pack(side='right')
 
+        # Barra de búsqueda y filtro para Inspectores
+        search_frame = ctk.CTkFrame(tabla_frame, fg_color="transparent")
+        search_frame.pack(fill="x", padx=12, pady=(4,6))
+        self.entry_buscar_inspector = ctk.CTkEntry(search_frame, placeholder_text="Buscar por nombre, correo o firma", font=FONT_SMALL, height=30)
+        self.entry_buscar_inspector.pack(side="left", fill="x", expand=True)
+        # Filtro por puesto (texto libre)
+        try:
+            self.entry_filtro_puesto_inspector = ctk.CTkEntry(search_frame, placeholder_text="Filtrar por puesto", font=FONT_SMALL, height=30)
+            self.entry_filtro_puesto_inspector.pack(side="left", padx=(8,0))
+        except Exception:
+            self.entry_filtro_puesto_inspector = None
+        ctk.CTkButton(search_frame, text="Buscar", command=self._buscar_inspectores, fg_color=STYLE["primario"], hover_color=STYLE["primario"], text_color=STYLE["secundario"], font=("Inter", 11, "bold"), height=32, corner_radius=8).pack(side="left", padx=(8,0))
+        ctk.CTkButton(search_frame, text="Limpiar", command=self._limpiar_busqueda_inspectores, fg_color=STYLE["advertencia"], hover_color=STYLE["advertencia"], text_color=STYLE["surface"], font=("Inter", 11, "bold"), height=32, corner_radius=8).pack(side="left", padx=(8,0))
+
         cols = ("NOMBRE","CORREO","FIRMA","PUESTO","VIGENCIA")
         tree_container = tk.Frame(tabla_frame)
         tree_container.pack(fill="both", expand=True, padx=12, pady=(0,0))
@@ -3252,14 +3377,51 @@ class SistemaDictamenesVC(ctk.CTk):
                 self.tree_inspectores.delete(i)
         except Exception:
             pass
+        # Obtener filtros desde UI (si existen)
+        q = ''
+        try:
+            q = (self.entry_buscar_inspector.get() or '').strip().lower()
+        except Exception:
+            q = ''
+        puesto_filtro = ''
+        try:
+            if getattr(self, 'entry_filtro_puesto_inspector', None):
+                puesto_filtro = (self.entry_filtro_puesto_inspector.get() or '').strip().lower()
+        except Exception:
+            puesto_filtro = ''
+
         total = 0
         for rec in (self.inspectores_data or []):
             try:
-                nombre = rec.get('NOMBRE DE INSPECTOR') or rec.get('NOMBRE') or ''
-                correo = rec.get('CORREO','')
-                firma = rec.get('FIRMA','')
-                puesto = rec.get('Puesto','')
-                vig = rec.get('VIGENCIA','')
+                nombre = (rec.get('NOMBRE DE INSPECTOR') or rec.get('NOMBRE') or '')
+                correo = (rec.get('CORREO','') or '')
+                firma = (rec.get('FIRMA','') or '')
+                puesto = (rec.get('Puesto','') or '')
+                vig = (rec.get('VIGENCIA','') or '')
+
+                # Aplicar filtros: búsqueda por texto y filtro por puesto
+                aceptar = True
+                if q:
+                    hay = False
+                    for field in (nombre, correo, firma, puesto):
+                        try:
+                            if q in str(field).lower():
+                                hay = True
+                                break
+                        except Exception:
+                            continue
+                    if not hay:
+                        aceptar = False
+                if aceptar and puesto_filtro:
+                    try:
+                        if puesto_filtro not in str(puesto).lower():
+                            aceptar = False
+                    except Exception:
+                        aceptar = False
+
+                if not aceptar:
+                    continue
+
                 self.tree_inspectores.insert('', 'end', values=(nombre, correo, firma, puesto, vig))
                 total += 1
             except Exception:
@@ -3278,6 +3440,43 @@ class SistemaDictamenesVC(ctk.CTk):
                 self._adjust_inspectores_columns()
             except Exception:
                 pass
+
+    def _buscar_inspectores(self):
+        """Busca inspectores por texto en nombre, correo, firma o puesto."""
+        try:
+            # delegar a _refrescar_tabla_inspectores que ya usa el texto del entry
+            self._refrescar_tabla_inspectores()
+        except Exception:
+            pass
+
+    def _limpiar_busqueda_inspectores(self):
+        """Limpia la caja de búsqueda y el filtro de puesto para inspectores."""
+        try:
+            if getattr(self, 'entry_buscar_inspector', None):
+                try:
+                    self.entry_buscar_inspector.delete(0, tk.END)
+                except Exception:
+                    try:
+                        self.entry_buscar_inspector.delete(0, 'end')
+                    except Exception:
+                        pass
+        except Exception:
+            pass
+        try:
+            if getattr(self, 'entry_filtro_puesto_inspector', None):
+                try:
+                    self.entry_filtro_puesto_inspector.delete(0, tk.END)
+                except Exception:
+                    try:
+                        self.entry_filtro_puesto_inspector.delete(0, 'end')
+                    except Exception:
+                        pass
+        except Exception:
+            pass
+        try:
+            self._refrescar_tabla_inspectores()
+        except Exception:
+            pass
 
     def _export_catalogo_inspectores(self):
         """Exporta `data/Firmas.json` (inspectores) a un archivo Excel.
@@ -3372,6 +3571,8 @@ class SistemaDictamenesVC(ctk.CTk):
                                 pass
                     except Exception:
                         pass
+            except Exception:
+                pass
             except Exception:
                 # fallback sin ajustar anchos
                 df.to_excel(save_path, index=False)
@@ -3645,6 +3846,66 @@ class SistemaDictamenesVC(ctk.CTk):
                 pass
         except Exception:
             pass
+
+    def _open_calendar_for_entry(self, entry_widget):
+        """Abre un calendario emergente (tkcalendar.Calendar) y coloca la fecha seleccionada en `entry_widget`.
+
+        Si `tkcalendar` no está disponible muestra un aviso informando cómo instalarlo.
+        """
+        try:
+            if Calendar is None:
+                messagebox.showinfo("Selector de fecha no disponible", "Para usar el selector de calendario instale la librería 'tkcalendar' (pip install tkcalendar).\nMientras tanto puede escribir la fecha en formato dd/mm/yyyy.")
+                return
+
+            top = tk.Toplevel(self)
+            top.transient(self)
+            top.grab_set()
+            # Centrar la ventana pequeña sobre la app principal
+            try:
+                x = self.winfo_rootx() + 50
+                y = self.winfo_rooty() + 80
+                top.geometry(f"+{x}+{y}")
+            except Exception:
+                pass
+
+            cal = Calendar(top, selectmode='day', date_pattern='dd/mm/yyyy')
+            cal.pack(padx=8, pady=8)
+
+            btn_frame = tk.Frame(top)
+            btn_frame.pack(pady=(0,8))
+
+            def on_ok():
+                try:
+                    sel = cal.get_date()
+                    # Insertar en el entry (compatible con CTkEntry)
+                    try:
+                        entry_widget.delete(0, tk.END)
+                        entry_widget.insert(0, sel)
+                    except Exception:
+                        # Si CTkEntry no soporta delete/insert directamente
+                        entry_widget.set(sel)
+                    top.destroy()
+                    # disparar búsqueda para actualizar la lista
+                    try:
+                        self.hist_buscar_general()
+                    except Exception:
+                        pass
+                except Exception:
+                    top.destroy()
+
+            def on_cancel():
+                top.destroy()
+
+            ok = tk.Button(btn_frame, text="OK", width=8, command=on_ok)
+            ok.pack(side="left", padx=6)
+            cancel = tk.Button(btn_frame, text="Cancelar", width=8, command=on_cancel)
+            cancel.pack(side="left", padx=6)
+
+        except Exception as e:
+            try:
+                messagebox.showerror("Error", f"No se pudo abrir el selector de fecha: {e}")
+            except Exception:
+                pass
 
     # -----------------------------------------------------------
     # MÉTODOS PARA GESTIÓN DE CLIENTES
@@ -3946,6 +4207,14 @@ class SistemaDictamenesVC(ctk.CTk):
         except Exception:
             pass
 
+        # Obtener filtro de servicio desde UI (si existe)
+        filtro_servicio = ''
+        try:
+            if getattr(self, 'combo_filtrar_servicio_clientes', None):
+                filtro_servicio = (self.combo_filtrar_servicio_clientes.get() or '').strip().lower()
+        except Exception:
+            filtro_servicio = ''
+
         # Insertar filas
         for c in datos:
             try:
@@ -3968,6 +4237,13 @@ class SistemaDictamenesVC(ctk.CTk):
                             servicio = primera.get('SERVICIO') or primera.get('servicio') or ''
                 except Exception:
                     pass
+                # Aplicar filtro de servicio si se especificó
+                if filtro_servicio:
+                    try:
+                        if filtro_servicio not in str(servicio).lower():
+                            continue
+                    except Exception:
+                        continue
                 # Insertar sin la columna CP; añadir texto en ACCIONES para permitir interacción
                 self.tree_clientes.insert('', 'end', values=(rfc, nombre, contrato, actividad, servicio, 'Ver domicilios'))
             except Exception:
@@ -4018,8 +4294,16 @@ class SistemaDictamenesVC(ctk.CTk):
         except Exception:
             pass
 
+        # Obtener filtro de servicio (si existe)
+        filtro_servicio = ''
+        try:
+            if getattr(self, 'combo_filtrar_servicio_clientes', None):
+                filtro_servicio = (self.combo_filtrar_servicio_clientes.get() or '').strip().lower()
+        except Exception:
+            filtro_servicio = ''
+
         if not q:
-            # si no hay query, recargar todo
+            # si no hay query, recargar todo (aplicará el filtro si está presente)
             try:
                 self._refrescar_tabla_clientes()
             except Exception:
@@ -4044,6 +4328,13 @@ class SistemaDictamenesVC(ctk.CTk):
                     except Exception:
                         continue
                 if hay:
+                    # aplicar filtro de servicio a los resultados de búsqueda
+                    if filtro_servicio:
+                        try:
+                            if filtro_servicio not in str(servicio).lower():
+                                continue
+                        except Exception:
+                            continue
                     self.tree_clientes.insert('', 'end', values=(rfc, nombre, contrato, actividad, servicio, 'Ver domicilios'))
             except Exception:
                 continue
@@ -4515,23 +4806,256 @@ class SistemaDictamenesVC(ctk.CTk):
             body = ctk.CTkFrame(parent, fg_color="transparent")
             body.pack(fill='both', expand=True, padx=12, pady=8)
 
-            # Fecha (texto) y botón de descarga
-            controls = ctk.CTkFrame(body, fg_color='transparent')
-            controls.pack(anchor='nw', pady=(6,12))
-            ctk.CTkLabel(controls, text='Fecha (dd/mm/yyyy):', text_color=STYLE['texto_oscuro']).pack(side='left', padx=(0,8))
-            self.entry_reporte_fecha = ctk.CTkEntry(controls, width=140)
-            self.entry_reporte_fecha.pack(side='left')
-            # valor por defecto: hoy
+            # Layout: calendario a la izquierda + controles (días disponibles / acciones) a la derecha
+            main_controls = ctk.CTkFrame(body, fg_color='transparent')
+            main_controls.pack(fill='x', pady=(6,12))
+
+            # Calendar (usar tkcalendar si está disponible)
+            cal_frame = ctk.CTkFrame(main_controls, fg_color='transparent')
+            # Mostrar calendario más grande y aprovechar el alto disponible
+            cal_frame.pack(side='left', padx=(0,12), fill='both')
+            if Calendar is not None:
+                try:
+                    # Calendar devuelve fechas en formato dd/mm/YYYY con date_pattern
+                    # Empujar un poco el tamaño y padding para que se vea más grande
+                    self.reporte_calendar = Calendar(cal_frame, selectmode='day', date_pattern='dd/mm/yyyy')
+                    self.reporte_calendar.pack(padx=8, pady=8, ipadx=6, ipady=6)
+                except Exception:
+                    self.reporte_calendar = None
+            else:
+                # Fallback: entrada de texto si tkcalendar no está disponible
+                self.reporte_calendar = None
+                ctk.CTkLabel(cal_frame, text='(Instale tkcalendar para ver calendario)', text_color=STYLE['texto_oscuro']).pack()
+                # Crear una entrada de texto como alternativa
+                self.entry_reporte_fecha = ctk.CTkEntry(cal_frame, width=140)
+                try:
+                    self.entry_reporte_fecha.insert(0, datetime.now().strftime('%d/%m/%Y'))
+                except Exception:
+                    pass
+                self.entry_reporte_fecha.pack()
+
+            # Right-side controls: lista de días con datos y botones
+            right_frame = ctk.CTkFrame(main_controls, fg_color='transparent')
+            right_frame.pack(side='left', fill='both', expand=True)
+
+            days_label = ctk.CTkLabel(right_frame, text='Productividad:', text_color=STYLE['texto_oscuro'])
+            days_label.pack(anchor='nw')
+
+            # Lista con los días donde existen registros de producción para el usuario
+            # Mostrar más filas y permitir que la lista crezca verticalmente
+            self.lista_dias_produccion = tk.Listbox(right_frame, height=12)
+            self.lista_dias_produccion.pack(fill='both', expand=True, pady=(6,6))
+            # Bind selection to sync with calendar
             try:
-                self.entry_reporte_fecha.insert(0, datetime.now().strftime('%d/%m/%Y'))
+                self.lista_dias_produccion.bind('<<ListboxSelect>>', lambda e: self._on_select_dia_produccion(e))
+                self.lista_dias_produccion.bind('<Double-Button-1>', lambda e: self._on_doubleclick_dia(e))
             except Exception:
                 pass
 
-            ctk.CTkButton(controls, text='Descargar reporte', fg_color=STYLE['primario'], hover_color=STYLE['primario'], text_color=STYLE['secundario'], command=self._descargar_reporte_ejecutivo).pack(side='left', padx=(12,0))
+            btns_row = ctk.CTkFrame(right_frame, fg_color='transparent')
+            btns_row.pack(anchor='s', pady=(6,0), fill='x')
 
-            # Area de logs/resultados
-            self.reporte_log = ctk.CTkLabel(body, text='', text_color=STYLE['texto_oscuro'])
-            self.reporte_log.pack(anchor='nw', pady=(8,0))
+            ctk.CTkButton(btns_row, text='Actualizar días', fg_color=STYLE['primario'], text_color=STYLE['secundario'], hover_color=STYLE['primario'], command=self._refresh_production_days).pack(side='left', padx=(0,8))
+            ctk.CTkButton(btns_row, text='Descargar reporte', fg_color=STYLE['primario'], text_color=STYLE['secundario'], hover_color=STYLE['primario'], command=self._descargar_reporte_ejecutivo).pack(side='left')
+
+            # Nota: se eliminó el cuadro de texto inferior (área de logs) —
+            # los mensajes de estado se mantienen en `self.reporte_log` (etiqueta),
+            # y las acciones de guardado muestran cuadros de diálogo.
+
+            # Inicializar lista de días
+            try:
+                self._refresh_production_days()
+            except Exception:
+                pass
+        except Exception:
+            pass
+
+    def _normalize_fecha_str(self, s):
+        """Normaliza una cadena de fecha a formato 'dd/mm/YYYY'. Devuelve cadena vacía si no es válida."""
+        try:
+            if not s:
+                return ''
+            # eliminar caracteres invisibles
+            s2 = ''.join(ch for ch in str(s) if ch.isprintable())
+            s2 = s2.strip()
+            # Reemplazar separadores comunes y limpiar caracteres no numéricos excepto '/'
+            s2 = s2.replace('-', '/').replace('.', '/').replace('\\', '/')
+            # Collapsar múltiples espacios
+            s2 = re.sub(r"\s+", '', s2)
+            # intentar parsear formatos esperados
+            for fmt in ('%d/%m/%Y', '%d/%m/%y'):
+                try:
+                    dt = datetime.strptime(s2, fmt)
+                    return dt.strftime('%d/%m/%Y')
+                except Exception:
+                    continue
+            # intentar extraer con regex dd/mm/YYYY
+            m = re.search(r"(\d{1,2})\D(\d{1,2})\D(\d{2,4})", s2)
+            if m:
+                day, mon, year = m.group(1), m.group(2), m.group(3)
+                if len(year) == 2:
+                    # asumir 20xx si empieza con '20' probablemente
+                    year = '20' + year
+                try:
+                    dt = datetime.strptime(f"{int(day):02d}/{int(mon):02d}/{int(year)}", '%d/%m/%Y')
+                    return dt.strftime('%d/%m/%Y')
+                except Exception:
+                    return ''
+            return ''
+        except Exception:
+            return ''
+
+    def _on_select_dia_produccion(self, event=None):
+        try:
+            sel = None
+            try:
+                sel = self.lista_dias_produccion.get(self.lista_dias_produccion.curselection())
+            except Exception:
+                sel = None
+            if not sel:
+                return
+            if getattr(self, 'reporte_calendar', None) and Calendar is not None:
+                try:
+                    # seleccionar en el calendario
+                    self.reporte_calendar.selection_set(datetime.strptime(sel, '%d/%m/%Y'))
+                    self.reporte_calendar.see(datetime.strptime(sel, '%d/%m/%Y'))
+                except Exception:
+                    pass
+            else:
+                try:
+                    # fallback: poner en entry_reporte_fecha
+                    if getattr(self, 'entry_reporte_fecha', None):
+                        self.entry_reporte_fecha.delete(0, tk.END)
+                        self.entry_reporte_fecha.insert(0, sel)
+                except Exception:
+                    pass
+        except Exception:
+            pass
+
+    def _on_doubleclick_dia(self, event=None):
+        try:
+            # al hacer doble click, iniciar descarga directamente
+            self._on_select_dia_produccion(event)
+            self._descargar_reporte_ejecutivo()
+        except Exception:
+            pass
+
+    def _get_production_dates(self, owner_username=None):
+        """Retorna un conjunto de fechas (dd/mm/YYYY) para las cuales hay registros de producción del usuario."""
+        fechas = set()
+        try:
+            user = owner_username or getattr(self, 'current_user', None)
+            role = getattr(self, 'current_role', None)
+            prod_root = os.path.join(DATA_DIR, 'produccion')
+
+            # Si es admin o no se especificó usuario, agregar fechas de todos los subdirectorios
+            owners_to_scan = []
+            if role == 'admin' or not user:
+                try:
+                    for name in os.listdir(prod_root):
+                        p = os.path.join(prod_root, name)
+                        if os.path.isdir(p):
+                            owners_to_scan.append(p)
+                except Exception:
+                    owners_to_scan = []
+            else:
+                uname = ''
+                if isinstance(user, dict):
+                    uname = user.get('username') or ''
+                else:
+                    uname = str(user or '')
+                owner_safe = re.sub(r"[^A-Za-z0-9_.-]", '_', str(uname))
+                owners_to_scan = [os.path.join(prod_root, owner_safe)]
+
+            for owner_dir in owners_to_scan:
+                if not os.path.exists(owner_dir):
+                    continue
+                for fn in os.listdir(owner_dir):
+                    if not fn.lower().endswith('.json'):
+                        continue
+                    fp = os.path.join(owner_dir, fn)
+                    try:
+                        with open(fp, 'r', encoding='utf-8') as jf:
+                            obj = json.load(jf)
+                        recs = []
+                        if isinstance(obj, dict) and 'records' in obj:
+                            recs = obj.get('records') or []
+                        elif isinstance(obj, list):
+                            recs = obj
+                        else:
+                            recs = [obj]
+
+                        for rec in recs:
+                            try:
+                                raw = (rec.get('fecha_inicio') or '') if isinstance(rec, dict) else ''
+                                fnorm = self._normalize_fecha_str(raw)
+                                if fnorm:
+                                    fechas.add(fnorm)
+                            except Exception:
+                                continue
+                    except Exception:
+                        continue
+        except Exception:
+            pass
+        # devolver ordenadas cronológicamente
+        try:
+            lista = list(fechas)
+            lista_dt = []
+            for s in lista:
+                try:
+                    dt = datetime.strptime(s, '%d/%m/%Y')
+                    lista_dt.append((dt, s))
+                except Exception:
+                    try:
+                        # fallback, meter al final
+                        lista_dt.append((datetime.max, s))
+                    except Exception:
+                        lista_dt.append((datetime.max, s))
+            lista_dt.sort(key=lambda x: x[0])
+            return [s for (_dt, s) in lista_dt]
+        except Exception:
+            return sorted(list(fechas))
+
+    def _refresh_production_days(self):
+        """Actualiza la lista de días con producción y marca el calendario (si existe)."""
+        try:
+            dias = []
+            try:
+                dias = self._get_production_dates()
+            except Exception:
+                dias = []
+
+            # actualizar listbox
+            try:
+                self.lista_dias_produccion.delete(0, tk.END)
+                for d in dias:
+                    self.lista_dias_produccion.insert(tk.END, d)
+            except Exception:
+                pass
+
+            # marcar calendario
+            if getattr(self, 'reporte_calendar', None) and Calendar is not None:
+                try:
+                    # Limpiar eventos previos
+                    for ev in list(self.reporte_calendar.get_calevents()):
+                        try:
+                            self.reporte_calendar.calevent_remove(ev)
+                        except Exception:
+                            pass
+                    # Crear eventos para cada día
+                    for d in dias:
+                        try:
+                            # Calendar espera formato dd/mm/yyyy
+                            self.reporte_calendar.calevent_create(datetime.strptime(d, '%d/%m/%Y'), 'Produccion', 'prod')
+                        except Exception:
+                            continue
+                    # configurar estilo para tag 'prod'
+                    try:
+                        self.reporte_calendar.tag_config('prod', background='lightblue')
+                    except Exception:
+                        pass
+                except Exception:
+                    pass
         except Exception:
             pass
 
@@ -8420,6 +8944,44 @@ class SistemaDictamenesVC(ctk.CTk):
                     encontrados.append(r)
                 except Exception:
                     continue
+        # Actualizar opciones del combo de supervisores con valores únicos encontrados
+        try:
+            if getattr(self, 'combo_filtrar_supervisor', None):
+                sups = []
+                for r in (regs or []):
+                    try:
+                        s = (r.get('supervisor') or r.get('nfirma1') or '')
+                        s = str(s).strip()
+                        if s and s not in sups:
+                            sups.append(s)
+                    except Exception:
+                        continue
+                try:
+                    vals = [""] + sorted(sups, key=lambda x: x.lower())
+                    self.combo_filtrar_supervisor.configure(values=vals)
+                except Exception:
+                    pass
+        except Exception:
+            pass
+        # Actualizar opciones del combo de clientes con valores únicos encontrados
+        try:
+            if getattr(self, 'combo_filtrar_cliente', None):
+                clis = []
+                for r in (regs or []):
+                    try:
+                        c = (r.get('cliente') or '')
+                        c = str(c).strip()
+                        if c and c not in clis:
+                            clis.append(c)
+                    except Exception:
+                        continue
+                try:
+                    vals = [""] + sorted(clis, key=lambda x: x.lower())
+                    self.combo_filtrar_cliente.configure(values=vals)
+                except Exception:
+                    pass
+        except Exception:
+            pass
         # Ordenar visitas por folio_visita (CP) ascendente, y luego por folio_acta (AC)
         try:
             def _folio_key(r):
@@ -10985,7 +11547,15 @@ class SistemaDictamenesVC(ctk.CTk):
             if not hasattr(self, 'historial_data_original') or not self.historial_data_original:
                 self.historial_data_original = self.historial_data.copy()
             
-            busqueda_raw = self.entry_buscar_general.get().strip()
+            # Obtener filtro por cliente desde el combo (reemplaza búsqueda general)
+            busqueda_raw = ''
+            try:
+                if getattr(self, 'combo_filtrar_cliente', None):
+                    busqueda_raw = (self.combo_filtrar_cliente.get() or '').strip()
+                elif getattr(self, 'entry_buscar_general', None):
+                    busqueda_raw = (self.entry_buscar_general.get() or '').strip()
+            except Exception:
+                busqueda_raw = ''
             # Normalizar (quitar acentos) y bajar a minúsculas para comparaciones
             def _norm(s):
                 try:
@@ -11040,7 +11610,94 @@ class SistemaDictamenesVC(ctk.CTk):
                                     break
 
                     if matched:
-                        resultados.append(registro)
+                        # aplicar filtros adicionales: supervisor, tipo, estatus, rango de fecha
+                        acepta = True
+                        # Si hay filtro por cliente, exigir que coincida
+                        try:
+                            if getattr(self, 'combo_filtrar_cliente', None):
+                                cliente_sel = (self.combo_filtrar_cliente.get() or '').strip().lower()
+                                if cliente_sel:
+                                    reg_cli = str(registro.get('cliente','') or '')
+                                    if cliente_sel not in _norm(reg_cli):
+                                        acepta = False
+                        except Exception:
+                            pass
+                        # supervisor
+                        try:
+                            sup_f = ''
+                            if getattr(self, 'combo_filtrar_supervisor', None):
+                                sup_f = (self.combo_filtrar_supervisor.get() or '').strip().lower()
+                            if sup_f:
+                                reg_sup = str(registro.get('supervisor','') or '')
+                                if sup_f not in _norm(reg_sup):
+                                    aceita_tmp = False
+                                    aceita_tmp = True
+                                if sup_f and sup_f not in _norm(reg_sup):
+                                    acepta = False
+                        except Exception:
+                            pass
+                        # tipo de documento
+                        try:
+                            tipo_f = ''
+                            if getattr(self, 'combo_filtrar_tipo', None):
+                                tipo_f = (self.combo_filtrar_tipo.get() or '').strip().lower()
+                            if tipo_f:
+                                reg_tipo = str(registro.get('tipo_documento','') or '')
+                                if tipo_f not in _norm(reg_tipo):
+                                    acepta = False
+                        except Exception:
+                            pass
+                        # estatus
+                        try:
+                            est_f = ''
+                            if getattr(self, 'combo_filtrar_estatus', None):
+                                est_f = (self.combo_filtrar_estatus.get() or '').strip().lower()
+                            if est_f:
+                                reg_est = str(registro.get('estatus','') or '')
+                                if est_f not in _norm(reg_est):
+                                    acepta = False
+                        except Exception:
+                            pass
+                        # rango de fechas
+                        try:
+                            fd_raw = ''
+                            fh_raw = ''
+                            if getattr(self, 'entry_hist_fecha_desde', None):
+                                fd_raw = (self.entry_hist_fecha_desde.get() or '').strip()
+                            if getattr(self, 'entry_hist_fecha_hasta', None):
+                                fh_raw = (self.entry_hist_fecha_hasta.get() or '').strip()
+                            if fd_raw or fh_raw:
+                                # intentar parsear fecha_inicio del registro
+                                reg_fecha_s = registro.get('fecha_inicio') or registro.get('fecha_creacion') or ''
+                                reg_fecha_norm = self._normalize_fecha_str(reg_fecha_s) if hasattr(self, '_normalize_fecha_str') else reg_fecha_s
+                                try:
+                                    reg_dt = datetime.strptime(reg_fecha_norm, "%d/%m/%Y")
+                                except Exception:
+                                    reg_dt = None
+                                fd_dt = None
+                                fh_dt = None
+                                try:
+                                    if fd_raw:
+                                        fd_norm = self._normalize_fecha_str(fd_raw) if hasattr(self, '_normalize_fecha_str') else fd_raw
+                                        fd_dt = datetime.strptime(fd_norm, "%d/%m/%Y")
+                                except Exception:
+                                    fd_dt = None
+                                try:
+                                    if fh_raw:
+                                        fh_norm = self._normalize_fecha_str(fh_raw) if hasattr(self, '_normalize_fecha_str') else fh_raw
+                                        fh_dt = datetime.strptime(fh_norm, "%d/%m/%Y")
+                                except Exception:
+                                    fh_dt = None
+                                if reg_dt is not None:
+                                    if fd_dt and reg_dt < fd_dt:
+                                        acepta = False
+                                    if fh_dt and reg_dt > fh_dt:
+                                        acepta = False
+                        except Exception:
+                            pass
+
+                        if acepta:
+                            resultados.append(registro)
                 
                 self.historial_data = resultados
             
@@ -11051,8 +11708,65 @@ class SistemaDictamenesVC(ctk.CTk):
 
     def hist_limpiar_busqueda(self):
         """Limpiar todas las búsquedas y mostrar todos los registros"""
-        self.entry_buscar_general.delete(0, 'end')
+        # limpiar filtro de cliente (combo) o entrada general si existe
+        try:
+            if getattr(self, 'combo_filtrar_cliente', None):
+                try:
+                    self.combo_filtrar_cliente.set("")
+                except Exception:
+                    pass
+            elif getattr(self, 'entry_buscar_general', None):
+                try:
+                    self.entry_buscar_general.delete(0, 'end')
+                except Exception:
+                    try:
+                        self.entry_buscar_general.delete(0, 'end')
+                    except Exception:
+                        pass
+        except Exception:
+            pass
         self.entry_buscar_folio.delete(0, 'end')
+        # limpiar filtros adicionales si existen
+        try:
+            if getattr(self, 'combo_filtrar_supervisor', None):
+                try:
+                    self.combo_filtrar_supervisor.set("")
+                except Exception:
+                    pass
+        except Exception:
+            pass
+        try:
+            if getattr(self, 'combo_filtrar_tipo', None):
+                try:
+                    self.combo_filtrar_tipo.set("")
+                except Exception:
+                    pass
+        except Exception:
+            pass
+        try:
+            if getattr(self, 'combo_filtrar_estatus', None):
+                try:
+                    self.combo_filtrar_estatus.set("")
+                except Exception:
+                    pass
+        except Exception:
+            pass
+        try:
+            if getattr(self, 'entry_hist_fecha_desde', None):
+                try:
+                    self.entry_hist_fecha_desde.delete(0, 'end')
+                except Exception:
+                    pass
+        except Exception:
+            pass
+        try:
+            if getattr(self, 'entry_hist_fecha_hasta', None):
+                try:
+                    self.entry_hist_fecha_hasta.delete(0, 'end')
+                except Exception:
+                    pass
+        except Exception:
+            pass
         
         # Recargar datos originales y resetear paginado
         self.HISTORIAL_PAGINA_ACTUAL = 1
@@ -11062,6 +11776,75 @@ class SistemaDictamenesVC(ctk.CTk):
             self._cargar_historial()
             
         self._poblar_historial_ui()
+
+    def hist_limpiar_filtros(self):
+        """Limpiar solo los filtros (no borra el campo 'Folio visita')."""
+        try:
+            if getattr(self, 'combo_filtrar_supervisor', None):
+                try:
+                    self.combo_filtrar_supervisor.set("")
+                except Exception:
+                    pass
+        except Exception:
+            pass
+        try:
+            if getattr(self, 'combo_filtrar_tipo', None):
+                try:
+                    self.combo_filtrar_tipo.set("")
+                except Exception:
+                    pass
+        except Exception:
+            pass
+        try:
+            if getattr(self, 'combo_filtrar_estatus', None):
+                try:
+                    self.combo_filtrar_estatus.set("")
+                except Exception:
+                    pass
+        except Exception:
+            pass
+        try:
+            if getattr(self, 'entry_hist_fecha_desde', None):
+                try:
+                    self.entry_hist_fecha_desde.delete(0, 'end')
+                except Exception:
+                    pass
+        except Exception:
+            pass
+        try:
+            if getattr(self, 'entry_hist_fecha_hasta', None):
+                try:
+                    self.entry_hist_fecha_hasta.delete(0, 'end')
+                except Exception:
+                    pass
+        except Exception:
+            pass
+        try:
+            if getattr(self, 'combo_filtrar_cliente', None):
+                try:
+                    self.combo_filtrar_cliente.set("")
+                except Exception:
+                    pass
+            elif getattr(self, 'entry_buscar_general', None):
+                try:
+                    self.entry_buscar_general.delete(0, 'end')
+                except Exception:
+                    pass
+        except Exception:
+            pass
+
+        # Resetear paginado y refrescar búsqueda con filtros limpias
+        self.HISTORIAL_PAGINA_ACTUAL = 1
+        try:
+            self.hist_buscar_general()
+        except Exception:
+            try:
+                # fallback: repoblar con los datos originales
+                if hasattr(self, 'historial_data_original'):
+                    self.historial_data = self.historial_data_original.copy()
+                self._poblar_historial_ui()
+            except Exception:
+                pass
 
     def _eliminar_archivos_asociados_folio(self, folio, registro=None):
         """Elimina todos los archivos asociados a un folio de forma segura.
@@ -15527,7 +16310,6 @@ class SistemaDictamenesVC(ctk.CTk):
 # ================== EJECUCIÓN ================== #
 if __name__ == "__main__":
     # En Windows, habilitar DPI awareness antes de crear la ventana
-    # para que las geometrías fijas (p. ej. 650x500 del diálogo de login)
     # se respeten cuando la app está empaquetada como .exe.
     if sys.platform.startswith("win"):
         try:
