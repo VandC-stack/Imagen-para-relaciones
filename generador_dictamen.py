@@ -1714,7 +1714,9 @@ def generar_dictamenes_completos(directorio_destino, cliente_manual=None, rfc_ma
                                                         name_core = re.sub(r"[^A-Za-z0-9]", "", fpath.stem).upper()
                                                         if not name_core:
                                                             continue
-                                                        if code_norm == name_core or code_norm in name_core or name_core in code_norm:
+                                                        # Solo aceptar coincidencia NORMALIZADA EXACTA para
+                                                        # evitar falsos positivos por subcadenas.
+                                                        if code_norm == name_core:
                                                             found_root.append(str(fpath))
                                                     if found_root:
                                                         try:
@@ -1789,7 +1791,8 @@ def generar_dictamenes_completos(directorio_destino, cliente_manual=None, rfc_ma
                                                     name_core = re.sub(r"[^A-Za-z0-9]", "", fpath.stem).upper()
                                                     if not name_core:
                                                         continue
-                                                    if code_norm == name_core or code_norm in name_core or name_core in code_norm:
+                                                    # Aceptar solo coincidencia NORMALIZADA EXACTA
+                                                    if code_norm == name_core:
                                                         out.append(str(fpath))
                                             except Exception:
                                                 pass
@@ -1939,8 +1942,8 @@ def generar_dictamenes_completos(directorio_destino, cliente_manual=None, rfc_ma
                                 seg_norm = _re.sub(r"[^A-Za-z0-9]", "", seg).upper()
                                 if not seg_norm:
                                     continue
-                                # coincidencia si segmento contiene el código o viceversa
-                                if code_norm == seg_norm or code_norm in seg_norm or seg_norm in code_norm:
+                                # Aceptar solo coincidencia EXACTA entre segmento y código
+                                if code_norm == seg_norm:
                                     return True
                             return False
                         except Exception:
