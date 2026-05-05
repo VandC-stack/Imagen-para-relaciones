@@ -1,0 +1,23 @@
+# Flujo de pegado de evidencia por multicarpetas con coincidencia por código
+
+---
+
+## ¿Qué es?
+Es cuando las fotos de la evidencia están distribuidas en varias carpetas (por ejemplo, por área, evento o producto) y se requiere que cada foto se asocie a un código específico de la tabla de relación, es decir, que el nombre de la foto coincida con el código.
+
+## Flujo paso a paso:
+1. El usuario selecciona varias carpetas, cada una con fotos de diferentes áreas, eventos o productos.
+2. El sistema lee la tabla de relación y obtiene la lista de códigos requeridos.
+3. Para cada código de la tabla de relación:
+   - El sistema busca en todas las carpetas una foto cuyo nombre de archivo coincida exactamente con el código (por ejemplo, "A123.jpg" para el código A123).
+   - Si encuentra la foto, la pega en el documento junto con la información y etiqueta correspondiente a ese código.
+   - Si no encuentra la foto, puede dejar el espacio vacío, mostrar un aviso o pegar una imagen genérica, según la configuración.
+4. El sistema repite este proceso para todos los códigos de la tabla de relación, asegurando que cada evidencia fotográfica esté correctamente asociada a su registro.
+5. Las fotos se agrupan y ordenan en el documento según la estructura de las carpetas o el orden de la tabla de relación.
+
+---
+
+**Notas:**
+- Si hay varias fotos con el mismo código en diferentes carpetas, se puede incluir la primera encontrada o todas, según la configuración.
+- Si una carpeta está vacía, se debe avisar y no incluirla en el documento.
+- Este método garantiza que cada producto, área o evento tenga su evidencia fotográfica correctamente vinculada.

@@ -1,0 +1,35 @@
+# Flujos de pegado de evidencia por carpeta
+
+---
+
+## 1. Pegado por carpeta simple
+
+**¿Qué es?**
+Es cuando todas las fotos de la evidencia están en una sola carpeta porque pertenecen al mismo evento, visita o inspección.
+
+**Flujo paso a paso:**
+1. El usuario selecciona la carpeta que contiene todas las fotos.
+2. El sistema toma todas las fotos de esa carpeta.
+3. Las fotos se ordenan para que cuenten la historia del evento (por ejemplo: inicio, proceso, resultado).
+4. El sistema pega todas las fotos en una sección del documento, una tras otra.
+5. Se puede agregar una descripción general para todas las fotos o una nota breve para cada grupo si es necesario.
+
+---
+
+## 2. Pegado por multicarpetas
+
+**¿Qué es?**
+Es cuando las fotos de la evidencia están distribuidas en varias carpetas, porque corresponden a diferentes eventos, áreas, días o productos.
+
+**Flujo paso a paso:**
+1. El usuario selecciona varias carpetas, cada una con fotos de un evento, área o producto diferente.
+2. El sistema toma las fotos de cada carpeta por separado.
+3. Dentro de cada carpeta, las fotos se ordenan para contar la historia de ese evento o área.
+4. El sistema pega las fotos de cada carpeta en el documento, agrupadas por carpeta (por ejemplo: primero todas las fotos de la carpeta 1, luego las de la carpeta 2, etc.).
+5. Se puede poner un título o descripción para cada grupo de fotos según la carpeta (por ejemplo: "Fotos del Almacén", "Fotos de la Oficina").
+
+---
+
+**Nota:**
+- En ambos casos, si hay fotos con el mismo nombre en diferentes carpetas, todas se incluyen.
+- Si una carpeta está vacía, se debe avisar y no incluirla en el documento.
