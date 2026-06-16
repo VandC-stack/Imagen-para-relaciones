@@ -1774,6 +1774,26 @@ def generar_dictamenes_completos(directorio_destino, cliente_manual=None, rfc_ma
                                 for base in lst:
                                     try:
                                         carpeta_codigo = Path(base) / str(key)
+                                        if not (carpeta_codigo.exists() and carpeta_codigo.is_dir()):
+                                            # La carpeta del código no está directamente en la base;
+                                            # buscar recursivamente una subcarpeta cuyo nombre
+                                            # normalizado coincida exactamente con el código
+                                            # (p.ej. base/EMBARQUE X/<codigo>).
+                                            carpeta_encontrada = None
+                                            try:
+                                                for root, dirs, _files in os.walk(base):
+                                                    for d in dirs:
+                                                        d_norm = _re.sub(r"[^A-Za-z0-9]", "", d).upper()
+                                                        if d_norm == code_norm:
+                                                            carpeta_encontrada = Path(root) / d
+                                                            break
+                                                    if carpeta_encontrada:
+                                                        break
+                                            except Exception:
+                                                carpeta_encontrada = None
+                                            if carpeta_encontrada:
+                                                carpeta_codigo = carpeta_encontrada
+
                                         if carpeta_codigo.exists() and carpeta_codigo.is_dir():
                                             for ext in exts:
                                                 for f in carpeta_codigo.glob(f"*{ext}"):
