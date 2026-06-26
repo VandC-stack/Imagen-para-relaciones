@@ -40,29 +40,44 @@ class ControlFoliosAnual:
             # Cargar Clientes.json
             clientes_path = os.path.join(self.data_dir, "Clientes.json")
             if os.path.exists(clientes_path):
-                with open(clientes_path, 'r', encoding='utf-8') as f:
-                    self.clientes = json.load(f)
-                print(f"✅ Clientes cargados: {len(self.clientes)} registros")
+                try:
+                    with open(clientes_path, 'r', encoding='utf-8') as f:
+                        self.clientes = json.load(f)
+                    print(f"✅ Clientes cargados: {len(self.clientes)} registros")
+                except json.JSONDecodeError as e:
+                    return False, f"Error al decodificar JSON en Clientes.json: {e}"
+                except Exception as e:
+                    return False, f"Error al cargar Clientes.json: {e}"
             else:
                 print(f"⚠️ Advertencia: No se encontró {clientes_path}. Continuando con clientes vacíos.")
                 self.clientes = []
-            
+
             # Cargar Firmas.json
             firmas_path = os.path.join(self.data_dir, "Firmas.json")
             if os.path.exists(firmas_path):
-                with open(firmas_path, 'r', encoding='utf-8') as f:
-                    self.firmas = json.load(f)
-                print(f"✅ Firmas cargadas: {len(self.firmas)} registros")
+                try:
+                    with open(firmas_path, 'r', encoding='utf-8') as f:
+                        self.firmas = json.load(f)
+                    print(f"✅ Firmas cargadas: {len(self.firmas)} registros")
+                except json.JSONDecodeError as e:
+                    return False, f"Error al decodificar JSON en Firmas.json: {e}"
+                except Exception as e:
+                    return False, f"Error al cargar Firmas.json: {e}"
             else:
                 print(f"⚠️ Advertencia: No se encontró {firmas_path}. Continuando con firmas vacías.")
                 self.firmas = []
-            
+
             # Cargar tabla_de_relacion.json
             tabla_path = os.path.join(self.data_dir, "tabla_de_relacion.json")
             if os.path.exists(tabla_path):
-                with open(tabla_path, 'r', encoding='utf-8') as f:
-                    self.tabla_relacion = json.load(f)
-                print(f"✅ Tabla de relación cargada: {len(self.tabla_relacion)} registros")
+                try:
+                    with open(tabla_path, 'r', encoding='utf-8') as f:
+                        self.tabla_relacion = json.load(f)
+                    print(f"✅ Tabla de relación cargada: {len(self.tabla_relacion)} registros")
+                except json.JSONDecodeError as e:
+                    return False, f"Error al decodificar JSON en tabla_de_relacion.json: {e}"
+                except Exception as e:
+                    return False, f"Error al cargar tabla_de_relacion.json: {e}"
             else:
                 print(f"⚠️ Advertencia: No se encontró {tabla_path}. Continuando con tabla_de_relacion vacía.")
                 self.tabla_relacion = []
@@ -131,13 +146,15 @@ class ControlFoliosAnual:
             # Cargar historial_visitas.json (opcional, para mapeo de clientes)
             historial_path = os.path.join(self.data_dir, "historial_visitas.json")
             if os.path.exists(historial_path):
-                with open(historial_path, 'r', encoding='utf-8') as f:
-                    hist_data = json.load(f)
+                try:
+                    with open(historial_path, 'r', encoding='utf-8') as f:
+                        hist_data = json.load(f)
                     if isinstance(hist_data, dict) and 'visitas' in hist_data:
                         self.historial_visitas = hist_data['visitas']
-                        # Crear mapeo de folio a cliente
                         self._crear_mapeo_folio_cliente()
                         print(f"✅ Historial de visitas cargado: {len(self.historial_visitas)} registros")
+                except Exception:
+                    pass
             
             return True, "Datos cargados correctamente"
             
