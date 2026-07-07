@@ -191,19 +191,35 @@ class PDFGeneratorConDatos(PDFGenerator):
     # ---------------- tablas auxiliares ----------------
     def construir_tabla_productos(self):
         print("   📋 Construyendo tabla de productos...")
+
+        celda_style = ParagraphStyle(
+            'CeldaProducto',
+            parent=self.normal_style,
+            fontSize=8,
+            leading=9,
+            alignment=1,
+            spaceAfter=0,
+            wordWrap='CJK',  # permite partir palabras largas (marcas sin espacios) en vez de desbordar
+        )
+
+        def _celda(valor):
+            return Paragraph(str(valor if valor is not None else ''), celda_style)
+
         tabla_data = [['MARCA', 'CÓDIGO', 'FACTURA', 'CANTIDAD']]
         filas = self.datos.get('tabla_productos', []) or []
         if not filas:
-            tabla_data.append(["", "", "", ""])
+            tabla_data.append([_celda(""), _celda(""), _celda(""), _celda("")])
         else:
             for fila in filas:
                 tabla_data.append([
-                    str(fila.get('marca', '')),
-                    str(fila.get('codigo', '')),
-                    str(fila.get('factura', '')),
-                    str(fila.get('cantidad', ''))
+                    _celda(fila.get('marca', '')),
+                    _celda(fila.get('codigo', '')),
+                    _celda(fila.get('factura', '')),
+                    _celda(fila.get('cantidad', '')),
                 ])
-        tabla = Table(tabla_data, colWidths=[1.5*inch, 1.5*inch, 1.5*inch, 1.0*inch])
+        # Se amplía el ancho total de la tabla (7.0") y se da más espacio a
+        # MARCA/CÓDIGO, que suelen tener el contenido más largo.
+        tabla = Table(tabla_data, colWidths=[2.5*inch, 2.0*inch, 1.5*inch, 1.0*inch])
         tabla.setStyle(TableStyle([
             ('GRID', (0,0), (-1,-1), 1, colors.black),
             ('BACKGROUND', (0,0), (-1,0), colors.lightgrey),

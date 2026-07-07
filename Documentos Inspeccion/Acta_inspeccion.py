@@ -125,15 +125,15 @@ class ActaPDFGenerator:
 
         c.setFont("Helvetica", 10)
         c.drawString(x_start + col_w1, self.cursor_y,
-                    self.datos.get("fecha_inicio", "DD/MM/YYYY"))
+                    str(self.datos.get("fecha_inicio") or "DD/MM/YYYY"))
         c.drawString(x_start + col_w1 + col_w2, self.cursor_y,
-                    self.datos.get("hora_inicio", "09:00"))
+                    str(self.datos.get("hora_inicio") or "09:00"))
 
         # Normas (primera línea)
         normas = self.datos.get("normas", [])
         if normas:
             c.drawString(x_start + col_w1 + col_w2 + col_w3 + 5,
-                        self.cursor_y, normas[0])
+                        self.cursor_y, str(normas[0]))
 
         self.cursor_y -= row_height
 
@@ -146,9 +146,9 @@ class ActaPDFGenerator:
 
         c.setFont("Helvetica", 10)
         c.drawString(x_start + col_w1, self.cursor_y,
-                    self.datos.get("fecha_termino", "DD/MM/YYYY"))
+                    str(self.datos.get("fecha_termino") or "DD/MM/YYYY"))
         c.drawString(x_start + col_w1 + col_w2, self.cursor_y,
-                    self.datos.get("hora_termino", "18:00"))
+                    str(self.datos.get("hora_termino") or "18:00"))
 
         # Resto de normas
         self.cursor_y -= row_height
@@ -157,7 +157,7 @@ class ActaPDFGenerator:
             c.setFont("Helvetica", 10)
             for norma in normas[1:]:
                 c.drawString(x_start + col_w1 + col_w2 + col_w3 + 5,
-                            self.cursor_y, norma)
+                            self.cursor_y, str(norma))
                 self.cursor_y -= row_height
 
         # Espacio final reducido
@@ -961,6 +961,10 @@ def generar_acta_desde_visita(folio_visita=None, ruta_salida=None):
     # Formatear fecha_verificacion a dd/mm/YYYY si viene en formato ISO
     fecha_formateada = None
     if fecha_verificacion:
+        # Normalizar a str: en algunos backups el valor puede llegar como
+        # número (ej. fecha serial de Excel) en lugar de texto, lo que
+        # provoca errores al dibujarlo en el PDF (reportlab espera str).
+        fecha_verificacion = str(fecha_verificacion)
         try:
             # soportar formatos como YYYY-MM-DD o dd/mm/YYYY
             if '-' in fecha_verificacion:

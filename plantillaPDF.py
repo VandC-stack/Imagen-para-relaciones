@@ -403,7 +403,10 @@ def preparar_datos_familia(
 
     # NORMA
     clasif = str(r0.get("CLASIF UVA", "")).strip()
-    norma_num = "".join([c for c in clasif if c.isdigit()])
+    try:
+        norma_num = str(int(float(clasif)))
+    except (ValueError, TypeError):
+        norma_num = "".join([c for c in clasif if c.isdigit()])
 
     norma = ""
     normades = ""
@@ -560,9 +563,9 @@ def preparar_datos_familia(
         else:
             # Firma válida desde fallback
             print(f"   ✅ Firma asignada (fallback): {nombre_firma1} [{codigo_firma1}]")
-    else:
-        firma_valida = True
-    
+
+    firma_valida = firma1_acreditada
+
     nombre_firma2, imagen_firma2, aflores_acreditado = validar_acreditacion_inspector(
         "AFLORES", 
         norma, 
