@@ -2007,7 +2007,14 @@ def generar_constancia_desde_visita(folio_visita: str | None = None, salida: str
         fol_digits = ''.join([c for c in str(fol) if c.isdigit()])
     except Exception:
         fol_digits = ''
-    # Preferir folio reservado por el sistema (data/folio_counter.json) cuando exista
+    # Si `fol_digits` luce obsoleto/menor que el contador maestro, no lo
+    # reutilizamos: antes este bloque lo SOBRESCRIBÍA con el valor crudo de
+    # `last` (sin reservar/incrementar el contador). Como esa condición se
+    # cumple casi siempre, todas las constancias generadas en una misma
+    # sesión terminaban con el MISMO folio, y ese número seguía disponible
+    # para la siguiente reserva real (dictamen/constancia), provocando
+    # folios duplicados entre documentos. Ahora reservamos uno nuevo
+    # (atómico, incrementa el contador) en vez de copiar `last`.
     try:
         fc_path = os.path.join(data_dir, 'folio_counter.json')
         if os.path.exists(fc_path):
@@ -2017,11 +2024,8 @@ def generar_constancia_desde_visita(folio_visita: str | None = None, salida: str
                 if last is not None:
                     try:
                         last_int = int(last)
-                        if fol_digits:
-                            if last_int >= int(fol_digits):
-                                fol_digits = str(last_int)
-                        else:
-                            fol_digits = str(last_int)
+                        if fol_digits and last_int >= int(fol_digits):
+                            fol_digits = _reserve_next_folio(data_dir)
                     except Exception:
                         pass
     except Exception:

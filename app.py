@@ -13517,7 +13517,70 @@ class SistemaDictamenesVC(ctk.CTk):
             self.crear_nueva_visita()
             
         except Exception as e:
+            import traceback
+            tb = traceback.format_exc()
             print(f"⚠️ Error registrando visita automática: {e}")
+            try:
+                err_log_path = os.path.join(DATA_DIR, 'registro_visita_errores.log')
+                with open(err_log_path, 'a', encoding='utf-8') as ef:
+                    ef.write(f"\n[{datetime.now().isoformat()}] folio_visita={locals().get('folio_visita', '?')}\n{tb}\n")
+            except Exception:
+                pass
+
+            # Los folios de esta visita ya pudieron haberse reservado/persistido
+            # (guardar_folios_visita corre antes de este punto). Si el registro
+            # completo no se pudo guardar, dejamos un registro mínimo para que
+            # los folios no queden huérfanos y el usuario pueda completarlo luego.
+            fv = ''
+            try:
+                fv = locals().get('folio_visita') or (self.entry_folio_visita.get().strip() if hasattr(self, 'entry_folio_visita') else '')
+                fa = locals().get('folio_acta') or (self.entry_folio_acta.get().strip() if hasattr(self, 'entry_folio_acta') else '')
+                if fv and not self._folio_visita_exists(fv):
+                    folios_str_fallback = ""
+                    try:
+                        archivo_folios = os.path.join(self.folios_visita_path, f"folios_{fv}.json")
+                        if os.path.exists(archivo_folios):
+                            with open(archivo_folios, 'r', encoding='utf-8') as ff:
+                                fdata = json.load(ff) or {}
+                                nums = []
+                                for reg in fdata.get('folios', []) or []:
+                                    digits = ''.join(c for c in str(reg.get('FOLIOS', '')) if c.isdigit())
+                                    if digits:
+                                        nums.append(int(digits))
+                                if nums:
+                                    folios_str_fallback = (f"Folio: {min(nums):06d}" if min(nums) == max(nums)
+                                                            else f"{min(nums):06d} - {max(nums):06d}")
+                    except Exception:
+                        folios_str_fallback = ""
+
+                    fallback_payload = {
+                        "folio_visita": fv,
+                        "folio_acta": fa,
+                        "cliente": (self.cliente_seleccionado.get('CLIENTE', '') if getattr(self, 'cliente_seleccionado', None) else ''),
+                        "estatus": "Requiere revisión",
+                        "tipo_documento": (self.combo_tipo_documento.get().strip() if hasattr(self, 'combo_tipo_documento') else ''),
+                        "folios_utilizados": folios_str_fallback,
+                        "nfirma1": "",
+                        "nfirma2": "",
+                        "norma": "",
+                    }
+                    self.hist_create_visita(fallback_payload, es_automatica=True, show_notification=False)
+            except Exception:
+                pass
+
+            try:
+                mensaje_error = (
+                    "Los folios de esta visita ya fueron reservados, pero ocurrió un error al "
+                    "guardar el registro completo en el historial.\n\n"
+                    f"Folio de visita: {fv or '(desconocido)'}\n"
+                    "Se guardó un registro mínimo con estatus 'Requiere revisión' para no perder "
+                    "los folios; complételo desde el Historial.\n\n"
+                    f"Detalle técnico: {e}"
+                )
+                if self.winfo_exists():
+                    self.after(0, lambda: messagebox.showerror("Error al registrar visita", mensaje_error) if self.winfo_exists() else None)
+            except Exception:
+                pass
 
     def limpiar_archivo(self):
         self.archivo_excel_cargado = None
