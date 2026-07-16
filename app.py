@@ -14,7 +14,7 @@ import threading
 import subprocess
 import importlib
 import importlib.util
-from datetime import datetime
+from datetime import datetime, date
 try:
     from tkcalendar import Calendar
 except Exception:
@@ -5892,6 +5892,20 @@ class SistemaDictamenesVC(ctk.CTk):
                 if pd.api.types.is_datetime64_any_dtype(df[col]):
                     df[col] = df[col].astype(str)
 
+            # Convertir valores de fecha sueltos en columnas de tipo 'object'
+            # (columnas con datos mixtos donde pandas no detecta datetime64,
+            # pero algunas celdas siguen siendo datetime/Timestamp/date individuales)
+            def _stray_date_to_str(v):
+                if isinstance(v, (pd.Timestamp, datetime)):
+                    return v.strftime('%d/%m/%Y')
+                if isinstance(v, date) and not isinstance(v, datetime):
+                    return v.strftime('%d/%m/%Y')
+                return v
+
+            for col in df.columns:
+                if df[col].dtype == object:
+                    df[col] = df[col].apply(_stray_date_to_str)
+
             # Limpiar nombres de columnas (eliminar espacios extra)
             df.columns = df.columns.str.strip()
 
@@ -6222,8 +6236,15 @@ class SistemaDictamenesVC(ctk.CTk):
                 if 'SKU' in rec:
                     rec['SKU'] = _norm_code(rec.get('SKU'))
 
+            def _json_default(o):
+                if isinstance(o, (pd.Timestamp, datetime)):
+                    return o.strftime('%d/%m/%Y')
+                if isinstance(o, date):
+                    return o.strftime('%d/%m/%Y')
+                return str(o)
+
             with open(output_path, "w", encoding="utf-8") as f:
-                json.dump(records, f, ensure_ascii=False, indent=2)
+                json.dump(records, f, ensure_ascii=False, indent=2, default=_json_default)
 
         
             try:
