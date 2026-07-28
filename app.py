@@ -13876,11 +13876,13 @@ class SistemaDictamenesVC(ctk.CTk):
                             val = str(datos.get('folios_utilizados'))
                         elif getattr(self, 'info_folios_actual', None):
                             val = str(self.info_folios_actual)
-                        # si el valor numérico viene suelto, formatearlo
-                        if val and not val.lower().startswith('folio') and re.match(r'^\d{1,6}(-|\s|$)', val):
+                        # si el valor es un único folio suelto (sin rango), formatearlo.
+                        # Los rangos (p.ej. "056760 - 056778") se muestran tal cual, sin
+                        # truncar al primer folio.
+                        if val and not val.lower().startswith('folio') and re.match(r'^\d{1,6}$', val.strip()):
                             # normalizar a 6 dígitos
                             try:
-                                n = int(str(val).split()[0].split('-')[0])
+                                n = int(val.strip())
                                 val = f"Folio: {n:06d}"
                             except Exception:
                                 pass
@@ -14601,6 +14603,11 @@ class SistemaDictamenesVC(ctk.CTk):
             for key, entry in entries.items():
                 # Ignorar helpers internos (prefijo _ ) o valores que no sean widgets
                 if str(key).startswith('_'):
+                    continue
+                # 'folios_utilizados' es un campo de solo lectura cuyo texto se reformatea
+                # para mostrar (p.ej. "Folio: 056760" en vez del rango completo). No debe
+                # sobreescribir el valor original almacenado en `datos`.
+                if key == 'folios_utilizados':
                     continue
                 # Si el objeto no tiene método get(), omitimos
                 if not hasattr(entry, 'get'):
