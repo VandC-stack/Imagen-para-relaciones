@@ -6156,14 +6156,19 @@ class SistemaDictamenesVC(ctk.CTk):
                                 pass
 
                         next_local = maxf + 1
-                        if int(next_local) == 1:
-                            try:
-                                import folio_manager
-                                curr = folio_manager.get_last()
-                                if curr and int(curr) > 0:
-                                    next_local = int(curr) + 1
-                            except Exception:
-                                pass
+                        # Consultar SIEMPRE el contador maestro persistido (folio_manager)
+                        # y tomar el mayor de ambos valores. Antes solo se consultaba cuando
+                        # next_local == 1, lo que permitía que el escaneo del historial
+                        # (que puede quedar desactualizado, p.ej. si la visita anterior aún
+                        # no se guardó) reasignara folios ya usados y persistidos,
+                        # provocando folios duplicados al cargar la tabla de relación.
+                        try:
+                            import folio_manager
+                            curr = folio_manager.get_last()
+                            if curr and int(curr) + 1 > next_local:
+                                next_local = int(curr) + 1
+                        except Exception:
+                            pass
                     except Exception:
                         next_local = 1
                     for pair in pares_vistos:
