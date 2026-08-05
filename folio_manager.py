@@ -10,7 +10,16 @@ import os
 import sys
 import json
 import time
-from typing import Tuple
+from typing import Optional, Tuple
+
+# Caché en memoria de (counter_path, lock_path) resuelto por `_get_paths()`.
+# El cómputo original (ascender por directorios, puntuar candidatos, escribir
+# el log de debug) es costoso y se repetía en CADA llamada a get_last/set_last/
+# reserve_next/reserve_block, aunque el resultado no cambia durante la vida del
+# proceso. Se cachea una sola vez por ejecución; si la carpeta cacheada llega a
+# desaparecer (p. ej. la nube tarda en materializarla) se recalcula desde cero
+# como red de seguridad, así el comportamiento nunca es peor que el original.
+_cached_paths: Optional[Tuple[str, str]] = None
 
 
 def _get_paths() -> Tuple[str, str]:
@@ -22,6 +31,10 @@ def _get_paths() -> Tuple[str, str]:
     3. Ascend from current working directory looking for a `data` folder
     4. Fallback to package-local `data` next to this module
     """
+    global _cached_paths
+    if _cached_paths is not None and os.path.isdir(os.path.dirname(_cached_paths[0])):
+        return _cached_paths
+
     candidates = []
     # 1) env override
     env_dir = os.environ.get("FOLIO_DATA_DIR") or os.environ.get('IMAGENESVC_DATA_DIR')
@@ -83,27 +96,29 @@ def _get_paths() -> Tuple[str, str]:
     except Exception:
         exe_dir = None
 
+    # NOTA: no crear ninguna carpeta candidata aquí solo para poder puntuarla.
+    # Antes se hacía `os.makedirs(cand, ...)` para CADA candidata (incluyendo
+    # todos los ancestros del directorio de trabajo), lo que dejaba carpetas
+    # `data` vacías regadas por el disco (Escritorio, OneDrive, etc.) aunque
+    # casi ninguna terminara siendo la elegida. Ahora solo se consulta
+    # `os.path.isdir`; la única carpeta que se crea de verdad es `chosen`,
+    # una vez decidida, más abajo.
     for cand in norm_cands:
-        try:
-            if not os.path.exists(cand):
-                # try to create folder so file checks below can run
-                os.makedirs(cand, exist_ok=True)
-        except Exception:
-            continue
         score = 0
-        for wf in want_files:
-            p = os.path.join(cand, wf)
+        if os.path.isdir(cand):
+            for wf in want_files:
+                p = os.path.join(cand, wf)
+                try:
+                    if os.path.exists(p) and os.path.isfile(p) and os.path.getsize(p) > 0:
+                        score += 1
+                except Exception:
+                    pass
+            # small bonus if the folder is writable
             try:
-                if os.path.exists(p) and os.path.isfile(p) and os.path.getsize(p) > 0:
-                    score += 1
+                if os.access(cand, os.W_OK):
+                    score += 0.1
             except Exception:
                 pass
-        # small bonus if the folder is writable
-        try:
-            if os.access(cand, os.W_OK):
-                score += 0.1
-        except Exception:
-            pass
         # big preference if this candidate is the folder next to the exe (dist\...\data)
         try:
             if exe_dir:
@@ -121,25 +136,24 @@ def _get_paths() -> Tuple[str, str]:
         chosen = best
 
     # If we couldn't pick by score, fallback to first writable candidate
+    # (en la práctica no debería alcanzarse: el bucle anterior siempre deja
+    # `chosen` fijado porque `best_score` arranca en -1 y cualquier score >= 0
+    # ya lo supera).
     if not chosen:
         for cand in norm_cands:
-            try:
-                if not os.path.exists(cand):
-                    os.makedirs(cand, exist_ok=True)
-                if os.access(cand, os.W_OK):
-                    chosen = cand
-                    break
-            except Exception:
-                continue
+            if os.path.isdir(cand) and os.access(cand, os.W_OK):
+                chosen = cand
+                break
 
     # final fallback: package-local
     if not chosen:
-        base = os.path.join(os.path.dirname(__file__), "data")
-        try:
-            os.makedirs(base, exist_ok=True)
-        except Exception:
-            pass
-        chosen = base
+        chosen = os.path.join(os.path.dirname(__file__), "data")
+
+    # Crear físicamente SOLO la carpeta elegida (ninguna otra candidata).
+    try:
+        os.makedirs(chosen, exist_ok=True)
+    except Exception:
+        pass
 
     # Write debug note about chosen candidate (best effort)
     try:
@@ -151,6 +165,7 @@ def _get_paths() -> Tuple[str, str]:
 
     counter = os.path.join(chosen, "folio_counter.json")
     lock = os.path.join(chosen, "folio_counter.lock")
+    _cached_paths = (counter, lock)
     return counter, lock
 
 

@@ -267,75 +267,112 @@ class SistemaDictamenesVC(ctk.CTk):
                     os.makedirs(data_dir, exist_ok=True)
 
                 FORCE_REFRESH = os.environ.get('IMAGENESVC_FORCE_REFRESH') == '1'
-                embedded_data = os.path.join(BASE_DIR, 'data')
-                if os.path.exists(embedded_data):
-                    for root, dirs, files in os.walk(embedded_data):
-                        rel = os.path.relpath(root, embedded_data)
-                        target_root = os.path.join(data_dir, rel) if rel != '.' else data_dir
-                        os.makedirs(target_root, exist_ok=True)
-                        for f in files:
-                            sfile = os.path.join(root, f)
-                            dfile = os.path.join(target_root, f)
-                            try:
-                                copy_it = False
-                                if FORCE_REFRESH:
-                                    copy_it = True
-                                elif not os.path.exists(dfile):
-                                    copy_it = True
-                                else:
-                                    try:
-                                        dsize = os.path.getsize(dfile)
-                                    except Exception:
-                                        dsize = None
-                                    if dsize == 0:
+
+                # ----- Marcador de versión: evita recorrer y comparar TODOS los
+                # archivos de recursos en cada arranque (costoso en carpetas
+                # sincronizadas por la nube). Se usa mtime+tamaño del propio
+                # ejecutable como huella: si no cambió desde el último arranque,
+                # nos saltamos por completo el escaneo/copiado de abajo. Si el
+                # .exe se actualiza (nueva huella) o no hay marcador, se corre
+                # la sincronización completa una vez y se actualiza el marcador.
+                # Esto NO afecta la lógica de qué se copia ni sobrescribe nunca
+                # `data/folio_counter.json` u otros archivos ya existentes: solo
+                # decide si vale la pena repetir esa revisión completa.
+                marker_path = os.path.join(data_dir, '.resource_sync_marker.json')
+                exe_fingerprint = None
+                try:
+                    exe_path = sys.executable
+                    st = os.stat(exe_path)
+                    exe_fingerprint = f"{st.st_mtime_ns}:{st.st_size}"
+                except Exception:
+                    exe_fingerprint = None
+
+                marker_matches = False
+                if not FORCE_REFRESH and exe_fingerprint is not None:
+                    try:
+                        with open(marker_path, 'r', encoding='utf-8') as _mf:
+                            _marker = json.load(_mf) or {}
+                        marker_matches = (_marker.get('exe_fingerprint') == exe_fingerprint)
+                    except Exception:
+                        marker_matches = False
+
+                if not marker_matches:
+                    embedded_data = os.path.join(BASE_DIR, 'data')
+                    if os.path.exists(embedded_data):
+                        for root, dirs, files in os.walk(embedded_data):
+                            rel = os.path.relpath(root, embedded_data)
+                            target_root = os.path.join(data_dir, rel) if rel != '.' else data_dir
+                            os.makedirs(target_root, exist_ok=True)
+                            for f in files:
+                                sfile = os.path.join(root, f)
+                                dfile = os.path.join(target_root, f)
+                                try:
+                                    copy_it = False
+                                    if FORCE_REFRESH:
+                                        copy_it = True
+                                    elif not os.path.exists(dfile):
                                         copy_it = True
                                     else:
                                         try:
-                                            sm = os.path.getmtime(sfile)
-                                            dm = os.path.getmtime(dfile)
-                                            if sm > dm + 1:
-                                                copy_it = True
+                                            dsize = os.path.getsize(dfile)
                                         except Exception:
-                                            pass
+                                            dsize = None
+                                        if dsize == 0:
+                                            copy_it = True
+                                        else:
+                                            try:
+                                                sm = os.path.getmtime(sfile)
+                                                dm = os.path.getmtime(dfile)
+                                                if sm > dm + 1:
+                                                    copy_it = True
+                                            except Exception:
+                                                pass
 
-                                if copy_it:
-                                    shutil.copy2(sfile, dfile)
-                            except Exception:
-                                pass
+                                    if copy_it:
+                                        shutil.copy2(sfile, dfile)
+                                except Exception:
+                                    pass
 
-                # Asegurar que otros recursos estén disponibles junto al exe.
-                resource_folders = [
-                    'Plantillas PDF',
-                    'Pegado de Evidenvia Fotografica',
-                    'Documentos Inspeccion',
-                    'Firmas',
-                    'img'
-                ]
-                for rf in resource_folders:
-                    # buscar candidatos en BASE_DIR y en BASE_DIR/_internal
-                    candidates = [os.path.join(BASE_DIR, rf), os.path.join(BASE_DIR, '_internal', rf)]
-                    src = None
-                    for c in candidates:
-                        if os.path.exists(c):
-                            src = c
-                            break
-                    if not src:
-                        continue
-                    dst = os.path.join(APP_DIR, rf)
-                    os.makedirs(dst, exist_ok=True)
-                    # copiar solo archivos/carpetas faltantes
-                    for root, dirs, files in os.walk(src):
-                        rel = os.path.relpath(root, src)
-                        target_root = os.path.join(dst, rel) if rel != '.' else dst
-                        os.makedirs(target_root, exist_ok=True)
-                        for f in files:
-                            sfile = os.path.join(root, f)
-                            dfile = os.path.join(target_root, f)
-                            try:
-                                if (not os.path.exists(dfile)) or (os.path.exists(dfile) and os.path.getsize(dfile) == 0):
-                                    shutil.copy2(sfile, dfile)
-                            except Exception:
-                                pass
+                    # Asegurar que otros recursos estén disponibles junto al exe.
+                    resource_folders = [
+                        'Plantillas PDF',
+                        'Pegado de Evidenvia Fotografica',
+                        'Documentos Inspeccion',
+                        'Firmas',
+                        'img'
+                    ]
+                    for rf in resource_folders:
+                        # buscar candidatos en BASE_DIR y en BASE_DIR/_internal
+                        candidates = [os.path.join(BASE_DIR, rf), os.path.join(BASE_DIR, '_internal', rf)]
+                        src = None
+                        for c in candidates:
+                            if os.path.exists(c):
+                                src = c
+                                break
+                        if not src:
+                            continue
+                        dst = os.path.join(APP_DIR, rf)
+                        os.makedirs(dst, exist_ok=True)
+                        # copiar solo archivos/carpetas faltantes
+                        for root, dirs, files in os.walk(src):
+                            rel = os.path.relpath(root, src)
+                            target_root = os.path.join(dst, rel) if rel != '.' else dst
+                            os.makedirs(target_root, exist_ok=True)
+                            for f in files:
+                                sfile = os.path.join(root, f)
+                                dfile = os.path.join(target_root, f)
+                                try:
+                                    if (not os.path.exists(dfile)) or (os.path.exists(dfile) and os.path.getsize(dfile) == 0):
+                                        shutil.copy2(sfile, dfile)
+                                except Exception:
+                                    pass
+
+                    if exe_fingerprint is not None:
+                        try:
+                            with open(marker_path, 'w', encoding='utf-8') as _mf:
+                                json.dump({'exe_fingerprint': exe_fingerprint}, _mf)
+                        except Exception:
+                            pass
             except Exception:
                 try:
                     os.makedirs(data_dir, exist_ok=True)
@@ -6086,7 +6123,21 @@ class SistemaDictamenesVC(ctk.CTk):
                 print('⚠️ Error en validación de columnas requeridas; se continuará con precaución')
             # ----------------- ASIGNAR FOLIOS USANDO FOLIO_MANAGER -----------------
             try:
-                # Recolectar pares únicos (SOLICITUD, LISTA)
+                # Recolectar pares únicos (SOLICITUD, LISTA, NORMA). Se incluye la norma
+                # porque `procesar_familias` (plantillaPDF.py) agrupa los registros reales
+                # por (NORMA UVA, FOLIO, SOLICITUD, LISTA): si una misma LISTA trae más de
+                # una norma (frecuente en Negación de Dictamen, que junta en una sola tabla
+                # todas las normas de la visita original), asignar el folio solo por
+                # (SOLICITUD, LISTA) le da el MISMO folio a familias que en realidad son
+                # distintas. El generador luego detecta el folio duplicado y reserva folios
+                # nuevos para el documento, pero la tabla_de_relacion.json/historial se
+                # quedan con el folio duplicado mostrado en dos registros.
+                def _norma_val(r):
+                    for key in ('NORMA UVA', 'NORMA_UVA', 'CLASIF UVA', 'CLASIF_UVA', 'NORMA', 'Norma', 'norma'):
+                        if key in r and r.get(key) is not None and str(r.get(key)).strip() != "":
+                            return str(r.get(key)).strip()
+                    return ''
+
                 pares_vistos = []
                 for r in records:
                     sol_val = None
@@ -6101,7 +6152,7 @@ class SistemaDictamenesVC(ctk.CTk):
                             break
                     if lista_val is None:
                         continue
-                    pair = (sol_val or '', lista_val)
+                    pair = (sol_val or '', lista_val, _norma_val(r))
                     if pair not in pares_vistos:
                         pares_vistos.append(pair)
 
@@ -6191,7 +6242,7 @@ class SistemaDictamenesVC(ctk.CTk):
                             break
                     if lista_val is None:
                         continue
-                    fol_asig = pair_to_folio.get((sol_val or '', lista_val))
+                    fol_asig = pair_to_folio.get((sol_val or '', lista_val, _norma_val(r)))
                     if fol_asig is not None:
                         try:
                             r['FOLIO'] = int(fol_asig)
