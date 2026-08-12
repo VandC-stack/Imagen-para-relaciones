@@ -39,8 +39,12 @@ STYLE = {
     "surface": "#F8F9FA",
     "texto_oscuro": "#282828",
     "texto_claro": "#ffffff",
+    # Texto secundario/atenuado, usado en etiquetas pequeñas (p. ej. captions de filtros)
+    "texto_secundario": "#6b7280",
     # Border color should match surface so thin borders are not visible
-    "borde": "#F8F9FA"
+    "borde": "#F8F9FA",
+    # Borde visible para tarjetas/paneles que sí deben distinguirse del fondo
+    "borde_panel": "#E3E5E8"
 }
 
 FONT_TITLE = ("Inter", 22, "bold")
@@ -205,6 +209,14 @@ class SistemaDictamenesVC(ctk.CTk):
     # --- PAGINACIÓN HISTORIAL ---
     HISTORIAL_PAGINA_ACTUAL = 1
     HISTORIAL_REGS_POR_PAGINA = 100
+
+    # --- Placeholders de los filtros del historial ---
+    # Se muestran como valor por defecto de cada combo para que el usuario
+    # identifique qué filtra cada uno; equivalen a "sin filtro seleccionado".
+    FILTRO_PLACEHOLDER_SUPERVISOR = "Supervisor (todos)"
+    FILTRO_PLACEHOLDER_TIPO = "Tipo de documento (todos)"
+    FILTRO_PLACEHOLDER_ESTATUS = "Estatus (todos)"
+    FILTRO_PLACEHOLDER_CLIENTE = "Cliente (todos)"
 
     def __init__(self):
         super().__init__()
@@ -672,11 +684,14 @@ class SistemaDictamenesVC(ctk.CTk):
         )
         
         # Información del sistema (derecha)
+        # `nav_frame` (y por herencia `botones_right_frame`, que es transparente)
+        # tiene fondo claro (STYLE["surface"]), así que el texto debe ser oscuro;
+        # con texto_claro (blanco) quedaba casi invisible sobre ese fondo.
         self.lbl_info_sistema = ctk.CTkLabel(
             self.botones_right_frame,
             text="Sistema de Dictámenes - V&C",
             font=("Inter", 12),
-            text_color=STYLE["texto_claro"]
+            text_color=STYLE["texto_oscuro"]
         )
         # Botón Cerrar sesión (inicialmente no empaquetado)
         self.btn_logout = ctk.CTkButton(
@@ -2472,20 +2487,17 @@ class SistemaDictamenesVC(ctk.CTk):
         cont.pack(fill="both", expand=True, padx=10, pady=(0,5))
 
         # ===========================================================
-        # BARRA SUPERIOR EN UNA SOLA LÍNEA (COMO EN LA IMAGEN)
+        # BARRA SUPERIOR: fila de búsqueda por folio + tarjeta de filtros
         # ===========================================================
-        barra_superior = ctk.CTkFrame(cont, fg_color="transparent", height=50)
+        barra_superior = ctk.CTkFrame(cont, fg_color="transparent")
         barra_superior.pack(fill="x", pady=(0, 10))
-        barra_superior.pack_propagate(False)
 
-
-        # --- FOLIO Y BÚSQUEDA EN MISMA LÍNEA ---
+        # --- FILA 1: búsqueda directa por folio + leyenda/acciones rápidas ---
         linea_busqueda = ctk.CTkFrame(barra_superior, fg_color="transparent")
-        linea_busqueda.pack(fill="x", pady=5)
+        linea_busqueda.pack(fill="x", pady=(0, 8))
 
-        # Folio (izquierda)
         ctk.CTkLabel(
-            linea_busqueda, text="Folio visita:", 
+            linea_busqueda, text="Folio visita:",
             font=("Inter", 11), text_color=STYLE["texto_oscuro"]
         ).pack(side="left", padx=(0, 8))
 
@@ -2502,7 +2514,6 @@ class SistemaDictamenesVC(ctk.CTk):
             fg_color=STYLE["secundario"], text_color=STYLE["surface"]
         ).pack(side="left", padx=(0, 8))
 
-        # Botón Limpiar búsqueda
         ctk.CTkButton(
             linea_busqueda, text="Limpiar",
             command=self.hist_limpiar_busqueda,
@@ -2510,104 +2521,13 @@ class SistemaDictamenesVC(ctk.CTk):
             fg_color=STYLE["secundario"], text_color=STYLE["surface"]
         ).pack(side="left", padx=(0, 8))
 
-        # (Se eliminó el botón global 'Borrar' aquí; el borrado ahora está disponible por fila)
-
-       
-
-        # Búsqueda general (derecha)
-        ctk.CTkLabel(
-            linea_busqueda, text="Búsqueda general:",
-            font=("Inter", 11), text_color=STYLE["texto_oscuro"]
-        ).pack(side="left", padx=(30, 8))
-        # --- Controles de filtro adicionales ---
+        # --- Contenedor derecho: leyenda (arriba) + botones rápidos (abajo) ---
         try:
-            # Filtro por supervisor
-            self.combo_filtrar_supervisor = ctk.CTkComboBox(linea_busqueda, values=[""], font=("Inter", 10), state="readonly", height=25, width=180, command=lambda v: self.hist_buscar_general())
-            self.combo_filtrar_supervisor.set("")
-            self.combo_filtrar_supervisor.pack(side="left", padx=(8,6))
-        except Exception:
-            self.combo_filtrar_supervisor = None
-
-        try:
-            # Filtro por tipo de documento
-            tipos_vals = ["", "Dictamen", "Constancia", "Negación de Dictamen", "Negación de Constancia"]
-            self.combo_filtrar_tipo = ctk.CTkComboBox(linea_busqueda, values=tipos_vals, font=("Inter", 10), state="readonly", height=25, width=180, command=lambda v: self.hist_buscar_general())
-            self.combo_filtrar_tipo.set("")
-            self.combo_filtrar_tipo.pack(side="left", padx=(8,6))
-        except Exception:
-            self.combo_filtrar_tipo = None
-
-        try:
-            # Filtro por estatus
-            estados = ["", "Pendiente", "Completada", "Cancelada"]
-            self.combo_filtrar_estatus = ctk.CTkComboBox(linea_busqueda, values=estados, font=("Inter", 10), state="readonly", height=25, width=140, command=lambda v: self.hist_buscar_general())
-            self.combo_filtrar_estatus.set("")
-            self.combo_filtrar_estatus.pack(side="left", padx=(8,6))
-        except Exception:
-            self.combo_filtrar_estatus = None
-
-        try:
-            # Rango de fechas: desde / hasta (ahora con selector de calendario si tkcalendar está instalado)
-            self.entry_hist_fecha_desde = ctk.CTkEntry(linea_busqueda, width=110, height=25, placeholder_text="Desde dd/mm/yyyy")
-            self.entry_hist_fecha_desde.pack(side="left", padx=(8,4))
-            self.entry_hist_fecha_desde.bind("<KeyRelease>", lambda e: self.hist_buscar_general())
-            try:
-                self.btn_hist_fecha_desde = ctk.CTkButton(linea_busqueda, text="📅", width=28, height=25, corner_radius=6, command=lambda e=self.entry_hist_fecha_desde: self._open_calendar_for_entry(e))
-                self.btn_hist_fecha_desde.pack(side="left", padx=(0,4))
-            except Exception:
-                # fallback a tkinter Button si CTkButton no funciona
-                self.btn_hist_fecha_desde = tk.Button(linea_busqueda, text="📅", width=3, command=lambda e=self.entry_hist_fecha_desde: self._open_calendar_for_entry(e))
-                self.btn_hist_fecha_desde.pack(side="left", padx=(0,4))
-
-            self.entry_hist_fecha_hasta = ctk.CTkEntry(linea_busqueda, width=110, height=25, placeholder_text="Hasta dd/mm/yyyy")
-            self.entry_hist_fecha_hasta.pack(side="left", padx=(4,8))
-            self.entry_hist_fecha_hasta.bind("<KeyRelease>", lambda e: self.hist_buscar_general())
-            try:
-                self.btn_hist_fecha_hasta = ctk.CTkButton(linea_busqueda, text="📅", width=28, height=25, corner_radius=6, command=lambda e=self.entry_hist_fecha_hasta: self._open_calendar_for_entry(e))
-                self.btn_hist_fecha_hasta.pack(side="left", padx=(0,8))
-            except Exception:
-                self.btn_hist_fecha_hasta = tk.Button(linea_busqueda, text="📅", width=3, command=lambda e=self.entry_hist_fecha_hasta: self._open_calendar_for_entry(e))
-                self.btn_hist_fecha_hasta.pack(side="left", padx=(0,8))
-        except Exception:
-            self.entry_hist_fecha_desde = None
-            self.entry_hist_fecha_hasta = None
-            self.btn_hist_fecha_desde = None
-            self.btn_hist_fecha_hasta = None
-
-        # Filtro por cliente (reemplaza la barra de búsqueda general)
-        try:
-            self.combo_filtrar_cliente = ctk.CTkComboBox(linea_busqueda, values=[""], font=("Inter", 10), state="readonly", height=25, width=250, command=lambda v: self.hist_buscar_general())
-            self.combo_filtrar_cliente.set("")
-            self.combo_filtrar_cliente.pack(side="left", padx=(0, 8))
-            try:
-                ctk.CTkButton(linea_busqueda, text="Limpiar filtros", command=self.hist_limpiar_filtros, width=120, height=25, corner_radius=6, fg_color=STYLE["secundario"], text_color=STYLE["surface"]).pack(side="left", padx=(0,8))
-            except Exception:
-                tk.Button(linea_busqueda, text="Limpiar filtros", command=self.hist_limpiar_filtros, width=15).pack(side="left", padx=(0,8))
-        except Exception:
-            # fallback a entry si CTkComboBox no está disponible
-            self.combo_filtrar_cliente = None
-            self.entry_buscar_general = ctk.CTkEntry(
-                linea_busqueda, width=250, height=25,
-                corner_radius=6, placeholder_text="Cliente, folio, fecha, supervisor..."
-            )
-            self.entry_buscar_general.pack(side="left", padx=(0, 8))
-            self.entry_buscar_general.bind("<KeyRelease>", self.hist_buscar_general)
-
-        ctk.CTkButton(
-            linea_busqueda, text="X",
-            command=self.hist_limpiar_busqueda,
-            width=40, height=25, corner_radius=6,
-            fg_color=STYLE["advertencia"], text_color=STYLE["surface"]
-        ).pack(side="left")
-        # Botones de generación rápidos en la parte superior (derecha)
-        try:
-            # Contenedor derecho que agrupa la leyenda (arriba) y botones rápidos (abajo)
-            right_side_frame = ctk.CTkFrame(barra_superior, fg_color='transparent')
+            right_side_frame = ctk.CTkFrame(linea_busqueda, fg_color='transparent')
             right_side_frame.pack(side='right')
 
-            # --- Leyenda de colores (arriba, encima del botón Reporte EMA) ---
             legend_frame = ctk.CTkFrame(right_side_frame, fg_color='transparent')
-            legend_frame.pack(side='top', pady=(4, 0), padx=(8, 12))
+            legend_frame.pack(side='top', pady=(0, 4), padx=(8, 12))
 
             def _add_legend_item(parent, color, text):
                 f = ctk.CTkFrame(parent, fg_color='transparent')
@@ -2621,7 +2541,6 @@ class SistemaDictamenesVC(ctk.CTk):
             _add_legend_item(legend_frame, "#D9534F", "Rojo = Canceladas")
             _add_legend_item(legend_frame, "#28a745", "Verde = Completada")
 
-            # --- Botones rápidos (debajo de la leyenda) ---
             gen_top = ctk.CTkFrame(right_side_frame, fg_color='transparent')
             gen_top.pack(side='top')
 
@@ -2634,8 +2553,135 @@ class SistemaDictamenesVC(ctk.CTk):
         except Exception:
             pass
 
-        # Espaciador para empujar todo a la izquierda (opcional)
-        # ctk.CTkFrame(linea_busqueda, fg_color="transparent").pack(side="left", expand=True)
+        # --- FILA 2: tarjeta de filtros avanzados ---
+        # Cada filtro se muestra como una etiqueta pequeña (nombre del campo)
+        # encima de su control, dentro de una tarjeta con borde propio, para
+        # que se distinga claramente de la búsqueda rápida por folio y para
+        # que el usuario identifique de un vistazo qué filtra cada control.
+        panel_filtros = ctk.CTkFrame(
+            barra_superior, fg_color=STYLE["texto_claro"], corner_radius=8,
+            border_width=1, border_color=STYLE["borde_panel"]
+        )
+        panel_filtros.pack(fill="x")
+
+        filtros_izq = ctk.CTkFrame(panel_filtros, fg_color="transparent")
+        filtros_izq.pack(side="left", fill="x", expand=True, padx=10, pady=8)
+
+        def _crear_combo_filtro(etiqueta, valores, placeholder, ancho):
+            """Crea un grupo (etiqueta arriba + combo readonly abajo) para un filtro
+            y devuelve el CTkComboBox ya empacado. El placeholder equivale a
+            'sin filtro' y se maneja en `hist_buscar_general`."""
+            grupo = ctk.CTkFrame(filtros_izq, fg_color="transparent")
+            grupo.pack(side="left", padx=(0, 16))
+            ctk.CTkLabel(
+                grupo, text=etiqueta, font=("Inter", 9, "bold"),
+                text_color=STYLE["texto_secundario"]
+            ).pack(side="top", anchor="w", pady=(0, 3))
+            combo = ctk.CTkComboBox(
+                grupo, values=valores, font=("Inter", 10), state="readonly",
+                height=25, width=ancho, command=lambda v: self.hist_buscar_general()
+            )
+            combo.set(placeholder)
+            combo.pack(side="top")
+            return combo
+
+        try:
+            self.combo_filtrar_cliente = _crear_combo_filtro(
+                "Cliente", [self.FILTRO_PLACEHOLDER_CLIENTE], self.FILTRO_PLACEHOLDER_CLIENTE, 220
+            )
+        except Exception:
+            self.combo_filtrar_cliente = None
+            # fallback a entry libre si CTkComboBox no está disponible
+            grupo_fallback = ctk.CTkFrame(filtros_izq, fg_color="transparent")
+            grupo_fallback.pack(side="left", padx=(0, 16))
+            ctk.CTkLabel(
+                grupo_fallback, text="Búsqueda general", font=("Inter", 9, "bold"),
+                text_color=STYLE["texto_secundario"]
+            ).pack(side="top", anchor="w", pady=(0, 3))
+            self.entry_buscar_general = ctk.CTkEntry(
+                grupo_fallback, width=220, height=25,
+                corner_radius=6, placeholder_text="Cliente, folio, fecha, supervisor..."
+            )
+            self.entry_buscar_general.pack(side="top")
+            self.entry_buscar_general.bind("<KeyRelease>", self.hist_buscar_general)
+
+        try:
+            self.combo_filtrar_supervisor = _crear_combo_filtro(
+                "Supervisor", [self.FILTRO_PLACEHOLDER_SUPERVISOR], self.FILTRO_PLACEHOLDER_SUPERVISOR, 160
+            )
+        except Exception:
+            self.combo_filtrar_supervisor = None
+
+        try:
+            tipos_vals = [self.FILTRO_PLACEHOLDER_TIPO, "Dictamen", "Constancia", "Negación de Dictamen", "Negación de Constancia"]
+            self.combo_filtrar_tipo = _crear_combo_filtro(
+                "Tipo de documento", tipos_vals, self.FILTRO_PLACEHOLDER_TIPO, 170
+            )
+        except Exception:
+            self.combo_filtrar_tipo = None
+
+        try:
+            estados = [self.FILTRO_PLACEHOLDER_ESTATUS, "Pendiente", "Completada", "Cancelada"]
+            self.combo_filtrar_estatus = _crear_combo_filtro(
+                "Estatus", estados, self.FILTRO_PLACEHOLDER_ESTATUS, 130
+            )
+        except Exception:
+            self.combo_filtrar_estatus = None
+
+        try:
+            # Rango de fechas: desde / hasta (con selector de calendario si tkcalendar está instalado)
+            grupo_fechas = ctk.CTkFrame(filtros_izq, fg_color="transparent")
+            grupo_fechas.pack(side="left", padx=(0, 16))
+            ctk.CTkLabel(
+                grupo_fechas, text="Rango de fechas", font=("Inter", 9, "bold"),
+                text_color=STYLE["texto_secundario"]
+            ).pack(side="top", anchor="w", pady=(0, 3))
+            fila_fechas = ctk.CTkFrame(grupo_fechas, fg_color="transparent")
+            fila_fechas.pack(side="top")
+
+            self.entry_hist_fecha_desde = ctk.CTkEntry(fila_fechas, width=100, height=25, placeholder_text="Desde dd/mm/yyyy")
+            self.entry_hist_fecha_desde.pack(side="left", padx=(0, 4))
+            self.entry_hist_fecha_desde.bind("<KeyRelease>", lambda e: self.hist_buscar_general())
+            try:
+                self.btn_hist_fecha_desde = ctk.CTkButton(fila_fechas, text="📅", width=28, height=25, corner_radius=6, command=lambda e=self.entry_hist_fecha_desde: self._open_calendar_for_entry(e))
+                self.btn_hist_fecha_desde.pack(side="left", padx=(0,6))
+            except Exception:
+                self.btn_hist_fecha_desde = tk.Button(fila_fechas, text="📅", width=3, command=lambda e=self.entry_hist_fecha_desde: self._open_calendar_for_entry(e))
+                self.btn_hist_fecha_desde.pack(side="left", padx=(0,6))
+
+            self.entry_hist_fecha_hasta = ctk.CTkEntry(fila_fechas, width=100, height=25, placeholder_text="Hasta dd/mm/yyyy")
+            self.entry_hist_fecha_hasta.pack(side="left", padx=(0, 4))
+            self.entry_hist_fecha_hasta.bind("<KeyRelease>", lambda e: self.hist_buscar_general())
+            try:
+                self.btn_hist_fecha_hasta = ctk.CTkButton(fila_fechas, text="📅", width=28, height=25, corner_radius=6, command=lambda e=self.entry_hist_fecha_hasta: self._open_calendar_for_entry(e))
+                self.btn_hist_fecha_hasta.pack(side="left")
+            except Exception:
+                self.btn_hist_fecha_hasta = tk.Button(fila_fechas, text="📅", width=3, command=lambda e=self.entry_hist_fecha_hasta: self._open_calendar_for_entry(e))
+                self.btn_hist_fecha_hasta.pack(side="left")
+        except Exception:
+            self.entry_hist_fecha_desde = None
+            self.entry_hist_fecha_hasta = None
+            self.btn_hist_fecha_desde = None
+            self.btn_hist_fecha_hasta = None
+
+        # --- Acciones de la tarjeta (derecha): limpiar filtros / limpiar todo ---
+        filtros_der = ctk.CTkFrame(panel_filtros, fg_color="transparent")
+        filtros_der.pack(side="right", padx=10, pady=8)
+
+        try:
+            ctk.CTkButton(
+                filtros_der, text="Limpiar filtros", command=self.hist_limpiar_filtros,
+                width=110, height=25, corner_radius=6,
+                fg_color=STYLE["secundario"], text_color=STYLE["surface"]
+            ).pack(side="left", padx=(0, 8))
+        except Exception:
+            tk.Button(filtros_der, text="Limpiar filtros", command=self.hist_limpiar_filtros, width=15).pack(side="left", padx=(0, 8))
+
+        ctk.CTkButton(
+            filtros_der, text="X", command=self.hist_limpiar_busqueda,
+            width=32, height=25, corner_radius=6,
+            fg_color=STYLE["advertencia"], text_color=STYLE["surface"]
+        ).pack(side="left")
 
         # ===========================================================
         # TABLA CON ENCABEZADOS CORREGIDOS (como en la imagen)
@@ -9021,11 +9067,18 @@ class SistemaDictamenesVC(ctk.CTk):
                     encontrados.append(r)
                 except Exception:
                     continue
+        # Fuente estable para poblar las opciones de los filtros: el historial
+        # completo sin filtrar (no `regs`, que ya viene recortado por el
+        # filtro activo). Si se usara `regs` aquí, cada búsqueda iba
+        # recortando las opciones disponibles y el combo podía perder/mostrar
+        # en blanco la selección que el usuario acababa de hacer.
+        fuente_opciones = getattr(self, 'historial_data_original', None) or regs or []
+
         # Actualizar opciones del combo de supervisores con valores únicos encontrados
         try:
             if getattr(self, 'combo_filtrar_supervisor', None):
                 sups = []
-                for r in (regs or []):
+                for r in fuente_opciones:
                     try:
                         s = (r.get('supervisor') or r.get('nfirma1') or '')
                         s = str(s).strip()
@@ -9034,8 +9087,10 @@ class SistemaDictamenesVC(ctk.CTk):
                     except Exception:
                         continue
                 try:
-                    vals = [""] + sorted(sups, key=lambda x: x.lower())
+                    actual = self.combo_filtrar_supervisor.get()
+                    vals = [self.FILTRO_PLACEHOLDER_SUPERVISOR] + sorted(sups, key=lambda x: x.lower())
                     self.combo_filtrar_supervisor.configure(values=vals)
+                    self.combo_filtrar_supervisor.set(actual if actual in vals else self.FILTRO_PLACEHOLDER_SUPERVISOR)
                 except Exception:
                     pass
         except Exception:
@@ -9044,7 +9099,7 @@ class SistemaDictamenesVC(ctk.CTk):
         try:
             if getattr(self, 'combo_filtrar_cliente', None):
                 clis = []
-                for r in (regs or []):
+                for r in fuente_opciones:
                     try:
                         c = (r.get('cliente') or '')
                         c = str(c).strip()
@@ -9053,8 +9108,10 @@ class SistemaDictamenesVC(ctk.CTk):
                     except Exception:
                         continue
                 try:
-                    vals = [""] + sorted(clis, key=lambda x: x.lower())
+                    actual = self.combo_filtrar_cliente.get()
+                    vals = [self.FILTRO_PLACEHOLDER_CLIENTE] + sorted(clis, key=lambda x: x.lower())
                     self.combo_filtrar_cliente.configure(values=vals)
+                    self.combo_filtrar_cliente.set(actual if actual in vals else self.FILTRO_PLACEHOLDER_CLIENTE)
                 except Exception:
                     pass
         except Exception:
@@ -11612,27 +11669,25 @@ class SistemaDictamenesVC(ctk.CTk):
         self._crear_formulario_visita(registro)
 
     def hist_buscar_general(self, event=None):
-        """Buscar en el historial por cualquier campo"""
+        """Aplica, de forma independiente, cada filtro de la barra de historial
+        (cliente, supervisor, tipo de documento, estatus, rango de fechas).
+
+        Cada filtro actúa como una condición AND propia: seleccionar uno no
+        depende de tener otro seleccionado (antes, si el combo de cliente
+        quedaba en blanco, se ignoraban silenciosamente supervisor/tipo/
+        estatus/fechas aunque el usuario los hubiera elegido).
+        """
         try:
             # resetear paginado al buscar
             self.HISTORIAL_PAGINA_ACTUAL = 1
             # Asegurarse de que los datos estén cargados
             if not hasattr(self, 'historial_data') or not self.historial_data:
                 self._cargar_historial()
-                
+
             # Guardar copia original si no existe
             if not hasattr(self, 'historial_data_original') or not self.historial_data_original:
                 self.historial_data_original = self.historial_data.copy()
-            
-            # Obtener filtro por cliente desde el combo (reemplaza búsqueda general)
-            busqueda_raw = ''
-            try:
-                if getattr(self, 'combo_filtrar_cliente', None):
-                    busqueda_raw = (self.combo_filtrar_cliente.get() or '').strip()
-                elif getattr(self, 'entry_buscar_general', None):
-                    busqueda_raw = (self.entry_buscar_general.get() or '').strip()
-            except Exception:
-                busqueda_raw = ''
+
             # Normalizar (quitar acentos) y bajar a minúsculas para comparaciones
             def _norm(s):
                 try:
@@ -11642,144 +11697,140 @@ class SistemaDictamenesVC(ctk.CTk):
                 except Exception:
                     return str(s).lower()
 
-            busqueda = _norm(busqueda_raw)
+            def _valor_combo(combo, placeholder):
+                """Devuelve el valor seleccionado de un combo de filtro, o ''
+                si no existe o está en su placeholder (equivale a 'sin filtro')."""
+                try:
+                    if not combo:
+                        return ''
+                    v = (combo.get() or '').strip()
+                    if not v or v == placeholder:
+                        return ''
+                    return v
+                except Exception:
+                    return ''
 
-            if not busqueda_raw:
-                # Si no hay búsqueda, mostrar todos los datos
+            cliente_f = _valor_combo(getattr(self, 'combo_filtrar_cliente', None), self.FILTRO_PLACEHOLDER_CLIENTE)
+            sup_f = _valor_combo(getattr(self, 'combo_filtrar_supervisor', None), self.FILTRO_PLACEHOLDER_SUPERVISOR)
+            tipo_f = _valor_combo(getattr(self, 'combo_filtrar_tipo', None), self.FILTRO_PLACEHOLDER_TIPO)
+            est_f = _valor_combo(getattr(self, 'combo_filtrar_estatus', None), self.FILTRO_PLACEHOLDER_ESTATUS)
+
+            # Texto libre (solo existe como fallback cuando CTkComboBox no está disponible)
+            texto_libre = ''
+            if not getattr(self, 'combo_filtrar_cliente', None):
+                try:
+                    if getattr(self, 'entry_buscar_general', None):
+                        texto_libre = (self.entry_buscar_general.get() or '').strip()
+                except Exception:
+                    texto_libre = ''
+
+            fd_raw = ''
+            fh_raw = ''
+            try:
+                if getattr(self, 'entry_hist_fecha_desde', None):
+                    fd_raw = (self.entry_hist_fecha_desde.get() or '').strip()
+                if getattr(self, 'entry_hist_fecha_hasta', None):
+                    fh_raw = (self.entry_hist_fecha_hasta.get() or '').strip()
+            except Exception:
+                pass
+
+            hay_filtros = bool(cliente_f or sup_f or tipo_f or est_f or fd_raw or fh_raw or texto_libre)
+
+            if not hay_filtros:
+                # Sin ningún filtro activo, mostrar todos los datos
                 self.historial_data = self.historial_data_original.copy()
             else:
-                # Filtrar datos
+                fd_dt = None
+                fh_dt = None
+                try:
+                    if fd_raw:
+                        fd_norm = self._normalize_fecha_str(fd_raw) if hasattr(self, '_normalize_fecha_str') else fd_raw
+                        fd_dt = datetime.strptime(fd_norm, "%d/%m/%Y")
+                except Exception:
+                    fd_dt = None
+                try:
+                    if fh_raw:
+                        fh_norm = self._normalize_fecha_str(fh_raw) if hasattr(self, '_normalize_fecha_str') else fh_raw
+                        fh_dt = datetime.strptime(fh_norm, "%d/%m/%Y")
+                except Exception:
+                    fh_dt = None
+
                 resultados = []
                 for registro in self.historial_data_original:
-                    # Buscar en todos los campos relevantes (añadir supervisor y tipo de documento)
-                    campos_busqueda = [
-                        registro.get('folio_visita', ''),
-                        registro.get('folio_acta', ''),
-                        registro.get('fecha_inicio', ''),
-                        registro.get('fecha_termino', ''),
-                        registro.get('cliente', ''),
-                        registro.get('estatus', ''),
-                        registro.get('folios_utilizados', ''),
-                        registro.get('nfirma1', ''),
-                        registro.get('nfirma2', ''),
-                        registro.get('supervisor', ''),
-                        registro.get('tipo_documento', '')
-                    ]
+                    acepta = True
 
-                    matched = False
-                    # búsqueda tradicional (substring en texto)
-                    for campo in campos_busqueda:
+                    # cliente
+                    if cliente_f and _norm(cliente_f) not in _norm(registro.get('cliente', '') or ''):
+                        acepta = False
+
+                    # supervisor
+                    if acepta and sup_f and _norm(sup_f) not in _norm(registro.get('supervisor', '') or ''):
+                        acepta = False
+
+                    # tipo de documento
+                    if acepta and tipo_f and _norm(tipo_f) not in _norm(registro.get('tipo_documento', '') or ''):
+                        acepta = False
+
+                    # estatus
+                    if acepta and est_f and _norm(est_f) not in _norm(registro.get('estatus', '') or ''):
+                        acepta = False
+
+                    # rango de fechas (sobre fecha_inicio)
+                    if acepta and (fd_dt or fh_dt):
+                        reg_fecha_s = registro.get('fecha_inicio') or registro.get('fecha_creacion') or ''
+                        reg_fecha_norm = self._normalize_fecha_str(reg_fecha_s) if hasattr(self, '_normalize_fecha_str') else reg_fecha_s
                         try:
-                            if busqueda in _norm(campo):
-                                matched = True
-                                break
+                            reg_dt = datetime.strptime(reg_fecha_norm, "%d/%m/%Y")
                         except Exception:
-                            continue
+                            reg_dt = None
+                        if reg_dt is not None:
+                            if fd_dt and reg_dt < fd_dt:
+                                acepta = False
+                            if fh_dt and reg_dt > fh_dt:
+                                acepta = False
 
-                    # Si no coincidió, intentar comparar solo dígitos (útil para folios con padding)
-                    if not matched:
-                        digits_search = ''.join([c for c in busqueda_raw if c.isdigit()])
-                        if digits_search:
-                            for campo in campos_busqueda:
-                                campo_digits = ''.join([c for c in str(campo) if c.isdigit()])
-                                if campo_digits and digits_search in campo_digits:
+                    # texto libre (fallback): coincide con cualquier campo relevante
+                    if acepta and texto_libre:
+                        campos_busqueda = [
+                            registro.get('folio_visita', ''),
+                            registro.get('folio_acta', ''),
+                            registro.get('fecha_inicio', ''),
+                            registro.get('fecha_termino', ''),
+                            registro.get('cliente', ''),
+                            registro.get('estatus', ''),
+                            registro.get('folios_utilizados', ''),
+                            registro.get('nfirma1', ''),
+                            registro.get('nfirma2', ''),
+                            registro.get('supervisor', ''),
+                            registro.get('tipo_documento', '')
+                        ]
+                        matched = False
+                        texto_norm = _norm(texto_libre)
+                        for campo in campos_busqueda:
+                            try:
+                                if texto_norm in _norm(campo):
                                     matched = True
                                     break
+                            except Exception:
+                                continue
+                        if not matched:
+                            digits_search = ''.join([c for c in texto_libre if c.isdigit()])
+                            if digits_search:
+                                for campo in campos_busqueda:
+                                    campo_digits = ''.join([c for c in str(campo) if c.isdigit()])
+                                    if campo_digits and digits_search in campo_digits:
+                                        matched = True
+                                        break
+                        if not matched:
+                            acepta = False
 
-                    if matched:
-                        # aplicar filtros adicionales: supervisor, tipo, estatus, rango de fecha
-                        acepta = True
-                        # Si hay filtro por cliente, exigir que coincida
-                        try:
-                            if getattr(self, 'combo_filtrar_cliente', None):
-                                cliente_sel = (self.combo_filtrar_cliente.get() or '').strip().lower()
-                                if cliente_sel:
-                                    reg_cli = str(registro.get('cliente','') or '')
-                                    if cliente_sel not in _norm(reg_cli):
-                                        acepta = False
-                        except Exception:
-                            pass
-                        # supervisor
-                        try:
-                            sup_f = ''
-                            if getattr(self, 'combo_filtrar_supervisor', None):
-                                sup_f = (self.combo_filtrar_supervisor.get() or '').strip().lower()
-                            if sup_f:
-                                reg_sup = str(registro.get('supervisor','') or '')
-                                if sup_f not in _norm(reg_sup):
-                                    aceita_tmp = False
-                                    aceita_tmp = True
-                                if sup_f and sup_f not in _norm(reg_sup):
-                                    acepta = False
-                        except Exception:
-                            pass
-                        # tipo de documento
-                        try:
-                            tipo_f = ''
-                            if getattr(self, 'combo_filtrar_tipo', None):
-                                tipo_f = (self.combo_filtrar_tipo.get() or '').strip().lower()
-                            if tipo_f:
-                                reg_tipo = str(registro.get('tipo_documento','') or '')
-                                if tipo_f not in _norm(reg_tipo):
-                                    acepta = False
-                        except Exception:
-                            pass
-                        # estatus
-                        try:
-                            est_f = ''
-                            if getattr(self, 'combo_filtrar_estatus', None):
-                                est_f = (self.combo_filtrar_estatus.get() or '').strip().lower()
-                            if est_f:
-                                reg_est = str(registro.get('estatus','') or '')
-                                if est_f not in _norm(reg_est):
-                                    acepta = False
-                        except Exception:
-                            pass
-                        # rango de fechas
-                        try:
-                            fd_raw = ''
-                            fh_raw = ''
-                            if getattr(self, 'entry_hist_fecha_desde', None):
-                                fd_raw = (self.entry_hist_fecha_desde.get() or '').strip()
-                            if getattr(self, 'entry_hist_fecha_hasta', None):
-                                fh_raw = (self.entry_hist_fecha_hasta.get() or '').strip()
-                            if fd_raw or fh_raw:
-                                # intentar parsear fecha_inicio del registro
-                                reg_fecha_s = registro.get('fecha_inicio') or registro.get('fecha_creacion') or ''
-                                reg_fecha_norm = self._normalize_fecha_str(reg_fecha_s) if hasattr(self, '_normalize_fecha_str') else reg_fecha_s
-                                try:
-                                    reg_dt = datetime.strptime(reg_fecha_norm, "%d/%m/%Y")
-                                except Exception:
-                                    reg_dt = None
-                                fd_dt = None
-                                fh_dt = None
-                                try:
-                                    if fd_raw:
-                                        fd_norm = self._normalize_fecha_str(fd_raw) if hasattr(self, '_normalize_fecha_str') else fd_raw
-                                        fd_dt = datetime.strptime(fd_norm, "%d/%m/%Y")
-                                except Exception:
-                                    fd_dt = None
-                                try:
-                                    if fh_raw:
-                                        fh_norm = self._normalize_fecha_str(fh_raw) if hasattr(self, '_normalize_fecha_str') else fh_raw
-                                        fh_dt = datetime.strptime(fh_norm, "%d/%m/%Y")
-                                except Exception:
-                                    fh_dt = None
-                                if reg_dt is not None:
-                                    if fd_dt and reg_dt < fd_dt:
-                                        acepta = False
-                                    if fh_dt and reg_dt > fh_dt:
-                                        acepta = False
-                        except Exception:
-                            pass
+                    if acepta:
+                        resultados.append(registro)
 
-                        if acepta:
-                            resultados.append(registro)
-                
                 self.historial_data = resultados
-            
+
             self._poblar_historial_ui()
-            
+
         except Exception as e:
             print(f"Error en búsqueda general: {e}")
 
@@ -11789,7 +11840,7 @@ class SistemaDictamenesVC(ctk.CTk):
         try:
             if getattr(self, 'combo_filtrar_cliente', None):
                 try:
-                    self.combo_filtrar_cliente.set("")
+                    self.combo_filtrar_cliente.set(self.FILTRO_PLACEHOLDER_CLIENTE)
                 except Exception:
                     pass
             elif getattr(self, 'entry_buscar_general', None):
@@ -11807,7 +11858,7 @@ class SistemaDictamenesVC(ctk.CTk):
         try:
             if getattr(self, 'combo_filtrar_supervisor', None):
                 try:
-                    self.combo_filtrar_supervisor.set("")
+                    self.combo_filtrar_supervisor.set(self.FILTRO_PLACEHOLDER_SUPERVISOR)
                 except Exception:
                     pass
         except Exception:
@@ -11815,7 +11866,7 @@ class SistemaDictamenesVC(ctk.CTk):
         try:
             if getattr(self, 'combo_filtrar_tipo', None):
                 try:
-                    self.combo_filtrar_tipo.set("")
+                    self.combo_filtrar_tipo.set(self.FILTRO_PLACEHOLDER_TIPO)
                 except Exception:
                     pass
         except Exception:
@@ -11823,7 +11874,7 @@ class SistemaDictamenesVC(ctk.CTk):
         try:
             if getattr(self, 'combo_filtrar_estatus', None):
                 try:
-                    self.combo_filtrar_estatus.set("")
+                    self.combo_filtrar_estatus.set(self.FILTRO_PLACEHOLDER_ESTATUS)
                 except Exception:
                     pass
         except Exception:
@@ -11859,7 +11910,7 @@ class SistemaDictamenesVC(ctk.CTk):
         try:
             if getattr(self, 'combo_filtrar_supervisor', None):
                 try:
-                    self.combo_filtrar_supervisor.set("")
+                    self.combo_filtrar_supervisor.set(self.FILTRO_PLACEHOLDER_SUPERVISOR)
                 except Exception:
                     pass
         except Exception:
@@ -11867,7 +11918,7 @@ class SistemaDictamenesVC(ctk.CTk):
         try:
             if getattr(self, 'combo_filtrar_tipo', None):
                 try:
-                    self.combo_filtrar_tipo.set("")
+                    self.combo_filtrar_tipo.set(self.FILTRO_PLACEHOLDER_TIPO)
                 except Exception:
                     pass
         except Exception:
@@ -11875,7 +11926,7 @@ class SistemaDictamenesVC(ctk.CTk):
         try:
             if getattr(self, 'combo_filtrar_estatus', None):
                 try:
-                    self.combo_filtrar_estatus.set("")
+                    self.combo_filtrar_estatus.set(self.FILTRO_PLACEHOLDER_ESTATUS)
                 except Exception:
                     pass
         except Exception:
@@ -11899,7 +11950,7 @@ class SistemaDictamenesVC(ctk.CTk):
         try:
             if getattr(self, 'combo_filtrar_cliente', None):
                 try:
-                    self.combo_filtrar_cliente.set("")
+                    self.combo_filtrar_cliente.set(self.FILTRO_PLACEHOLDER_CLIENTE)
                 except Exception:
                     pass
             elif getattr(self, 'entry_buscar_general', None):
