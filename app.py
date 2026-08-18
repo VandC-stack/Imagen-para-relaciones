@@ -7438,9 +7438,10 @@ class SistemaDictamenesVC(ctk.CTk):
                                 if filas_grp:
                                     try:
                                         self.guardar_folios_visita(folio_vis, filas_grp, persist_counter=True)
-                                    except Exception:
-                                        # no interrumpir generación si la persistencia falla
-                                        pass
+                                    except Exception as e:
+                                        # no interrumpir generación si la persistencia falla,
+                                        # pero dejar rastro (antes se perdía en silencio)
+                                        self._log_folios_visita_error(folio_vis, e)
                             except Exception:
                                 pass
                             try:
@@ -7489,8 +7490,8 @@ class SistemaDictamenesVC(ctk.CTk):
                                     try:
                                         if filas_grp:
                                             self.guardar_folios_visita(folio_vis, filas_grp, persist_counter=True)
-                                    except Exception:
-                                        pass
+                                    except Exception as e:
+                                        self._log_folios_visita_error(folio_vis, e)
 
                                     try:
                                         tabla_relacion_path = os.path.join(DATA_DIR, 'tabla_de_relacion.json')
@@ -10376,9 +10377,30 @@ class SistemaDictamenesVC(ctk.CTk):
                 "folios": folios_data
             }
 
-            with open(archivo_folios, 'w', encoding='utf-8') as f:
-                json.dump(data_to_write, f, ensure_ascii=False, indent=2)
-            
+            # Escritura con reintentos: la carpeta `data` vive dentro de una
+            # carpeta sincronizada (Dropbox/OneDrive), que puede bloquear el
+            # archivo brevemente mientras sincroniza. Sin reintentos, un
+            # PermissionError/OSError transitorio aquí se perdía en silencio
+            # (el llamador solo hace `except Exception: pass`) y la visita
+            # quedaba sin su archivo de folios pese a que el documento sí se
+            # generó correctamente.
+            last_err = None
+            for intento in range(5):
+                try:
+                    tmp_path = archivo_folios + '.tmp'
+                    with open(tmp_path, 'w', encoding='utf-8') as f:
+                        json.dump(data_to_write, f, ensure_ascii=False, indent=2)
+                    os.replace(tmp_path, archivo_folios)
+                    last_err = None
+                    break
+                except Exception as e:
+                    last_err = e
+                    time.sleep(0.4 * (intento + 1))
+
+            if last_err is not None:
+                self._log_folios_visita_error(folio_visita, last_err)
+                return False
+
             print(f"✅ Folios guardados para visita {folio_visita}: {len(folios_data)} registros")
             # Actualizar contador legacy `folio_counter.json` con el mayor folio
             # Usamos el módulo `folio_manager` para escritura atómica y lockado.
@@ -10427,10 +10449,29 @@ class SistemaDictamenesVC(ctk.CTk):
                 except Exception:
                     pass
             return True
-            
+
         except Exception as e:
-            print(f"❌ Error guardando folios para visita {folio_visita}: {e}")
+            self._log_folios_visita_error(folio_visita, e)
             return False
+
+    def _log_folios_visita_error(self, folio_visita, error):
+        """Registra en un log persistente un fallo al guardar `folios_<visita>.json`.
+
+        `print()` no sirve como diagnóstico en el .exe empaquetado (no hay
+        consola), y los llamadores de `guardar_folios_visita` sólo hacen
+        `except Exception: pass`, así que sin esto un fallo de guardado
+        (p.ej. bloqueo de archivo por sincronización de Dropbox/OneDrive)
+        desaparecía sin dejar rastro.
+        """
+        try:
+            import traceback
+            log_path = os.path.join(DATA_DIR, 'folios_visitas_errors.log')
+            with open(log_path, 'a', encoding='utf-8') as lf:
+                lf.write(f"[{datetime.now().isoformat()}] visita={folio_visita} error={error}\n")
+                lf.write(traceback.format_exc() + '\n')
+            print(f"❌ Error guardando folios para visita {folio_visita}: {error}")
+        except Exception:
+            pass
 
     def descargar_folios_visita(self, registro):
         """Descarga los folios de una visita en formato Excel con columnas personalizadas"""
