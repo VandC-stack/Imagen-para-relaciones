@@ -6712,6 +6712,39 @@ class SistemaDictamenesVC(ctk.CTk):
         )
 
     # ----------------- Helpers para folio documento (visual) -----------------
+    def _max_folio_in_value(self, fol):
+        """Extrae el folio numérico máximo representado en `fol`, que puede ser
+        un entero, un folio simple ("001557"), un rango ("001554 - 001557")
+        o una lista/CSV de folios. Nunca concatena dígitos de números distintos
+        (eso producía folios siguientes absurdamente grandes, ej. "067401 - 067445"
+        interpretado como 67401067445)."""
+        try:
+            if fol is None:
+                return None
+            if isinstance(fol, bool):
+                return None
+            if isinstance(fol, (int, float)):
+                return int(fol)
+            if isinstance(fol, (list, tuple, set)):
+                vals = [self._max_folio_in_value(x) for x in fol]
+                vals = [v for v in vals if v is not None]
+                return max(vals) if vals else None
+            s = str(fol).strip()
+            if not s:
+                return None
+            if '-' in s or ',' in s:
+                sep = '-' if '-' in s else ','
+                vals = []
+                for p in s.split(sep):
+                    digits = ''.join(c for c in p if c.isdigit())
+                    if digits:
+                        vals.append(int(digits))
+                return max(vals) if vals else None
+            digits = ''.join(c for c in s if c.isdigit())
+            return int(digits) if digits else None
+        except Exception:
+            return None
+
     def _get_next_document_folio(self):
         """Calcula el siguiente folio de documento disponible a partir del historial.
         Esto es solo informativo y no persiste nada. Devuelve entero (1-based).
@@ -6732,14 +6765,9 @@ class SistemaDictamenesVC(ctk.CTk):
                                         fol = entry.get('FOLIOS') or entry.get('FOLIOS', '')
                                         if not fol:
                                             continue
-                                        digits = ''.join([c for c in str(fol) if c.isdigit()])
-                                        if digits:
-                                            try:
-                                                n = int(digits)
-                                                if n > maxf:
-                                                    maxf = n
-                                            except Exception:
-                                                pass
+                                        n = self._max_folio_in_value(fol)
+                                        if n is not None and n > maxf:
+                                            maxf = n
                             except Exception:
                                 continue
             except Exception:
@@ -6751,39 +6779,18 @@ class SistemaDictamenesVC(ctk.CTk):
                 for p in getattr(self, 'pending_folios', []) or []:
                     try:
                         fus = p.get('folios_utilizados') or p.get('folios') or []
-                        if isinstance(fus, list):
-                            for f in fus:
-                                digits = ''.join([c for c in str(f) if c.isdigit()])
-                                if digits:
-                                    try:
-                                        n = int(digits)
-                                        if n > maxf:
-                                            maxf = n
-                                    except Exception:
-                                        pass
-                        else:
-                            digits = ''.join([c for c in str(fus) if c.isdigit()])
-                            if digits:
-                                try:
-                                    n = int(digits)
-                                    if n > maxf:
-                                        maxf = n
-                                except Exception:
-                                    pass
+                        n = self._max_folio_in_value(fus)
+                        if n is not None and n > maxf:
+                            maxf = n
                     except Exception:
                         continue
 
                 # También considerar `folios_utilizados_actual` (datos cargados desde la tabla)
                 try:
                     for f in getattr(self, 'folios_utilizados_actual', []) or []:
-                        digits = ''.join([c for c in str(f) if c.isdigit()])
-                        if digits:
-                            try:
-                                n = int(digits)
-                                if n > maxf:
-                                    maxf = n
-                            except Exception:
-                                pass
+                        n = self._max_folio_in_value(f)
+                        if n is not None and n > maxf:
+                            maxf = n
                 except Exception:
                     pass
             except Exception:
