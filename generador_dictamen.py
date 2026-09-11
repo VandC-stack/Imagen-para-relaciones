@@ -2616,14 +2616,23 @@ def generar_dictamenes_completos(directorio_destino, cliente_manual=None, rfc_ma
     success = dictamenes_generados > 0
     return success, mensaje if success else "No se pudo generar ningún dictamen", resultado
 
-def generar_dictamenes_gui(callback_progreso=None, callback_finalizado=None, cliente_manual=None, rfc_manual=None):
+def generar_dictamenes_gui(callback_progreso=None, callback_finalizado=None, cliente_manual=None, rfc_manual=None, directorio_destino=None):
     try:
-        import tkinter as tk
-        from tkinter import filedialog
-        root = tk.Tk()
-        root.withdraw()
-        directorio_destino = filedialog.askdirectory(title="Seleccione dónde guardar los dictámenes")
-        root.destroy()
+        if directorio_destino is None:
+            # NOTA: esta función puede ejecutarse desde un hilo en segundo plano
+            # (ver app.py -> _ejecutar_generador_con_progreso). Crear aquí un
+            # tk.Tk() propio mientras el hilo principal ya tiene su propio Tk en
+            # ejecución corrompe el estado de Tcl para ese hilo y provoca fallos
+            # silenciosos más adelante (p. ej. al registrar la visita en el
+            # historial). Por eso se prefiere que el llamador pida la carpeta en
+            # el hilo principal y la pase aquí; este bloque queda solo como
+            # fallback para invocaciones fuera de la app (p. ej. __main__).
+            import tkinter as tk
+            from tkinter import filedialog
+            root = tk.Tk()
+            root.withdraw()
+            directorio_destino = filedialog.askdirectory(title="Seleccione dónde guardar los dictámenes")
+            root.destroy()
         if not directorio_destino:
             if callback_finalizado:
                 callback_finalizado(False, "Operación cancelada por el usuario", None)

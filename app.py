@@ -7619,7 +7619,32 @@ class SistemaDictamenesVC(ctk.CTk):
             # flujo por defecto: dictámenes
             sys.path.append(BASE_DIR)
             from generador_dictamen import generar_dictamenes_gui
-            
+
+            # Solicitar la carpeta destino en el hilo principal. Crear un
+            # tk.Tk() nuevo dentro de este hilo en segundo plano (como hacía
+            # antes generar_dictamenes_gui) corrompe el estado de Tcl para
+            # este hilo y provoca que el registro automático de la visita en
+            # el historial falle en silencio más adelante.
+            selected_dir = {'done': False, 'path': None}
+            def _askdir_dictamenes():
+                try:
+                    p = filedialog.askdirectory(title="Seleccione dónde guardar los dictámenes")
+                except Exception:
+                    p = ''
+                selected_dir['path'] = p or ''
+                selected_dir['done'] = True
+
+            if self.winfo_exists():
+                self.after(0, _askdir_dictamenes)
+
+            timeout = 60.0
+            waited = 0.0
+            while not selected_dir['done'] and waited < timeout:
+                time.sleep(0.05)
+                waited += 0.05
+
+            directorio_destino_sel = selected_dir['path'] or None
+
             def actualizar_progreso(porcentaje, mensaje):
                 # VERIFICACIÓN EN CALLBACK
                 if self.winfo_exists():
@@ -7710,13 +7735,17 @@ class SistemaDictamenesVC(ctk.CTk):
                     if self.winfo_exists():
                         self.after(0, lambda: self.mostrar_error(mensaje) if self.winfo_exists() else None)
             
-            # LLAMADA CORREGIDA - sin folios_info
-            generar_dictamenes_gui(
-                cliente_manual=self.cliente_seleccionado['CLIENTE'],
-                rfc_manual=self.cliente_seleccionado.get('RFC', ''),
-                callback_progreso=actualizar_progreso,
-                callback_finalizado=finalizado
-            )
+            if not directorio_destino_sel:
+                finalizado(False, "Operación cancelada por el usuario", None)
+            else:
+                # LLAMADA CORREGIDA - sin folios_info
+                generar_dictamenes_gui(
+                    cliente_manual=self.cliente_seleccionado['CLIENTE'],
+                    rfc_manual=self.cliente_seleccionado.get('RFC', ''),
+                    callback_progreso=actualizar_progreso,
+                    callback_finalizado=finalizado,
+                    directorio_destino=directorio_destino_sel
+                )
             
         except Exception as e:
             error_msg = f"Error iniciando generador: {str(e)}"
