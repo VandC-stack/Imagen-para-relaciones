@@ -7203,7 +7203,7 @@ class SistemaDictamenesVC(ctk.CTk):
 
             if 'CONSTANCIA' in tipo_upper:
                 try:
-                    import importlib.util, time
+                    import importlib.util
                     const_file = os.path.join(BASE_DIR, 'Documentos Inspeccion', 'Constancia.py')
                     if os.path.exists(const_file):
                         spec = importlib.util.spec_from_file_location('Constancia', const_file)
