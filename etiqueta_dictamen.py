@@ -16,6 +16,37 @@ from reportlab.lib.pagesizes import letter
 from io import BytesIO
 from reportlab.lib.utils import ImageReader
 
+
+def _normalizar_codigo(valor):
+    """Normaliza un código (EAN/CODIGO) que puede venir como float, int o str.
+
+    Excel/pandas suele guardar columnas numéricas como float (797766.0), mientras
+    que otras fuentes (tabla de relación) las guardan como string ('797766').
+    Sin esta normalización, `str(797766.0) == '797766.0'` nunca coincide con
+    `'797766'` y el producto nunca se encuentra en la base de etiquetado.
+    """
+    if valor is None:
+        return ''
+    if isinstance(valor, float):
+        if valor != valor:  # NaN
+            return ''
+        if valor.is_integer():
+            return str(int(valor))
+        return str(valor).strip()
+    if isinstance(valor, int):
+        return str(valor)
+    s = str(valor).strip()
+    if s.lower() == 'nan':
+        return ''
+    if s.endswith('.0'):
+        try:
+            float(s)
+            s = s[:-2]
+        except Exception:
+            pass
+    return s
+
+
 class GeneradorEtiquetasDecathlon:
     def __init__(self):
         # Detectar ruta de `data` en tres lugares (preferir carpeta junto al exe):
@@ -202,12 +233,13 @@ class GeneradorEtiquetasDecathlon:
     
     def buscar_en_tabla_relacion(self, codigo):
         """Busca un código en la tabla de relación (que es una lista)"""
+        codigo_norm = _normalizar_codigo(codigo)
         for item in self.tabla_relacion:
             # Intentar buscar por EAN primero
-            if str(item.get('EAN', '')).strip() == str(codigo).strip():
+            if _normalizar_codigo(item.get('EAN', '')) == codigo_norm:
                 return item
             # Si no encuentra por EAN, intentar por CODIGO
-            if str(item.get('CODIGO', '')).strip() == str(codigo).strip():
+            if _normalizar_codigo(item.get('CODIGO', '')) == codigo_norm:
                 return item
         return None
 
@@ -224,7 +256,7 @@ class GeneradorEtiquetasDecathlon:
             except Exception:
                 return ''
 
-        target_codigo = _norm(codigo)
+        target_codigo = _normalizar_codigo(codigo)
         target_solicitud = _norm(solicitud)
         target_marca = _norm(marca)
         target_pais = _norm(pais_origen)
@@ -240,8 +272,8 @@ class GeneradorEtiquetasDecathlon:
                 return ''
 
         for item in self.tabla_relacion:
-            ean = _norm(item.get('EAN'))
-            cod = _norm(item.get('CODIGO'))
+            ean = _normalizar_codigo(item.get('EAN'))
+            cod = _normalizar_codigo(item.get('CODIGO'))
             if not (ean == target_codigo or cod == target_codigo):
                 continue
 
@@ -276,8 +308,9 @@ class GeneradorEtiquetasDecathlon:
     
     def buscar_producto_por_ean(self, ean):
         """Busca un producto en la base por EAN"""
+        ean_norm = _normalizar_codigo(ean)
         for producto in self.base_etiquetado:
-            if str(producto.get('EAN', '')).strip() == str(ean).strip():
+            if _normalizar_codigo(producto.get('EAN', '')) == ean_norm:
                 return producto
         return None
     
@@ -552,27 +585,44 @@ class GeneradorEtiquetasDecathlon:
             # Esto evita reutilizar la misma etiqueta base cuando el mismo EAN
             # corresponde a productos distintos según solicitud/marca/pais.
             try:
+                # Índice case-insensitive de las claves reales presentes en
+                # producto_relacionado, para no depender de que el encabezado
+                # del Excel tenga exactamente la mayúscula/minúscula esperada
+                # (p.ej. 'Importador' o 'importador' en vez de 'IMPORTADOR').
+                claves_normalizadas = {}
+                for k in producto_relacionado.keys():
+                    nk = str(k).strip().upper()
+                    if nk not in claves_normalizadas:
+                        claves_normalizadas[nk] = k
+
                 # Normalizar y mapear variantes de campos desde tabla_relacion
                 mapping = {
-                    'MARCA': ['MARCA', 'Marca', 'marca'],
+                    'MARCA': ['MARCA'],
                     # Aceptar múltiples variantes de nombre para el país/origen
-                    'PAIS ORIGEN': ['PAIS DE ORIGEN', 'PAIS_DE_ORIGEN'],
+                    'PAIS ORIGEN': ['PAIS DE ORIGEN', 'PAIS_DE_ORIGEN', 'PAIS ORIGEN', 'PAIS'],
                     'DESCRIPCION': ['DESCRIPCION', 'DESCRIPCIÓN'],
                     'INSUMOS': ['INSUMOS', 'INSUMO'],
                     'TALLA': ['TALLA'],
                     'IMPORTADOR': ['IMPORTADOR'],
-                    'EAN': ['EAN', 'CODIGO', 'Codigo', 'codigo']
+                    'EAN': ['EAN', 'CODIGO']
                 }
 
                 for target_key, variants in mapping.items():
                     for var in variants:
-                        if var in producto_relacionado and producto_relacionado.get(var) not in (None, ''):
-                            producto[target_key] = producto_relacionado.get(var)
+                        real_key = claves_normalizadas.get(var.strip().upper())
+                        if real_key is not None and producto_relacionado.get(real_key) not in (None, ''):
+                            producto[target_key] = producto_relacionado.get(real_key)
                             break
 
                 # Asegurar EAN presente (fallback adicional)
                 if 'EAN' not in producto or not producto.get('EAN'):
-                    producto['EAN'] = producto_relacionado.get('EAN') or producto_relacionado.get('CODIGO') or codigo
+                    ean_key = claves_normalizadas.get('EAN')
+                    cod_key = claves_normalizadas.get('CODIGO')
+                    producto['EAN'] = (
+                        (producto_relacionado.get(ean_key) if ean_key else None)
+                        or (producto_relacionado.get(cod_key) if cod_key else None)
+                        or codigo
+                    )
             except Exception:
                 pass
             
