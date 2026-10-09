@@ -11721,23 +11721,72 @@ class SistemaDictamenesVC(ctk.CTk):
             else:
                 historial_path_to_use = self.historial_path
                 historial_list_to_pass = None
-            excel_mod.generar_control_folios_anual(
-                historial_path_to_use,
-                tabla_backups_dir,
-                file_path,
-                year,
-                start_date=start_date,
-                end_date=end_date,
-                export_cache=export_cache,
-                historial_list=historial_list_to_pass
-            )
-            
-            messagebox.showinfo("Éxito", f"Control de Folios Anual generado exitosamente:\n{file_path}")
-            
-            # Preguntar si abrir el archivo
-            if messagebox.askyesno("Abrir archivo", "¿Desea abrir el archivo descargado?"):
-                self._abrir_archivo(file_path)
-                
+            # Ventana de progreso: la generación lee data/Dictamenes (decenas de
+            # miles de archivos), así que corre en un hilo para no congelar la UI.
+            progreso = ctk.CTkToplevel(self)
+            progreso.title("Generando Reporte EMA")
+            progreso.geometry("420x130")
+            progreso.resizable(False, False)
+            progreso.transient(self)
+            progreso.grab_set()
+            progreso.protocol("WM_DELETE_WINDOW", lambda: None)
+            lbl_progreso = ctk.CTkLabel(progreso, text="Preparando datos...", anchor="w")
+            lbl_progreso.pack(fill="x", padx=16, pady=(18, 8))
+            barra_progreso = ctk.CTkProgressBar(progreso, width=380)
+            barra_progreso.pack(padx=16, pady=(0, 16))
+            barra_progreso.set(0)
+
+            def _actualizar_progreso(hechos, total, mensaje):
+                try:
+                    if progreso.winfo_exists():
+                        lbl_progreso.configure(text=mensaje)
+                        barra_progreso.set(hechos / total if total else 0)
+                except Exception:
+                    pass
+
+            def _progress_cb(hechos, total, mensaje):
+                # Se invoca desde el hilo de trabajo: delegar al hilo de Tk
+                self.after(0, _actualizar_progreso, hechos, total, mensaje)
+
+            def _cerrar_progreso():
+                try:
+                    progreso.grab_release()
+                    progreso.destroy()
+                except Exception:
+                    pass
+
+            def _al_terminar(error):
+                _cerrar_progreso()
+                if not self.winfo_exists():
+                    return
+                if error is not None:
+                    messagebox.showerror("Error", f"No se pudo generar el control de folios anual:\n{error}")
+                    return
+                messagebox.showinfo("Éxito", f"Control de Folios Anual generado exitosamente:\n{file_path}")
+                # Preguntar si abrir el archivo
+                if messagebox.askyesno("Abrir archivo", "¿Desea abrir el archivo descargado?"):
+                    self._abrir_archivo(file_path)
+
+            def _worker():
+                error = None
+                try:
+                    excel_mod.generar_control_folios_anual(
+                        historial_path_to_use,
+                        tabla_backups_dir,
+                        file_path,
+                        year,
+                        start_date=start_date,
+                        end_date=end_date,
+                        export_cache=export_cache,
+                        historial_list=historial_list_to_pass,
+                        progress_cb=_progress_cb
+                    )
+                except Exception as e:
+                    error = str(e)
+                self.after(0, _al_terminar, error)
+
+            threading.Thread(target=_worker, daemon=True).start()
+
         except Exception as e:
             messagebox.showerror("Error", f"No se pudo generar el control de folios anual:\n{str(e)}")
 

@@ -1,12 +1,23 @@
+import hashlib
 import json
 import os
 import re
-from datetime import datetime
-from typing import Dict, List, Optional, Tuple
+from concurrent.futures import ThreadPoolExecutor
+from copy import copy
+from datetime import datetime, timedelta
+from typing import Callable, Dict, List, Optional, Tuple
 import unicodedata
 import openpyxl
+from openpyxl.cell import WriteOnlyCell
 from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
 from openpyxl.utils import get_column_letter
+
+# Claves del JSON de dictamen que realmente usa el reporte. Se descarta el resto
+# para que el índice en memoria/caché siga siendo manejable con decenas de miles
+# de archivos en data/Dictamenes.
+_CLAVES_DICTAMEN = ('identificacion', 'norma', 'cliente', 'cliente_info', 'clienteDatos',
+                    'firmas', 'tabla_productos', 'producto', 'fechas')
+_VERSION_CACHE_INDICE = 1
 
 class ControlFoliosAnual:
     """Clase para generar el control de folios anual desde archivos JSON"""
@@ -25,10 +36,26 @@ class ControlFoliosAnual:
         self.historial_visitas = []
         self.folio_to_cliente = {}  # Mapeo de folio a cliente
         self.normas = []
-        self._dictamen_cache = {}
+        # Índice de data/Dictamenes + data/Constancias (se construye una sola vez)
+        self._indice: Optional[List[Dict]] = None
+        self._indice_por_folio: Dict[int, List[Dict]] = {}
+        self._find_memo: Dict[Tuple[str, str], Optional[Dict]] = {}
         # Mapeo (SOLICITUD, FOLIO) -> FECHA DE ENTRADA extraída de backups
         self.backup_fecha_entrada: Dict[Tuple[str, str], str] = {}
-        
+        # Índices secundarios para _lookup_backup_fecha (primer valor encontrado)
+        self._backup_por_sol: Dict[str, str] = {}
+        self._backup_por_folio: Dict[str, str] = {}
+        self._backup_memo: Dict[str, Optional[str]] = {}
+        # Callback opcional de progreso: progress_cb(hechos, total, mensaje)
+        self.progress_cb: Optional[Callable[[int, int, str], None]] = None
+
+    def _reportar_progreso(self, hechos: int, total: int, mensaje: str):
+        if self.progress_cb:
+            try:
+                self.progress_cb(hechos, total, mensaje)
+            except Exception:
+                pass
+
     def cargar_datos(self) -> Tuple[bool, str]:
         """
         Cargar todos los archivos JSON necesarios
@@ -126,6 +153,8 @@ class ControlFoliosAnual:
                                 # preferir la primera encontrada (no sobrescribir)
                                 if key not in self.backup_fecha_entrada:
                                     self.backup_fecha_entrada[key] = str(fecha_ent)
+                                self._backup_por_sol.setdefault(sol, str(fecha_ent))
+                                self._backup_por_folio.setdefault(fol, str(fecha_ent))
                 else:
                     # si no existe carpeta de backups, seguir silenciosamente
                     pass
@@ -260,6 +289,11 @@ class ControlFoliosAnual:
             if hasattr(value, 'strftime'):
                 return value.strftime("%d/%m/%Y")
             s = str(value).strip()
+            # Número de serie de Excel (ej. 46094 -> 10/03/2026) que quedó así
+            # al importar la tabla. Rango acotado a 2000-2064 para no confundir
+            # otros números con fechas.
+            if re.fullmatch(r"\d{5}(\.0+)?", s) and 36526 <= int(float(s)) <= 60000:
+                return (datetime(1899, 12, 30) + timedelta(days=int(float(s)))).strftime("%d/%m/%Y")
             # If already in DD/MM/YYYY
             if '/' in s and len(s.split('/')[0]) <= 2:
                 parts = s.split('/')
@@ -332,6 +366,163 @@ class ControlFoliosAnual:
             return f"{penult}-{last}"
         return numero_solicitud
 
+    # ------------------------------------------------------------------
+    # Índice de dictámenes
+    # ------------------------------------------------------------------
+    # Con decenas de miles de archivos en data/Dictamenes, abrir cada JSON en
+    # cada búsqueda vuelve el reporte inutilizable (y en carpetas sincronizadas
+    # con Dropbox/OneDrive cada lectura puede forzar una descarga). Se recorre
+    # la carpeta una sola vez, se guarda sólo lo necesario de cada JSON y se
+    # persiste en una caché local (fuera de la carpeta sincronizada) que se
+    # invalida por archivo usando tamaño + fecha de modificación.
+
+    def _ruta_cache_indice(self) -> str:
+        base = os.environ.get('LOCALAPPDATA') or os.path.join(os.path.expanduser('~'), '.cache')
+        clave = hashlib.md5(os.path.abspath(self.data_dir).lower().encode('utf-8')).hexdigest()[:12]
+        return os.path.join(base, 'GeneradorDictamenes', 'cache', f'indice_dictamenes_{clave}.json')
+
+    @staticmethod
+    def _reducir_dictamen(d) -> Optional[Dict]:
+        """Conservar sólo las claves del JSON que usa el reporte."""
+        if not isinstance(d, dict):
+            return None
+        r = {k: d[k] for k in _CLAVES_DICTAMEN if k in d}
+        tp = r.get('tabla_productos')
+        if isinstance(tp, list):
+            r['tabla_productos'] = [
+                {'codigo': p.get('codigo'), 'marca': p.get('marca')}
+                for p in tp if isinstance(p, dict)
+            ]
+        firmas = r.get('firmas')
+        if isinstance(firmas, dict):
+            reducidas = {}
+            for k in ('firma1', 'firma2'):
+                f = firmas.get(k)
+                if isinstance(f, dict):
+                    reducidas[k] = {c: f.get(c) for c in ('nombre', 'codigo_solicitado', 'codigo') if c in f}
+            r['firmas'] = reducidas
+        return r
+
+    def _cargar_indice_dictamenes(self) -> List[Dict]:
+        """Devuelve [{'sub', 'name', 'tipo', 'ok', 'd'}] para Dictamenes y Constancias."""
+        if self._indice is not None:
+            return self._indice
+
+        cache_path = self._ruta_cache_indice()
+        cache_previa: Dict[str, Dict] = {}
+        try:
+            with open(cache_path, 'r', encoding='utf-8') as f:
+                c = json.load(f)
+            if isinstance(c, dict) and c.get('version') == _VERSION_CACHE_INDICE:
+                cache_previa = c.get('archivos') or {}
+        except Exception:
+            cache_previa = {}
+
+        # 1) Listar archivos (scandir trae tamaño/fecha sin abrir los archivos)
+        archivos = []
+        for sub in ('Dictamenes', 'Constancias'):
+            dpath = os.path.join(self.data_dir, sub)
+            try:
+                with os.scandir(dpath) as it:
+                    for e in it:
+                        low = e.name.lower()
+                        if not (low.endswith('.json') or low.endswith('.pdf')):
+                            continue
+                        try:
+                            st = e.stat()
+                            archivos.append((sub, e.name, e.path, st.st_mtime, st.st_size))
+                        except OSError:
+                            continue
+            except OSError:
+                continue
+
+        # 2) Leer sólo los archivos nuevos o modificados. Cada apertura tiene
+        # una latencia alta (antivirus / sincronización), así que se leen en
+        # paralelo: el costo es de espera de E/S, no de CPU.
+        def _leer(item):
+            sub, name, path, _mtime, _size = item
+            if not name.lower().endswith('.json'):
+                return {'sub': sub, 'name': name, 'tipo': 'pdf', 'ok': True, 'd': None}
+            try:
+                with open(path, 'r', encoding='utf-8') as f:
+                    d = self._reducir_dictamen(json.load(f))
+                return {'sub': sub, 'name': name, 'tipo': 'json', 'ok': d is not None, 'd': d}
+            except Exception:
+                return {'sub': sub, 'name': name, 'tipo': 'json', 'ok': False, 'd': None}
+
+        total = len(archivos)
+        entradas: List[Optional[Dict]] = [None] * total
+        pendientes = []
+        for i, item in enumerate(archivos):
+            prev = cache_previa.get(f"{item[0]}/{item[1]}")
+            if prev and prev.get('mtime') == item[3] and prev.get('size') == item[4]:
+                entradas[i] = prev['rec']
+            else:
+                pendientes.append(i)
+
+        leidos = len(pendientes)
+        hechos = total - leidos
+        self._reportar_progreso(hechos, total, f"Indexando dictámenes ({hechos:,}/{total:,})")
+        if pendientes:
+            with ThreadPoolExecutor(max_workers=16) as ex:
+                for n, (i, entrada) in enumerate(zip(pendientes, ex.map(lambda i: _leer(archivos[i]), pendientes)), 1):
+                    entradas[i] = entrada
+                    if n % 500 == 0 or n == leidos:
+                        self._reportar_progreso(hechos + n, total, f"Indexando dictámenes ({hechos + n:,}/{total:,})")
+
+        indice: List[Dict] = entradas  # type: ignore[assignment]
+        cache_nueva: Dict[str, Dict] = {
+            f"{sub}/{name}": {'mtime': mtime, 'size': size, 'rec': entrada}
+            for (sub, name, _path, mtime, size), entrada in zip(archivos, indice)
+        }
+
+        # 3) Persistir caché si algo cambió
+        if leidos or len(cache_nueva) != len(cache_previa):
+            try:
+                os.makedirs(os.path.dirname(cache_path), exist_ok=True)
+                tmp = cache_path + '.tmp'
+                with open(tmp, 'w', encoding='utf-8') as f:
+                    json.dump({'version': _VERSION_CACHE_INDICE, 'data_dir': os.path.abspath(self.data_dir),
+                               'archivos': cache_nueva}, f, ensure_ascii=False, separators=(',', ':'))
+                os.replace(tmp, cache_path)
+            except Exception as e:
+                print(f"⚠️ No se pudo guardar la caché del índice de dictámenes: {e}")
+
+        print(f"✅ Índice de dictámenes: {total} archivos ({leidos} leídos de disco, {total - leidos} desde caché)")
+
+        # Índice auxiliar por folio numérico (identificacion.folio) para búsquedas O(1)
+        por_folio: Dict[int, List[Dict]] = {}
+        for entrada in indice:
+            d = entrada.get('d')
+            if not d:
+                continue
+            fol = str((d.get('identificacion') or {}).get('folio', '')).strip()
+            digits = ''.join(ch for ch in fol if ch.isdigit())
+            if digits:
+                por_folio.setdefault(int(digits), []).append(entrada)
+
+        self._indice = indice
+        self._indice_por_folio = por_folio
+        return indice
+
+    @staticmethod
+    def _dictamen_desde_entrada(entrada: Dict) -> Optional[Dict]:
+        """JSON reducido de la entrada, o un dict mínimo construido del nombre si es PDF."""
+        if entrada.get('tipo') == 'json':
+            return entrada.get('d') if entrada.get('ok') else None
+        name_base = os.path.splitext(entrada.get('name', ''))[0]
+        digit_sequences = re.findall(r"(\d+)", name_base)
+        fol_guess = max(digit_sequences, key=lambda s: len(s)) if digit_sequences else ''
+        sol_match = re.search(r"([A-Za-z0-9\-]{4,})", name_base)
+        sol_guess = sol_match.group(1) if sol_match else ''
+        return {
+            'identificacion': {
+                'solicitud': sol_guess,
+                'folio': fol_guess,
+                'cadena_identificacion': ''
+            }
+        }
+
     def _find_dictamen(self, solicitud: str, folio) -> Optional[Dict]:
         """Buscar dictamen JSON en data/Dictamenes que coincida con solicitud y folio."""
         try:
@@ -341,116 +532,82 @@ class ControlFoliosAnual:
             # Si viene con formato 'XXXX/25', usar la parte antes de la barra
             sol_base = sol_search.split('/')[0] if '/' in sol_search else sol_search
 
-            # Buscar en `Dictamenes` y también en `Constancias` (nuevo tipo)
-            dicts_dir = os.path.join(self.data_dir, 'Dictamenes')
-            consts_dir = os.path.join(self.data_dir, 'Constancias')
-
-            files = []
-            for dpath in (dicts_dir, consts_dir):
-                try:
-                    if dpath in self._dictamen_cache:
-                        files.extend(self._dictamen_cache[dpath])
-                        continue
-                    if not os.path.exists(dpath):
-                        # no existe -> skip
-                        continue
-                    found = [os.path.join(dpath, f) for f in os.listdir(dpath)
-                             if f.lower().endswith('.json') or f.lower().endswith('.pdf')]
-                    self._dictamen_cache[dpath] = found
-                    files.extend(found)
-                except Exception:
-                    continue
-
-            if not files:
-                return None
-
-            # Buscamos coincidencias estrictas: preferir igualdad de folio+solicitud.
-            for fp in files:
-                fname = os.path.basename(fp)
-                # If JSON, load; if PDF, build a minimal dictamen object from filename
-                d = None
-                if fname.lower().endswith('.json'):
-                    try:
-                        with open(fp, 'r', encoding='utf-8') as f:
-                            d = json.load(f)
-                    except Exception:
-                        continue
-                elif fname.lower().endswith('.pdf'):
-                    # create minimal dict structure from filename
-                    name_base = os.path.splitext(fname)[0]
-                    digit_sequences = re.findall(r"(\d+)", name_base)
-                    fol_guess = ''
-                    sol_guess = ''
-                    if digit_sequences:
-                        fol_guess = max(digit_sequences, key=lambda s: len(s))
-                    sol_match = re.search(r"([A-Za-z0-9\-]{4,})", name_base)
-                    if sol_match:
-                        sol_guess = sol_match.group(1)
-                    d = {
-                        'identificacion': {
-                            'solicitud': sol_guess,
-                            'folio': fol_guess,
-                            'cadena_identificacion': ''
-                        }
-                    }
-                else:
-                    continue
-
-                ident = d.get('identificacion', {})
-                sol_file = str(ident.get('solicitud', '')).strip()
-                fol_file = str(ident.get('folio', '')).strip()
-                cadena = (ident.get('cadena_identificacion') or '')
-
-                # 1) Coincidencia exacta en folio y solicitud (cuando ambos estén presentes)
-                if fol_file and folio_s:
-                    equal_folio = False
-                    try:
-                        # Comparar como texto (posible padded) y como dígitos (ignorar ceros)
-                        if fol_file == folio_s:
-                            equal_folio = True
-                        else:
-                            digits_a = ''.join(ch for ch in fol_file if ch.isdigit())
-                            digits_b = ''.join(ch for ch in folio_s if ch.isdigit())
-                            if digits_a and digits_b and int(digits_a) == int(digits_b):
-                                equal_folio = True
-                    except Exception:
-                        equal_folio = False
-                    if equal_folio:
-                        if sol_base:
-                            if sol_file and (sol_file == sol_base or sol_file.endswith(sol_base)):
-                                return d
-                            # También checar si la solicitud completa aparece en la cadena_identificacion
-                            if cadena and sol_base in cadena:
-                                return d
-                            # también intentar por filename (considerar variantes sin padding)
-                            fname_digits = ''.join(ch for ch in fname if ch.isdigit())
-                            if (f"_{folio_s}_" in fname and sol_base and f"_{sol_base}_" in fname) or (digits_a and str(int(digits_a)) in fname_digits):
-                                return d
-                        else:
-                            return d
-
-                # 2) Coincidencia exacta en solicitud cuando folio no disponible
-                if sol_base and sol_file and (sol_file == sol_base or sol_file.endswith(sol_base)):
-                    return d
-
-                # 3) Intentar por filename patrones (folio y solicitud dentro del nombre)
-                try:
-                    if folio_s and f"_{folio_s}_" in fname:
-                        if sol_base:
-                            if f"_{sol_base}_" in fname:
-                                return d
-                            # si filename contiene folio pero no solicitud, aún puede ser válido
-                            return d
-                except Exception:
-                    pass
-
-                # 4) Por último, coincidencia en cadena_identificacion pero más restrictiva: buscar sol_base rodeada
-                if cadena and sol_base:
-                    if sol_base in cadena:
-                        return d
-            # Si no encontramos ninguna coincidencia estricta, devolvemos None
+            memo_key = (folio_s, sol_base)
+            if memo_key not in self._find_memo:
+                self._find_memo[memo_key] = self._find_dictamen_en_indice(folio_s, sol_base)
+            return self._find_memo[memo_key]
         except Exception:
             return None
+
+    def _find_dictamen_en_indice(self, folio_s: str, sol_base: str) -> Optional[Dict]:
+        indice = self._cargar_indice_dictamenes()
+        if not indice:
+            return None
+
+        # Ruta rápida: mismo folio numérico y solicitud compatible
+        digits_b = ''.join(ch for ch in folio_s if ch.isdigit())
+        if digits_b:
+            for entrada in self._indice_por_folio.get(int(digits_b), []):
+                d = entrada['d']
+                ident = d.get('identificacion', {})
+                sol_file = str(ident.get('solicitud', '')).strip()
+                cadena = (ident.get('cadena_identificacion') or '')
+                if not sol_base or (sol_file and (sol_file == sol_base or sol_file.endswith(sol_base))) \
+                        or (cadena and sol_base in cadena):
+                    return d
+
+        # Búsqueda completa (en memoria) con las mismas reglas de coincidencia de siempre
+        for entrada in indice:
+            fname = entrada.get('name', '')
+            d = self._dictamen_desde_entrada(entrada)
+            if d is None:
+                continue
+
+            ident = d.get('identificacion', {})
+            sol_file = str(ident.get('solicitud', '')).strip()
+            fol_file = str(ident.get('folio', '')).strip()
+            cadena = (ident.get('cadena_identificacion') or '')
+
+            # 1) Coincidencia exacta en folio y solicitud (cuando ambos estén presentes)
+            if fol_file and folio_s:
+                equal_folio = False
+                digits_a = ''
+                try:
+                    # Comparar como texto (posible padded) y como dígitos (ignorar ceros)
+                    if fol_file == folio_s:
+                        equal_folio = True
+                    else:
+                        digits_a = ''.join(ch for ch in fol_file if ch.isdigit())
+                        if digits_a and digits_b and int(digits_a) == int(digits_b):
+                            equal_folio = True
+                except Exception:
+                    equal_folio = False
+                if equal_folio:
+                    if sol_base:
+                        if sol_file and (sol_file == sol_base or sol_file.endswith(sol_base)):
+                            return d
+                        # También checar si la solicitud completa aparece en la cadena_identificacion
+                        if cadena and sol_base in cadena:
+                            return d
+                        # también intentar por filename (considerar variantes sin padding)
+                        fname_digits = ''.join(ch for ch in fname if ch.isdigit())
+                        if (f"_{folio_s}_" in fname and f"_{sol_base}_" in fname) or (digits_a and str(int(digits_a)) in fname_digits):
+                            return d
+                    else:
+                        return d
+
+            # 2) Coincidencia exacta en solicitud cuando folio no disponible
+            if sol_base and sol_file and (sol_file == sol_base or sol_file.endswith(sol_base)):
+                return d
+
+            # 3) Intentar por filename patrones (folio y solicitud dentro del nombre)
+            if folio_s and f"_{folio_s}_" in fname:
+                return d
+
+            # 4) Por último, coincidencia en cadena_identificacion
+            if cadena and sol_base and sol_base in cadena:
+                return d
+        # Si no encontramos ninguna coincidencia estricta, devolvemos None
         return None
 
     def _lookup_backup_fecha(self, solicitud: str, folio) -> Optional[str]:
@@ -468,25 +625,33 @@ class ControlFoliosAnual:
 
             # intento 2: buscar con la parte antes de '/' en la solicitud
             sol_base = sol.split('/')[0] if '/' in sol else sol
-            for (k_sol, k_fol), fecha in self.backup_fecha_entrada.items():
-                if k_sol == sol_base and (not fol_s or k_fol == fol_s):
-                    return fecha
+            if fol_s:
+                fecha = self.backup_fecha_entrada.get((sol_base, fol_s))
+            else:
+                fecha = self._backup_por_sol.get(sol_base)
+            if fecha:
+                return fecha
 
             # intento 3: buscar por folio solamente
-            if fol_s:
-                for (k_sol, k_fol), fecha in self.backup_fecha_entrada.items():
-                    if k_fol == fol_s:
-                        return fecha
+            if fol_s and fol_s in self._backup_por_folio:
+                return self._backup_por_folio[fol_s]
 
             # intento 4: buscar por coincidencia parcial en solicitud
-            for (k_sol, k_fol), fecha in self.backup_fecha_entrada.items():
-                if sol and sol in k_sol:
-                    return fecha
+            if not sol:
+                return None
+            # (sólo depende de la solicitud: memorizar por solicitud)
+            if sol not in self._backup_memo:
+                encontrada = None
+                for (k_sol, _k_fol), fecha in self.backup_fecha_entrada.items():
+                    if sol in k_sol:
+                        encontrada = fecha
+                        break
+                self._backup_memo[sol] = encontrada
+            return self._backup_memo[sol]
 
         except Exception:
             return None
-        return None
-    
+
     def agrupar_por_dictamen(self) -> List[Dict]:
         """
         Agrupar los registros de tabla_relacion por dictamen (SOLICITUD + FOLIO)
@@ -876,29 +1041,25 @@ class ControlFoliosAnual:
         """
         if not fecha_inicio and not fecha_fin:
             return True
-        
-        # Usar la fecha de verificación para filtrar. Si no existe, intentar otros campos.
-        fecha_str = fila.get("FECHA DE VISITA (CUANDO APLIQUE)", "")
 
-        # Si no hay fecha de visita, intentar usar fecha de documento emitido o fecha de desaduanamiento
-        if not fecha_str or fecha_str == "N/A":
-            fecha_str = fila.get("FECHA DE DOCUMENTO EMITIDO") or fila.get("FECHA DE DESADUANAMIENTO (CUANDO APLIQUE)") or fila.get("FECHA DE EMISION DE SOLICITUD")
+        # El rango se aplica sobre la fecha de documento emitido (emisión del dictamen)
+        fecha_str = fila.get("FECHA DE DOCUMENTO EMITIDO", "")
 
-        # Si aún no hay fecha, incluir el registro (comportamiento más permisivo)
+        # Sin fecha legible no se puede ubicar en el rango: excluir el registro
         if not fecha_str or fecha_str == "N/A":
-            return True
-        
+            return False
+
         try:
             # Intentar parsear la fecha en diferentes formatos
             for fmt in ["%Y-%m-%d", "%Y/%m/%d", "%d/%m/%Y", "%d-%m-%Y"]:
                 try:
-                    fecha = datetime.strptime(fecha_str, fmt)
+                    fecha = datetime.strptime(str(fecha_str).strip(), fmt)
                     break
                 except ValueError:
                     continue
             else:
-                # Si no se pudo parsear, incluir el registro
-                return True
+                # Fecha mal capturada (ej. 22/05/20126): excluir el registro
+                return False
             
             if fecha_inicio:
                 inicio = datetime.strptime(fecha_inicio, "%Y-%m-%d")
@@ -911,11 +1072,10 @@ class ControlFoliosAnual:
                     return False
             
             return True
-            
+
         except Exception:
-            # En caso de error, incluir el registro
-            return True
-    
+            return False
+
     def crear_excel(self, nombre_archivo: str, fecha_inicio: Optional[str] = None,
                    fecha_fin: Optional[str] = None) -> Tuple[bool, str]:
         """
@@ -931,12 +1091,12 @@ class ControlFoliosAnual:
         """
         try:
             print("\n🚀 Generando archivo Excel...")
-            
-            # Crear libro de trabajo
-            wb = openpyxl.Workbook()
-            ws = wb.active
-            ws.title = "Control de Folios"
-            
+
+            # Libro en modo write_only: con decenas de miles de filas el modo
+            # normal de openpyxl consume cientos de MB y es mucho más lento.
+            wb = openpyxl.Workbook(write_only=True)
+            ws = wb.create_sheet("Control de Folios")
+
             # Definir encabezados
             encabezados = [
                 "NÚMERO DE SOLICITUD",
@@ -960,138 +1120,182 @@ class ControlFoliosAnual:
                 "FOLIO EMA",
                 "INSP EMA"
             ]
-            
+
+            # En write_only, anchos y paneles deben definirse antes de escribir filas
+            for col in range(1, len(encabezados) + 1):
+                columna_letra = get_column_letter(col)
+                # Anchos específicos según el contenido
+                if col == 1:  # NÚMERO DE SOLICITUD
+                    ws.column_dimensions[columna_letra].width = 18
+                elif col in [2, 6, 16]:  # CLIENTE, PRODUCTO, MODELOS
+                    ws.column_dimensions[columna_letra].width = 30
+                elif col in [11, 14, 15]:  # FECHAS
+                    ws.column_dimensions[columna_letra].width = 15
+                else:
+                    ws.column_dimensions[columna_letra].width = 20
+            # Congelar primera fila
+            ws.freeze_panes = 'A2'
+
+            # Estilos (se crean una sola vez y se reutilizan en todas las celdas)
+            borde = Border(
+                left=Side(style='thin'),
+                right=Side(style='thin'),
+                top=Side(style='thin'),
+                bottom=Side(style='thin')
+            )
+            alin_encabezado = Alignment(horizontal="center", vertical="center", wrap_text=True)
+            alin_celda = Alignment(horizontal="left", vertical="center", wrap_text=True)
+            font_encabezado = Font(bold=True, color="FFFFFF")
+            fill_encabezado = PatternFill(start_color="366092", end_color="366092", fill_type="solid")
+            fill_cancelado = PatternFill(start_color="FFC7CE", end_color="FFC7CE", fill_type="solid")
+            fill_pendiente = PatternFill(start_color="FFF2CC", end_color="FFF2CC", fill_type="solid")
+            fill_completado = PatternFill(start_color="C6EFCE", end_color="C6EFCE", fill_type="solid")
+            font_negrita = Font(bold=True)
+            font_normal = Font(bold=False)
+
+            # Asignar fill/font/borde por celda obliga a openpyxl a hashear cada
+            # estilo (lentísimo con millones de celdas). Se arma una celda
+            # plantilla por estatus y se copia su arreglo de estilo ya indexado.
+            def _estilo_plantilla(fill=None, font=None):
+                plantilla = WriteOnlyCell(ws)
+                plantilla.alignment = alin_celda
+                plantilla.border = borde
+                if fill is not None:
+                    plantilla.fill = fill
+                    plantilla.font = font
+                return plantilla._style
+            estilo_base = _estilo_plantilla()
+            estilo_cancelado = _estilo_plantilla(fill_cancelado, font_negrita)
+            estilo_pendiente = _estilo_plantilla(fill_pendiente, font_negrita)
+            estilo_completado = _estilo_plantilla(fill_completado, font_normal)
+
             # Escribir encabezados
-            for col, encabezado in enumerate(encabezados, 1):
-                celda = ws.cell(row=1, column=col, value=encabezado)
-                # Estilo para encabezados
-                celda.font = Font(bold=True, color="FFFFFF")
-                celda.fill = PatternFill(start_color="366092", end_color="366092", fill_type="solid")
-                celda.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
-                celda.border = Border(
-                    left=Side(style='thin'),
-                    right=Side(style='thin'),
-                    top=Side(style='thin'),
-                    bottom=Side(style='thin')
-                )
-            
+            fila_encabezados = []
+            for encabezado in encabezados:
+                celda = WriteOnlyCell(ws, value=encabezado)
+                celda.font = font_encabezado
+                celda.fill = fill_encabezado
+                celda.alignment = alin_encabezado
+                celda.border = borde
+                fila_encabezados.append(celda)
+            ws.append(fila_encabezados)
+
             # Reescribir la construcción de dictámenes para asegurar que
             # cada folio entero presente en `data/Dictamenes` o en
             # `tabla_de_relacion` se incluya una sola vez y en orden
             # numérico ascendente (a partir de folio 849).
             folio_map_int: Dict[int, Dict] = {}
             try:
-                dicts_dir = os.path.join(self.data_dir, 'Dictamenes')
-                if os.path.exists(dicts_dir):
-                    for fname in os.listdir(dicts_dir):
-                        fp = os.path.join(dicts_dir, fname)
-                        if not (fname.lower().endswith('.json') or fname.lower().endswith('.pdf')):
-                            continue
+                for entrada in self._cargar_indice_dictamenes():
+                    if entrada.get('sub') != 'Dictamenes':
+                        continue
+                    fname = entrada.get('name', '')
 
-                        # Default registro
-                        registro = {
-                            'FECHA DE EMISION DE SOLICITUD': None,
-                            'FECHA DE VERIFICACION': None,
-                            'PEDIMENTO': None,
-                            'FIRMA': None,
-                            'DESCRIPCION': None,
-                            'MARCA': None,
-                            'CODIGOS': [],
-                        }
+                    # Default registro
+                    registro = {
+                        'FECHA DE EMISION DE SOLICITUD': None,
+                        'FECHA DE VERIFICACION': None,
+                        'PEDIMENTO': None,
+                        'FIRMA': None,
+                        'DESCRIPCION': None,
+                        'MARCA': None,
+                        'CODIGOS': [],
+                    }
 
-                        sol = ''
-                        fol_int = None
-                        d = None
+                    sol = ''
+                    fol_int = None
+                    d = None
 
-                        if fname.lower().endswith('.json'):
+                    if entrada.get('tipo') == 'json':
+                        try:
+                            d = entrada.get('d') if entrada.get('ok') else None
+                            if d is None:
+                                raise ValueError("JSON ilegible")
+                            ident = d.get('identificacion', {})
+                            sol = str(ident.get('solicitud') or '').strip()
+                            fol_raw = ident.get('folio')
+                            # intentar parsear folio desde identificacion.folio
                             try:
-                                with open(fp, 'r', encoding='utf-8') as f:
-                                    d = json.load(f)
-                                ident = d.get('identificacion', {})
-                                sol = str(ident.get('solicitud') or '').strip()
-                                fol_raw = ident.get('folio')
-                                # intentar parsear folio desde identificacion.folio
-                                try:
-                                    fol_int = int(float(str(fol_raw))) if fol_raw not in (None, '') else None
-                                except Exception:
-                                    fol_int = None
-                                # intentar extraer folio desde el nombre de archivo con patrón conocido
-                                # muchos archivos tienen formato: Dictamen_Lista_<lista>_<folio>_<solicitud>_...
-                                m_f = re.search(r"Dictamen_Lista_[^_]+_([0-9]{3,})_", fname)
-                                if m_f:
-                                    try:
-                                        fol_from_name = int(m_f.group(1))
-                                        # priorizar el folio extraído del nombre de archivo cuando exista
-                                        fol_int = fol_from_name
-                                    except Exception:
-                                        pass
-
-                                fechas = d.get('fechas', {})
-                                producto = d.get('producto', {})
-                                tabla_prod = d.get('tabla_productos', [])
-                                firmas = d.get('firmas', {})
-
-                                registro['FECHA DE EMISION DE SOLICITUD'] = fechas.get('emision')
-                                registro['FECHA DE VERIFICACION'] = fechas.get('verificacion')
-                                registro['PEDIMENTO'] = producto.get('pedimento')
-                                if isinstance(firmas, dict):
-                                    f1 = firmas.get('firma1')
-                                    if f1:
-                                        registro['FIRMA'] = f1.get('codigo_solicitado') or f1.get('codigo') or f1.get('nombre')
-                                registro['DESCRIPCION'] = producto.get('descripcion')
-                                if isinstance(tabla_prod, list) and tabla_prod:
-                                    registro['MARCA'] = tabla_prod[0].get('marca')
-                                    cods = []
-                                    for p in tabla_prod:
-                                        c = p.get('codigo')
-                                        if c is not None:
-                                            cods.append(str(c))
-                                    registro['CODIGOS'] = cods
+                                fol_int = int(float(str(fol_raw))) if fol_raw not in (None, '') else None
                             except Exception:
-                                # Si falla la carga JSON, intentar extraer folio desde el nombre
                                 fol_int = None
-                        else:
-                            # PDF: extraer la mayor secuencia de dígitos como folio probable
-                            name_base = os.path.splitext(fname)[0]
-                            # Preferir patrón de nombre similar a JSON files
+                            # intentar extraer folio desde el nombre de archivo con patrón conocido
+                            # muchos archivos tienen formato: Dictamen_Lista_<lista>_<folio>_<solicitud>_...
                             m_f = re.search(r"Dictamen_Lista_[^_]+_([0-9]{3,})_", fname)
                             if m_f:
                                 try:
-                                    fol_int = int(m_f.group(1))
+                                    fol_from_name = int(m_f.group(1))
+                                    # priorizar el folio extraído del nombre de archivo cuando exista
+                                    fol_int = fol_from_name
+                                except Exception:
+                                    pass
+
+                            fechas = d.get('fechas', {})
+                            producto = d.get('producto', {})
+                            tabla_prod = d.get('tabla_productos', [])
+                            firmas = d.get('firmas', {})
+
+                            registro['FECHA DE EMISION DE SOLICITUD'] = fechas.get('emision')
+                            registro['FECHA DE VERIFICACION'] = fechas.get('verificacion')
+                            registro['PEDIMENTO'] = producto.get('pedimento')
+                            if isinstance(firmas, dict):
+                                f1 = firmas.get('firma1')
+                                if f1:
+                                    registro['FIRMA'] = f1.get('codigo_solicitado') or f1.get('codigo') or f1.get('nombre')
+                            registro['DESCRIPCION'] = producto.get('descripcion')
+                            if isinstance(tabla_prod, list) and tabla_prod:
+                                registro['MARCA'] = tabla_prod[0].get('marca')
+                                cods = []
+                                for p in tabla_prod:
+                                    c = p.get('codigo')
+                                    if c is not None:
+                                        cods.append(str(c))
+                                registro['CODIGOS'] = cods
+                        except Exception:
+                            # Si falla la carga JSON, intentar extraer folio desde el nombre
+                            fol_int = None
+                    else:
+                        # PDF: extraer la mayor secuencia de dígitos como folio probable
+                        name_base = os.path.splitext(fname)[0]
+                        # Preferir patrón de nombre similar a JSON files
+                        m_f = re.search(r"Dictamen_Lista_[^_]+_([0-9]{3,})_", fname)
+                        if m_f:
+                            try:
+                                fol_int = int(m_f.group(1))
+                            except Exception:
+                                fol_int = None
+                        else:
+                            seqs = re.findall(r"(\d+)", name_base)
+                            if seqs:
+                                try:
+                                    fol_int = int(max(seqs, key=lambda s: len(s)))
                                 except Exception:
                                     fol_int = None
-                            else:
-                                seqs = re.findall(r"(\d+)", name_base)
-                                if seqs:
-                                    try:
-                                        fol_int = int(max(seqs, key=lambda s: len(s)))
-                                    except Exception:
-                                        fol_int = None
-                            m = re.search(r"([A-Za-z0-9\-]{4,})", name_base)
-                            if m:
-                                sol = m.group(1)
+                        m = re.search(r"([A-Za-z0-9\-]{4,})", name_base)
+                        if m:
+                            sol = m.group(1)
 
-                        if fol_int is None:
-                            # si no pudimos extraer folio numérico, saltar
-                            continue
+                    if fol_int is None:
+                        # si no pudimos extraer folio numérico, saltar
+                        continue
 
-                        # Insertar o fusionar en folio_map_int
-                        if fol_int not in folio_map_int:
-                            folio_map_int[fol_int] = {
-                                'solicitud': sol,
-                                'folio': fol_int,
-                                'registros': [registro],
-                                'dictamen_json': d
-                            }
-                        else:
-                            # fusionar registros y preferir dictamen_json no nulo
-                            existing = folio_map_int[fol_int]
-                            if registro not in existing.get('registros', []):
-                                existing.setdefault('registros', []).append(registro)
-                            if not existing.get('dictamen_json') and d:
-                                existing['dictamen_json'] = d
-            except Exception:
-                pass
+                    # Insertar o fusionar en folio_map_int
+                    if fol_int not in folio_map_int:
+                        folio_map_int[fol_int] = {
+                            'solicitud': sol,
+                            'folio': fol_int,
+                            'registros': [registro],
+                            'dictamen_json': d
+                        }
+                    else:
+                        # fusionar registros y preferir dictamen_json no nulo
+                        existing = folio_map_int[fol_int]
+                        if registro not in existing.get('registros', []):
+                            existing.setdefault('registros', []).append(registro)
+                        if not existing.get('dictamen_json') and d:
+                            existing['dictamen_json'] = d
+            except Exception as e:
+                print(f"⚠️ Error leyendo data/Dictamenes: {e}")
 
             # Añadir folios presentes en tabla_de_relacion que no estén en Dictamenes
             try:
@@ -1123,7 +1327,6 @@ class ControlFoliosAnual:
             print(f"📊 Folios detectados para exportar: {len(all_folios_sorted)} (threshold applied: {any(k>=849 for k in candidates)})")
 
             # Generar filas: iterar por folio entero ordenado para evitar saltos
-            fila_actual = 2
             filas_procesadas = 0
 
             # Construir mapa de estatus por folio a partir del historial (pendientes/cancelados)
@@ -1158,7 +1361,11 @@ class ControlFoliosAnual:
             except Exception:
                 folio_status_map = {}
 
-            for fol in all_folios_sorted:
+            total_folios = len(all_folios_sorted)
+            for i, fol in enumerate(all_folios_sorted, 1):
+                if i % 200 == 0 or i == total_folios:
+                    self._reportar_progreso(i, total_folios, f"Generando filas ({i:,}/{total_folios:,})")
+
                 dictamen = folio_map_int.get(fol)
                 if not dictamen:
                     continue
@@ -1173,68 +1380,35 @@ class ControlFoliosAnual:
                 est = folio_status_map.get(int(fol), '') if fol is not None else ''
                 est_display = est.upper() if est else 'COMPLETADO'
 
+                # Color según estatus (más visible)
+                if est and est in ('cancelado', 'cancelada'):
+                    estilo = estilo_cancelado
+                elif est and 'pend' in est:
+                    estilo = estilo_pendiente
+                elif not est:
+                    # considerar completado como verde
+                    estilo = estilo_completado
+                else:
+                    estilo = estilo_base
+
                 # Escribir datos (incluir ESTATUS)
-                for col_index, encabezado in enumerate(encabezados, 1):
+                fila_celdas = []
+                for encabezado in encabezados:
                     if encabezado == 'ESTATUS':
                         valor = est_display
                     else:
                         valor = fila_datos.get(encabezado, "N/A")
-                    celda = ws.cell(row=fila_actual, column=col_index, value=valor)
-                    celda.alignment = Alignment(horizontal="left", vertical="center", wrap_text=True)
-                    celda.border = Border(
-                        left=Side(style='thin'),
-                        right=Side(style='thin'),
-                        top=Side(style='thin'),
-                        bottom=Side(style='thin')
-                    )
+                    celda = WriteOnlyCell(ws, value=valor)
+                    celda._style = copy(estilo)
+                    fila_celdas.append(celda)
+                ws.append(fila_celdas)
 
-                # Aplicar color según estatus (más visible)
-                fill = None
-                font_mod = None
-                if est and est in ('cancelado', 'cancelada'):
-                    fill = PatternFill(start_color="FFC7CE", end_color="FFC7CE", fill_type="solid")
-                    font_mod = Font(bold=True)
-                elif est and 'pend' in est:
-                    fill = PatternFill(start_color="FFF2CC", end_color="FFF2CC", fill_type="solid")
-                    font_mod = Font(bold=True)
-                elif not est:
-                    # considerar completado como verde
-                    fill = PatternFill(start_color="C6EFCE", end_color="C6EFCE", fill_type="solid")
-                    font_mod = Font(bold=False)
-
-                if fill is not None:
-                    for col in range(1, len(encabezados) + 1):
-                        cell = ws.cell(row=fila_actual, column=col)
-                        try:
-                            cell.fill = fill
-                            if font_mod:
-                                # mantener legibilidad
-                                cell.font = Font(bold=font_mod.bold)
-                        except Exception:
-                            pass
-
-                fila_actual += 1
                 filas_procesadas += 1
-            
-            # Ajustar ancho de columnas
-            for col in range(1, len(encabezados) + 1):
-                columna_letra = get_column_letter(col)
-                # Anchos específicos según el contenido
-                if col == 1:  # NÚMERO DE SOLICITUD
-                    ws.column_dimensions[columna_letra].width = 18
-                elif col in [2, 6, 16]:  # CLIENTE, PRODUCTO, MODELOS
-                    ws.column_dimensions[columna_letra].width = 30
-                elif col in [11, 14, 15]:  # FECHAS
-                    ws.column_dimensions[columna_letra].width = 15
-                else:
-                    ws.column_dimensions[columna_letra].width = 20
-            
-            # Congelar primera fila
-            ws.freeze_panes = 'A2'
-            
+
             # Guardar archivo
+            self._reportar_progreso(total_folios, total_folios, "Guardando archivo Excel...")
             wb.save(nombre_archivo)
-            
+
             mensaje = f"✅ Archivo Excel generado exitosamente: {nombre_archivo}\n"
             mensaje += f"   📊 Total de registros: {filas_procesadas}"
             
@@ -1327,7 +1501,8 @@ def generar_control_folios_anual(
     end_date=None,
     export_cache=None,
     historial_list: Optional[List[Dict]] = None,
-    data_dir: Optional[str] = None
+    data_dir: Optional[str] = None,
+    progress_cb: Optional[Callable[[int, int, str], None]] = None
 ):
     from datetime import datetime
     import os
@@ -1335,10 +1510,13 @@ def generar_control_folios_anual(
     def normalizar(fecha):
         if not fecha:
             return None
-        try:
-            return datetime.strptime(fecha, "%d/%m/%Y").strftime("%Y-%m-%d")
-        except ValueError:
-            return None
+        for fmt in ("%d/%m/%Y", "%d-%m-%Y", "%d.%m.%Y", "%Y-%m-%d"):
+            try:
+                return datetime.strptime(fecha.strip(), fmt).strftime("%Y-%m-%d")
+            except ValueError:
+                continue
+        # Antes se ignoraba en silencio y el reporte salía sin filtrar
+        raise Exception(f"Fecha inválida en el rango: '{fecha}'. Use el formato dd/mm/aaaa.")
 
     fecha_inicio = normalizar(start_date)
     fecha_fin = normalizar(end_date)
@@ -1353,18 +1531,10 @@ def generar_control_folios_anual(
         base_dir = os.path.dirname(os.path.dirname(historial_path))
         data_dir = os.path.join(base_dir, "data")
 
-    try:
-        print(f"[DEBUG] Resolved data_dir: {data_dir}")
-        dicts_dir = os.path.join(data_dir, 'Dictamenes')
-        if os.path.exists(dicts_dir):
-            files = [f for f in os.listdir(dicts_dir) if f.lower().endswith('.json')]
-        else:
-            files = []
-        print(f"[DEBUG] Dictamenes files in {dicts_dir}: {len(files)}")
-    except Exception:
-        pass
+    print(f"[DEBUG] Resolved data_dir: {data_dir}")
 
     generador = ControlFoliosAnual(data_dir=data_dir)
+    generador.progress_cb = progress_cb
 
     exito, mensaje = generador.cargar_datos()
     if not exito:
