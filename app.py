@@ -7678,7 +7678,15 @@ class SistemaDictamenesVC(ctk.CTk):
                         mensaje_final += f"\n❌ Dictámenes no generados: {dictamenes_fallidos}"
                         if folios_fallidos:
                             mensaje_final += f"\n📋 Folios fallidos: {', '.join(map(str, folios_fallidos))}"
-                    
+
+                    etiquetas_omitidas = resultado.get('etiquetas_omitidas', [])
+                    if etiquetas_omitidas:
+                        mensaje_final += f"\n\n⚠️ Códigos sin etiqueta: {len(etiquetas_omitidas)}"
+                        for aviso in etiquetas_omitidas[:10]:
+                            mensaje_final += f"\n• {aviso}"
+                        if len(etiquetas_omitidas) > 10:
+                            mensaje_final += f"\n… y {len(etiquetas_omitidas) - 10} más (ver registro)"
+
                     # VERIFICAR ANTES DE MOSTRAR MESSAGEBOX
                     if self.winfo_exists():
                         self.after(0, lambda: messagebox.showinfo("Generación Completada", mensaje_final) if self.winfo_exists() else None)

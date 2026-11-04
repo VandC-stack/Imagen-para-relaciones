@@ -6,7 +6,7 @@ from collections import defaultdict
 import os
 import sys
 import traceback
-from etiqueta_dictamen import GeneradorEtiquetasDecathlon
+from etiqueta_dictamen import GeneradorEtiquetasDecathlon, norma_de_registro
 
 # ---------------------------------------------------------
 # FUNCIONES AUXILIARES
@@ -483,7 +483,8 @@ def preparar_datos_familia(
             'codigo': str(codigo).strip(),
             'solicitud': str(solicitud).strip(),
             'marca': str(marca).strip(),
-            'pais_origen': str(pais).strip()
+            'pais_origen': str(pais).strip(),
+            'norma': norma_de_registro(r)
         })
 
     print(f"   📋 Claves compuestas encontradas: {len(codigos_compuestos)} entradas")
@@ -663,6 +664,7 @@ def preparar_datos_familia(
     # Añadir metadatos de solicitud sin perder compatibilidad con consumidores existentes
     result["solicitud_raw"] = solicitud_raw
     result["solicitud_year_two"] = solicitud_year_two
+    result["advertencias_etiquetas"] = generador_etiquetas.advertencias
 
     return result
 

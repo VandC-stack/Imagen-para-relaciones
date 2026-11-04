@@ -1,0 +1,16 @@
+Eliminación folio: CP000001
+Timestamp: 2026-11-04T16:03:23.134474
+
+Elementos eliminados (10):
+ - Archivo de folios: folios_CP000001.json
+ - Tabla backup: tabla_de_relacion_CP000001_PERSIST_20261104160104.json
+ - Dictamen eliminado: Dictamen_Lista_15_3_007021_26_3.json
+ - Dictamen eliminado: Dictamen_Lista_15_4_006847_26_4.json
+ - Dictamen eliminado: Dictamen_Lista_24_1_006386_26_1.json
+ - Dictamen eliminado: Dictamen_Lista_24_2_006750_26_2.json
+ - Entrada en historial (id=1b237289-103f-4459-ac5c-edd21cb8a261)
+ - ✅ Entrada en historial visitas
+ - ✅ Persistencia verificada y garantizada
+ - folio_counter.json ajustado a 000000
+
+Errores (0):

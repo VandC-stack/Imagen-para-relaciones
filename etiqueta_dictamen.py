@@ -2,6 +2,7 @@
 
 import json
 import os
+import re
 import sys
 from PIL import Image, ImageDraw, ImageFont
 import textwrap
@@ -47,8 +48,47 @@ def _normalizar_codigo(valor):
     return s
 
 
+def _tiene_valor(valor):
+    """False para vacíos y marcadores de 'sin dato' (None, NaN, '', 'N/A')."""
+    if valor is None or (isinstance(valor, float) and valor != valor):
+        return False
+    return str(valor).strip().upper() not in ('', 'N/A', 'NAN', 'NONE')
+
+
+def _numero_norma(valor):
+    """Obtiene el número de norma de un valor de CLASIF UVA o de NORMA.
+
+    Permite comparar ambas columnas: 15, 15.0, '15', '015', 'NOM-015' y
+    'NOM-015-SCFI-2007' devuelven 15. 'SIN NORMA' o vacíos devuelven None.
+    """
+    if not _tiene_valor(valor):
+        return None
+    coincidencia = re.fullmatch(r'(?:NOM\D*)?(\d+)(?:\D.*)?', _normalizar_codigo(valor).upper())
+    return int(coincidencia.group(1)) if coincidencia else None
+
+
+def norma_de_registro(registro):
+    """Número de norma de una fila de la tabla de relación (CLASIF UVA primero)."""
+    for clave in ('CLASIF UVA', 'CLASIF_UVA', 'NORMA UVA', 'NORMA_UVA'):
+        numero = _numero_norma(registro.get(clave))
+        if numero is not None:
+            return numero
+    return None
+
+
+def _valor_norma_base(producto):
+    """Valor de la columna NORMA de la base, sin depender de mayúsculas o espacios."""
+    for clave, valor in producto.items():
+        if str(clave).strip().upper() == 'NORMA':
+            return valor
+    return None
+
+
 class GeneradorEtiquetasDecathlon:
     def __init__(self):
+        # Avisos de códigos que se quedaron sin etiqueta, para mostrarlos al usuario
+        self.advertencias = []
+
         # Detectar ruta de `data` en tres lugares (preferir carpeta junto al exe):
         # 1) carpeta junto al ejecutable (APP_DIR / exe dir)
         # 2) PyInstaller _MEIPASS (bundle interno)
@@ -226,9 +266,9 @@ class GeneradorEtiquetasDecathlon:
             24: "NOM-024-SCFI-2013",
             50: "NOM-050-SCFI-2004-1",
             141: "NOM-141-SSA1 SCFI-2012",
-            189: "NOM-189-SSA1/SCFI-2018",
-            142: "NOM-142-SSA1/SCFI-2014",
-            51: "NOM-051-SCFI/SSA1-2010"
+            189: "NOM-189-SSA1 SCFI-2018",
+            142: "NOM-142-SSA1 SCFI-2014",
+            51: "NOM-051-SCFI SSA1-2010"
         }
     
     def buscar_en_tabla_relacion(self, codigo):
@@ -243,12 +283,14 @@ class GeneradorEtiquetasDecathlon:
                 return item
         return None
 
-    def buscar_en_tabla_relacion_compuesta(self, codigo, solicitud='', marca='', pais_origen=''):
+    def buscar_en_tabla_relacion_compuesta(self, codigo, solicitud='', marca='', pais_origen='', norma=None):
         """Busca un registro en la tabla de relación usando una clave compuesta.
 
         Intenta encontrar una entrada que coincida en `CODIGO`/`EAN` y además en
         `SOLICITUD`, `MARCA` y `PAIS` cuando esos valores estén presentes.
-        Si no encuentra una coincidencia estricta, hace fallback a `buscar_en_tabla_relacion(codigo)`.
+        Si no encuentra una coincidencia estricta, hace fallback al primer registro del código.
+        Con `norma` solo considera registros de esa norma, porque un mismo código
+        puede venir clasificado en varias (ej. CLASIF UVA 15 y 24).
         """
         def _norm(v):
             try:
@@ -275,6 +317,8 @@ class GeneradorEtiquetasDecathlon:
             ean = _normalizar_codigo(item.get('EAN'))
             cod = _normalizar_codigo(item.get('CODIGO'))
             if not (ean == target_codigo or cod == target_codigo):
+                continue
+            if norma is not None and norma_de_registro(item) not in (None, norma):
                 continue
 
             # comprobar campos opcionales
@@ -306,13 +350,34 @@ class GeneradorEtiquetasDecathlon:
             return best
         return None
     
-    def buscar_producto_por_ean(self, ean):
-        """Busca un producto en la base por EAN"""
+    def buscar_productos_por_ean(self, ean):
+        """Devuelve todas las filas de la base con ese EAN (puede haber una por norma)"""
         ean_norm = _normalizar_codigo(ean)
-        for producto in self.base_etiquetado:
-            if _normalizar_codigo(producto.get('EAN', '')) == ean_norm:
+        return [
+            producto for producto in self.base_etiquetado
+            if _normalizar_codigo(producto.get('EAN', '')) == ean_norm
+        ]
+
+    def elegir_producto_por_norma(self, productos, norma):
+        """Elige la fila cuya columna NORMA coincide con la CLASIF UVA.
+
+        Si ninguna coincide, usa una fila con NORMA vacía (bases que no traen la
+        columna). Una fila de otra norma nunca se usa: devuelve None.
+        """
+        for producto in productos:
+            if _numero_norma(_valor_norma_base(producto)) == norma:
+                return producto
+        for producto in productos:
+            if not _tiene_valor(_valor_norma_base(producto)):
                 return producto
         return None
+
+    def _omitir_etiqueta(self, codigo, motivo):
+        """Registra que un código se quedó sin etiqueta y por qué"""
+        print(f"      ❌ {codigo}: {motivo}")
+        aviso = f"{codigo}: {motivo}"
+        if aviso not in self.advertencias:
+            self.advertencias.append(aviso)
     
     def determinar_norma_por_uva(self, norma_uva, producto):
         """Determina la norma específica basada en NORMA UVA"""
@@ -332,8 +397,8 @@ class GeneradorEtiquetasDecathlon:
                 # Si es un string directo, retornarlo
                 return mapeo
         
-        # Si no hay mapeo específico, usar norma por defecto
-        return "NOM-050-SCFI-2004-1"
+        # Sin mapeo no hay etiqueta: no se debe sustituir por la de otra norma
+        return None
     
     def formatear_dato(self, campo, valor):
         """Formatea los datos según el campo"""
@@ -551,28 +616,42 @@ class GeneradorEtiquetasDecathlon:
                 solicitud = entrada.get('solicitud', '')
                 marca = entrada.get('marca', '')
                 pais_origen = entrada.get('pais_origen', '')
+                norma_uva = _numero_norma(entrada.get('norma'))
             else:
                 codigo = entrada
                 solicitud = ''
                 marca = ''
                 pais_origen = ''
+                norma_uva = None
 
             print(f"   🔍 Procesando código EAN: {codigo} (solicitud={solicitud}, marca={marca}, pais={pais_origen})")
             
-            producto_relacionado = self.buscar_en_tabla_relacion_compuesta(codigo, solicitud=solicitud, marca=marca, pais_origen=pais_origen)
+            producto_relacionado = self.buscar_en_tabla_relacion_compuesta(
+                codigo, solicitud=solicitud, marca=marca, pais_origen=pais_origen, norma=norma_uva
+            )
             if not producto_relacionado:
-                print(f"      ❌ EAN {codigo} no encontrado en tabla de relación (clave compuesta)")
+                self._omitir_etiqueta(codigo, "no se encontró en la tabla de relación")
                 continue
-            
-            norma_uva = producto_relacionado.get('NORMA UVA')
+
             if norma_uva is None:
-                print(f"      ❌ No se encontró NORMA UVA para EAN {codigo}")
+                norma_uva = norma_de_registro(producto_relacionado)
+            if norma_uva is None:
+                self._omitir_etiqueta(codigo, "la tabla de relación no trae CLASIF UVA")
                 continue
-            
-            print(f"      📋 NORMA UVA encontrada: {norma_uva}")
-            
-            # Obtener producto base desde la base de etiquetado (puede ser None)
-            producto_base = self.buscar_producto_por_ean(codigo)
+
+            print(f"      📋 CLASIF UVA encontrada: {norma_uva}")
+
+            # La fila de la base debe ser de la misma norma que la CLASIF UVA
+            productos_base = self.buscar_productos_por_ean(codigo)
+            producto_base = self.elegir_producto_por_norma(productos_base, norma_uva)
+            if productos_base and not producto_base:
+                normas_base = ', '.join(sorted({str(_valor_norma_base(p)).strip() for p in productos_base}))
+                self._omitir_etiqueta(
+                    codigo,
+                    f"CLASIF UVA {norma_uva} no coincide con la NORMA de la base de etiquetado ({normas_base})"
+                )
+                continue
+
             if not producto_base:
                 # No existe en la base; generar con los datos mínimos de tabla_relacion
                 producto = {}
@@ -610,7 +689,8 @@ class GeneradorEtiquetasDecathlon:
                 for target_key, variants in mapping.items():
                     for var in variants:
                         real_key = claves_normalizadas.get(var.strip().upper())
-                        if real_key is not None and producto_relacionado.get(real_key) not in (None, ''):
+                        # 'N/A' en la tabla no debe borrar el dato real de la base
+                        if real_key is not None and _tiene_valor(producto_relacionado.get(real_key)):
                             producto[target_key] = producto_relacionado.get(real_key)
                             break
 
@@ -628,14 +708,14 @@ class GeneradorEtiquetasDecathlon:
             
             norma = self.determinar_norma_por_uva(norma_uva, producto)
             if not norma:
-                print(f"      ❌ No se pudo determinar la norma para NORMA UVA {norma_uva}")
+                self._omitir_etiqueta(codigo, f"no hay etiqueta definida para CLASIF UVA {norma_uva}")
                 continue
             
             print(f"      🏷️ Norma determinada: {norma}")
             
             config = self.configuraciones.get(norma)
             if not config:
-                print(f"      ❌ No hay configuración para la norma {norma}")
+                self._omitir_etiqueta(codigo, f"no hay configuración de etiqueta para {norma}")
                 continue
 
             # Usar copia local de la configuración para no mutar el objeto global

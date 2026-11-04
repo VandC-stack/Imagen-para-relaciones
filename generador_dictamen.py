@@ -1359,6 +1359,7 @@ def generar_dictamenes_completos(directorio_destino, cliente_manual=None, rfc_ma
     
     archivos_creados = []
     sin_firma_detalle = []
+    etiquetas_omitidas = []
     folios_usados_set = set()
 
     # Calcular bloque de folios a asignar para este proceso.
@@ -2334,6 +2335,10 @@ def generar_dictamenes_completos(directorio_destino, cliente_manual=None, rfc_ma
             flujo_detectado = detectar_flujo_cliente(cliente, norma)
             datos['modo_insertado'] = flujo_detectado
             print(f"   📌 Flujo detectado: {flujo_detectado.upper()} (Cliente: {cliente})")
+            if flujo_detectado != "evidencia":
+                for aviso in datos.get("advertencias_etiquetas", []):
+                    if aviso not in etiquetas_omitidas:
+                        etiquetas_omitidas.append(aviso)
             
             tiene_firma = datos.get("firma_valida", False)
             
@@ -2560,6 +2565,7 @@ def generar_dictamenes_completos(directorio_destino, cliente_manual=None, rfc_ma
         'total_familias': len(familias),
         'archivos': archivos_creados,
         'sin_firma_detalle': sin_firma_detalle,
+        'etiquetas_omitidas': etiquetas_omitidas,
         'json_errores': json_errores,
         'json_errores_detalle': json_errores_detalle,
         'folios_utilizados': folios_info,
