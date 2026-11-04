@@ -2434,34 +2434,6 @@ class SistemaDictamenesVC(ctk.CTk):
         )
         self.info_folio_pendiente.pack(pady=(0, 6))
 
-        # Botón para guardar un folio incompleto / reservado en el historial
-        # Lo creamos en el frame de folios del cliente para mostrarlo junto
-        # al selector/acciones de folios y al botón Limpiar.
-        # Crear el botón de reservar folio dentro de la fila de botones de carga
-        # para que siempre esté visible junto a 'Subir archivo', 'Verificar Datos' y 'Limpiar'.
-        self.boton_guardar_folio = ctk.CTkButton(
-            botones_fila1,
-            text="Reservar Visita",
-            command=self.reservar_folios_tabla,
-            font=("Inter", 12, "bold"),
-            fg_color=STYLE["primario"],
-            hover_color="#D4BF22",
-            text_color=STYLE["secundario"],
-            height=34,
-            corner_radius=8,
-            state="disabled"
-        )
-        try:
-            self.boton_guardar_folio.pack(side="left", padx=(0, 12))
-        except Exception:
-            try:
-                self.boton_guardar_folio.pack(pady=(0, 6))
-            except Exception:
-                pass
-        # NOTE: no empacamos el botón aquí. Se mostrará junto al botón
-        # de "Limpiar rutas evidencias" desde `actualizar_cliente_seleccionado`
-        # para garantizar que ambos estén en el mismo contenedor y orden.
-
         # Botón de generación
         self.boton_generar_dictamen = ctk.CTkButton(
             generar_section,
@@ -5383,7 +5355,7 @@ class SistemaDictamenesVC(ctk.CTk):
             try:
                 self.safe_pack(self.boton_pegado_simple, side="left", padx=(0, 12))
                 self.safe_pack(self.boton_pegado_carpetas, side="left", padx=(0, 12))
-                # Empacar el botón Limpiar (Reservar Folio está en la fila de carga)
+                # Empacar el botón Limpiar
                 self.safe_pack(self.boton_limpiar_rutas_evidencias, side="left", padx=(0, 12))
             except Exception:
                 pass
@@ -7874,9 +7846,6 @@ class SistemaDictamenesVC(ctk.CTk):
             # Cambiar texto del botón principal de generación
             if hasattr(self, 'boton_generar_dictamen'):
                 self.boton_generar_dictamen.configure(text=f"{nuevo_titulo}")
-
-            if hasattr(self, 'boton_guardar_folio'):
-                self.boton_guardar_folio.configure(state='normal')
 
             # Buscar en historial si hay folio pendiente para este tipo
             pendiente_msg = ''
