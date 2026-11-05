@@ -1,6 +1,8 @@
 # -- SISTEMA V&C - GENERADOR DE DICTÁMENES -- #
 import os, re
 import sys
+import hashlib
+import hmac
 import uuid
 import shutil
 import json
@@ -26,31 +28,52 @@ import platform
 import unicodedata
 from PyPDF2 import PdfReader
 from PIL import Image
+from tema_vc import (
+    FONT_FAMILY, FONT_LABEL, FONT_SECCION, FONT_SMALL, FONT_SUBTITLE, FONT_TITLE,
+    ESTILO_CALENDARIO, STYLE, BotonAccion, aplicar_tema, configurar_tablas, icono, logo_monocromo,
+)
 
 # ---------- ESTILO VISUAL V&C ---------- #
-STYLE = {
-    "primario": "#ECD925",
-    "secundario": "#282828",
-    "exito": "#008D53",
-    "advertencia": "#ff1500",
-    "peligro": "#d74a3d",
-    "fondo": "#F8F9FA",
-    # Make surface match the background to avoid visible white cards/borders
-    "surface": "#F8F9FA",
-    "texto_oscuro": "#282828",
-    "texto_claro": "#ffffff",
-    # Texto secundario/atenuado, usado en etiquetas pequeñas (p. ej. captions de filtros)
-    "texto_secundario": "#6b7280",
-    # Border color should match surface so thin borders are not visible
-    "borde": "#F8F9FA",
-    # Borde visible para tarjetas/paneles que sí deben distinguirse del fondo
-    "borde_panel": "#E3E5E8"
-}
+aplicar_tema()
 
-FONT_TITLE = ("Inter", 22, "bold")
-FONT_SUBTITLE = ("Inter", 17, "bold")
-FONT_LABEL = ("Inter", 13)
-FONT_SMALL = ("Inter", 12)
+# ---------- USUARIOS Y ACCESOS ---------- #
+ROLES_USUARIO = {'admin': 'Administrador', 'ejecutivo': 'Ejecutivo'}
+ACCESOS_SISTEMA = {
+    'principal': 'Principal',
+    'historial': 'Historial',
+    'clientes': 'Clientes',
+    'inspectores': 'Inspectores',
+    'reportes': 'Reportes',
+    'reporte_ema': 'Reporte EMA',
+    'usuarios': 'Usuarios',
+}
+# Accesos de quien no tiene una lista propia en usuarios.json.
+ACCESOS_POR_ROL = {
+    'admin': tuple(ACCESOS_SISTEMA),
+    'ejecutivo': ('principal', 'historial', 'reportes'),
+}
+ACCESOS_BASE = ('principal', 'historial')
+PREFIJO_HASH = 'pbkdf2_sha256'
+ITERACIONES_HASH = 600_000
+
+
+def cifrar_password(password):
+    """Devuelve la contraseña como hash con sal, listo para guardarse."""
+    sal = os.urandom(16)
+    digest = hashlib.pbkdf2_hmac('sha256', password.encode('utf-8'), sal, ITERACIONES_HASH)
+    return f"{PREFIJO_HASH}${ITERACIONES_HASH}${sal.hex()}${digest.hex()}"
+
+
+def password_correcta(guardada, password):
+    """Compara contra un hash o, en cuentas sin actualizar, contra el texto guardado."""
+    guardada = str(guardada or '')
+    if not guardada:
+        return False
+    if guardada.startswith(f"{PREFIJO_HASH}$"):
+        _, iteraciones, sal, digest = guardada.split('$')
+        calculado = hashlib.pbkdf2_hmac('sha256', password.encode('utf-8'), bytes.fromhex(sal), int(iteraciones))
+        return hmac.compare_digest(calculado.hex(), digest)
+    return hmac.compare_digest(guardada.encode('utf-8'), password.encode('utf-8'))
 
 # Ruta base compatible con PyInstaller (.exe)
 if getattr(sys, 'frozen', False):
@@ -151,6 +174,25 @@ try:
 except Exception:
     pass
 
+LOG_MAX_BYTES = 1024 * 1024
+LOG_BYTES_CONSERVADOS = 256 * 1024
+
+
+def _recortar_log(ruta):
+    """Deja solo el final del log si pasó del límite: vive en la carpeta sincronizada."""
+    try:
+        if os.path.getsize(ruta) <= LOG_MAX_BYTES:
+            return
+        with open(ruta, 'rb') as f:
+            f.seek(-LOG_BYTES_CONSERVADOS, os.SEEK_END)
+            final = f.read()
+        # Se descarta la primera línea, que quedó cortada.
+        with open(ruta, 'wb') as f:
+            f.write(final[final.find(b'\n') + 1:])
+    except OSError:
+        pass
+
+
 # DEBUG: volcar información de rutas y existencia de archivos clave al iniciar
 try:
     dbg_files = [
@@ -163,6 +205,7 @@ try:
     except Exception:
         dbg_path = os.path.join(os.path.expanduser('~'), 'startup_exe_debug.log')
 
+    _recortar_log(dbg_path)
     with open(dbg_path, 'a', encoding='utf-8') as dbg:
         import time
         dbg.write('\n===== STARTUP DEBUG: ' + time.strftime('%Y-%m-%d %H:%M:%S') + ' =====\n')
@@ -186,20 +229,6 @@ try:
             except Exception as e:
                 dbg.write(f"{fn}: error checking: {e}\n")
 
-        # list top-level data files
-        try:
-            for root, dirs, files in os.walk(DATA_DIR):
-                rel = os.path.relpath(root, DATA_DIR)
-                dbg.write(f"DIR: {rel}\n")
-                for f in files:
-                    try:
-                        fp = os.path.join(root, f)
-                        dbg.write(f"  - {f} ({os.path.getsize(fp)} bytes)\n")
-                    except Exception:
-                        dbg.write(f"  - {f} (size error)\n")
-        except Exception as e:
-            dbg.write(f"ERROR walking DATA_DIR: {e}\n")
-
         dbg.write('===== END STARTUP DEBUG =====\n')
 except Exception:
     pass
@@ -220,11 +249,17 @@ class SistemaDictamenesVC(ctk.CTk):
 
     def __init__(self):
         super().__init__()
+        # Invisible hasta terminar de dibujarse; ver _mostrar_ventana. Debe quedar
+        # mapeada: el login es transient de esta ventana y si no, tampoco se mostraría.
+        self.attributes('-alpha', 0)
+        self.update()
+        # Se fija aquí porque cambiarlo con la ventana visible obliga a redibujar todo.
+        self.tk.call('tk', 'scaling', 1.0)
 
         # Configuración general
         self.title("Generador de Dictámenes")
-        self.geometry("1275x600")
-        self.minsize(1275, 600)
+        self.geometry("1275x660")
+        self.minsize(1180, 600)
         # Establecer icono de la ventana si existe
         try:
             icon_path = os.path.join(APP_DIR, 'img', 'icono.ico')
@@ -239,7 +274,6 @@ class SistemaDictamenesVC(ctk.CTk):
                         pass
         except Exception:
             pass
-        ctk.set_appearance_mode("light")
         self.configure(fg_color=STYLE["fondo"])
 
         # Variables de estado
@@ -410,8 +444,10 @@ class SistemaDictamenesVC(ctk.CTk):
         self.crear_navegacion()
         self.crear_area_contenido()
 
-        # ===== FOOTER =====
-        self.crear_footer()
+        try:
+            self._update_siguiente_folio_label()
+        except Exception:
+            pass
 
         # Cargar configuración de exportación Excel (persistente)
         self._cargar_config_exportacion()
@@ -428,6 +464,7 @@ class SistemaDictamenesVC(ctk.CTk):
             self._generar_datos_exportable()
         except Exception:
             pass
+        self._mostrar_ventana()
         
     # ----------------- Overlay de Acciones (botones interactivos) -----------------
     def _create_actions_overlay(self, parent, actions_col=None):
@@ -570,174 +607,189 @@ class SistemaDictamenesVC(ctk.CTk):
         y = (alto_pantalla // 2) - (alto_ventana // 2)
         self.geometry(f"{ancho_ventana}x{alto_ventana}+{x}+{y}")
 
-    def crear_navegacion(self):
-        """Crea la barra de navegación con botones mejorados"""
-        nav_frame = ctk.CTkFrame(self, fg_color=STYLE["surface"], height=48)
-        nav_frame.pack(fill="x", padx=20, pady=(0, 0))
-        nav_frame.pack_propagate(False)
-        
-        # Contenedores para botones: izquierda para navegación, derecha para info/acciones de usuario
-        self.botones_left_frame = ctk.CTkFrame(nav_frame, fg_color="transparent")
-        self.botones_left_frame.pack(side="left", fill="x", expand=True, padx=0, pady=2)
-        self.botones_right_frame = ctk.CTkFrame(nav_frame, fg_color="transparent")
-        self.botones_right_frame.pack(side="right", padx=0, pady=2)
-        
-        # Botón Principal con estilo mejorado
-        self.btn_principal = ctk.CTkButton(
-            self.botones_left_frame,
-            text="🏠 Principal",
-            command=self.mostrar_principal,
-            font=("Inter", 14, "bold"),
-            fg_color=STYLE["primario"],
-            hover_color="#D4BF22",
-            text_color=STYLE["secundario"],
-            height=38,
-            width=130,
-            corner_radius=10,
-            border_width=0,
-            border_color=STYLE["secundario"]
-        )
-        self.btn_principal.pack(side="left", padx=(0, 10))
-        
-        # Botón Historial con estilo mejorado
-        self.btn_historial = ctk.CTkButton(
-            self.botones_left_frame,
-            text="📊 Historial",
-            command=self.mostrar_historial,
-            font=("Inter", 14, "bold"),
-            fg_color=STYLE["surface"],
-            hover_color=STYLE["primario"],
-            text_color=STYLE["secundario"],
-            height=38,
-            width=130,
-            corner_radius=10,
-            border_width=0,
-            border_color=STYLE["secundario"]
-        )
-        self.btn_historial.pack(side="left", padx=(0, 10))
+    def _mostrar_ventana(self):
+        """Maximiza y dibuja la ventana sin mostrarla, para que aparezca ya terminada."""
+        if not getattr(self, 'current_user', None):
+            return
+        self.state('zoomed')
+        self.update()
+        self.attributes('-alpha', 1)
 
-        # Botón Reportes
-        self.btn_reportes = ctk.CTkButton(
-            self.botones_left_frame,
-            text="📑Clientes",
-            command=self._cmd_mostrar_clientes,
-            font=("Inter", 14, "bold"),
-            fg_color=STYLE["surface"],
-            hover_color=STYLE["primario"],
-            text_color=STYLE["secundario"],
-            height=38,
-            width=130,
-            corner_radius=10,
-            border_width=0,
-            border_color=STYLE["secundario"]
-        )
-        # Empaque controlado desde _apply_permissions
-        
-        # Botón Inspectores
-        self.btn_inspectores = ctk.CTkButton(
-            self.botones_left_frame,
-            text="👥 Inspectores",
-            command=self._cmd_mostrar_inspectores,
-            font=("Inter", 14, "bold"),
-            fg_color=STYLE["surface"],
-            hover_color=STYLE["primario"],
-            text_color=STYLE["secundario"],
-            height=38,
-            width=140,
-            corner_radius=10,
-            border_width=0,
-            border_color=STYLE["secundario"]
-        )
-        # Empaque controlado desde _apply_permissions
-        
-        # Botón Reportes (ejecutivos)
-        self.btn_reportes_ej = ctk.CTkButton(
-            self.botones_left_frame,
-            text="📈 Reportes",
-            command=self.mostrar_reportes_ejecutivo,
-            font=("Inter", 14, "bold"),
-            fg_color=STYLE["surface"],
-            hover_color=STYLE["primario"],
-            text_color=STYLE["secundario"],
-            height=38,
-            width=130,
-            corner_radius=10,
-            border_width=0,
-            border_color=STYLE["secundario"]
-        )
-        # no empaquetar por defecto: _apply_permissions decidirá si mostrar
+    def _ruta_logo(self):
+        ruta = os.path.join(BASE_DIR, 'img', 'logo.png')
+        return ruta if os.path.exists(ruta) else os.path.join(APP_DIR, 'img', 'logo.png')
 
-        # Botón Reporte EMA (se controla su visibilidad por permisos)
-        self.btn_reporte_ema = ctk.CTkButton(
-            self.botones_left_frame,
-            text="📊 Reporte EMA",
-            command=self.descargar_excel_anual,
-            font=("Inter", 14, "bold"),
-            fg_color=STYLE["surface"],
-            hover_color=STYLE["primario"],
-            text_color=STYLE["secundario"],
-            height=38,
-            width=140,
-            corner_radius=10,
-            border_width=0,
-            border_color=STYLE["secundario"]
-        )
-        
-        # Información del sistema (derecha)
-        # `nav_frame` (y por herencia `botones_right_frame`, que es transparente)
-        # tiene fondo claro (STYLE["surface"]), así que el texto debe ser oscuro;
-        # con texto_claro (blanco) quedaba casi invisible sobre ese fondo.
-        self.lbl_info_sistema = ctk.CTkLabel(
-            self.botones_right_frame,
-            text="Sistema de Dictámenes - V&C",
-            font=("Inter", 12),
-            text_color=STYLE["texto_oscuro"]
-        )
-        # Botón Cerrar sesión (inicialmente no empaquetado)
-        self.btn_logout = ctk.CTkButton(
-            self.botones_right_frame,
-            text="Cerrar sesión",
-            command=self._logout if hasattr(self, '_logout') else (lambda: None),
-            font=("Inter", 12),
-            fg_color=STYLE["secundario"],
-            hover_color="#444444",
-            text_color=STYLE["texto_claro"],
-            height=34,
-            width=140,
+    def _crear_boton_nav(self, texto, nombre_icono, comando):
+        """Crea un botón de la barra lateral con su icono normal y activo."""
+        icono_normal = icono(nombre_icono, STYLE["sidebar_texto"])
+        boton = ctk.CTkButton(
+            self.nav_items_frame,
+            text=texto,
+            image=icono_normal,
+            compound="left",
+            anchor="w",
+            command=comando,
+            font=(FONT_FAMILY, 13, "bold"),
+            fg_color="transparent",
+            hover_color=STYLE["sidebar_hover"],
+            text_color=STYLE["sidebar_texto"],
+            height=40,
             corner_radius=8
         )
-        # Nota: no empaquetar aquí; se empaquetará en _apply_permissions cuando haya sesión
-        
-        # Mostrar etiqueta de info y logout en la derecha cuando haya sesión
-        try:
-            # ocultar por defecto hasta autenticación; se empaquetará desde _apply_permissions
-            self.lbl_info_sistema.pack_forget()
-        except Exception:
-            pass
-        
-        # Botón Backup en la barra de navegación (no mostrar por defecto)
-        # try:
-        #     self.btn_backup = ctk.CTkButton(
-        #         botones_frame,
-        #         text="💾 Backup",
-        #         command=self.hist_hacer_backup,
-        #         height=34, width=110, corner_radius=8,
-        #   except Exception:
-        #      return {}
-        # except Exception:
-        #     self.btn_backup = None
+        boton.icono_normal = icono_normal
+        boton.icono_activo = icono(nombre_icono, STYLE["secundario"])
+        return boton
 
-        # self.lbl_info_sistema.pack(side="right")
+    def _marcar_nav_activo(self, activo):
+        """Redibuja solo los dos botones que cambian de estado."""
+        anterior = getattr(self, '_nav_activo', None)
+        if anterior is activo:
+            return
+        if anterior is not None:
+            anterior.configure(
+                fg_color="transparent",
+                hover_color=STYLE["sidebar_hover"],
+                text_color=STYLE["sidebar_texto"],
+                image=anterior.icono_normal
+            )
+        activo.configure(
+            fg_color=STYLE["primario"],
+            hover_color=STYLE["primario_hover"],
+            text_color=STYLE["secundario"],
+            image=activo.icono_activo
+        )
+        self._nav_activo = activo
+
+    def crear_navegacion(self):
+        """Crea la barra lateral: marca, secciones y sesión del usuario."""
+        self.sidebar = ctk.CTkFrame(self, fg_color=STYLE["secundario"], corner_radius=0, width=204)
+        self.sidebar.pack(side="left", fill="y")
+        self.sidebar.pack_propagate(False)
+
+        marca = ctk.CTkFrame(self.sidebar, fg_color="transparent")
+        marca.pack(fill="x", padx=20, pady=(22, 22))
+        try:
+            ctk.CTkLabel(marca, text="", image=logo_monocromo(self._ruta_logo(), STYLE["primario"], 34)).pack(anchor="w")
+        except Exception:
+            ctk.CTkLabel(marca, text="V&C", font=FONT_TITLE, text_color=STYLE["primario"]).pack(anchor="w")
+        ctk.CTkLabel(
+            marca,
+            text="Generador de documentos",
+            font=(FONT_FAMILY, 11),
+            text_color=STYLE["sidebar_tenue"]
+        ).pack(anchor="w", pady=(6, 0))
+
+        self.nav_items_frame = ctk.CTkFrame(self.sidebar, fg_color="transparent")
+        self.nav_items_frame.pack(fill="x", padx=12)
+
+        self.btn_principal = self._crear_boton_nav("Principal", "principal", self.mostrar_principal)
+        self.btn_historial = self._crear_boton_nav("Historial", "historial", self.mostrar_historial)
+        self.btn_reportes = self._crear_boton_nav("Clientes", "clientes", self._cmd_mostrar_clientes)
+        self.btn_inspectores = self._crear_boton_nav("Inspectores", "inspectores", self._cmd_mostrar_inspectores)
+        self.btn_reportes_ej = self._crear_boton_nav("Reportes", "reportes", self.mostrar_reportes_ejecutivo)
+        # Reporte EMA descarga un archivo: no es una sección y nunca queda activo.
+        self.btn_reporte_ema = self._crear_boton_nav("Reporte EMA", "descarga", self.descargar_excel_anual)
+        self.btn_usuarios = self._crear_boton_nav("Usuarios", "usuarios", self._cmd_mostrar_usuarios)
+        self._botones_seccion = (
+            self.btn_principal, self.btn_historial, self.btn_reportes,
+            self.btn_inspectores, self.btn_reportes_ej, self.btn_usuarios,
+        )
+        # Los botones se muestran desde _apply_permissions según los accesos del usuario.
+
+        # Usuario y sesión; se muestran desde _apply_permissions cuando hay sesión.
+        self.sesion_frame = ctk.CTkFrame(self.sidebar, fg_color="transparent")
+        self.lbl_info_sistema = ctk.CTkLabel(
+            self.sesion_frame,
+            text="",
+            font=(FONT_FAMILY, 12, "bold"),
+            text_color=STYLE["texto_claro"],
+            anchor="w",
+            justify="left",
+            wraplength=170
+        )
+        self.lbl_info_sistema.pack(fill="x", padx=8)
+        self.lbl_rol_usuario = ctk.CTkLabel(
+            self.sesion_frame,
+            text="",
+            font=(FONT_FAMILY, 11),
+            text_color=STYLE["sidebar_tenue"],
+            anchor="w",
+            height=18
+        )
+        self.lbl_rol_usuario.pack(fill="x", padx=8, pady=(0, 8))
+        self.btn_logout = ctk.CTkButton(
+            self.sesion_frame,
+            text="Cerrar sesión",
+            image=icono("salir", STYLE["sidebar_texto"], 15),
+            compound="left",
+            anchor="w",
+            command=self._logout,
+            font=(FONT_FAMILY, 12),
+            fg_color="transparent",
+            hover_color=STYLE["sidebar_hover"],
+            text_color=STYLE["sidebar_texto"],
+            height=34,
+            corner_radius=8
+        )
+        self.btn_logout.pack(fill="x")
+
+        self.columna_principal = ctk.CTkFrame(self, fg_color="transparent")
+        self.columna_principal.pack(side="left", fill="both", expand=True)
+
+        encabezado = ctk.CTkFrame(self.columna_principal, fg_color="transparent")
+        encabezado.pack(fill="x", padx=24, pady=(16, 12))
+        textos = ctk.CTkFrame(encabezado, fg_color="transparent")
+        textos.pack(side="left")
+        self.lbl_titulo_seccion = ctk.CTkLabel(
+            textos, text="", font=FONT_TITLE, text_color=STYLE["texto_oscuro"], height=30
+        )
+        self.lbl_titulo_seccion.pack(anchor="w")
+        self.lbl_subtitulo_seccion = ctk.CTkLabel(
+            textos, text="", font=FONT_SMALL, text_color=STYLE["texto_secundario"], height=18
+        )
+        self.lbl_subtitulo_seccion.pack(anchor="w")
+        self.lbl_siguiente_folio_doc = ctk.CTkLabel(
+            encabezado,
+            text="Siguiente folio documento: ---",
+            font=(FONT_FAMILY, 11, "bold"),
+            text_color=STYLE["texto_oscuro"],
+            fg_color=STYLE["neutro"],
+            corner_radius=8,
+            height=30
+        )
+        self.lbl_siguiente_folio_doc.pack(side="right", ipadx=10)
+
+    def _mostrar_seccion(self, frame, boton, titulo, subtitulo):
+        """Trae una sección al frente y actualiza la navegación.
+
+        Cada sección se dibuja la primera vez que se visita y después queda detrás
+        de la activa, lista para volver sin repintarse. La anterior conserva un
+        tamaño fijo para que redimensionar la ventana solo redibuje la sección
+        visible. Se usa `tk.Frame.place_configure` porque CTkFrame.place rechaza
+        width y height.
+        """
+        anterior = getattr(self, '_seccion_activa', None)
+        tk.Frame.place_configure(frame, x=0, y=0, relwidth=1, relheight=1, width="", height="")
+        frame.tkraise()
+        if anterior is not None and anterior is not frame:
+            tk.Frame.place_configure(
+                anterior, relwidth="", relheight="",
+                width=anterior.winfo_width(), height=anterior.winfo_height()
+            )
+        self._seccion_activa = frame
+        self._marcar_nav_activo(boton)
+        self.lbl_titulo_seccion.configure(text=titulo)
+        self.lbl_subtitulo_seccion.configure(text=subtitulo)
 
     def crear_area_contenido(self):
         """Crea el área de contenido donde se muestran las secciones"""
         # Frame contenedor del contenido
-        self.contenido_frame = ctk.CTkFrame(self, fg_color="transparent")
-        self.contenido_frame.pack(fill="both", expand=True, padx=20, pady=(0, 0))
-        
+        self.contenido_frame = ctk.CTkFrame(self.columna_principal, fg_color="transparent")
+        self.contenido_frame.pack(fill="both", expand=True, padx=24, pady=(0, 18))
+
         # Frame para el contenido principal
         self.frame_principal = ctk.CTkFrame(self.contenido_frame, fg_color="transparent")
-        
+
         # Frame para el historial
         self.frame_historial = ctk.CTkFrame(self.contenido_frame, fg_color="transparent")
 
@@ -747,7 +799,9 @@ class SistemaDictamenesVC(ctk.CTk):
         self.frame_reportes_ejecutivo = ctk.CTkFrame(self.contenido_frame, fg_color="transparent")
         # Frame para inspectores
         self.frame_inspectores = ctk.CTkFrame(self.contenido_frame, fg_color="transparent")
-        
+        # Frame para usuarios del sistema
+        self.frame_usuarios = ctk.CTkFrame(self.contenido_frame, fg_color="transparent")
+
         # Construir el contenido de cada sección
         self._construir_tab_principal(self.frame_principal)
         self._construir_tab_historial(self.frame_historial)
@@ -758,7 +812,8 @@ class SistemaDictamenesVC(ctk.CTk):
         except Exception:
             pass
         self._construir_tab_inspectores(self.frame_inspectores)
-        
+        self._construir_tab_usuarios(self.frame_usuarios)
+
         # Mostrar la sección principal por defecto
         self.mostrar_principal()
 
@@ -817,182 +872,77 @@ class SistemaDictamenesVC(ctk.CTk):
         except Exception:
             pass
         dlg.grab_set()
-        # Tamaño ajustado para una mejor proporción (ahora el logo va arriba)
-        dlg.geometry("600x400")
+        dlg.geometry("720x420")
         dlg.resizable(False, False)
+        dlg.configure(fg_color=STYLE["surface"])
 
-        # --- Estilo mejorado (puedes modificar STYLE si lo prefieres) ---
-        # Se mantiene el uso de STYLE pero con algunos valores por defecto mejorados
-        primary_color = STYLE.get("primario", "#2A7A62")       # Verde azulado
-        secondary_color = STYLE.get("secundario", "#F5F5F5")   # Gris muy claro
-        danger_color = STYLE.get("peligro", "#D32F2F")         # Rojo
-        text_dark = STYLE.get("texto_oscuro", "#333333")
-        text_light = STYLE.get("texto_claro", "#FFFFFF")
-        surface_color = STYLE.get("surface", "#FFFFFF")
-        
-        # --- Tarjeta principal con sombra simulada (borde + padding) ---
-        card = ctk.CTkFrame(
-            dlg,
-            fg_color=surface_color,
-            corner_radius=0,
-            border_width=0,
-            border_color="#DDDDDD"  # borde suave que da sensación de sombra
-        )
-        card.pack(padx=0, pady=0, fill='both', expand=True)
-
-        # --- Cabecera con título (más prominente y con nombre del sistema) ---
-        header = ctk.CTkFrame(
-            card,
-            fg_color=STYLE.get("surface", surface_color),
-            height=70,
-            corner_radius=12
-        )
-        header.pack(fill='x', pady=(16, 20), padx=16)
-        header.pack_propagate(False)
-        
-        # Título del sistema
-        ctk.CTkLabel(
-            header,
-            text="Inicio de sesión",
-            font=("Inter", 22, "bold"),
-            text_color=STYLE.get("texto_oscuro", text_dark)
-        ).pack(expand=True)
-
-        # --- Cuerpo: logo arriba, formulario abajo (mejor centrado) ---
-        body = ctk.CTkFrame(card, fg_color="transparent")
-        body.pack(fill='both', expand=True, padx=20, pady=(0, 20))
-
-        # --- Layout en dos columnas: logo a la izquierda, formulario centrado a la derecha ---
-        left_col = ctk.CTkFrame(body, width=320, fg_color="transparent")
-        left_col.pack(side='left', fill='y', padx=(12, 8), pady=6)
-        left_col.pack_propagate(False)
-
-        right_col = ctk.CTkFrame(body, fg_color="transparent")
-        right_col.pack(side='left', fill='both', expand=True, padx=(8, 20), pady=6)
-
-        # Contenedor del logo (izquierda)
-        logo_frame = ctk.CTkFrame(left_col, fg_color="transparent")
-        logo_frame.pack(expand=True)
-        logo_frame.pack_propagate(False)
+        # --- Panel de marca ---
+        panel_marca = ctk.CTkFrame(dlg, fg_color=STYLE["secundario"], corner_radius=0, width=270)
+        panel_marca.pack(side='left', fill='y')
+        panel_marca.pack_propagate(False)
+        contenido_marca = ctk.CTkFrame(panel_marca, fg_color="transparent")
+        contenido_marca.place(relx=0.5, rely=0.5, anchor='center')
         try:
-            logo_path = os.path.join(BASE_DIR, 'img', 'logo.png')
-            if not os.path.exists(logo_path):
-                logo_path = os.path.join(APP_DIR, 'img', 'logo.png')
-            pil_img = Image.open(logo_path)
-            # Ajustar a un tamaño visible pero no excesivo
-            max_dim = 200
-            w, h = pil_img.size
-            scale = min(max_dim / w, max_dim / h, 1.0)
-            new_size = (max(1, int(w * scale)), max(1, int(h * scale)))
-            pil_img = pil_img.convert('RGBA').resize(new_size, Image.LANCZOS)
-            logo_img = ctk.CTkImage(pil_img, size=new_size)
-            lbl_logo = ctk.CTkLabel(logo_frame, image=logo_img, text="")
-            lbl_logo.pack(expand=True)
+            ctk.CTkLabel(contenido_marca, text="", image=logo_monocromo(self._ruta_logo(), STYLE["primario"], 72)).pack()
         except Exception:
-            ctk.CTkLabel(logo_frame, text=" ", fg_color="transparent").pack(expand=True)
+            ctk.CTkLabel(contenido_marca, text="V&C", font=(FONT_FAMILY, 40, "bold"), text_color=STYLE["primario"]).pack()
+        ctk.CTkLabel(
+            contenido_marca,
+            text="Sistema Generador\nde Documentos",
+            font=(FONT_FAMILY, 14),
+            text_color=STYLE["sidebar_texto"],
+            justify='center'
+        ).pack(pady=(16, 0))
 
-        # Contenedor del formulario (derecha) y centrar verticalmente
-        form_outer = ctk.CTkFrame(right_col, fg_color="transparent")
-        form_outer.pack(fill='both', expand=True)
-        form_inner = ctk.CTkFrame(form_outer, fg_color="transparent")
-        form_inner.place(relx=0.5, rely=0.5, anchor='center')
+        # --- Formulario ---
+        panel_form = ctk.CTkFrame(dlg, fg_color="transparent")
+        panel_form.pack(side='left', fill='both', expand=True)
+        form = ctk.CTkFrame(panel_form, fg_color="transparent")
+        form.place(relx=0.5, rely=0.5, anchor='center')
 
-        # ---- Formulario con campos estilizados dentro de form_inner ----
-        form = form_inner
-
-        # Texto del sistema arriba de los campos (solicitud del usuario)
         ctk.CTkLabel(
             form,
-            text="Sistema Generador de Documentos V&C",
-            font=("Inter", 12, "bold"),
-            text_color=text_dark,
-            anchor='w'
-        ).pack(anchor='w', pady=(0, 8))
-
-        # Etiqueta Usuario con icono (opcional, usando unicode)
+            text="Inicio de sesión",
+            font=FONT_TITLE,
+            text_color=STYLE["texto_oscuro"]
+        ).pack(anchor='w')
         ctk.CTkLabel(
             form,
-            text="👤  Usuario",
-            font=("Inter", 12),
-            text_color=text_dark,
-            anchor='w'
-        ).pack(anchor='w', pady=(6, 4))
+            text="Ingresa tu usuario y contraseña",
+            font=FONT_SMALL,
+            text_color=STYLE["texto_secundario"]
+        ).pack(anchor='w', pady=(0, 16))
 
-        username_entry = ctk.CTkEntry(
-            form,
-            width=300,
-            placeholder_text="usuario",
-            corner_radius=8,
-            border_width=0,
-            border_color="#CCCCCC",
-            fg_color="#FAFAFA"
-        )
+        ctk.CTkLabel(form, text="Usuario", font=FONT_SMALL, text_color=STYLE["texto_oscuro"]).pack(anchor='w', pady=(0, 2))
+        username_entry = ctk.CTkEntry(form, width=320, height=38, placeholder_text="usuario", corner_radius=8)
         username_entry.pack(fill='x', pady=(0, 12))
 
-        # Etiqueta Contraseña con icono
-        ctk.CTkLabel(
-            form,
-            text="🔒  Contraseña",
-            font=("Inter", 12),
-            text_color=text_dark,
-            anchor='w'
-        ).pack(anchor='w', pady=(2, 4))
-
-        password_entry = ctk.CTkEntry(
-            form,
-            width=300,
-            show='*',
-            placeholder_text="contraseña",
-            corner_radius=8,
-            border_width=0,
-            border_color="#CCCCCC",
-            fg_color="#FAFAFA"
-        )
+        ctk.CTkLabel(form, text="Contraseña", font=FONT_SMALL, text_color=STYLE["texto_oscuro"]).pack(anchor='w', pady=(0, 2))
+        password_entry = ctk.CTkEntry(form, width=320, height=38, show='*', placeholder_text="contraseña", corner_radius=8)
         password_entry.pack(fill='x')
 
-        # Mensaje de error con estilo mejorado (fondo suave y borde)
-        # Mensaje de error con estilo mejorado (fondo suave y borde)
-        # No mostrar el recuadro hasta que haya texto de error
+        # El recuadro de error solo aparece cuando hay un mensaje.
         msg_frame = ctk.CTkFrame(form, fg_color="#FFEBEE", corner_radius=6, height=30)
         msg_frame.pack_propagate(False)
-        
         msg = ctk.CTkLabel(
             msg_frame,
             text="",
-            font=("Inter", 11),
-            text_color=danger_color,
+            font=(FONT_FAMILY, 11),
+            text_color=STYLE["peligro"],
             anchor='w'
         )
         msg.pack(padx=8, pady=4, fill='both', expand=True)
 
         def _show_message(text):
-            try:
-                if text:
-                    msg.configure(text=text)
-                    # sólo empacar cuando haya texto
-                    try:
-                        msg_frame.pack(fill='x', pady=(12, 0))
-                    except Exception:
-                        pass
-                else:
-                    try:
-                        msg_frame.pack_forget()
-                    except Exception:
-                        pass
-                    msg.configure(text="")
-            except Exception:
-                pass
-
-        # --- Botón Ingresar (destacado, con sombra simulada) ---
-        btns = ctk.CTkFrame(card, fg_color='transparent')
-        btns.pack(fill='x', pady=(10, 20), padx=20)
+            msg.configure(text=text)
+            msg_frame.pack(fill='x', pady=(12, 0), before=btn_ingresar)
 
         # Función de login (sin cambios en la lógica)
         def _attempt_login(event=None):
             u = username_entry.get().strip()
             p = password_entry.get()
             user = self._find_user(u)
-            if user and user.get('password') == p:
+            if user and password_correcta(user.get('password'), p):
                 self.current_user = user
                 self.current_role = user.get('role')
                 try:
@@ -1010,19 +960,17 @@ class SistemaDictamenesVC(ctk.CTk):
                 _show_message("✗ Usuario o contraseña incorrectos")
 
         btn_ingresar = ctk.CTkButton(
-            btns,
+            form,
             text="Ingresar",
             command=_attempt_login,
-            width=180,
             height=42,
-            fg_color=STYLE["secundario"],
-            hover_color="#4b4b4b",          # tono más oscuro del primario
-            text_color=text_light,
-            corner_radius=10,
-            font=("Inter", 14, "bold")
+            fg_color=STYLE["primario"],
+            hover_color=STYLE["primario_hover"],
+            text_color=STYLE["secundario"],
+            corner_radius=8,
+            font=(FONT_FAMILY, 14, "bold")
         )
-        # Centrar el botón de ingresar para una mejor experiencia
-        btn_ingresar.pack(anchor='center', pady=(6,0))
+        btn_ingresar.pack(fill='x', pady=(18, 0))
 
         # --- Mejoras en la interacción (sin cambios lógicos) ---
         try:
@@ -1086,106 +1034,55 @@ class SistemaDictamenesVC(ctk.CTk):
 
 
     def _apply_permissions(self):
-        """Oculta/muneda botones según rol del usuario autenticado."""
+        """Muestra u oculta la sesión y las secciones según el rol del usuario."""
         role = getattr(self, 'current_role', None)
-        # Mostrar/ocultar info de usuario y botón de cerrar sesión
-        try:
-            if getattr(self, 'current_user', None):
-                # mostrar etiqueta con nombre
-                display_name = (self.current_user.get('name') or self.current_user.get('username')) if self.current_user else ''
-                try:
-                    self.lbl_info_sistema.configure(text=f"{display_name}")
-                except Exception:
-                    pass
-                try:
-                    self.lbl_info_sistema.pack(side="right", padx=(0, 10))
-                except Exception:
-                    pass
-                try:
-                    self.btn_logout.pack(side="right", padx=(0, 10))
-                except Exception:
-                    pass
-            else:
-                try:
-                    self.lbl_info_sistema.pack_forget()
-                except Exception:
-                    pass
-                try:
-                    self.btn_logout.pack_forget()
-                except Exception:
-                    pass
-        except Exception:
-            pass
+        if getattr(self, 'current_user', None):
+            display_name = self.current_user.get('name') or self.current_user.get('username')
+            self.lbl_info_sistema.configure(text=display_name)
+            self.lbl_rol_usuario.configure(
+                text=ROLES_USUARIO.get(role, role or '')
+            )
+            self.sesion_frame.pack(side="bottom", fill="x", padx=12, pady=(8, 14))
+        else:
+            self.sesion_frame.pack_forget()
 
-        # Mostrar/ocultar botón 'Reportes' (ejecutivos)
-        try:
-            if role == 'ejecutivo':
-                try:
-                    self.btn_reportes_ej.pack(side="left", padx=(0, 10))
-                except Exception:
-                    pass
-            else:
-                try:
-                    self.btn_reportes_ej.pack_forget()
-                except Exception:
-                    pass
-        except Exception:
-            pass
-        # Controlar visibilidad de pestañas según rol
-        try:
-            # Siempre asegurarse de limpiar estados anteriores
-            try:
-                self.btn_reportes.pack_forget()
-            except Exception:
-                pass
-            try:
-                self.btn_inspectores.pack_forget()
-            except Exception:
-                pass
-            try:
-                self.btn_reporte_ema.pack_forget()
-            except Exception:
-                pass
-            try:
-                self.btn_reportes_ej.pack_forget()
-            except Exception:
-                pass
+        # (acceso, botón, frame de la sección, función que la muestra)
+        navegacion = (
+            ('principal', self.btn_principal, self.frame_principal, self.mostrar_principal),
+            ('historial', self.btn_historial, self.frame_historial, self.mostrar_historial),
+            ('clientes', self.btn_reportes, self.frame_reportes, self.mostrar_clientes),
+            ('inspectores', self.btn_inspectores, self.frame_inspectores, self.mostrar_inspectores),
+            ('reportes', self.btn_reportes_ej, self.frame_reportes_ejecutivo, self.mostrar_reportes_ejecutivo),
+            ('reporte_ema', self.btn_reporte_ema, None, None),
+            ('usuarios', self.btn_usuarios, self.frame_usuarios, self.mostrar_usuarios),
+        )
+        for _, boton, _, _ in navegacion:
+            boton.pack_forget()
+        permitidos = [item for item in navegacion if self._tiene_acceso(item[0])]
+        for _, boton, _, _ in permitidos:
+            boton.pack(fill="x", pady=(0, 4))
 
-            # Mostrar para 'ejecutivo': Principal, Historial, Reportes (ejecutivo)
-            if role == 'ejecutivo':
-                try:
-                    self.btn_reportes_ej.pack(side="left", padx=(0, 10))
-                except Exception:
-                    pass
-                # Ejecutivos no mostrarán el Reporte EMA (solo administradores)
+        # Al cambiar de sesión puede quedar al frente una sección sin acceso.
+        secciones = [item for item in permitidos if item[2] is not None]
+        activa = getattr(self, '_seccion_activa', None)
+        if secciones and not any(item[2] is activa for item in secciones):
+            secciones[0][3]()
 
-            # Mostrar para 'admin': Principal, Historial, Reportes (clientes), Inspectores, Reportes ejecutivos
-            if role == 'admin':
-                try:
-                    self.btn_reportes.pack(side="left", padx=(0, 10))
-                except Exception:
-                    pass
-                try:
-                    self.btn_inspectores.pack(side="left", padx=(0, 10))
-                except Exception:
-                    pass
-                try:
-                    # también permitir acceso a reportes ejecutivos desde admin
-                    self.btn_reportes_ej.pack(side="left", padx=(0, 10))
-                except Exception:
-                    pass
-                try:
-                    # Admin también puede ver/generar Reporte EMA
-                    self.btn_reporte_ema.pack(side="left", padx=(0, 10))
-                except Exception:
-                    pass
-        except Exception:
-            pass
+    def _accesos_de_usuario(self, usuario):
+        """Devuelve los accesos propios del usuario o, si no tiene, los de su rol."""
+        accesos = usuario.get('accesos')
+        if isinstance(accesos, list):
+            return accesos
+        return ACCESOS_POR_ROL.get(usuario.get('role'), ACCESOS_BASE)
 
-    def _ensure_admin_or_block(self):
+    def _tiene_acceso(self, acceso):
+        usuario = getattr(self, 'current_user', None)
+        return bool(usuario) and acceso in self._accesos_de_usuario(usuario)
+
+    def _ensure_acceso(self, acceso):
         """Utilitario: llamar antes de mostrar pantallas privadas."""
-        if getattr(self, 'current_role', None) != 'admin':
-            messagebox.showwarning("Acceso denegado", "Necesita permisos de administrador para esta acción.")
+        if not self._tiene_acceso(acceso):
+            messagebox.showwarning("Acceso denegado", "No tiene acceso a esta sección.")
             return False
         return True
 
@@ -1210,10 +1107,7 @@ class SistemaDictamenesVC(ctk.CTk):
 
         # Ocultar la ventana principal y pedir nuevas credenciales.
         # Si el usuario cierra el diálogo, el manejador del diálogo terminará la app.
-        try:
-            self.withdraw()
-        except Exception:
-            pass
+        self.attributes('-alpha', 0)
 
         try:
             self._show_login_dialog()
@@ -1229,13 +1123,11 @@ class SistemaDictamenesVC(ctk.CTk):
                 except Exception:
                     pass
                 try:
-                    self.deiconify()
-                except Exception:
-                    pass
-                try:
                     self._apply_permissions()
                 except Exception:
                     pass
+                self.update()
+                self.attributes('-alpha', 1)
             else:
                 # si no hay usuario (posible si _show_login_dialog cerró la app), intentar salir limpio
                 try:
@@ -1533,7 +1425,7 @@ class SistemaDictamenesVC(ctk.CTk):
                 pass
 
     def _cmd_mostrar_clientes(self):
-        if not self._ensure_admin_or_block():
+        if not self._ensure_acceso('clientes'):
             return
         try:
             self.mostrar_clientes()
@@ -1607,205 +1499,305 @@ class SistemaDictamenesVC(ctk.CTk):
 
     def mostrar_reportes_ejecutivo(self):
         """Muestra la pestaña de reportes para ejecutivos y oculta las demás."""
-        try:
-            # ocultar otras secciones
-            try:
-                self.frame_principal.pack_forget()
-            except Exception:
-                pass
-            try:
-                self.frame_historial.pack_forget()
-            except Exception:
-                pass
-            try:
-                self.frame_reportes.pack_forget()
-            except Exception:
-                pass
-            try:
-                self.frame_inspectores.pack_forget()
-            except Exception:
-                pass
-
-            # mostrar reportes ejecutivos
-            try:
-                self.frame_reportes_ejecutivo.pack(fill='both', expand=True)
-            except Exception:
-                pass
-
-            # actualizar estilo de botones
-            try:
-                # reset others
-                for b in (getattr(self, 'btn_principal', None), getattr(self, 'btn_historial', None), getattr(self, 'btn_reportes', None), getattr(self, 'btn_inspectores', None), getattr(self, 'btn_reporte_ema', None)):
-                    try:
-                        if b:
-                            b.configure(fg_color=STYLE['surface'], text_color=STYLE['secundario'], border_color=STYLE['secundario'])
-                    except Exception:
-                        pass
-            except Exception:
-                pass
-            try:
-                if getattr(self, 'btn_reportes_ej', None):
-                    self.btn_reportes_ej.configure(fg_color=STYLE['primario'], text_color=STYLE['secundario'], border_color=STYLE['primario'])
-            except Exception:
-                pass
-        except Exception:
-            pass
+        self._mostrar_seccion(
+            self.frame_reportes_ejecutivo, self.btn_reportes_ej,
+            "Reportes", "Productividad por día y descarga de reportes"
+        )
 
     def _cmd_mostrar_inspectores(self):
-        if not self._ensure_admin_or_block():
+        if not self._ensure_acceso('inspectores'):
             return
         try:
             self.mostrar_inspectores()
         except Exception:
             pass
 
+    def _cmd_mostrar_usuarios(self):
+        if self._ensure_acceso('usuarios'):
+            self.mostrar_usuarios()
+
+    def mostrar_usuarios(self):
+        """Muestra la sección de usuarios del sistema."""
+        self._mostrar_seccion(
+            self.frame_usuarios, self.btn_usuarios,
+            "Usuarios", "Administra quién entra al sistema y a qué tiene acceso"
+        )
+        self._refrescar_tabla_usuarios()
+
+    def _construir_tab_usuarios(self, parent):
+        """Formulario de alta y tabla de los usuarios guardados en data/usuarios.json."""
+        cont = ctk.CTkFrame(parent, fg_color=STYLE["surface"], corner_radius=12, border_width=1, border_color=STYLE["borde_panel"])
+        cont.pack(fill="both", expand=True)
+
+        usuarios_frame = ctk.CTkFrame(cont, fg_color="transparent")
+        usuarios_frame.pack(fill="both", expand=True, padx=10, pady=8)
+        usuarios_frame.grid_columnconfigure(1, weight=1)
+        usuarios_frame.grid_rowconfigure(0, weight=1)
+
+        form_frame = ctk.CTkScrollableFrame(usuarios_frame, fg_color=STYLE["surface"], corner_radius=8, width=350)
+        form_frame.grid(row=0, column=0, sticky="nsew", padx=(0, 8), pady=1)
+
+        self.lbl_form_usuario = ctk.CTkLabel(form_frame, text="Agregar nuevo usuario", font=FONT_SUBTITLE, text_color=STYLE["texto_oscuro"])
+        self.lbl_form_usuario.pack(anchor="w", padx=10, pady=(4, 4))
+
+        def _fila(etiqueta):
+            fila = ctk.CTkFrame(form_frame, fg_color="transparent")
+            fila.pack(fill="x", padx=12, pady=4)
+            ctk.CTkLabel(fila, text=f"{etiqueta}:", font=FONT_SMALL, width=100, anchor="w", text_color=STYLE["texto_oscuro"]).pack(side="left")
+            return fila
+
+        self.entry_usuario_nombre = ctk.CTkEntry(_fila("Nombre"), placeholder_text="Nombre completo", font=FONT_SMALL, height=30)
+        self.entry_usuario_nombre.pack(side="left", fill="x", expand=True)
+        self.entry_usuario_login = ctk.CTkEntry(_fila("Usuario"), placeholder_text="Con el que inicia sesión", font=FONT_SMALL, height=30)
+        self.entry_usuario_login.pack(side="left", fill="x", expand=True)
+        self.entry_usuario_password = ctk.CTkEntry(_fila("Contraseña"), placeholder_text="Contraseña", show='*', font=FONT_SMALL, height=30)
+        self.entry_usuario_password.pack(side="left", fill="x", expand=True)
+        self.combo_usuario_rol = ctk.CTkComboBox(
+            _fila("Rol"), values=list(ROLES_USUARIO.values()), font=FONT_SMALL, dropdown_font=FONT_SMALL,
+            state="readonly", height=30, corner_radius=8, command=self._aplicar_accesos_de_rol
+        )
+        self.combo_usuario_rol.pack(side="left", fill="x", expand=True)
+
+        ctk.CTkLabel(form_frame, text="Tiene acceso a:", font=FONT_SMALL, text_color=STYLE["texto_oscuro"]).pack(anchor="w", padx=12, pady=(8, 2))
+        accesos_frame = ctk.CTkFrame(form_frame, fg_color="transparent")
+        accesos_frame.pack(fill="x", padx=12, pady=(2, 8))
+        accesos_frame.grid_columnconfigure((0, 1), weight=1, uniform="accesos")
+        self.usuario_accesos_vars = {}
+        for i, (clave, etiqueta) in enumerate(ACCESOS_SISTEMA.items()):
+            var = tk.BooleanVar(value=False)
+            ctk.CTkCheckBox(accesos_frame, text=etiqueta, variable=var, font=FONT_SMALL).grid(row=i // 2, column=i % 2, sticky="w", padx=6, pady=3)
+            self.usuario_accesos_vars[clave] = var
+
+        btns_frame = ctk.CTkFrame(form_frame, fg_color="transparent")
+        btns_frame.pack(fill="x", padx=12, pady=(8, 12))
+        self.btn_guardar_usuario = ctk.CTkButton(btns_frame, text="Guardar usuario", command=self._guardar_usuario_desde_form, fg_color=STYLE["primario"], hover_color=STYLE["primario_hover"], text_color=STYLE["secundario"], font=(FONT_FAMILY, 11, "bold"), height=34, corner_radius=8)
+        self.btn_guardar_usuario.pack(side="left")
+        ctk.CTkButton(btns_frame, text="Limpiar", command=self._limpiar_formulario_usuario, fg_color=STYLE["neutro"], hover_color=STYLE["neutro_hover"], text_color=STYLE["texto_oscuro"], font=(FONT_FAMILY, 11, "bold"), height=34, corner_radius=8).pack(side="left", padx=(8, 0))
+
+        tabla_frame = ctk.CTkFrame(usuarios_frame, fg_color=STYLE["surface"], corner_radius=8)
+        tabla_frame.grid(row=0, column=1, sticky="nsew", padx=(10, 0), pady=(0, 5))
+        header_frame = ctk.CTkFrame(tabla_frame, fg_color="transparent")
+        header_frame.pack(fill="x", padx=12, pady=(8, 6))
+        ctk.CTkLabel(header_frame, text="Usuarios registrados", font=FONT_SUBTITLE, text_color=STYLE["texto_oscuro"]).pack(side="left")
+        self.lbl_total_usuarios = ctk.CTkLabel(header_frame, text="Total: 0", font=FONT_SMALL, text_color=STYLE["texto_oscuro"])
+        self.lbl_total_usuarios.pack(side="right")
+
+        tree_container = tk.Frame(tabla_frame)
+        tree_container.pack(fill="both", expand=True, padx=12)
+        configurar_tablas(self)
+        columnas = ('NOMBRE', 'USUARIO', 'ROL', 'ACCESOS')
+        escala = form_frame._get_widget_scaling()
+        self.tree_usuarios = ttk.Treeview(tree_container, columns=columnas, show='headings', selectmode='browse', style='clientes.Treeview')
+        for columna in columnas:
+            self.tree_usuarios.heading(columna, text=columna)
+            self.tree_usuarios.column(columna, anchor='w', stretch=False)
+
+        def _ajustar_columnas(event):
+            # Usuario y rol son cortos; el resto se reparte para que ACCESOS siempre se vea.
+            usuario, rol = int(95 * escala), int(105 * escala)
+            resto = max(event.width - usuario - rol, 200)
+            self.tree_usuarios.column('USUARIO', width=usuario)
+            self.tree_usuarios.column('ROL', width=rol)
+            self.tree_usuarios.column('NOMBRE', width=int(resto * 0.45))
+            self.tree_usuarios.column('ACCESOS', width=resto - int(resto * 0.45))
+
+        self.tree_usuarios.bind('<Configure>', _ajustar_columnas)
+        vsb = ctk.CTkScrollbar(tree_container, orientation="vertical", command=self.tree_usuarios.yview)
+        self.tree_usuarios.configure(yscrollcommand=vsb.set)
+        self.tree_usuarios.pack(side="left", fill="both", expand=True)
+        vsb.pack(side="right", fill="y")
+        self.tree_usuarios.bind('<Double-1>', lambda e: self._editar_usuario_seleccionado())
+
+        tbl_btns = ctk.CTkFrame(tabla_frame, fg_color="transparent")
+        tbl_btns.pack(fill="x", padx=12, pady=(8, 10))
+        ctk.CTkButton(tbl_btns, text="Editar", command=self._editar_usuario_seleccionado, fg_color=STYLE["primario"], hover_color=STYLE["primario_hover"], text_color=STYLE["secundario"], width=90, height=32, corner_radius=8).pack(side="left")
+        ctk.CTkButton(tbl_btns, text="Eliminar", command=self._eliminar_usuario_seleccionado, fg_color=STYLE["peligro"], hover_color="#c84a3d", text_color=STYLE["surface"], width=90, height=32, corner_radius=8).pack(side="left", padx=(8, 0))
+
+        self._limpiar_formulario_usuario()
+
+    def _aplicar_accesos_de_rol(self, rol_visible=None):
+        """Marca los accesos que corresponden al rol elegido."""
+        rol = self._rol_seleccionado()
+        accesos = ACCESOS_POR_ROL.get(rol, ACCESOS_BASE)
+        for clave, var in self.usuario_accesos_vars.items():
+            var.set(clave in accesos)
+
+    def _rol_seleccionado(self):
+        visible = self.combo_usuario_rol.get()
+        return next((rol for rol, texto in ROLES_USUARIO.items() if texto == visible), visible)
+
+    def _refrescar_tabla_usuarios(self):
+        self.users = self._load_users()
+        self.tree_usuarios.delete(*self.tree_usuarios.get_children())
+        for usuario in self.users:
+            accesos = [texto for clave, texto in ACCESOS_SISTEMA.items() if clave in self._accesos_de_usuario(usuario)]
+            self.tree_usuarios.insert('', 'end', iid=usuario.get('username'), values=(
+                usuario.get('name', ''),
+                usuario.get('username', ''),
+                ROLES_USUARIO.get(usuario.get('role'), usuario.get('role', '')),
+                'Todos' if len(accesos) == len(ACCESOS_SISTEMA) else ', '.join(accesos),
+            ))
+        self.lbl_total_usuarios.configure(text=f"Total: {len(self.users)}")
+
+    def _limpiar_formulario_usuario(self):
+        self.usuario_editando = None
+        self.lbl_form_usuario.configure(text="Agregar nuevo usuario")
+        self.btn_guardar_usuario.configure(text="Guardar usuario")
+        self.entry_usuario_login.configure(state="normal")
+        # CTkEntry no repone el placeholder al borrar si cree tener el foco: se fija
+        # de nuevo y se le quita el foco para que lo siguiente que se escriba no se sume.
+        for entry, ayuda in (
+            (self.entry_usuario_nombre, "Nombre completo"),
+            (self.entry_usuario_login, "Con el que inicia sesión"),
+            (self.entry_usuario_password, "Contraseña"),
+        ):
+            entry.delete(0, 'end')
+            entry.configure(placeholder_text=ayuda)
+        self.focus_set()
+        self.combo_usuario_rol.set(ROLES_USUARIO['ejecutivo'])
+        self._aplicar_accesos_de_rol()
+        self.tree_usuarios.selection_remove(*self.tree_usuarios.selection())
+
+    def _editar_usuario_seleccionado(self):
+        seleccion = self.tree_usuarios.selection()
+        if not seleccion:
+            messagebox.showwarning("Editar usuario", "Seleccione un usuario de la tabla.")
+            return
+        usuario = next((u for u in self.users if u.get('username') == seleccion[0]), None)
+        if not usuario:
+            return
+        self._limpiar_formulario_usuario()
+        self.tree_usuarios.selection_set(seleccion[0])
+        self.usuario_editando = usuario.get('username')
+        self.lbl_form_usuario.configure(text="Editar usuario")
+        self.btn_guardar_usuario.configure(text="Guardar cambios")
+        self.entry_usuario_nombre.insert(0, usuario.get('name', ''))
+        self.entry_usuario_login.insert(0, usuario.get('username', ''))
+        # La producción se guarda por usuario: cambiarlo dejaría sus registros huérfanos.
+        self.entry_usuario_login.configure(state="disabled")
+        self.entry_usuario_password.configure(placeholder_text="Vacío = no cambiar")
+        rol = usuario.get('role', '')
+        self.combo_usuario_rol.set(ROLES_USUARIO.get(rol, rol))
+        accesos = self._accesos_de_usuario(usuario)
+        for clave, var in self.usuario_accesos_vars.items():
+            var.set(clave in accesos)
+
+    def _escribir_usuarios(self, usuarios):
+        """Guarda la lista completa; devuelve False y avisa si no se pudo escribir."""
+        destino = os.path.join(DATA_DIR, "usuarios.json")
+        temporal = f"{destino}.tmp"
+        try:
+            with open(temporal, 'w', encoding='utf-8') as f:
+                json.dump({'users': usuarios}, f, ensure_ascii=False, indent=2)
+            os.replace(temporal, destino)
+        except OSError as e:
+            messagebox.showerror("Usuarios", f"No se pudo guardar usuarios.json:\n{e}")
+            return False
+        return True
+
+    def _guardar_usuario_desde_form(self):
+        if not self._ensure_acceso('usuarios'):
+            return
+        nombre = self.entry_usuario_nombre.get().strip()
+        username = self.entry_usuario_login.get().strip()
+        password = self.entry_usuario_password.get()
+        accesos = [clave for clave, var in self.usuario_accesos_vars.items() if var.get()]
+        editando = self.usuario_editando
+
+        error = None
+        if not nombre or not username:
+            error = "Capture el nombre y el usuario."
+        elif not re.fullmatch(r"[A-Za-z0-9_.-]+", username):
+            error = "El usuario solo admite letras sin acentos, números, punto, guion y guion bajo."
+        elif not editando and not password:
+            error = "Capture una contraseña."
+        elif not set(accesos) - {'reporte_ema'}:
+            error = "Seleccione al menos una sección además de Reporte EMA."
+        elif editando == self.current_user.get('username') and 'usuarios' not in accesos:
+            error = "No puede quitarse a sí mismo el acceso a Usuarios."
+        if error:
+            messagebox.showwarning("Usuarios", error)
+            return
+
+        usuarios = self._load_users()
+        # El login acepta usuario o nombre completo, así que ninguno puede repetirse.
+        nuevos = {nombre.lower(), username.lower()}
+        for otro in usuarios:
+            if otro.get('username') != editando and nuevos & {str(otro.get('username', '')).lower(), str(otro.get('name', '')).strip().lower()}:
+                messagebox.showwarning("Usuarios", f"Ya existe un usuario con ese nombre o usuario: {otro.get('name')}.")
+                return
+
+        if editando:
+            usuario = next((u for u in usuarios if u.get('username') == editando), None)
+            if usuario is None:
+                messagebox.showwarning("Usuarios", "El usuario ya no existe.")
+                return
+        else:
+            usuario = {'username': username}
+            usuarios.append(usuario)
+        usuario.update(name=nombre, role=self._rol_seleccionado(), accesos=accesos)
+        if password:
+            usuario['password'] = cifrar_password(password)
+
+        if not self._escribir_usuarios(usuarios):
+            return
+        if editando == self.current_user.get('username'):
+            self.current_user = usuario
+            self.current_role = usuario.get('role')
+            self.title(f"Generador de Dictámenes - {nombre}")
+            self._apply_permissions()
+        self._limpiar_formulario_usuario()
+        self._refrescar_tabla_usuarios()
+        messagebox.showinfo("Usuarios", f"Usuario {username} guardado.")
+
+    def _eliminar_usuario_seleccionado(self):
+        if not self._ensure_acceso('usuarios'):
+            return
+        seleccion = self.tree_usuarios.selection()
+        if not seleccion:
+            messagebox.showwarning("Eliminar usuario", "Seleccione un usuario de la tabla.")
+            return
+        username = seleccion[0]
+        if username == self.current_user.get('username'):
+            messagebox.showwarning("Eliminar usuario", "No puede eliminar su propio usuario.")
+            return
+        if not messagebox.askyesno("Eliminar usuario", f"¿Eliminar a {username}? Ya no podrá iniciar sesión. Sus registros se conservan."):
+            return
+        if self._escribir_usuarios([u for u in self._load_users() if u.get('username') != username]):
+            self._limpiar_formulario_usuario()
+            self._refrescar_tabla_usuarios()
+
 
     def mostrar_principal(self):
         """Muestra la sección principal y oculta las demás"""
-        # Ocultar todos los frames primero
-        self.frame_principal.pack_forget()
-        self.frame_historial.pack_forget()
-        # Asegurarse de ocultar la pestaña de reportes ejecutivos también
-        try:
-            self.frame_reportes_ejecutivo.pack_forget()
-        except Exception:
-            pass
-        # Asegurarse de ocultar la pestaña Reportes también
-        try:
-            self.frame_reportes.pack_forget()
-        except Exception:
-            pass
-        
-        # Mostrar el frame principal
-        self.frame_principal.pack(fill="both", expand=True)
-        
-        # Actualizar estado de los botones con mejor contraste
-        self.btn_principal.configure(
-            fg_color=STYLE["primario"],
-            text_color=STYLE["secundario"],
-            border_color=STYLE["primario"]
+        self._mostrar_seccion(
+            self.frame_principal, self.btn_principal,
+            "Principal", "Captura la visita y genera sus documentos"
         )
-        self.btn_historial.configure(
-            fg_color=STYLE["surface"],
-            text_color=STYLE["secundario"],
-            border_color=STYLE["secundario"]
-        )
-        try:
-            self.btn_reportes.configure(fg_color=STYLE["surface"], text_color=STYLE["secundario"], border_color=STYLE["secundario"])
-        except Exception:
-            pass
-        try:
-            self.btn_reporte_ema.configure(fg_color=STYLE["surface"], text_color=STYLE["secundario"], border_color=STYLE["secundario"])
-        except Exception:
-            pass
-        # Asegurar que la pestaña Inspectores quede oculta al mostrar Principal
-        try:
-            self.frame_inspectores.pack_forget()
-        except Exception:
-            pass
-        # Ocultar backup nav cuando no estemos en Historial
-        try:
-            if getattr(self, 'btn_backup', None):
-                self.btn_backup.pack_forget()
-        except Exception:
-            pass
 
     def mostrar_historial(self):
-            """Muestra la sección de historial y oculta las demás"""
-            # Ocultar todos los frames primero
-            self.frame_principal.pack_forget()
-            self.frame_historial.pack_forget()
-            # Asegurarse de ocultar las pestañas de Reportes también
-            try:
-                self.frame_reportes.pack_forget()
-            except Exception:
-                pass
-            try:
-                self.frame_reportes_ejecutivo.pack_forget()
-            except Exception:
-                pass
-            
-            # Mostrar el frame de historial
-            self.frame_historial.pack(fill="both", expand=True)
-            
-            # Actualizar estado de los botones con mejor contraste
-            self.btn_principal.configure(
-                fg_color=STYLE["surface"],
-                text_color=STYLE["secundario"],
-                border_color=STYLE["secundario"]
-            )
-            self.btn_historial.configure(
-                fg_color=STYLE["primario"],
-                text_color=STYLE["secundario"],
-                border_color=STYLE["primario"]
-            )
-            try:
-                self.btn_reportes.configure(fg_color=STYLE["surface"], text_color=STYLE["secundario"], border_color=STYLE["secundario"])
-            except Exception:
-                pass
-            try:
-                self.btn_reporte_ema.configure(fg_color=STYLE["surface"], text_color=STYLE["secundario"], border_color=STYLE["secundario"])
-            except Exception:
-                pass
-            # Asegurar que la pestaña Inspectores quede oculta al mostrar Historial
-            try:
-                self.frame_inspectores.pack_forget()
-            except Exception:
-                pass
-            
-            # Verificar y reparar datos existentes al mostrar historial
-            self.verificar_datos_folios_existentes()
-            
-            # Refrescar el historial si es necesario
-            self._cargar_historial()
-            self._poblar_historial_ui()
+        """Muestra la sección de historial y oculta las demás"""
+        self._mostrar_seccion(
+            self.frame_historial, self.btn_historial,
+            "Historial", "Consulta visitas, folios y documentos generados"
+        )
+        # Se recarga después de pintar la sección para que el cambio sea inmediato.
+        self.after(10, self._refrescar_historial)
 
-            # Mostrar backup nav cuando estemos en Historial
-            try:
-                if getattr(self, 'btn_backup', None):
-                    self.btn_backup.pack(side="right", padx=(0, 10))
-            except Exception:
-                pass
+    def _refrescar_historial(self):
+        # Verificar y reparar datos existentes al mostrar historial
+        self.verificar_datos_folios_existentes()
+
+        # Refrescar el historial si es necesario
+        self._cargar_historial()
+        self._poblar_historial_ui()
 
     def mostrar_clientes(self):
-        """Muestra la sección de reportes y oculta las demás"""
-        # Ocultar todos los frames primero
-        self.frame_principal.pack_forget()
-        self.frame_historial.pack_forget()
-        # Ocultar reportes ejecutivos si estaban visibles
-        try:
-            self.frame_reportes_ejecutivo.pack_forget()
-        except Exception:
-            pass
-        self.frame_reportes.pack(fill="both", expand=True)
-        # Asegurarse de ocultar backup nav en la pestaña Reportes
-        try:
-            if getattr(self, 'btn_backup', None):
-                self.btn_backup.pack_forget()
-        except Exception:
-            pass
-
-        # Actualizar estado de los botones
-        try:
-            self.btn_principal.configure(fg_color=STYLE["surface"], text_color=STYLE["secundario"], border_color=STYLE["secundario"])
-            self.btn_historial.configure(fg_color=STYLE["surface"], text_color=STYLE["secundario"], border_color=STYLE["secundario"])
-            self.btn_reportes.configure(fg_color=STYLE["primario"], text_color=STYLE["secundario"], border_color=STYLE["primario"])
-            try:
-                self.btn_inspectores.configure(fg_color=STYLE["surface"], text_color=STYLE["secundario"], border_color=STYLE["secundario"])
-            except Exception:
-                pass
-            try:
-                # Al mostrar la pestaña Clientes, el botón EMA no queda activo
-                self.btn_reporte_ema.configure(fg_color=STYLE["surface"], text_color=STYLE["secundario"], border_color=STYLE["secundario"])
-            except Exception:
-                pass
-        except Exception:
-            pass
-        # Asegurar que la pestaña Inspectores quede oculta al mostrar Clientes
-        try:
-            self.frame_inspectores.pack_forget()
-        except Exception:
-            pass
+        """Muestra la sección de clientes y oculta las demás"""
+        self._mostrar_seccion(
+            self.frame_reportes, self.btn_reportes,
+            "Clientes", "Administra clientes y domicilios"
+        )
 
     def _construir_tab_principal(self, parent):
         """Construye la interfaz principal con dos tarjetas en proporción 30%/70%"""
@@ -1821,8 +1813,8 @@ class SistemaDictamenesVC(ctk.CTk):
         main_frame.grid_rowconfigure(0, weight=1, minsize=420)
 
         # ===== TARJETA INFORMACIÓN DE VISITA (IZQUIERDA) - 30% =====
-        card_visita = ctk.CTkFrame(main_frame, fg_color=STYLE["surface"], corner_radius=12)
-        card_visita.grid(row=0, column=0, padx=(0, 10), pady=0, sticky="nsew")
+        card_visita = ctk.CTkFrame(main_frame, fg_color=STYLE["surface"], corner_radius=12, border_width=1, border_color=STYLE["borde_panel"])
+        card_visita.grid(row=0, column=0, padx=(0, 8), pady=0, sticky="nsew")
         try:
             card_visita.grid_propagate(False)
         except Exception:
@@ -1830,20 +1822,20 @@ class SistemaDictamenesVC(ctk.CTk):
 
         ctk.CTkLabel(
             card_visita,
-            text="📋 Información de Visita",
+            text="Información de Visita",
             font=FONT_SUBTITLE,
             text_color=STYLE["texto_oscuro"]
-        ).pack(anchor="w", padx=20, pady=(20, 15))
+        ).pack(anchor="w", padx=18, pady=(14, 8))
 
         visita_frame = ctk.CTkFrame(card_visita, fg_color="transparent")
-        visita_frame.pack(fill="both", expand=True, padx=0, pady=(0, 0))
+        visita_frame.pack(fill="both", expand=True, padx=(8, 4), pady=(0, 8))
 
         # Contenedor para el formulario con scrollbar
         scroll_form = ctk.CTkScrollableFrame(
             visita_frame,
             fg_color="transparent",
-            scrollbar_button_color="#ecd925",
-            scrollbar_button_hover_color="#ecd925"
+            scrollbar_button_color=STYLE["borde_fuerte"],
+            scrollbar_button_hover_color=STYLE["sidebar_tenue"]
         )
         scroll_form.pack(fill="both", expand=True, padx=0, pady=(0, 0))
 
@@ -2005,8 +1997,8 @@ class SistemaDictamenesVC(ctk.CTk):
         # Supervisor field removed from UI: supervisor is derived from the loaded tabla de relación
 
         # ===== TARJETA GENERADOR (DERECHA) - 70% =====
-        card_generacion = ctk.CTkFrame(main_frame, fg_color=STYLE["surface"], corner_radius=12)
-        card_generacion.grid(row=0, column=1, padx=(10, 0), pady=0, sticky="nsew")
+        card_generacion = ctk.CTkFrame(main_frame, fg_color=STYLE["surface"], corner_radius=12, border_width=1, border_color=STYLE["borde_panel"])
+        card_generacion.grid(row=0, column=1, padx=(8, 0), pady=0, sticky="nsew")
         try:
             card_generacion.grid_propagate(False)
         except Exception:
@@ -2014,21 +2006,21 @@ class SistemaDictamenesVC(ctk.CTk):
 
         self.generacion_title = ctk.CTkLabel(
             card_generacion,
-            text="🚀 Generador de Dictámenes",
+            text="Generador de Dictámenes",
             font=FONT_SUBTITLE,
             text_color=STYLE["texto_oscuro"]
         )
-        self.generacion_title.pack(anchor="w", padx=20, pady=(10, 8))
+        self.generacion_title.pack(anchor="w", padx=18, pady=(14, 8))
 
         generacion_frame = ctk.CTkFrame(card_generacion, fg_color="transparent")
-        generacion_frame.pack(fill="both", expand=True, padx=20, pady=(0, 8))
+        generacion_frame.pack(fill="both", expand=True, padx=(8, 4), pady=(0, 4))
 
         # Contenedor principal de generador con scrollbar
         scroll_generacion = ctk.CTkScrollableFrame(
             generacion_frame,
             fg_color="transparent",
-            scrollbar_button_color="#ecd925",
-            scrollbar_button_hover_color="#ecd925"
+            scrollbar_button_color=STYLE["borde_fuerte"],
+            scrollbar_button_hover_color=STYLE["sidebar_tenue"]
         )
         scroll_generacion.pack(fill="both", expand=True)
 
@@ -2038,8 +2030,8 @@ class SistemaDictamenesVC(ctk.CTk):
 
         ctk.CTkLabel(
             cliente_section,
-            text="👤 Seleccionar Cliente",
-            font=FONT_LABEL,
+            text="Seleccionar Cliente",
+            font=FONT_SECCION,
             text_color=STYLE["texto_oscuro"]
         ).pack(anchor="w", pady=(0, 10))
 
@@ -2086,10 +2078,10 @@ class SistemaDictamenesVC(ctk.CTk):
             cliente_controls_frame,
             text="✕",
             command=self.limpiar_cliente,
-            font=("Inter", 14, "bold"),
-            fg_color=STYLE["primario"],
-            hover_color="#D4BF22",
-            text_color=STYLE["secundario"],
+            font=(FONT_FAMILY, 14, "bold"),
+            fg_color=STYLE["neutro"],
+            hover_color=STYLE["neutro_hover"],
+            text_color=STYLE["texto_oscuro"],
             height=35,
             width=35,
             corner_radius=8,
@@ -2108,8 +2100,10 @@ class SistemaDictamenesVC(ctk.CTk):
             cliente_section,
             text="No se ha seleccionado ningún cliente",
             font=FONT_SMALL,
-            text_color=STYLE["texto_claro"],
-            wraplength=350
+            text_color=STYLE["texto_secundario"],
+            wraplength=640,
+            anchor="w",
+            justify="left"
         )
         self.info_cliente.pack(anchor="w", fill="x", pady=(0,4))
 
@@ -2119,8 +2113,8 @@ class SistemaDictamenesVC(ctk.CTk):
 
         ctk.CTkLabel(
             pegado_section,
-            text="🧩 Pegado de evidencia",
-            font=FONT_LABEL,
+            text="Pegado de evidencia",
+            font=FONT_SECCION,
             text_color=STYLE["texto_oscuro"]
         ).pack(anchor="w", pady=(0, 8))
 
@@ -2134,7 +2128,7 @@ class SistemaDictamenesVC(ctk.CTk):
         self.lbl_folios_pendientes = ctk.CTkLabel(
             self.cliente_folios_frame,
             text="Visitas Reservadas:",
-            font=("Inter", 10),
+            font=(FONT_FAMILY, 10),
             text_color=STYLE["texto_oscuro"]
         )
         self.lbl_folios_pendientes.pack(side="left", padx=(0,8))
@@ -2190,12 +2184,12 @@ class SistemaDictamenesVC(ctk.CTk):
         # Tres botones para modos de pegado (siempre están visibles en la card de pegado)
         self.boton_pegado_simple = ctk.CTkButton(
             pegado_botones_frame,
-            text="🖼️ Una sola Carpeta",
+            text="Una sola Carpeta",
             command=self.handle_pegado_simple,
-            font=("Inter", 11, "bold"),
-            fg_color=STYLE["primario"],
-            hover_color="#D4BF22",
-            text_color=STYLE["secundario"],
+            font=(FONT_FAMILY, 11, "bold"),
+            fg_color=STYLE["neutro"],
+            hover_color=STYLE["neutro_hover"],
+            text_color=STYLE["texto_oscuro"],
             height=32,
             width=150,
             corner_radius=8
@@ -2203,12 +2197,12 @@ class SistemaDictamenesVC(ctk.CTk):
 
         self.boton_pegado_carpetas = ctk.CTkButton(
             pegado_botones_frame,
-            text="📁 Carpetas con más carpetas",
+            text="Carpetas con más carpetas",
             command=self.handle_pegado_carpetas,
-            font=("Inter", 11, "bold"),
-            fg_color=STYLE["primario"],
-            hover_color="#D4BF22",
-            text_color=STYLE["secundario"],
+            font=(FONT_FAMILY, 11, "bold"),
+            fg_color=STYLE["neutro"],
+            hover_color=STYLE["neutro_hover"],
+            text_color=STYLE["texto_oscuro"],
             height=32,
             width=150,
             corner_radius=8
@@ -2220,14 +2214,16 @@ class SistemaDictamenesVC(ctk.CTk):
         # Botón para limpiar rutas de evidencias guardadas
         self.boton_limpiar_rutas_evidencias = ctk.CTkButton(
             pegado_botones_frame,
-            text="🧹 Limpiar",
+            text="Limpiar",
             command=self.handle_clear_evidence_paths,
-            font=("Inter", 11, "bold"),
-            fg_color=STYLE["peligro"],
-            hover_color="#c84a3d",
-            text_color=STYLE["surface"],
+            font=(FONT_FAMILY, 11, "bold"),
+            fg_color="transparent",
+            hover_color="#FFEBEE",
+            text_color=STYLE["peligro"],
+            border_width=1,
+            border_color=STYLE["peligro"],
             height=32,
-            width=180,
+            width=110,
             corner_radius=8
         )
         # Empacar los botones en la card de pegado para que siempre estén visibles.
@@ -2249,7 +2245,10 @@ class SistemaDictamenesVC(ctk.CTk):
             text="Ruta cargada",
             variable=self.pegado_path_loaded_var,
             state="disabled",
-            text_color=STYLE["texto_oscuro"]
+            text_color=STYLE["texto_oscuro"],
+            checkbox_width=18,
+            checkbox_height=18,
+            corner_radius=4
         )
         self.pegado_checkbox.pack(side="left", padx=(0, 8))
 
@@ -2281,8 +2280,8 @@ class SistemaDictamenesVC(ctk.CTk):
 
         ctk.CTkLabel(
             carga_section,
-            text="📊 Cargar Tabla de Relación",
-            font=FONT_LABEL,
+            text="Cargar Tabla de Relación",
+            font=FONT_SECCION,
             text_color=STYLE["texto_oscuro"]
         ).pack(anchor="w", pady=(0, 10))
 
@@ -2290,8 +2289,10 @@ class SistemaDictamenesVC(ctk.CTk):
             carga_section,
             text="No se ha cargado ningún archivo",
             font=FONT_SMALL,
-            text_color=STYLE["texto_claro"],
-            wraplength=350
+            text_color=STYLE["texto_secundario"],
+            wraplength=640,
+            anchor="w",
+            justify="left"
         )
         self.info_archivo.pack(anchor="w", pady=(0, 10))
 
@@ -2305,7 +2306,7 @@ class SistemaDictamenesVC(ctk.CTk):
             botones_fila1,
             text="Subir archivo",
             command=self.cargar_excel,
-            font=("Inter", 13, "bold"),
+            font=(FONT_FAMILY, 13, "bold"),
             fg_color=STYLE["primario"],
             hover_color="#D4BF22",
             text_color=STYLE["secundario"],
@@ -2318,11 +2319,11 @@ class SistemaDictamenesVC(ctk.CTk):
         # Botón Verificar Datos movido aquí
         ctk.CTkButton(
             botones_fila1,
-            text="🔍 Verificar Datos",
+            text="Verificar Datos",
             command=self.verificar_integridad_datos,
-            font=("Inter", 11, "bold"),
-            fg_color=STYLE["advertencia"],
-            hover_color="#b85a52",
+            font=(FONT_FAMILY, 11, "bold"),
+            fg_color=STYLE["secundario"],
+            hover_color=STYLE["secundario_hover"],
             text_color=STYLE["surface"],
             height=35,
             width=100,
@@ -2333,10 +2334,10 @@ class SistemaDictamenesVC(ctk.CTk):
             botones_fila1,
             text="Limpiar",
             command=self.limpiar_archivo,
-            font=("Inter", 13, "bold"),
-            fg_color=STYLE["secundario"],
-            hover_color="#1a1a1a",
-            text_color=STYLE["surface"],
+            font=(FONT_FAMILY, 13, "bold"),
+            fg_color=STYLE["neutro"],
+            hover_color=STYLE["neutro_hover"],
+            text_color=STYLE["texto_oscuro"],
             height=35,
             width=70,
             corner_radius=8,
@@ -2346,9 +2347,9 @@ class SistemaDictamenesVC(ctk.CTk):
 
         self.boton_subir_etiquetado = ctk.CTkButton(
             botones_fila1,
-            text="📦 Subir Base de Etiquetado",
+            text="Subir Base de Etiquetado",
             command=self.cargar_base_etiquetado,
-            font=("Inter", 12, "bold"),
+            font=(FONT_FAMILY, 12, "bold"),
             fg_color=STYLE["primario"],
             hover_color="#D4BF22",
             text_color=STYLE["secundario"],
@@ -2364,8 +2365,10 @@ class SistemaDictamenesVC(ctk.CTk):
             botones_carga_frame,
             text="",
             font=FONT_SMALL,
-            text_color=STYLE["texto_claro"],
-            wraplength=350
+            text_color=STYLE["texto_secundario"],
+            wraplength=640,
+            anchor="w",
+            justify="left"
         )
         self.info_etiquetado.pack(anchor="w", pady=(5, 0))
 
@@ -2376,78 +2379,82 @@ class SistemaDictamenesVC(ctk.CTk):
             estado_carga_frame,
             text="",
             font=FONT_SMALL,
-            text_color=STYLE["texto_claro"]
+            text_color=STYLE["texto_secundario"]
         )
         self.etiqueta_estado.pack(side="left")
 
         self.check_label = ctk.CTkLabel(
             estado_carga_frame,
             text="",
-            font=("Inter", 16, "bold"),
+            font=(FONT_FAMILY, 16, "bold"),
             text_color=STYLE["exito"]
         )
         self.check_label.pack(side="right")
 
         # --- GENERAR DICTÁMENES ---
-        generar_section = ctk.CTkFrame(scroll_generacion, fg_color="transparent")
-        generar_section.pack(fill="x", pady=(0, 0))
+        # Fijo al pie de la tarjeta, fuera del scroll, para que siempre esté a la vista.
+        generar_section = ctk.CTkFrame(card_generacion, fg_color=STYLE["fondo"], corner_radius=10)
+        generar_section.pack(side="bottom", fill="x", padx=14, pady=(4, 14))
 
-        ctk.CTkLabel(
-            generar_section,
-            text="🧾 Generar Documentos PDF",
-            font=FONT_LABEL,
-            text_color=STYLE["texto_oscuro"]
-        ).pack(anchor="w", pady=(0, 10))
+        generar_estado = ctk.CTkFrame(generar_section, fg_color="transparent")
+
+        generar_textos = ctk.CTkFrame(generar_estado, fg_color="transparent")
+        generar_textos.pack(fill="x")
 
         self.info_generacion = ctk.CTkLabel(
-            generar_section,
+            generar_textos,
             text="Seleccione un cliente y cargue la tabla para habilitar",
             font=FONT_SMALL,
-            text_color=STYLE["texto_claro"]
+            text_color=STYLE["texto_secundario"],
+            height=20
         )
-        self.info_generacion.pack(anchor="w", pady=(0, 4))
+        self.info_generacion.pack(side="left")
+
+        self.etiqueta_progreso = ctk.CTkLabel(
+            generar_textos,
+            text="",
+            font=(FONT_FAMILY, 11),
+            text_color=STYLE["texto_secundario"],
+            height=20
+        )
+        self.etiqueta_progreso.pack(side="right")
 
         # Barra de progreso
         self.barra_progreso = ctk.CTkProgressBar(
-            generar_section,
+            generar_estado,
             progress_color=STYLE["primario"],
-            height=10,
-            corner_radius=5
+            height=8,
+            corner_radius=2
         )
-        self.barra_progreso.pack(fill="x", pady=(5, 8))
+        self.barra_progreso.pack(fill="x", pady=(4, 0))
         self.barra_progreso.set(0)
-
-        self.etiqueta_progreso = ctk.CTkLabel(
-            generar_section,
-            text="",
-            font=("Inter", 11),
-            text_color=STYLE["texto_claro"]
-        )
-        self.etiqueta_progreso.pack(pady=(0, 8))
 
         # Label para avisar si hay folio pendiente para el tipo seleccionado
         self.info_folio_pendiente = ctk.CTkLabel(
-            generar_section,
+            generar_estado,
             text="",
-            font=("Inter", 11),
-            text_color=STYLE["advertencia"]
+            font=(FONT_FAMILY, 11),
+            text_color=STYLE["advertencia"],
+            height=18
         )
-        self.info_folio_pendiente.pack(pady=(0, 6))
+        self.info_folio_pendiente.pack(anchor="w")
 
         # Botón de generación
-        self.boton_generar_dictamen = ctk.CTkButton(
+        self.boton_generar_dictamen = BotonAccion(
             generar_section,
-            text="🧾 Generar Dictámenes",
+            text="Generar Dictámenes",
             command=self.generar_dictamenes,
-            font=("Inter", 13, "bold"),
+            font=(FONT_FAMILY, 14, "bold"),
             fg_color=STYLE["exito"],
-            hover_color="#1f8c4d",
+            hover_color="#00744A",
             text_color=STYLE["surface"],
-            height=38,
+            height=44,
+            width=220,
             corner_radius=8,
             state="disabled"
         )
-        self.boton_generar_dictamen.pack(pady=(0, 5))
+        self.boton_generar_dictamen.pack(side="right", padx=(12, 12), pady=10)
+        generar_estado.pack(side="left", fill="x", expand=True, padx=(14, 0), pady=8)
         # Aplicar estado inicial de UI según tipo de documento seleccionado
         try:
             self.actualizar_tipo_documento()
@@ -2455,8 +2462,10 @@ class SistemaDictamenesVC(ctk.CTk):
             pass
 
     def _construir_tab_historial(self, parent):
-        cont = ctk.CTkFrame(parent, fg_color=STYLE["surface"], corner_radius=8)
-        cont.pack(fill="both", expand=True, padx=10, pady=(0,5))
+        tarjeta = ctk.CTkFrame(parent, fg_color=STYLE["surface"], corner_radius=12, border_width=1, border_color=STYLE["borde_panel"])
+        tarjeta.pack(fill="both", expand=True)
+        cont = ctk.CTkFrame(tarjeta, fg_color="transparent")
+        cont.pack(fill="both", expand=True, padx=14, pady=(12, 8))
 
         # ===========================================================
         # BARRA SUPERIOR: fila de búsqueda por folio + tarjeta de filtros
@@ -2470,7 +2479,7 @@ class SistemaDictamenesVC(ctk.CTk):
 
         ctk.CTkLabel(
             linea_busqueda, text="Folio visita:",
-            font=("Inter", 11), text_color=STYLE["texto_oscuro"]
+            font=(FONT_FAMILY, 11), text_color=STYLE["texto_oscuro"]
         ).pack(side="left", padx=(0, 8))
 
         self.entry_buscar_folio = ctk.CTkEntry(
@@ -2490,7 +2499,7 @@ class SistemaDictamenesVC(ctk.CTk):
             linea_busqueda, text="Limpiar",
             command=self.hist_limpiar_busqueda,
             width=60, height=25, corner_radius=6,
-            fg_color=STYLE["secundario"], text_color=STYLE["surface"]
+            fg_color=STYLE["neutro"], hover_color=STYLE["neutro_hover"], text_color=STYLE["texto_oscuro"]
         ).pack(side="left", padx=(0, 8))
 
         # --- Contenedor derecho: leyenda (arriba) + botones rápidos (abajo) ---
@@ -2499,28 +2508,28 @@ class SistemaDictamenesVC(ctk.CTk):
             right_side_frame.pack(side='right')
 
             legend_frame = ctk.CTkFrame(right_side_frame, fg_color='transparent')
-            legend_frame.pack(side='top', pady=(0, 4), padx=(8, 12))
+            legend_frame.pack(side='left', padx=(8, 12))
 
             def _add_legend_item(parent, color, text):
                 f = ctk.CTkFrame(parent, fg_color='transparent')
                 f.pack(side='left', padx=(6, 4))
                 box = ctk.CTkFrame(f, width=14, height=14, corner_radius=4, fg_color=color)
                 box.pack(side='left', padx=(0, 6))
-                ctk.CTkLabel(f, text=text, font=("Inter", 10), text_color=STYLE["texto_oscuro"]).pack(side='left')
+                ctk.CTkLabel(f, text=text, font=(FONT_FAMILY, 10), text_color=STYLE["texto_oscuro"]).pack(side='left')
 
             # Orden: Amarillo = Pendiente, Rojo = Canceladas, Verde = Completada
-            _add_legend_item(legend_frame, "#F0AD4E", "Amarillo = Pendiente")
-            _add_legend_item(legend_frame, "#D9534F", "Rojo = Canceladas")
-            _add_legend_item(legend_frame, "#28a745", "Verde = Completada")
+            _add_legend_item(legend_frame, "#F0AD4E", "Pendiente")
+            _add_legend_item(legend_frame, "#D9534F", "Cancelada")
+            _add_legend_item(legend_frame, "#28a745", "Completada")
 
             gen_top = ctk.CTkFrame(right_side_frame, fg_color='transparent')
-            gen_top.pack(side='top')
+            gen_top.pack(side='left')
 
             ctk.CTkButton(
-                gen_top, text="📊 Reporte EMA",
+                gen_top, text="Reporte EMA",
                 command=self.descargar_excel_anual,
                 height=28, width=120, corner_radius=8,
-                fg_color=STYLE["primario"], hover_color="#D4BF22", text_color=STYLE["secundario"], font=("Inter", 11, "bold")
+                fg_color=STYLE["primario"], hover_color="#D4BF22", text_color=STYLE["secundario"], font=(FONT_FAMILY, 11, "bold")
             ).pack(side='right')
         except Exception:
             pass
@@ -2544,13 +2553,13 @@ class SistemaDictamenesVC(ctk.CTk):
             y devuelve el CTkComboBox ya empacado. El placeholder equivale a
             'sin filtro' y se maneja en `hist_buscar_general`."""
             grupo = ctk.CTkFrame(filtros_izq, fg_color="transparent")
-            grupo.pack(side="left", padx=(0, 16))
+            grupo.pack(side="left", padx=(0, 12))
             ctk.CTkLabel(
-                grupo, text=etiqueta, font=("Inter", 9, "bold"),
+                grupo, text=etiqueta, font=(FONT_FAMILY, 9, "bold"),
                 text_color=STYLE["texto_secundario"]
             ).pack(side="top", anchor="w", pady=(0, 3))
             combo = ctk.CTkComboBox(
-                grupo, values=valores, font=("Inter", 10), state="readonly",
+                grupo, values=valores, font=(FONT_FAMILY, 10), state="readonly",
                 height=25, width=ancho, command=lambda v: self.hist_buscar_general()
             )
             combo.set(placeholder)
@@ -2559,7 +2568,7 @@ class SistemaDictamenesVC(ctk.CTk):
 
         try:
             self.combo_filtrar_cliente = _crear_combo_filtro(
-                "Cliente", [self.FILTRO_PLACEHOLDER_CLIENTE], self.FILTRO_PLACEHOLDER_CLIENTE, 220
+                "Cliente", [self.FILTRO_PLACEHOLDER_CLIENTE], self.FILTRO_PLACEHOLDER_CLIENTE, 170
             )
         except Exception:
             self.combo_filtrar_cliente = None
@@ -2567,7 +2576,7 @@ class SistemaDictamenesVC(ctk.CTk):
             grupo_fallback = ctk.CTkFrame(filtros_izq, fg_color="transparent")
             grupo_fallback.pack(side="left", padx=(0, 16))
             ctk.CTkLabel(
-                grupo_fallback, text="Búsqueda general", font=("Inter", 9, "bold"),
+                grupo_fallback, text="Búsqueda general", font=(FONT_FAMILY, 9, "bold"),
                 text_color=STYLE["texto_secundario"]
             ).pack(side="top", anchor="w", pady=(0, 3))
             self.entry_buscar_general = ctk.CTkEntry(
@@ -2579,7 +2588,7 @@ class SistemaDictamenesVC(ctk.CTk):
 
         try:
             self.combo_filtrar_supervisor = _crear_combo_filtro(
-                "Supervisor", [self.FILTRO_PLACEHOLDER_SUPERVISOR], self.FILTRO_PLACEHOLDER_SUPERVISOR, 160
+                "Supervisor", [self.FILTRO_PLACEHOLDER_SUPERVISOR], self.FILTRO_PLACEHOLDER_SUPERVISOR, 130
             )
         except Exception:
             self.combo_filtrar_supervisor = None
@@ -2587,7 +2596,7 @@ class SistemaDictamenesVC(ctk.CTk):
         try:
             tipos_vals = [self.FILTRO_PLACEHOLDER_TIPO, "Dictamen", "Constancia", "Negación de Dictamen", "Negación de Constancia"]
             self.combo_filtrar_tipo = _crear_combo_filtro(
-                "Tipo de documento", tipos_vals, self.FILTRO_PLACEHOLDER_TIPO, 170
+                "Tipo de documento", tipos_vals, self.FILTRO_PLACEHOLDER_TIPO, 160
             )
         except Exception:
             self.combo_filtrar_tipo = None
@@ -2595,7 +2604,7 @@ class SistemaDictamenesVC(ctk.CTk):
         try:
             estados = [self.FILTRO_PLACEHOLDER_ESTATUS, "Pendiente", "Completada", "Cancelada"]
             self.combo_filtrar_estatus = _crear_combo_filtro(
-                "Estatus", estados, self.FILTRO_PLACEHOLDER_ESTATUS, 130
+                "Estatus", estados, self.FILTRO_PLACEHOLDER_ESTATUS, 110
             )
         except Exception:
             self.combo_filtrar_estatus = None
@@ -2603,15 +2612,15 @@ class SistemaDictamenesVC(ctk.CTk):
         try:
             # Rango de fechas: desde / hasta (con selector de calendario si tkcalendar está instalado)
             grupo_fechas = ctk.CTkFrame(filtros_izq, fg_color="transparent")
-            grupo_fechas.pack(side="left", padx=(0, 16))
+            grupo_fechas.pack(side="left")
             ctk.CTkLabel(
-                grupo_fechas, text="Rango de fechas", font=("Inter", 9, "bold"),
+                grupo_fechas, text="Rango de fechas", font=(FONT_FAMILY, 9, "bold"),
                 text_color=STYLE["texto_secundario"]
             ).pack(side="top", anchor="w", pady=(0, 3))
             fila_fechas = ctk.CTkFrame(grupo_fechas, fg_color="transparent")
             fila_fechas.pack(side="top")
 
-            self.entry_hist_fecha_desde = ctk.CTkEntry(fila_fechas, width=100, height=25, placeholder_text="Desde dd/mm/yyyy")
+            self.entry_hist_fecha_desde = ctk.CTkEntry(fila_fechas, width=88, height=25, placeholder_text="Desde")
             self.entry_hist_fecha_desde.pack(side="left", padx=(0, 4))
             self.entry_hist_fecha_desde.bind("<KeyRelease>", lambda e: self.hist_buscar_general())
             try:
@@ -2621,7 +2630,7 @@ class SistemaDictamenesVC(ctk.CTk):
                 self.btn_hist_fecha_desde = tk.Button(fila_fechas, text="📅", width=3, command=lambda e=self.entry_hist_fecha_desde: self._open_calendar_for_entry(e))
                 self.btn_hist_fecha_desde.pack(side="left", padx=(0,6))
 
-            self.entry_hist_fecha_hasta = ctk.CTkEntry(fila_fechas, width=100, height=25, placeholder_text="Hasta dd/mm/yyyy")
+            self.entry_hist_fecha_hasta = ctk.CTkEntry(fila_fechas, width=88, height=25, placeholder_text="Hasta")
             self.entry_hist_fecha_hasta.pack(side="left", padx=(0, 4))
             self.entry_hist_fecha_hasta.bind("<KeyRelease>", lambda e: self.hist_buscar_general())
             try:
@@ -2636,23 +2645,10 @@ class SistemaDictamenesVC(ctk.CTk):
             self.btn_hist_fecha_desde = None
             self.btn_hist_fecha_hasta = None
 
-        # --- Acciones de la tarjeta (derecha): limpiar filtros / limpiar todo ---
-        filtros_der = ctk.CTkFrame(panel_filtros, fg_color="transparent")
-        filtros_der.pack(side="right", padx=10, pady=8)
-
-        try:
-            ctk.CTkButton(
-                filtros_der, text="Limpiar filtros", command=self.hist_limpiar_filtros,
-                width=110, height=25, corner_radius=6,
-                fg_color=STYLE["secundario"], text_color=STYLE["surface"]
-            ).pack(side="left", padx=(0, 8))
-        except Exception:
-            tk.Button(filtros_der, text="Limpiar filtros", command=self.hist_limpiar_filtros, width=15).pack(side="left", padx=(0, 8))
-
         ctk.CTkButton(
-            filtros_der, text="X", command=self.hist_limpiar_busqueda,
-            width=32, height=25, corner_radius=6,
-            fg_color=STYLE["advertencia"], text_color=STYLE["surface"]
+            linea_busqueda, text="Limpiar filtros", command=self.hist_limpiar_filtros,
+            width=100, height=25, corner_radius=6,
+            fg_color=STYLE["neutro"], hover_color=STYLE["neutro_hover"], text_color=STYLE["texto_oscuro"]
         ).pack(side="left")
 
         # ===========================================================
@@ -2663,94 +2659,51 @@ class SistemaDictamenesVC(ctk.CTk):
 
         # Encabezados: usamos los headings del Treeview directamente
 
-        # ANCHOS MEJORADOS Y ENCABEZADOS COMO EN LA IMAGEN
-        column_widths = [
-                40,    # Folio (más pequeño)
-                40,    # Acta (más pequeño)
-                40,    # Inicio (más pequeño)
-                40,    # Término (más pequeño)
-                40,    # Hora Ini
-                40,    # Hora Fin
-                150,   # Cliente (más ancho)
-                80,    # Supervisor (ligeramente más pequeño)
-                90,    # Tipo de documento
-                50,    # Estatus
-                60,    # Folios (más compacto)
-                400    # Acciones (ajustado: más ancho para mostrar todas las acciones)
-            ]
-
-        # Encabezados exactamente como en la imagen
+        # Anchos en unidades de CustomTkinter: ttk no aplica la escala de pantalla por sí solo.
+        column_widths = [61, 61, 72, 72, 59, 59, 100, 80, 96, 78, 51, 92]
         headers = [
-            "Folio", "Acta", "Inicio", "Término", 
-            "Hora Inicio", "Hora Fin", "Cliente", 
-            "Supervisor", "Tipo de documento", "Estatus", "Folios", "Acciones"
+            "Folio", "Acta", "Inicio", "Término",
+            "Hora ini.", "Hora fin", "Cliente",
+            "Supervisor", "Tipo", "Estatus", "Folios", "Acciones"
         ]
 
         # Reemplazar cabecera y scroll por un Treeview virtualizado (más eficiente)
         # Configurar estilo del Treeview para que combine con tema
-        style = ttk.Style()
-        try:
-            # Usar tema 'clam' para permitir colorear encabezados en la mayoría de plataformas
-            try:
-                style.theme_use('clam')
-            except Exception:
-                pass
-            style.configure('clientes.Treeview', font=("Inter", 12), rowheight=30,
-                            background=STYLE["surface"], fieldbackground=STYLE["surface"], foreground=STYLE["texto_oscuro"]) 
-            style.configure('clientes.Treeview.Heading', font=("Inter", 10, "bold"), background=STYLE["secundario"], foreground=STYLE["surface"], relief='flat')
-            style.map('clientes.Treeview.Heading', background=[('active', STYLE['secundario'])], foreground=[('active', STYLE['surface'])])
-            # Selección menos intrusiva para mantener legibilidad
-            style.map('clientes.Treeview', background=[('selected', '#d9f0ff')], foreground=[('selected', STYLE['texto_oscuro'])])
-            # Scrollbar neutral para no abusar del color primario
-            style.configure('Vertical.TScrollbar', troughcolor=STYLE['surface'], background=STYLE['borde'], arrowcolor=STYLE['texto_oscuro'])
-        except Exception:
-            pass
+        configurar_tablas(self)
 
         # Contenedor para el Treeview
         tree_container = ctk.CTkFrame(tabla_container, fg_color=STYLE["fondo"])
         tree_container.pack(fill="both", expand=True)
 
         cols = [f"c{i}" for i in range(len(column_widths))]
-        self.hist_tree = ttk.Treeview(tree_container, columns=cols, show='headings', style='clientes.Treeview')
-        # Configurar encabezados y anchos (permitir estirar columnas excepto la de Acciones)
-        last_idx = len(headers) - 1
+        self.hist_tree = ttk.Treeview(tree_container, columns=cols, show='headings', style='clientes.Treeview', height=5)
+        # Solo Cliente puede reducirse: las demás columnas conservan su ancho para
+        # que folios y fechas no se corten cuando la ventana es angosta.
+        escala = ctk.ScalingTracker.get_widget_scaling(self)
+        indice_cliente = headers.index("Cliente")
         for i, h in enumerate(headers):
+            ancho = round(column_widths[i] * escala)
             self.hist_tree.heading(cols[i], text=h)
-            try:
-                stretch = False if i == last_idx else True
-                anchor = 'w' if i == last_idx else 'center'
-                self.hist_tree.column(cols[i], width=column_widths[i], anchor=anchor, stretch=stretch)
-            except Exception:
-                self.hist_tree.column(cols[i], width=100, anchor='center')
-
-        # Asegurar que la columna 'Acciones' sea siempre visible y no se reduzca
-        try:
-            # Aumentar el ancho por defecto y el ancho mínimo de la columna 'Acciones'
-            # para que siempre muestre las cuatro opciones sin recortarse.
-            self.hist_tree.column(cols[-1], width=360, minwidth=300, stretch=False, anchor='w')
-        except Exception:
-            try:
-                # Fallback seguro
-                self.hist_tree.column(cols[-1], width=300, anchor='w')
-            except Exception:
-                pass
+            self.hist_tree.column(
+                cols[i],
+                width=ancho,
+                minwidth=round(80 * escala) if i == indice_cliente else ancho,
+                anchor='center',
+                stretch=i == indice_cliente
+            )
 
         # Scrollbars: vertical y horizontal — usar grid para posicionar correctamente
         try:
             vsb = ctk.CTkScrollbar(tree_container, orientation="vertical", command=self.hist_tree.yview)
             # CTkScrollbar uses theme colors; set appearance if supported
             try:
-                vsb.configure(button_color=STYLE['borde'], fg_color=STYLE['borde'])
+                vsb.configure(button_color=STYLE['borde_fuerte'], fg_color=STYLE['surface'])
             except Exception:
                 pass
             self.hist_tree.configure(yscrollcommand=vsb.set)
         except Exception:
             # Fallback to ttk if CTkScrollbar not available
             vsb = ttk.Scrollbar(tree_container, orient="vertical", command=self.hist_tree.yview, style='Vertical.TScrollbar')
-            try:
-                style.configure('Vertical.TScrollbar', troughcolor=STYLE['surface'], background=STYLE['borde'], arrowcolor=STYLE['texto_oscuro'])
-            except Exception:
-                pass
             try:
                 vsb.configure(background=STYLE['borde'], troughcolor=STYLE['surface'], activebackground=STYLE['borde'])
             except Exception:
@@ -2773,7 +2726,16 @@ class SistemaDictamenesVC(ctk.CTk):
         self._hist_map = {}
 
         # Menú contextual para acciones por fila
-        self.hist_context_menu = tk.Menu(self, tearoff=0)
+        # Fuente en píxeles: la de sistema va en puntos y `tk scaling` 1.0 la encoge.
+        self.hist_context_menu = tk.Menu(
+            self,
+            tearoff=0,
+            font=(FONT_FAMILY, -round(13 * escala)),
+            background=STYLE["surface"],
+            foreground=STYLE["texto_oscuro"],
+            activebackground=STYLE["seleccion"],
+            activeforeground=STYLE["texto_oscuro"],
+        )
         self.hist_context_menu.add_command(label="Folios", command=lambda: self._hist_menu_action('folios'))
         self.hist_context_menu.add_command(label="Archivos", command=lambda: self._hist_menu_action('archivos'))
         self.hist_context_menu.add_command(label="Editar", command=lambda: self._hist_menu_action('editar'))
@@ -2812,7 +2774,7 @@ class SistemaDictamenesVC(ctk.CTk):
 
         # Botón Anterior pegado al borde izquierdo dentro del subframe izquierdo
         self.btn_hist_prev = ctk.CTkButton(
-            pag_left, text="⏪ Anterior",
+            pag_left, text="Anterior",
             command=self.hist_pagina_anterior,
             height=28, width=100, corner_radius=6,
             fg_color=STYLE["secundario"], text_color=STYLE["surface"],
@@ -2824,7 +2786,7 @@ class SistemaDictamenesVC(ctk.CTk):
         # Quitamos widgets laterales que desalineen la etiqueta y la centramos
         self.hist_pagina_label = ctk.CTkLabel(
             pag_center, text="Página 1",
-            font=("Inter", 10), text_color=STYLE["texto_oscuro"]
+            font=(FONT_FAMILY, 10), text_color=STYLE["texto_oscuro"]
         )
         # pack con expand=True y sin side para centrar horizontalmente
         self.hist_pagina_label.pack(expand=True)
@@ -2855,27 +2817,27 @@ class SistemaDictamenesVC(ctk.CTk):
 
     def _construir_tab_clientes(self, parent):
         """Consulta de clientes y agregar nuevos clientes"""
-        cont = ctk.CTkFrame(parent, fg_color=STYLE["surface"], corner_radius=8)
-        cont.pack(fill="both", expand=True, padx=10, pady=(0,0), side="top", anchor="n")
+        cont = ctk.CTkFrame(parent, fg_color=STYLE["surface"], corner_radius=12, border_width=1, border_color=STYLE["borde_panel"])
+        cont.pack(fill="both", expand=True, side="top", anchor="n")
 
         contenido = ctk.CTkFrame(cont, fg_color="transparent")
         # Permitir que el contenido central expanda para aprovechar todo el alto
-        contenido.pack(fill="both", expand=True, pady=(0,0), side="top", anchor="n")
+        contenido.pack(fill="both", expand=True, pady=(8, 8), side="top", anchor="n")
 
         # ===== Sección: Clientes - formulario + tabla =====
         clientes_frame = ctk.CTkFrame(contenido, fg_color="transparent")
         clientes_frame.pack(fill="both", expand=True, padx=10, pady=(0,0))
      
-        clientes_frame.grid_columnconfigure(0, weight=6, minsize=600)
-        clientes_frame.grid_columnconfigure(1, weight=6)
+        clientes_frame.grid_columnconfigure(0, weight=5, minsize=400)
+        clientes_frame.grid_columnconfigure(1, weight=7)
         clientes_frame.grid_rowconfigure(0, weight=1)
         
         form_frame = ctk.CTkScrollableFrame(
             clientes_frame,
             fg_color=STYLE["surface"],
             corner_radius=8,
-            scrollbar_button_color=STYLE["borde"],
-            scrollbar_button_hover_color=STYLE["borde"]
+            scrollbar_button_color=STYLE["borde_fuerte"],
+            scrollbar_button_hover_color=STYLE["sidebar_tenue"]
         )
         form_frame.grid(row=0, column=0, sticky="nsew", padx=(0,8), pady=(1,1))
 
@@ -2941,12 +2903,12 @@ class SistemaDictamenesVC(ctk.CTk):
             svc.pack(side="left", fill="x", expand=True)
             campos_dom['SERVICIO'] = svc
             # Botón para quitar este subform
-            btn_rm = ctk.CTkButton(frame, text="Quitar domicilio", fg_color=STYLE["peligro"], hover_color=STYLE["peligro"], text_color=STYLE["surface"], font=("Inter", 11, "bold"), command=lambda f=frame: self._remove_domicilio_by_frame(f))
+            btn_rm = ctk.CTkButton(frame, text="Quitar domicilio", fg_color=STYLE["peligro"], hover_color=STYLE["peligro"], text_color=STYLE["surface"], font=(FONT_FAMILY, 11, "bold"), command=lambda f=frame: self._remove_domicilio_by_frame(f))
             btn_rm.pack(anchor="e", padx=6, pady=(0,6))
             return frame, campos_dom
 
         # Botones agregar/remover globales
-        self.btn_add_domicilio = ctk.CTkButton(controls, text="Añadir domicilio", fg_color=STYLE["primario"], hover_color=STYLE["primario"], text_color=STYLE["secundario"], font=("Inter", 11, "bold"), command=self._add_domicilio)
+        self.btn_add_domicilio = ctk.CTkButton(controls, text="Añadir domicilio", fg_color=STYLE["primario"], hover_color=STYLE["primario"], text_color=STYLE["secundario"], font=(FONT_FAMILY, 11, "bold"), command=self._add_domicilio)
         self.btn_add_domicilio.pack(side="left")
         self.lbl_dom_count = ctk.CTkLabel(controls, text="0 domicilios", font=FONT_SMALL, text_color=STYLE["texto_oscuro"])
         self.lbl_dom_count.pack(side="left", padx=(8,0))
@@ -2957,9 +2919,9 @@ class SistemaDictamenesVC(ctk.CTk):
         btns_frame = ctk.CTkFrame(form_frame, fg_color="transparent")
         btns_frame.pack(fill="x", padx=12, pady=(8,12))
         # Guardar/Actualizar (se actualiza dinámicamente cuando se edita)
-        self.btn_guardar_cliente = ctk.CTkButton(btns_frame, text="Guardar cliente", command=self._guardar_cliente_desde_form, fg_color=STYLE["primario"], hover_color=STYLE["primario"], text_color=STYLE["secundario"], font=("Inter", 11, "bold"), height=34, corner_radius=8)
+        self.btn_guardar_cliente = ctk.CTkButton(btns_frame, text="Guardar cliente", command=self._guardar_cliente_desde_form, fg_color=STYLE["primario"], hover_color=STYLE["primario"], text_color=STYLE["secundario"], font=(FONT_FAMILY, 11, "bold"), height=34, corner_radius=8)
         self.btn_guardar_cliente.pack(side="left")
-        self.btn_limpiar_cliente = ctk.CTkButton(btns_frame, text="Limpiar", command=self._limpiar_formulario_cliente, fg_color=STYLE["advertencia"], hover_color=STYLE["advertencia"], text_color=STYLE["surface"], font=("Inter", 11, "bold"), height=34, corner_radius=8)
+        self.btn_limpiar_cliente = ctk.CTkButton(btns_frame, text="Limpiar", command=self._limpiar_formulario_cliente, fg_color=STYLE["neutro"], hover_color=STYLE["neutro_hover"], text_color=STYLE["texto_oscuro"], font=(FONT_FAMILY, 11, "bold"), height=34, corner_radius=8)
         self.btn_limpiar_cliente.pack(side="left", padx=(8,0))
 
         # Tabla de clientes
@@ -2989,8 +2951,8 @@ class SistemaDictamenesVC(ctk.CTk):
 
         self.entry_buscar_cliente = ctk.CTkEntry(search_frame, placeholder_text="Buscar por cliente, RFC, servicio o contrato", font=FONT_SMALL, height=30)
         self.entry_buscar_cliente.pack(side="left", fill="x", expand=True)
-        ctk.CTkButton(search_frame, text="Buscar", command=self._buscar_clientes, fg_color=STYLE["primario"], hover_color=STYLE["primario"], text_color=STYLE["secundario"], font=("Inter", 11, "bold"), height=32, corner_radius=8).pack(side="left", padx=(8,0))
-        ctk.CTkButton(search_frame, text="Limpiar", command=self._limpiar_busqueda_clientes, fg_color=STYLE["advertencia"], hover_color=STYLE["advertencia"], text_color=STYLE["surface"], font=("Inter", 11, "bold"), height=32, corner_radius=8).pack(side="left", padx=(8,0))
+        ctk.CTkButton(search_frame, text="Buscar", command=self._buscar_clientes, fg_color=STYLE["primario"], hover_color=STYLE["primario_hover"], text_color=STYLE["secundario"], font=(FONT_FAMILY, 11, "bold"), width=72, height=32, corner_radius=8).pack(side="left", padx=(8,0))
+        ctk.CTkButton(search_frame, text="Limpiar", command=self._limpiar_busqueda_clientes, fg_color=STYLE["neutro"], hover_color=STYLE["neutro_hover"], text_color=STYLE["texto_oscuro"], font=(FONT_FAMILY, 11, "bold"), width=72, height=32, corner_radius=8).pack(side="left", padx=(8,0))
 
         tree_container = tk.Frame(tabla_frame)
         # Exponer contenedor para poder ajustar columnas al cambiar tamaño
@@ -2999,20 +2961,7 @@ class SistemaDictamenesVC(ctk.CTk):
         tree_container.pack(fill="both", expand=True, padx=12, pady=(0,0))
 
         # Estilo similar al historial
-        style = ttk.Style()
-        try:
-            style.theme_use('clam')
-        except Exception:
-            pass
-        try:
-            style.configure('clientes.Treeview', font=("Inter", 12), background=STYLE["surface"], foreground=STYLE["texto_oscuro"], rowheight=30, fieldbackground=STYLE["surface"])
-            style.configure('clientes.Treeview.Heading', background=STYLE["secundario"], foreground=STYLE["surface"], font=("Inter", 10, "bold"))
-            # Selección menos intrusiva: color claro para destacar sin ocultar texto
-            style.map('clientes.Treeview', background=[('selected', '#d9f0ff')], foreground=[('selected', STYLE['texto_oscuro'])])
-            # Evitar usar el color primario en el scrollbar para no abusar del color
-            style.configure('Vertical.TScrollbar', troughcolor=STYLE['surface'], background=STYLE['borde'], arrowcolor=STYLE['texto_oscuro'])
-        except Exception:
-            pass
+        configurar_tablas(self)
 
         self.tree_clientes = ttk.Treeview(tree_container, columns=cols, show='headings', selectmode='browse', style='clientes.Treeview')
         # Establecer anchos más estrechos por columna para reducir el ancho total
@@ -3047,7 +2996,7 @@ class SistemaDictamenesVC(ctk.CTk):
         try:
             vsb = ctk.CTkScrollbar(tree_container, orientation="vertical", command=self.tree_clientes.yview)
             try:
-                vsb.configure(button_color=STYLE['borde'], fg_color=STYLE['borde'])
+                vsb.configure(button_color=STYLE['borde_fuerte'], fg_color=STYLE['surface'])
             except Exception:
                 pass
             self.tree_clientes.configure(yscrollcommand=vsb.set)
@@ -3055,10 +3004,6 @@ class SistemaDictamenesVC(ctk.CTk):
             vsb.pack(side="right", fill="y")
         except Exception:
             vsb = ttk.Scrollbar(tree_container, orient="vertical", command=self.tree_clientes.yview, style='Vertical.TScrollbar')
-            try:
-                style.configure('Vertical.TScrollbar', troughcolor=STYLE['surface'], background=STYLE['borde'], arrowcolor=STYLE['texto_oscuro'])
-            except Exception:
-                pass
             self.tree_clientes.configure(yscrollcommand=vsb.set)
             self.tree_clientes.pack(side="left", fill="both", expand=True)
             vsb.pack(side="right", fill="y")
@@ -3075,17 +3020,17 @@ class SistemaDictamenesVC(ctk.CTk):
         right_actions.pack(side="right")
 
         # Botón Refrescar a la izquierda
-        ctk.CTkButton(left_actions, text="Refrescar", command=self._refrescar_tabla_clientes, fg_color=STYLE["exito"], hover_color=STYLE["exito"], text_color=STYLE["surface"], font=("Inter", 11, "bold"), height=32, corner_radius=8).pack(side="left")
+        ctk.CTkButton(left_actions, text="Refrescar", command=self._refrescar_tabla_clientes, fg_color=STYLE["neutro"], hover_color=STYLE["neutro_hover"], text_color=STYLE["texto_oscuro"], font=(FONT_FAMILY, 11, "bold"), width=90, height=32, corner_radius=8).pack(side="left")
 
         # Botones centrales (centrados) con espacio entre ellos
-        ctk.CTkButton(center_actions, text="Editar", fg_color=STYLE["primario"], hover_color="#D4BF22", text_color=STYLE["secundario"], height=32, corner_radius=8, command=self._editar_cliente_seleccionado).pack(side="left", padx=12)
+        ctk.CTkButton(center_actions, text="Editar", fg_color=STYLE["primario"], hover_color="#D4BF22", text_color=STYLE["secundario"], width=90, height=32, corner_radius=8, command=self._editar_cliente_seleccionado).pack(side="left", padx=(8, 0))
         # Botón para desmarcar / salir de modo edición
-        ctk.CTkButton(center_actions, text="Desmarcar", fg_color=STYLE["advertencia"], hover_color="#d2693e", text_color=STYLE["surface"], height=32, corner_radius=8, command=self.desmarcar_cliente).pack(side="left", padx=12)
-        ctk.CTkButton(center_actions, text="Eliminar", fg_color=STYLE["peligro"], hover_color="#c84a3d", text_color=STYLE["surface"], height=32, corner_radius=8, command=self._eliminar_cliente_seleccionado).pack(side="left", padx=12)
+        ctk.CTkButton(center_actions, text="Desmarcar", fg_color=STYLE["neutro"], hover_color=STYLE["neutro_hover"], text_color=STYLE["texto_oscuro"], width=90, height=32, corner_radius=8, command=self.desmarcar_cliente).pack(side="left", padx=(8, 0))
+        ctk.CTkButton(center_actions, text="Eliminar", fg_color=STYLE["peligro"], hover_color="#c84a3d", text_color=STYLE["surface"], width=90, height=32, corner_radius=8, command=self._eliminar_cliente_seleccionado).pack(side="left", padx=(8, 0))
 
         # Botón para exportar todo el catálogo de clientes a Excel (derecha)
         try:
-            ctk.CTkButton(right_actions, text="Catálogo de clientes", fg_color=STYLE['exito'], hover_color=STYLE['exito'], text_color=STYLE['surface'], height=36, corner_radius=8, font=("Inter", 11, "bold"), command=self._export_catalogo_clientes).pack(side="right")
+            ctk.CTkButton(right_actions, text="Catálogo de clientes", fg_color=STYLE['exito'], hover_color=STYLE['exito'], text_color=STYLE['surface'], height=36, corner_radius=8, font=(FONT_FAMILY, 11, "bold"), command=self._export_catalogo_clientes).pack(side="right")
         except Exception:
             pass
 
@@ -3097,52 +3042,24 @@ class SistemaDictamenesVC(ctk.CTk):
 
     def mostrar_inspectores(self):
         """Muestra la sección de Inspectores y oculta las demás"""
-        # Ocultar todos los frames primero
-        try:
-            self.frame_principal.pack_forget()
-        except Exception:
-            pass
-        try:
-            self.frame_historial.pack_forget()
-        except Exception:
-            pass
-        try:
-            self.frame_reportes.pack_forget()
-        except Exception:
-            pass
-        # Asegurarse de ocultar reportes ejecutivos si estaban visibles
-        try:
-            self.frame_reportes_ejecutivo.pack_forget()
-        except Exception:
-            pass
-        # Mostrar inspectores
-        try:
-            self.frame_inspectores.pack(fill="both", expand=True)
-        except Exception:
-            pass
-
-        # Actualizar estado de los botones
-        try:
-            self.btn_principal.configure(fg_color=STYLE["surface"], text_color=STYLE["secundario"], border_color=STYLE["secundario"])
-            self.btn_historial.configure(fg_color=STYLE["surface"], text_color=STYLE["secundario"], border_color=STYLE["secundario"])
-            self.btn_reportes.configure(fg_color=STYLE["surface"], text_color=STYLE["secundario"], border_color=STYLE["secundario"])
-            self.btn_inspectores.configure(fg_color=STYLE["primario"], text_color=STYLE["secundario"], border_color=STYLE["primario"])
-        except Exception:
-            pass
+        self._mostrar_seccion(
+            self.frame_inspectores, self.btn_inspectores,
+            "Inspectores", "Administra inspectores y sus normas acreditadas"
+        )
 
     def _construir_tab_inspectores(self, parent):
         """Formulario simple para registrar inspectores y tabla de listado (almacena en data/Firmas.json)"""
-        cont = ctk.CTkFrame(parent, fg_color=STYLE["surface"], corner_radius=8)
-        cont.pack(fill="both", expand=True, padx=10, pady=(0,0), side="top", anchor="n")
+        cont = ctk.CTkFrame(parent, fg_color=STYLE["surface"], corner_radius=12, border_width=1, border_color=STYLE["borde_panel"])
+        cont.pack(fill="both", expand=True, side="top", anchor="n")
 
         contenido = ctk.CTkFrame(cont, fg_color="transparent")
-        contenido.pack(fill="both", expand=True, pady=(0,0), side="top", anchor="n")
+        contenido.pack(fill="both", expand=True, pady=(8, 8), side="top", anchor="n")
 
         inspect_frame = ctk.CTkFrame(contenido, fg_color="transparent")
         inspect_frame.pack(fill="both", expand=True, padx=10, pady=(0,0))
         # Usar la misma proporción y tamaño mínimo que la pestaña Clientes
-        inspect_frame.grid_columnconfigure(0, weight=6, minsize=600)
-        inspect_frame.grid_columnconfigure(1, weight=6)
+        inspect_frame.grid_columnconfigure(0, weight=5, minsize=400)
+        inspect_frame.grid_columnconfigure(1, weight=7)
         inspect_frame.grid_rowconfigure(0, weight=1)
 
         form_frame = ctk.CTkScrollableFrame(inspect_frame, fg_color=STYLE["surface"], corner_radius=8)
@@ -3200,9 +3117,9 @@ class SistemaDictamenesVC(ctk.CTk):
 
         btns_frame = ctk.CTkFrame(form_frame, fg_color="transparent")
         btns_frame.pack(fill="x", padx=12, pady=(8,12))
-        self.btn_guardar_inspector = ctk.CTkButton(btns_frame, text="Guardar inspector", command=self._guardar_inspector_desde_form, fg_color=STYLE["primario"], hover_color=STYLE["primario"], text_color=STYLE["secundario"], font=("Inter", 11, "bold"), height=34, corner_radius=8)
+        self.btn_guardar_inspector =ctk.CTkButton(btns_frame, text="Guardar inspector", command=self._guardar_inspector_desde_form, fg_color=STYLE["primario"], hover_color=STYLE["primario"], text_color=STYLE["secundario"], font=(FONT_FAMILY, 11, "bold"), height=34, corner_radius=8)
         self.btn_guardar_inspector.pack(side="left")
-        self.btn_limpiar_inspector = ctk.CTkButton(btns_frame, text="Limpiar", command=self._limpiar_formulario_inspector, fg_color=STYLE["advertencia"], hover_color=STYLE["advertencia"], text_color=STYLE["surface"], font=("Inter", 11, "bold"), height=34, corner_radius=8)
+        self.btn_limpiar_inspector = ctk.CTkButton(btns_frame, text="Limpiar", command=self._limpiar_formulario_inspector, fg_color=STYLE["neutro"], hover_color=STYLE["neutro_hover"], text_color=STYLE["texto_oscuro"], font=(FONT_FAMILY, 11, "bold"), height=34, corner_radius=8)
         self.btn_limpiar_inspector.pack(side="left", padx=(8,0))
 
         # Tabla de inspectores
@@ -3226,24 +3143,14 @@ class SistemaDictamenesVC(ctk.CTk):
             self.entry_filtro_puesto_inspector.pack(side="left", padx=(8,0))
         except Exception:
             self.entry_filtro_puesto_inspector = None
-        ctk.CTkButton(search_frame, text="Buscar", command=self._buscar_inspectores, fg_color=STYLE["primario"], hover_color=STYLE["primario"], text_color=STYLE["secundario"], font=("Inter", 11, "bold"), height=32, corner_radius=8).pack(side="left", padx=(8,0))
-        ctk.CTkButton(search_frame, text="Limpiar", command=self._limpiar_busqueda_inspectores, fg_color=STYLE["advertencia"], hover_color=STYLE["advertencia"], text_color=STYLE["surface"], font=("Inter", 11, "bold"), height=32, corner_radius=8).pack(side="left", padx=(8,0))
+        ctk.CTkButton(search_frame, text="Buscar", command=self._buscar_inspectores, fg_color=STYLE["primario"], hover_color=STYLE["primario_hover"], text_color=STYLE["secundario"], font=(FONT_FAMILY, 11, "bold"), width=72, height=32, corner_radius=8).pack(side="left", padx=(8,0))
+        ctk.CTkButton(search_frame, text="Limpiar", command=self._limpiar_busqueda_inspectores, fg_color=STYLE["neutro"], hover_color=STYLE["neutro_hover"], text_color=STYLE["texto_oscuro"], font=(FONT_FAMILY, 11, "bold"), width=72, height=32, corner_radius=8).pack(side="left", padx=(8,0))
 
         cols = ("NOMBRE","CORREO","FIRMA","PUESTO","VIGENCIA")
         tree_container = tk.Frame(tabla_frame)
         tree_container.pack(fill="both", expand=True, padx=12, pady=(0,0))
 
-        style = ttk.Style()
-        try:
-            style.theme_use('clam')
-        except Exception:
-            pass
-        try:
-            # Usar el mismo estilo que la pestaña Clientes para apariencia idéntica
-            style.configure('clientes.Treeview', font=("Inter", 12), background=STYLE["surface"], foreground=STYLE["texto_oscuro"], rowheight=30, fieldbackground=STYLE["surface"])
-            style.configure('clientes.Treeview.Heading', background=STYLE["secundario"], foreground=STYLE["surface"], font=("Inter", 10, "bold"))
-        except Exception:
-            pass
+        configurar_tablas(self)
 
         self.tree_inspectores = ttk.Treeview(tree_container, columns=cols, show='headings', selectmode='browse', style='clientes.Treeview')
         # Anchuras iniciales sugeridas (similar proporción a Clientes)
@@ -3282,15 +3189,38 @@ class SistemaDictamenesVC(ctk.CTk):
         center_actions.pack(side="left", expand=True)
         right_actions.pack(side="right")
 
-        ctk.CTkButton(left_actions, text="Refrescar", command=self._refrescar_tabla_inspectores, fg_color=STYLE["exito"], hover_color=STYLE["exito"], text_color=STYLE["surface"], font=("Inter", 11, "bold"), height=32, corner_radius=8).pack(side="left")
+        ctk.CTkButton(left_actions, text="Refrescar", command=self._refrescar_tabla_inspectores, fg_color=STYLE["neutro"], hover_color=STYLE["neutro_hover"], text_color=STYLE["texto_oscuro"], font=(FONT_FAMILY, 11, "bold"), width=90, height=32, corner_radius=8).pack(side="left")
         # Centro: editar / desmarcar / eliminar
-        ctk.CTkButton(center_actions, text="Editar", fg_color=STYLE["primario"], hover_color="#D4BF22", text_color=STYLE["secundario"], height=32, corner_radius=8, command=self._editar_inspector_seleccionado).pack(side="left", padx=12)
-        ctk.CTkButton(center_actions, text="Desmarcar", fg_color=STYLE["advertencia"], hover_color="#d2693e", text_color=STYLE["surface"], height=32, corner_radius=8, command=self.desmarcar_inspector).pack(side="left", padx=12)
-        ctk.CTkButton(center_actions, text="Eliminar", fg_color=STYLE["peligro"], hover_color="#c84a3d", text_color=STYLE["surface"], height=32, corner_radius=8, command=self._eliminar_inspector_seleccionado).pack(side="left", padx=12)
+        ctk.CTkButton(center_actions, text="Editar", fg_color=STYLE["primario"], hover_color="#D4BF22", text_color=STYLE["secundario"], width=90, height=32, corner_radius=8, command=self._editar_inspector_seleccionado).pack(side="left", padx=(8, 0))
+        ctk.CTkButton(center_actions, text="Desmarcar", fg_color=STYLE["neutro"], hover_color=STYLE["neutro_hover"], text_color=STYLE["texto_oscuro"], width=90, height=32, corner_radius=8, command=self.desmarcar_inspector).pack(side="left", padx=(8, 0))
+        ctk.CTkButton(center_actions, text="Eliminar", fg_color=STYLE["peligro"], hover_color="#c84a3d", text_color=STYLE["surface"], width=90, height=32, corner_radius=8, command=self._eliminar_inspector_seleccionado).pack(side="left", padx=(8, 0))
         try:
-            ctk.CTkButton(right_actions, text="Exportar catálogo", fg_color=STYLE['exito'], hover_color=STYLE['exito'], text_color=STYLE['surface'], height=36, corner_radius=8, font=("Inter", 11, "bold"), command=self._export_catalogo_inspectores).pack(side="right")
+            ctk.CTkButton(right_actions, text="Exportar catálogo", fg_color=STYLE['exito'], hover_color=STYLE['exito'], text_color=STYLE['surface'], height=36, corner_radius=8, font=(FONT_FAMILY, 11, "bold"), command=self._export_catalogo_inspectores).pack(side="right")
         except Exception:
             pass
+
+        # La tabla se estira hasta dejar el formulario en su ancho mínimo, así que ese
+        # mínimo debe alcanzar para las normas. Dos columnas solo si la tabla conserva
+        # espacio para sus botones; si no, una. Se mide porque depende de los nombres
+        # del catálogo y de la escala de pantalla.
+        inspect_frame.update_idletasks()
+        escala = form_frame._get_widget_scaling()
+        minimo_dos_columnas = max(400, normas_frame.winfo_reqwidth() + int(60 * escala))
+        ancho_para_dos_columnas = minimo_dos_columnas + tbl_btns.winfo_reqwidth() + int(50 * escala)
+        inspect_frame.grid_columnconfigure(0, minsize=minimo_dos_columnas)
+        columnas_normas = [2]
+
+        def _acomodar_normas(_event=None):
+            ancho = inspect_frame.winfo_width()
+            columnas = 2 if ancho >= ancho_para_dos_columnas else 1
+            if ancho <= 1 or columnas == columnas_normas[0]:
+                return
+            columnas_normas[0] = columnas
+            for i, cb in enumerate(normas_frame.winfo_children()):
+                cb.grid(row=i // columnas, column=i % columnas)
+            inspect_frame.grid_columnconfigure(0, minsize=minimo_dos_columnas if columnas == 2 else 400)
+
+        inspect_frame.bind('<Configure>', _acomodar_normas, add='+')
 
         # Poblar inicialmente
         try:
@@ -3871,37 +3801,6 @@ class SistemaDictamenesVC(ctk.CTk):
             print(f"⚠️ Error formateando hora {hora_str}: {e}")
             return hora_str
 
-    def crear_footer(self):
-        footer = ctk.CTkFrame(self, fg_color=STYLE["fondo"], corner_radius=0, height=40)
-        footer.pack(fill="x", side="bottom")
-        footer.pack_propagate(False)
-
-        footer_content = ctk.CTkFrame(footer, fg_color="transparent")
-        footer_content.pack(expand=True, fill="both", padx=25, pady=10)
-
-        ctk.CTkLabel(
-            footer_content,
-            text="Sistema V&C - Generador de Dictámenes de Cumplimiento",
-            font=("Inter", 10),
-            text_color=STYLE["secundario"]
-        ).pack(side="left")
-        # Label para mostrar el siguiente folio de documento (visual, no persiste salvo confirmación)
-        try:
-            self.lbl_siguiente_folio_doc = ctk.CTkLabel(
-                footer_content,
-                text="Siguiente folio documento: ---",
-                font=("Inter", 10),
-                text_color=STYLE["secundario"]
-            )
-            self.lbl_siguiente_folio_doc.pack(side="right")
-            # Actualizar valor inicial
-            try:
-                self._update_siguiente_folio_label()
-            except Exception:
-                pass
-        except Exception:
-            pass
-
     def _open_calendar_for_entry(self, entry_widget):
         """Abre un calendario emergente (tkcalendar.Calendar) y coloca la fecha seleccionada en `entry_widget`.
 
@@ -3923,7 +3822,7 @@ class SistemaDictamenesVC(ctk.CTk):
             except Exception:
                 pass
 
-            cal = Calendar(top, selectmode='day', date_pattern='dd/mm/yyyy')
+            cal = Calendar(top, selectmode='day', date_pattern='dd/mm/yyyy', **ESTILO_CALENDARIO)
             cal.pack(padx=8, pady=8)
 
             btn_frame = tk.Frame(top)
@@ -4722,7 +4621,7 @@ class SistemaDictamenesVC(ctk.CTk):
             for i, d in enumerate(domicilios, start=1):
                 box = ctk.CTkFrame(scroll, fg_color=STYLE['surface'], corner_radius=6)
                 box.pack(fill='x', pady=6, padx=6)
-                ctk.CTkLabel(box, text=f"Domicilio {i}", font=("Inter", 12, "bold"), text_color=STYLE['texto_oscuro']).pack(anchor='w', padx=8, pady=(6,2))
+                ctk.CTkLabel(box, text=f"Domicilio {i}", font=(FONT_FAMILY, 12, "bold"), text_color=STYLE['texto_oscuro']).pack(anchor='w', padx=8, pady=(6,2))
                 # Mostrar campos relevantes y soportar claves con espacios/variantes
                 field_variants = [
                     ('CALLE Y NO', ['CALLE Y NO', 'CALLE_Y_NO', 'CALLE Y No', 'CALLEYNO']),
@@ -4854,16 +4753,12 @@ class SistemaDictamenesVC(ctk.CTk):
         """Construye la UI mínima para que un ejecutivo descargue su reporte diario."""
         try:
             parent.pack_propagate(False)
-            header = ctk.CTkFrame(parent, fg_color="transparent")
-            header.pack(fill='x', padx=12, pady=(8,6))
-            ctk.CTkLabel(header, text="Reportes de Productividad", font=FONT_SUBTITLE, text_color=STYLE['texto_oscuro']).pack(anchor='w')
-
-            body = ctk.CTkFrame(parent, fg_color="transparent")
-            body.pack(fill='both', expand=True, padx=12, pady=8)
+            body = ctk.CTkFrame(parent, fg_color=STYLE["surface"], corner_radius=12, border_width=1, border_color=STYLE["borde_panel"])
+            body.pack(fill='both', expand=True)
 
             # Layout: calendario a la izquierda + controles (días disponibles / acciones) a la derecha
             main_controls = ctk.CTkFrame(body, fg_color='transparent')
-            main_controls.pack(fill='x', pady=(6,12))
+            main_controls.pack(fill='both', expand=True, padx=14, pady=12)
 
             # Calendar (usar tkcalendar si está disponible)
             cal_frame = ctk.CTkFrame(main_controls, fg_color='transparent')
@@ -4873,7 +4768,7 @@ class SistemaDictamenesVC(ctk.CTk):
                 try:
                     # Calendar devuelve fechas en formato dd/mm/YYYY con date_pattern
                     # Empujar un poco el tamaño y padding para que se vea más grande
-                    self.reporte_calendar = Calendar(cal_frame, selectmode='day', date_pattern='dd/mm/yyyy')
+                    self.reporte_calendar = Calendar(cal_frame, selectmode='day', date_pattern='dd/mm/yyyy', **ESTILO_CALENDARIO)
                     self.reporte_calendar.pack(padx=8, pady=8, ipadx=6, ipady=6)
                 except Exception:
                     self.reporte_calendar = None
@@ -4898,7 +4793,13 @@ class SistemaDictamenesVC(ctk.CTk):
 
             # Lista con los días donde existen registros de producción para el usuario
             # Mostrar más filas y permitir que la lista crezca verticalmente
-            self.lista_dias_produccion = tk.Listbox(right_frame, height=12)
+            self.lista_dias_produccion = tk.Listbox(
+                right_frame, height=12, relief='flat', borderwidth=0, activestyle='none',
+                highlightthickness=1, highlightbackground=STYLE['borde_fuerte'], highlightcolor=STYLE['borde_fuerte'],
+                background=STYLE['surface'], foreground=STYLE['texto_oscuro'],
+                selectbackground=STYLE['seleccion'], selectforeground=STYLE['texto_oscuro'],
+                font=(FONT_FAMILY, -15)
+            )
             self.lista_dias_produccion.pack(fill='both', expand=True, pady=(6,6))
             # Bind selection to sync with calendar
             try:
@@ -4910,8 +4811,8 @@ class SistemaDictamenesVC(ctk.CTk):
             btns_row = ctk.CTkFrame(right_frame, fg_color='transparent')
             btns_row.pack(anchor='s', pady=(6,0), fill='x')
 
-            ctk.CTkButton(btns_row, text='Actualizar días', fg_color=STYLE['primario'], text_color=STYLE['secundario'], hover_color=STYLE['primario'], command=self._refresh_production_days).pack(side='left', padx=(0,8))
-            ctk.CTkButton(btns_row, text='Descargar reporte', fg_color=STYLE['primario'], text_color=STYLE['secundario'], hover_color=STYLE['primario'], command=self._descargar_reporte_ejecutivo).pack(side='left')
+            ctk.CTkButton(btns_row, text='Actualizar días', fg_color=STYLE["neutro"], hover_color=STYLE["neutro_hover"], text_color=STYLE["texto_oscuro"], command=self._refresh_production_days).pack(side='left', padx=(0,8))
+            ctk.CTkButton(btns_row, text='Descargar reporte', fg_color=STYLE['primario'], text_color=STYLE['secundario'], hover_color=STYLE['primario_hover'], command=self._descargar_reporte_ejecutivo).pack(side='left')
 
             # Nota: se eliminó el cuadro de texto inferior (área de logs) —
             # los mensajes de estado se mantienen en `self.reporte_log` (etiqueta),
@@ -5177,7 +5078,7 @@ class SistemaDictamenesVC(ctk.CTk):
             self.cliente_seleccionado = None
             self.info_cliente.configure(
                 text="No se ha seleccionado ningún cliente",
-                text_color=STYLE["texto_claro"]
+                text_color=STYLE["texto_secundario"]
             )
             self.boton_limpiar_cliente.configure(state="disabled")
             self.safe_forget(self.boton_subir_etiquetado)
@@ -5235,7 +5136,7 @@ class SistemaDictamenesVC(ctk.CTk):
         display_name = cliente.get('CLIENTE') or cliente.get('RAZÓN SOCIAL ') or cliente.get('RAZON SOCIAL') or cliente.get('RAZON_SOCIAL') or cliente.get('RFC') or cliente.get('NÚMERO_DE_CONTRATO')
 
         self.info_cliente.configure(
-            text=f"✅ {display_name}\n📋 RFC: {rfc}",
+            text=f"{display_name}\n📋 RFC: {rfc}",
             text_color=STYLE["exito"]
         )
         self.boton_limpiar_cliente.configure(state="normal")
@@ -5421,7 +5322,7 @@ class SistemaDictamenesVC(ctk.CTk):
             self.archivo_etiquetado_json = output_json
 
             self.info_etiquetado.configure(
-                text=f"📄 Base de etiquetado cargada ({len(registros)} registros)",
+                text=f"Base de etiquetado cargada ({len(registros)} registros)",
                 text_color=STYLE["exito"]
             )
             self.info_etiquetado.pack(anchor="w", fill="x", pady=(5, 0))
@@ -5439,7 +5340,7 @@ class SistemaDictamenesVC(ctk.CTk):
         self.cliente_seleccionado = None
         self.info_cliente.configure(
             text="No se ha seleccionado ningún cliente",
-            text_color=STYLE["texto_claro"]
+            text_color=STYLE["texto_secundario"]
         )
         self.boton_limpiar_cliente.configure(state="disabled")
         self.boton_generar_dictamen.configure(state="disabled")
@@ -5531,9 +5432,9 @@ class SistemaDictamenesVC(ctk.CTk):
                     display_name = self.cliente_seleccionado.get('CLIENTE') or self.cliente_seleccionado.get('RAZÓN SOCIAL ') or self.cliente_seleccionado.get('RAZON SOCIAL') or self.cliente_seleccionado.get('RFC') or ''
                     rfc = self.cliente_seleccionado.get('RFC', 'No disponible')
                     if self.domicilio_seleccionado:
-                        self.info_cliente.configure(text=f"✅ {display_name}\n📋 RFC: {rfc}\n🏠 {self.direccion_seleccionada}", text_color=STYLE['exito'])
+                        self.info_cliente.configure(text=f"{display_name}\n📋 RFC: {rfc}\n🏠 {self.direccion_seleccionada}", text_color=STYLE['exito'])
                     else:
-                        self.info_cliente.configure(text=f"✅ {display_name}\n📋 RFC: {rfc}", text_color=STYLE['exito'])
+                        self.info_cliente.configure(text=f"{display_name}\n📋 RFC: {rfc}", text_color=STYLE['exito'])
             except Exception:
                 pass
         except Exception:
@@ -5894,7 +5795,7 @@ class SistemaDictamenesVC(ctk.CTk):
         
         try:
             self.info_archivo.configure(
-                text=f"📄 {nombre_archivo}",
+                text=f"{nombre_archivo}",
                 text_color=STYLE["exito"]
             )
         except Exception:
@@ -5906,7 +5807,7 @@ class SistemaDictamenesVC(ctk.CTk):
             pass
         
         self.etiqueta_estado.configure(
-            text="⏳ Convirtiendo a JSON...", 
+            text="Convirtiendo a JSON...", 
             text_color=STYLE["advertencia"]
         )
         self.check_label.configure(text="")
@@ -6668,7 +6569,7 @@ class SistemaDictamenesVC(ctk.CTk):
     def _actualizar_ui_conversion_exitosa(self, output_path, num_registros):
         self.archivo_json_generado = output_path
         self.etiqueta_estado.configure(
-            text=f"✅ Convertido - {num_registros} registros", 
+            text=f"Convertido - {num_registros} registros", 
             text_color=STYLE["exito"]
         )
         self.check_label.configure(text="✓")
@@ -6865,14 +6766,14 @@ class SistemaDictamenesVC(ctk.CTk):
 
         self.info_archivo.configure(
             text="No se ha cargado ningún archivo",
-            text_color=STYLE["texto_claro"]
+            text_color=STYLE["texto_secundario"]
         )
 
         self.boton_cargar_excel.configure(state="normal")
         self.boton_limpiar.configure(state="disabled")
         self.boton_generar_dictamen.configure(state="disabled")
 
-        self.etiqueta_estado.configure(text="", text_color=STYLE["texto_claro"])
+        self.etiqueta_estado.configure(text="", text_color=STYLE["texto_secundario"])
         self.check_label.configure(text="")
         self.barra_progreso.set(0)
         self.etiqueta_progreso.configure(text="")
@@ -7117,7 +7018,7 @@ class SistemaDictamenesVC(ctk.CTk):
             self.boton_generar_dictamen.configure(state="disabled")
             self.barra_progreso.set(0)
             self.etiqueta_progreso.configure(
-                text="⏳ Iniciando generación de documentos...",
+                text="Iniciando generación de documentos...",
                 text_color=STYLE["advertencia"]
             )
             self.update_idletasks()
@@ -7841,7 +7742,7 @@ class SistemaDictamenesVC(ctk.CTk):
             }
             nuevo_titulo = title_map.get(seleccionado, 'Generador')
             if hasattr(self, 'generacion_title'):
-                self.generacion_title.configure(text=f"🚀 {nuevo_titulo}")
+                self.generacion_title.configure(text=nuevo_titulo)
 
             # Cambiar texto del botón principal de generación
             if hasattr(self, 'boton_generar_dictamen'):
@@ -8126,7 +8027,7 @@ class SistemaDictamenesVC(ctk.CTk):
     def mostrar_error(self, mensaje):
         if self.winfo_exists():  # Verificar si la ventana aún existe
             self.etiqueta_estado.configure(
-                text="❌ Error en el proceso", 
+                text="Error en el proceso", 
                 text_color=STYLE["peligro"]
             )
             self.check_label.configure(text="")
@@ -8960,7 +8861,7 @@ class SistemaDictamenesVC(ctk.CTk):
                         lbl = getattr(self, 'hist_info_label', None)
                         if lbl and hasattr(lbl, 'winfo_exists') and lbl.winfo_exists():
                             try:
-                                lbl.configure(text=f"✅ Guardado — {len(self.historial_data)} registros")
+                                lbl.configure(text=f"Guardado — {len(self.historial_data)} registros")
                             except Exception:
                                 pass
             else:
@@ -9014,8 +8915,8 @@ class SistemaDictamenesVC(ctk.CTk):
         new_scroll = ctk.CTkScrollableFrame(
             parent,
             fg_color=STYLE["fondo"],
-            scrollbar_button_color=STYLE["primario"],
-            scrollbar_button_hover_color=STYLE["primario"]
+            scrollbar_button_color=STYLE["borde_fuerte"],
+            scrollbar_button_hover_color=STYLE["sidebar_tenue"]
         )
         new_scroll.pack(fill="both", expand=True, padx=0, pady=0)
         self.hist_scroll = new_scroll
@@ -9226,7 +9127,7 @@ class SistemaDictamenesVC(ctk.CTk):
                 else:
                     folios_display = self._formatear_folios_rango(folios_str)
 
-            cliente_short = self._acortar_texto(registro.get('cliente', '-'), 20)
+            cliente_short = self._acortar_texto(registro.get('cliente', '-'), 40)
             nfirma1_short = self._acortar_texto(registro.get('nfirma1', 'N/A'), 12)
 
             datos = [
@@ -9241,7 +9142,7 @@ class SistemaDictamenesVC(ctk.CTk):
                 registro.get('tipo_documento', '-') or '-',
                 registro.get('estatus', 'Completado') or 'Completado',
                 folios_display,
-                "📁 Folios  •  📎 Archivos  •  ✏️ Editar  •  🗑️ Borrar"
+                "Ver opciones ▾"
             ]
 
             # Insertar en tree
@@ -9502,8 +9403,8 @@ class SistemaDictamenesVC(ctk.CTk):
         # Título
         ctk.CTkLabel(
             main_frame,
-            text="📄 Documentos de la Visita",
-            font=("Inter", 20, "bold"),
+            text="Documentos de la Visita",
+            font=(FONT_FAMILY, 20, "bold"),
             text_color=STYLE["texto_oscuro"]
         ).pack(pady=(15, 10))
         
@@ -9514,7 +9415,7 @@ class SistemaDictamenesVC(ctk.CTk):
         ctk.CTkLabel(
             info_frame,
             text=f"Folio Visita: {registro.get('folio_visita', 'N/A')} | Cliente: {registro.get('cliente', 'N/A')}",
-            font=("Inter", 13),
+            font=(FONT_FAMILY, 13),
             text_color=STYLE["texto_oscuro"]
         ).pack()
         
@@ -10030,7 +9931,7 @@ class SistemaDictamenesVC(ctk.CTk):
         ctk.CTkLabel(
             oficio_frame,
             text="📝",
-            font=("Inter", 48),
+            font=(FONT_FAMILY, 48),
             text_color=STYLE["primario"]
         ).pack(pady=(25, 15))
         
@@ -10038,7 +9939,7 @@ class SistemaDictamenesVC(ctk.CTk):
         ctk.CTkLabel(
             oficio_frame,
             text="OFICIO DE COMISIÓN",
-            font=("Inter", 14, "bold"),
+            font=(FONT_FAMILY, 14, "bold"),
             text_color=STYLE["texto_oscuro"]
         ).pack(pady=(0, 10))
         
@@ -10046,7 +9947,7 @@ class SistemaDictamenesVC(ctk.CTk):
         ctk.CTkLabel(
             oficio_frame,
             text="Documento que autoriza la comisión de inspección",
-            font=("Inter", 10),
+            font=(FONT_FAMILY, 10),
             text_color=STYLE["texto_oscuro"],
             wraplength=180,
             justify="center"
@@ -10057,7 +9958,7 @@ class SistemaDictamenesVC(ctk.CTk):
             oficio_frame,
             text="Descargar",
             command=lambda: descargar_documento("oficio", "Oficio de Comisión"),
-            font=("Inter", 12, "bold"),
+            font=(FONT_FAMILY, 12, "bold"),
             fg_color=STYLE["secundario"],  # Cambiado a color secundario
             hover_color="#1a1a1a",  # Hover más oscuro
             text_color=STYLE["texto_claro"],  # Cambiado a texto claro
@@ -10076,7 +9977,7 @@ class SistemaDictamenesVC(ctk.CTk):
         ctk.CTkLabel(
             formato_frame,
             text="📊",
-            font=("Inter", 48),
+            font=(FONT_FAMILY, 48),
             text_color=STYLE["primario"]
         ).pack(pady=(25, 15))
         
@@ -10084,7 +9985,7 @@ class SistemaDictamenesVC(ctk.CTk):
         ctk.CTkLabel(
             formato_frame,
             text="FORMATO DE SUPERVISIÓN",
-            font=("Inter", 14, "bold"),
+            font=(FONT_FAMILY, 14, "bold"),
             text_color=STYLE["texto_oscuro"]
         ).pack(pady=(0, 10))
         
@@ -10092,7 +9993,7 @@ class SistemaDictamenesVC(ctk.CTk):
         ctk.CTkLabel(
             formato_frame,
             text="Formato para registrar observaciones de supervisión",
-            font=("Inter", 10),
+            font=(FONT_FAMILY, 10),
             text_color=STYLE["texto_oscuro"],
             wraplength=180,
             justify="center"
@@ -10103,7 +10004,7 @@ class SistemaDictamenesVC(ctk.CTk):
             formato_frame,
             text="Descargar",
             command=lambda: descargar_documento("formato", "Formato de Supervisión"),
-            font=("Inter", 12, "bold"),
+            font=(FONT_FAMILY, 12, "bold"),
             fg_color=STYLE["secundario"],  # Cambiado a color secundario
             hover_color="#1a1a1a",  # Hover más oscuro
             text_color=STYLE["texto_claro"],  # Cambiado a texto claro
@@ -10122,7 +10023,7 @@ class SistemaDictamenesVC(ctk.CTk):
         ctk.CTkLabel(
             acta_frame,
             text="📋",
-            font=("Inter", 48),
+            font=(FONT_FAMILY, 48),
             text_color=STYLE["primario"]
         ).pack(pady=(25, 15))
         
@@ -10130,7 +10031,7 @@ class SistemaDictamenesVC(ctk.CTk):
         ctk.CTkLabel(
             acta_frame,
             text="ACTA DE INSPECCIÓN",
-            font=("Inter", 14, "bold"),
+            font=(FONT_FAMILY, 14, "bold"),
             text_color=STYLE["texto_oscuro"]
         ).pack(pady=(0, 10))
         
@@ -10138,7 +10039,7 @@ class SistemaDictamenesVC(ctk.CTk):
         ctk.CTkLabel(
             acta_frame,
             text="Documento oficial de la visita de inspección",
-            font=("Inter", 10),
+            font=(FONT_FAMILY, 10),
             text_color=STYLE["texto_oscuro"],
             wraplength=180,
             justify="center"
@@ -10149,7 +10050,7 @@ class SistemaDictamenesVC(ctk.CTk):
             acta_frame,
             text="Descargar",
             command=lambda: descargar_documento("acta", "Acta de Inspección"),
-            font=("Inter", 12, "bold"),
+            font=(FONT_FAMILY, 12, "bold"),
             fg_color=STYLE["secundario"],  # Cambiado a color secundario
             hover_color="#1a1a1a",  # Hover más oscuro
             text_color=STYLE["texto_claro"],  # Cambiado a texto claro
@@ -10171,10 +10072,10 @@ class SistemaDictamenesVC(ctk.CTk):
                     # Grid en fila 1 y ocupar las 3 columnas
                     dec_frame.grid(row=1, column=0, columnspan=3, padx=10, pady=(12,0), sticky='nsew')
                     # Contenido centrado
-                    ctk.CTkLabel(dec_frame, text="📄", font=("Inter", 36), text_color=STYLE["primario"]).pack(pady=(8,4))
-                    ctk.CTkLabel(dec_frame, text="REPORTE DECATHLON", font=("Inter", 14, "bold"), text_color=STYLE["texto_oscuro"]).pack()
-                    ctk.CTkLabel(dec_frame, text="Reporte específico para Decathlon", font=("Inter", 10), text_color=STYLE["texto_oscuro"], wraplength=520, justify='center').pack(pady=(6,8), padx=10)
-                    btn_dec = ctk.CTkButton(dec_frame, text="Descargar", command=lambda: descargar_documento('decathlon', 'Reporte Decathlon'), font=("Inter",12,"bold"), fg_color=STYLE['secundario'], hover_color="#1a1a1a", text_color=STYLE['texto_claro'], height=36, corner_radius=6)
+                    ctk.CTkLabel(dec_frame, text="📄", font=(FONT_FAMILY, 36), text_color=STYLE["primario"]).pack(pady=(8,4))
+                    ctk.CTkLabel(dec_frame, text="REPORTE DECATHLON", font=(FONT_FAMILY, 14, "bold"), text_color=STYLE["texto_oscuro"]).pack()
+                    ctk.CTkLabel(dec_frame, text="Reporte específico para Decathlon", font=(FONT_FAMILY, 10), text_color=STYLE["texto_oscuro"], wraplength=520, justify='center').pack(pady=(6,8), padx=10)
+                    btn_dec = ctk.CTkButton(dec_frame, text="Descargar", command=lambda: descargar_documento('decathlon', 'Reporte Decathlon'), font=(FONT_FAMILY, 12,"bold"), fg_color=STYLE['secundario'], hover_color="#1a1a1a", text_color=STYLE['texto_claro'], height=36, corner_radius=6)
                     btn_dec.pack(pady=(0,12), padx=120)
                 except Exception:
                     pass
@@ -11579,6 +11480,8 @@ class SistemaDictamenesVC(ctk.CTk):
     
     def descargar_excel_anual(self, registro=None):
         """Descarga el reporte de control de folios anual en Excel"""
+        if not self._ensure_acceso('reporte_ema'):
+            return
         try:
             # Cargar el módulo control_folios_anual dinámicamente
             import importlib.util
@@ -13824,14 +13727,14 @@ class SistemaDictamenesVC(ctk.CTk):
 
         self.info_archivo.configure(
             text="No se ha cargado ningún archivo",
-            text_color=STYLE["texto_claro"]
+            text_color=STYLE["texto_secundario"]
         )
 
         self.boton_cargar_excel.configure(state="normal")
         self.boton_limpiar.configure(state="disabled")
         self.boton_generar_dictamen.configure(state="disabled")
 
-        self.etiqueta_estado.configure(text="", text_color=STYLE["texto_claro"])
+        self.etiqueta_estado.configure(text="", text_color=STYLE["texto_secundario"])
         self.check_label.configure(text="")
         self.barra_progreso.set(0)
         self.etiqueta_progreso.configure(text="")
@@ -13876,8 +13779,11 @@ class SistemaDictamenesVC(ctk.CTk):
         """
         datos = datos or {}
         modal = ctk.CTkToplevel(self)
+        # Invisible hasta terminar de llenarse; ver _revelar_modal.
+        modal.attributes('-alpha', 0)
         modal.title("Editar Visita")
-        modal.geometry("1200x600")  # Aumentado altura para mejor visibilidad
+        modal.geometry("1200x640")  # Alto suficiente para ver todos los campos sin desplazarse
+        escala_modal = ctk.ScalingTracker.get_widget_scaling(modal)
         modal.transient(self)
         modal.grab_set()
 
@@ -13888,8 +13794,9 @@ class SistemaDictamenesVC(ctk.CTk):
         modal.geometry(f"+{x}+{y}")
         
         # Frame principal
+        # Se empaqueta en _revelar_modal: hacerlo antes recalcula el layout con cada
+        # widget nuevo y DateEntry/CTkScrollbar fuerzan un redibujado en cada cambio.
         main_frame = ctk.CTkFrame(modal, fg_color=STYLE["surface"], corner_radius=0)
-        main_frame.pack(fill="both", expand=True, padx=0, pady=0)
         
         # Título
         title_frame = ctk.CTkFrame(main_frame, fg_color="transparent")
@@ -13897,7 +13804,7 @@ class SistemaDictamenesVC(ctk.CTk):
         
         ctk.CTkLabel(
             title_frame,
-            text="✏️ Editar Visita",
+            text="Editar Visita",
             font=FONT_SUBTITLE,
             text_color=STYLE["texto_oscuro"]
         ).pack(anchor="w")
@@ -13913,7 +13820,7 @@ class SistemaDictamenesVC(ctk.CTk):
                     try:
                         warn_frame = ctk.CTkFrame(main_frame, fg_color='transparent')
                         warn_frame.pack(fill='x', padx=25, pady=(0, 8))
-                        ctk.CTkLabel(warn_frame, text=f"⚠️ {fw}", font=FONT_SMALL, text_color=STYLE.get('advertencia', '#ff1500'), wraplength=1100, anchor='w').pack(anchor='w')
+                        ctk.CTkLabel(warn_frame, text=f"{fw}", font=FONT_SMALL, text_color=STYLE.get('advertencia', '#ff1500'), wraplength=1100, anchor='w').pack(anchor='w')
                     except Exception:
                         pass
         except Exception:
@@ -13923,8 +13830,8 @@ class SistemaDictamenesVC(ctk.CTk):
         content_scroll = ctk.CTkScrollableFrame(
             main_frame, 
             fg_color="transparent",
-            scrollbar_button_color=STYLE["primario"],
-            scrollbar_button_hover_color=STYLE["primario"],
+            scrollbar_button_color=STYLE["borde_fuerte"],
+            scrollbar_button_hover_color=STYLE["sidebar_tenue"],
             height=350
         )
         content_scroll.pack(fill="both", expand=True, padx=25, pady=(5, 10))
@@ -14048,10 +13955,24 @@ class SistemaDictamenesVC(ctk.CTk):
                             try:
                                 style = ttk.Style()
                                 style_name = f"CTkDate.{key}.TEntry"
-                                style.configure(style_name, fieldbackground=STYLE.get('surface'), background=STYLE.get('surface'), foreground=STYLE.get('texto_oscuro'))
+                                style.configure(
+                                    style_name,
+                                    fieldbackground=STYLE.get('surface'),
+                                    background=STYLE.get('surface'),
+                                    foreground=STYLE.get('texto_oscuro'),
+                                    bordercolor=STYLE.get('borde'),
+                                    lightcolor=STYLE.get('surface'),
+                                    darkcolor=STYLE.get('surface'),
+                                    padding=(round(8 * escala_modal), round(6 * escala_modal)),
+                                )
                             except Exception:
                                 style_name = None
-                            kwargs = {'date_pattern': 'dd/MM/yyyy', 'width': 16}
+                            # Fuente en píxeles: ttk no escala con CustomTkinter.
+                            kwargs = {
+                                'date_pattern': 'dd/MM/yyyy',
+                                'width': 16,
+                                'font': (FONT_FAMILY, -round(12 * escala_modal)),
+                            }
                             if style_name:
                                 kwargs['style'] = style_name
                             ent = DateEntry(field_frame, **kwargs)
@@ -14579,6 +14500,16 @@ class SistemaDictamenesVC(ctk.CTk):
         except Exception:
             pass
 
+        def _revelar_modal():
+            """Muestra el modal ya dibujado, para que no se vea armándose por partes."""
+            modal.after_cancel(respaldo_revelar)
+            main_frame.pack(fill="both", expand=True, padx=0, pady=0)
+            modal.update()
+            modal.attributes('-alpha', 1)
+
+        # Si el llenado falla, el modal no debe quedar invisible bloqueando la app.
+        respaldo_revelar = modal.after(3000, _revelar_modal)
+
         def _populate_heavy_ui_chunked():
             try:
                 # eliminar placeholder
@@ -14608,7 +14539,7 @@ class SistemaDictamenesVC(ctk.CTk):
                 except Exception:
                     selected_inspectores = []
 
-                last_insp_normas_label = ctk.CTkLabel(insp_frame, text='', font=("Inter", 11), text_color=STYLE['texto_oscuro'])
+                last_insp_normas_label = ctk.CTkLabel(insp_frame, text='', font=(FONT_FAMILY, 11), text_color=STYLE['texto_oscuro'])
                 last_insp_normas_label.pack(anchor='w', pady=(6,4))
 
                 inspector_status_labels = {}
@@ -14685,7 +14616,12 @@ class SistemaDictamenesVC(ctk.CTk):
                 # Batching helpers
                 insp_index = {'i': 0}
                 norma_index = {'i': 0}
-                BATCH = 10
+                BATCH = 1000
+
+                def _revelar_si_termino():
+                    if (insp_index['i'] >= len(inspectores_list or [])
+                            and norma_index['i'] >= len(normas_list or [])):
+                        _revelar_modal()
 
                 def _create_inspectores_batch():
                     try:
@@ -14697,9 +14633,9 @@ class SistemaDictamenesVC(ctk.CTk):
                                 row = ctk.CTkFrame(scroll_insp, fg_color='transparent')
                                 row.pack(fill='x', pady=(2,2), padx=(2,0))
                                 row.grid_columnconfigure(0, weight=1)
-                                chk = ctk.CTkCheckBox(row, text=nombre, variable=var, onvalue='1', offvalue='0', command=lambda n=nombre, v=var: _on_insp_click(n, v), font=("Inter", 11))
+                                chk = ctk.CTkCheckBox(row, text=nombre, variable=var, onvalue='1', offvalue='0', command=lambda n=nombre, v=var: _on_insp_click(n, v), font=(FONT_FAMILY, 11))
                                 chk.grid(row=0, column=0, sticky='w')
-                                status_lbl = ctk.CTkLabel(row, text='', font=("Inter", 11), text_color=STYLE['exito'])
+                                status_lbl = ctk.CTkLabel(row, text='', font=(FONT_FAMILY, 11), text_color=STYLE['exito'])
                                 status_lbl.grid(row=0, column=1, sticky='w', padx=(6,0))
                                 inspector_status_labels[nombre] = status_lbl
                                 try:
@@ -14722,6 +14658,8 @@ class SistemaDictamenesVC(ctk.CTk):
                         # schedule next batch if remaining
                         if insp_index['i'] < len(inspectores_list or []):
                             modal.after(10, _create_inspectores_batch)
+                        else:
+                            _revelar_si_termino()
                     except Exception:
                         pass
 
@@ -14752,6 +14690,8 @@ class SistemaDictamenesVC(ctk.CTk):
                             created += 1
                         if norma_index['i'] < len(normas_list or []):
                             modal.after(10, _create_normas_batch)
+                        else:
+                            _revelar_si_termino()
                     except Exception:
                         pass
 
@@ -15011,7 +14951,7 @@ class SistemaDictamenesVC(ctk.CTk):
             btn_frame, 
             text="Cancelar", 
             command=modal.destroy,
-            font=("Inter", 13),
+            font=(FONT_FAMILY, 13),
             fg_color=STYLE["secundario"],
             hover_color="#1a1a1a",
             text_color=STYLE["texto_claro"],
@@ -15024,7 +14964,7 @@ class SistemaDictamenesVC(ctk.CTk):
             btn_frame, 
             text="Guardar Cambios", 
             command=_guardar,
-            font=("Inter", 13, "bold"),
+            font=(FONT_FAMILY, 13, "bold"),
             fg_color=STYLE["primario"],
             hover_color="#D4BF22",
             text_color=STYLE["secundario"],
@@ -16067,7 +16007,7 @@ class SistemaDictamenesVC(ctk.CTk):
                 # Header visual acorde al STYLE
                 header = ctk.CTkFrame(modal, fg_color=STYLE.get('fondo'))
                 header.pack(fill='x')
-                ctk.CTkLabel(header, text="📊 VISTA PREVIA DE LA VISITA", font=FONT_SUBTITLE, text_color=STYLE.get('texto_oscuro')).pack(side='left', padx=12, pady=8)
+                ctk.CTkLabel(header, text="VISTA PREVIA DE LA VISITA", font=FONT_SUBTITLE, text_color=STYLE.get('texto_oscuro')).pack(side='left', padx=12, pady=8)
                 
 
                 container = ctk.CTkFrame(modal, fg_color=STYLE.get('surface'))
@@ -16204,7 +16144,7 @@ class SistemaDictamenesVC(ctk.CTk):
         lbl_actual = ctk.CTkLabel(rutas_frame, text="Rutas guardadas:", font=FONT_SMALL, text_color=STYLE["texto_oscuro"]) 
         lbl_actual.pack(anchor="w")
 
-        lista_rutas = ctk.CTkLabel(rutas_frame, text="(ninguna)", font=("Inter", 10), text_color=STYLE["texto_claro"], wraplength=480)
+        lista_rutas = ctk.CTkLabel(rutas_frame, text="(ninguna)", font=(FONT_FAMILY, 10), text_color=STYLE["texto_secundario"], wraplength=480)
         lista_rutas.pack(anchor="w", pady=(4, 0))
 
         def _refrescar_rutas():
@@ -16510,7 +16450,7 @@ class SistemaDictamenesVC(ctk.CTk):
             font_obj = tkfont.Font()
         except Exception:
             try:
-                font_obj = tkfont.Font(family="Inter", size=10)
+                font_obj = tkfont.Font(family=FONT_FAMILY, size=10)
             except Exception:
                 font_obj = None
 
@@ -16559,11 +16499,11 @@ class SistemaDictamenesVC(ctk.CTk):
 
             # mínimos sugeridos por columna
             desired_mins = {
-                'RFC': 90,
-                'CLIENTE': 200,
-                'NÚMERO DE CONTRATO': 140,
-                'ACTIVIDAD': 100,
-                'SERVICIO': 100
+                'RFC': 130,
+                'CLIENTE': 190,
+                'NÚMERO DE CONTRATO': 130,
+                'ACTIVIDAD': 90,
+                'SERVICIO': 110
             }
 
             # espacio disponible para las columnas distintas de ACCIONES
@@ -16625,11 +16565,5 @@ if __name__ == "__main__":
                 pass
 
     app = SistemaDictamenesVC()
-    try:
-        # Forzar escala de Tk a 1.0 para evitar que el gestor de ventanas
-        # aplique escalado automático que cambie el tamaño real en píxeles.
-        app.tk.call('tk', 'scaling', 1.0)
-    except Exception:
-        pass
     app.mainloop()
 

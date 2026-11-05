@@ -12,3 +12,7 @@ Pillow
 pyxlsb
 pymupdf
 PyPDF2
+
+# Supabase
+supabase
+keyring

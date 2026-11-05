@@ -1,0 +1,15 @@
+# Secretos: nunca deben llegar al repositorio (es público).
+.env
+.env.*
+*.secret
+*.pem
+*.key
+
+# Datos de clientes y usuarios, firmas y archivos generados.
+data/
+Firmas/
+__pycache__/
+*.pyc
+.venv/
+build/
+dist/
